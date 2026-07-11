@@ -1,0 +1,37 @@
+"use client";
+
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import { sceneState } from "@/lib/sceneStore";
+import { SphereShell } from "./SphereShell";
+import { SphereCore } from "./SphereCore";
+import { Flames } from "./Flames";
+import { OrbitRings } from "./OrbitRings";
+import { PlasmaColumn } from "./PlasmaColumn";
+
+export function SphereRig() {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * sceneState.rotationSpeed;
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(
+        groupRef.current.rotation.x,
+        sceneState.parallaxY * 0.3,
+        0.05
+      );
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <SphereCore />
+      <SphereShell radius={1.55} openAmountMultiplier={0.45} dimmed />
+      <SphereShell radius={1.72} openAmountMultiplier={1} />
+      <Flames />
+      <OrbitRings />
+      <PlasmaColumn />
+    </group>
+  );
+}

@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #000000;
+  --color-surface: #050505;
+  --color-surface-raised: #0c0b0a;
+  --color-deep-red: #2a0000;
+  --color-primary-red: #8b0000;
+  --color-blood-red: #ff1a12;
+  --color-hot-red: #ff3b20;
+  --color-off-white: #f2ede7;
+  --color-muted: #8e8580;
+  --color-line: #211d1a;
+
+  --font-display: var(--font-big-shoulders);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-deep-red: var(--color-deep-red);
+  --color-primary-red: var(--color-primary-red);
+  --color-blood-red: var(--color-blood-red);
+  --color-hot-red: var(--color-hot-red);
+  --color-off-white: var(--color-off-white);
+  --color-muted: var(--color-muted);
+  --color-line: var(--color-line);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  background: var(--color-bg);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-off-white);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-blood-red);
+  color: var(--color-bg);
+}
+
+/* Skip link */
+.skip-link {
+  position: fixed;
+  top: -100%;
+  left: 1rem;
+  z-index: 200;
+  background: var(--color-blood-red);
+  color: var(--color-bg);
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Visible focus states across the site */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-blood-red);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display), sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), monospace;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-glow-red {
+  text-shadow: 0 0 30px rgba(255, 26, 18, 0.35);
+}
+
+.container-edge {
+  padding-left: clamp(1.25rem, 5vw, 4rem);
+  padding-right: clamp(1.25rem, 5vw, 4rem);
+}
+
+.lenis {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Static hero fallback shown while WebGL boots or is unavailable */
+.hero-fallback {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(139, 0, 0, 0.35), transparent 55%),
+    radial-gradient(circle at 50% 50%, #0a0202 0%, #000000 65%);
+}
