@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+html.lenis {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+body {
+  background-color: #000000;
+  color: #f5f0e8;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 1rem;
+  z-index: 100;
+  background: #ff5a00;
+  color: #050505;
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+:focus-visible {
+  outline: 2px solid #ff5a00;
+  outline-offset: 3px;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.chapter-fade {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.grid-overlay {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 90, 0, 0.14) 1px, transparent 0);
+  background-size: 42px 42px;
+}
+
+::selection {
+  background: #ff5a00;
+  color: #050505;
+}
+
+.prose-gridkeep {
+  color: #d8d3ca;
+  line-height: 1.75;
+}
+
+.prose-gridkeep h2 {
+  color: #f5f0e8;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.prose-gridkeep h3 {
+  color: #f5f0e8;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.prose-gridkeep p {
+  margin-bottom: 1.25rem;
+}
+
+.prose-gridkeep ul,
+.prose-gridkeep ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.25rem;
+}
+
+.prose-gridkeep li {
+  margin-bottom: 0.5rem;
+}
+
+.prose-gridkeep li::marker {
+  color: #ff5a00;
+}
+
+.prose-gridkeep strong {
+  color: #f5f0e8;
+}
+
+.prose-gridkeep a {
+  color: #ff7a1a;
+  text-underline-offset: 3px;
+}
