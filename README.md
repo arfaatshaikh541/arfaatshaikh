@@ -24,10 +24,12 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). The dev server uses Turbopack (Next.js 16 default).
 
 ```bash
-npm run build   # production build (Turbopack)
-npm run start   # serve the production build
+npm run build   # static export (Turbopack) -> writes the out/ folder
+npm run start   # preview the exported out/ folder locally (via `serve`)
 npm run lint    # ESLint (flat config, eslint-config-next)
 ```
+
+The site builds as a **static export** (`output: "export"` in `next.config.ts`) — `npm run build` produces a self-contained `out/` folder of plain HTML/CSS/JS that can be uploaded to any host, including shared hosting with no Node.js server (see "Deployment" below). There is no `next start`/Node server mode; `npm run start` just serves the exported folder for local preview.
 
 ## Architecture
 
@@ -48,6 +50,8 @@ src/
   shaders/                 Raw .glsl source, imported via a Turbopack raw-loader rule
   types/                   Shared TypeScript types + the *.glsl module declaration
 public/
+  .htaccess                Apache config for static hosting (404 page, MIME types, caching)
+  contact-handler.php      Contact form backend for static export (see "Contact form" below)
   textures/, models/, images/projects/   Placeholder folders with their own READMEs documenting
                                           exactly what to drop in and where to wire it up
 ```
@@ -85,10 +89,10 @@ The sphere is layered, not a single mesh:
 /gridkeep
 /insights                  Hub
 /insights/[slug]           6 original articles
-/contact                   Form + API route
+/contact                   Form -> public/contact-handler.php (see "Contact form" below)
 /privacy
 /terms
-/sitemap.xml, /robots.txt, /opengraph-image   Generated (see src/app/)
+/sitemap.xml, /robots.txt, /opengraph-image   Generated statically (see src/app/)
 ```
 
 `/services/[slug]`, `/projects/[slug]`, and `/insights/[slug]` are statically generated at build time via `generateStaticParams` from the corresponding file in `src/data/`; unknown slugs call `notFound()`.
@@ -107,12 +111,14 @@ All page copy lives in typed data files under `src/data/` — `services.ts`, `pr
 
 ## Contact form
 
-`src/components/forms/ContactForm.tsx` → `POST /api/contact` (`src/app/api/contact/route.ts`):
+The site is a static export with no Node.js server available at runtime, so `src/components/forms/ContactForm.tsx` posts to a **PHP** handler rather than a Next.js API route: `public/contact-handler.php` (copied into `out/` — and therefore your web root — automatically since it lives in `public/`).
 
-- Shared client/server validation in `src/lib/contact.ts` (required fields, email format, message length, consent checkbox).
+- Shared validation logic in `src/lib/contact.ts` is mirrored field-for-field in the PHP script (required fields, email format, message length, consent checkbox) so both stay in sync if you change the rules.
 - A hidden honeypot field (`website`) — a filled value is rejected as spam server-side without revealing the honeypot to the client.
-- An in-memory sliding-window rate limiter (5 requests / 10 minutes per IP). **This resets on redeploy and doesn't share state across instances** — the code has a comment marking exactly where to swap in a persistent store (Upstash Redis / Vercel KV) for a multi-instance production deployment.
-- Email delivery is a clearly documented placeholder (`deliverEnquiry()` in the route file) that logs the enquiry server-side. Wire up a real provider (Resend, Postmark, SendGrid, SES) at that one function — an example call is included in the comment above it.
+- A file-based sliding-window rate limiter (5 requests / 10 minutes per IP), stored under the system temp directory since shared hosting has no Redis/KV available by default.
+- Delivery uses PHP's built-in `mail()`, sent to the address in `$recipientEmail` at the top of the script (defaults to `hello@arfaat.com` — **update this**). Before going live, also check the `From:` header comment in the script: many hosts, including IONOS, reject or spam-flag mail sent "from" an address that isn't a real mailbox on your own domain. If plain `mail()` proves unreliable, swap the send step for [PHPMailer](https://github.com/PHPMailer/PHPMailer) over your IONOS SMTP credentials — the script has a comment marking exactly where.
+
+If you ever move to a Node-capable host (Vercel, IONOS Deploy Now, a VPS), you can trivially reintroduce a Next.js API route (`src/app/api/contact/route.ts`) using the same `src/lib/contact.ts` validators, point `CONTACT_ENDPOINT` in `ContactForm.tsx` back at it, and drop `output: "export"` from `next.config.ts`.
 
 ## Placeholder assets
 
@@ -128,11 +134,41 @@ All page copy lives in typed data files under `src/data/` — `services.ts`, `pr
 
 ## Deployment
 
-Deploys cleanly to any Next.js 16 host (Vercel is the reference target).
+The site builds to a static `out/` folder, so it can be uploaded to **any** web server that serves plain files — no Node.js required at runtime. Before your first deploy, update `siteConfig.url` / `email` / `gridkeepUrl` in `src/lib/seo.ts` and `$recipientEmail` in `public/contact-handler.php` if they should be different — canonical URLs, the sitemap, JSON-LD, and where contact-form enquiries are emailed all derive from these.
 
-**Vercel:**
-1. Push this repo to GitHub and import it in Vercel, or run `vercel` from the project root.
-2. No environment variables are required to build or run as-is. Add one when you wire up real email delivery (e.g. `RESEND_API_KEY`), and update `deliverEnquiry()` in `src/app/api/contact/route.ts` accordingly.
-3. Before going live, update `siteConfig.url` / `email` / `gridkeepUrl` in `src/lib/seo.ts` if they change, since canonical URLs, sitemap entries, and JSON-LD all derive from it.
+### Deploying to IONOS shared hosting (FTP)
 
-**Self-hosted / other platforms:** `npm run build && npm run start` produces a standard Next.js server on port 3000 (`PORT` env var to override).
+1. **Build the export:**
+   ```bash
+   npm run build
+   ```
+   This produces an `out/` folder containing the entire site as static HTML/CSS/JS, plus `contact-handler.php` and a `.htaccess` (404 page, correct MIME type for the generated OpenGraph image, and long-term caching for hashed build assets).
+
+2. **Find your FTP credentials.** In the IONOS control panel, go to your hosting package → **FTP Access** (or **File Manager** if you'd rather upload through the browser instead of an FTP client). Note the host, username, and password (or the port for SFTP, if your package offers it).
+
+3. **Connect with an FTP client** — [FileZilla](https://filezilla-project.org/) is the common free choice:
+   - Host: the FTP host IONOS gave you (often `ftp.yourdomain.com` or an `access-…` hostname from the control panel)
+   - Username / password: from step 2
+   - Port: `21` for FTP, `22` for SFTP if offered
+
+4. **Upload the *contents* of `out/`** (not the `out` folder itself) into your webspace's document root — usually a folder named `/` or `htdocs`/`clickandbuilds`-style depending on your package; check the control panel for the exact path if it isn't the top level. This means `out/index.html`, `out/.htaccess`, `out/_next/`, `out/about/`, `out/contact-handler.php`, etc. should all sit directly inside that root folder, not inside a nested `out/` subfolder.
+   - **Make sure your FTP client shows and transfers dotfiles** — `.htaccess` is easy to miss since some clients hide dotfiles by default. Without it, the custom 404 page and OpenGraph image MIME type won't work (the rest of the site is unaffected).
+   - Uploading ~500 small files over FTP can take a few minutes; that's normal.
+
+5. **Set the contact form's recipient.** Before (or right after) uploading, open `public/contact-handler.php` locally, set `$recipientEmail` to a real inbox on your domain, rebuild, and re-upload just that one file if you change it after the fact.
+
+6. **Verify:**
+   - Visit your domain — the homepage and 3D sphere should load.
+   - Visit a route that doesn't exist (e.g. `/asdf`) — you should see the on-brand 404 page, not a generic Apache error. If you see the generic error instead, `.htaccess` didn't upload — check step 4.
+   - Submit the contact form with real details and confirm the email arrives. If it doesn't, see the "Contact form" section above about the `From:` header / SMTP.
+   - Check `/sitemap.xml` and `/robots.txt` load correctly.
+
+7. **SSL / HTTPS:** enable it from the IONOS control panel (usually a free Let's Encrypt certificate you can toggle on per domain) rather than through `.htaccess` — that keeps it in sync with IONOS's own renewal process.
+
+### Updating the live site later
+
+Every time you change content or code: `npm run build` locally, then re-upload the changed files from `out/` (most FTP clients can sync/only-upload-changed-files). Files inside `_next/static/` are content-hashed and safe to leave in place indefinitely; everything else (the `.html` files, `sitemap.xml`, etc.) should be replaced on each deploy.
+
+### Other hosts
+
+Because it's a static export, the same `out/` folder also deploys as-is to Vercel, Netlify, Cloudflare Pages, GitHub Pages, an S3+CloudFront bucket, or a VPS behind nginx — none of that requires the IONOS-specific PHP/FTP steps above. If you move to a platform that *can* run Node.js and want the contact form to run through a real Next.js API route again instead of PHP, see the note at the end of the "Contact form" section.

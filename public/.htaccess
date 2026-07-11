@@ -1,0 +1,28 @@
+# Apache config for the static export on shared hosting (e.g. IONOS
+# webspace). Copied into out/ automatically since it lives in public/.
+
+# Custom 404 page (Next.js generates out/404.html).
+ErrorDocument 404 /404.html
+
+# The Next.js-generated OpenGraph image has no file extension, so Apache's
+# default mime-type guessing would serve it incorrectly. Force it to PNG.
+<IfModule mod_mime.c>
+  <Files "opengraph-image">
+    ForceType image/png
+  </Files>
+</IfModule>
+
+# Don't let visitors browse directory contents (e.g. /_next/static/).
+<IfModule mod_autoindex.c>
+  Options -Indexes
+</IfModule>
+
+# Long-term caching for hashed, immutable build assets (everything Next.js
+# emits under _next/static/ has a content hash in the filename, and nothing
+# else in this export uses these extensions, so matching by extension is
+# safe without needing path-scoped rules, which .htaccess can't express).
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

@@ -12,6 +12,12 @@ import {
 } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 
+// This site is statically exported (see next.config.ts) for shared hosting
+// that can't run a Node.js server, so submissions post to the PHP handler
+// in public/contact-handler.php rather than a Next.js API route. Both
+// implementations share the same validation rules from src/lib/contact.ts.
+const CONTACT_ENDPOINT = "/contact-handler.php";
+
 const initialValues: ContactFormValues = {
   name: "",
   email: "",
@@ -58,7 +64,7 @@ export function ContactForm() {
     setServerMessage(null);
 
     try {
-      const response = await fetch("/api/contact", {
+      const response = await fetch(CONTACT_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
