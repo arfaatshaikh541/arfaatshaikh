@@ -18,6 +18,7 @@ from app.api.routes import (
     platform,
     public_enquiry,
     qualification,
+    reports,
     roles,
     scoring,
     tasks,
@@ -142,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(communication.notifications_router, prefix=api)
     app.include_router(appointments.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
+    app.include_router(reports.router, prefix=api)
 
     return app
 
