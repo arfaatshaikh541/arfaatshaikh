@@ -17,17 +17,36 @@ interface TenantOut {
   name: string;
 }
 
+interface BusinessHoursWindow {
+  start: string;
+  end: string;
+}
+
+type BusinessHours = Record<string, BusinessHoursWindow | null>;
+
 interface TenantSettingsOut {
   logo_url: string | null;
   brand_primary_color: string;
   brand_secondary_color: string;
   contact_email: string | null;
   contact_phone: string | null;
-  business_hours: Record<string, unknown>;
+  business_hours: BusinessHours;
   locale: string;
   data_retention_days: number;
   privacy_text: string | null;
 }
+
+const WEEKDAYS: [string, string][] = [
+  ["mon", "Monday"],
+  ["tue", "Tuesday"],
+  ["wed", "Wednesday"],
+  ["thu", "Thursday"],
+  ["fri", "Friday"],
+  ["sat", "Saturday"],
+  ["sun", "Sunday"],
+];
+
+const DEFAULT_WINDOW: BusinessHoursWindow = { start: "09:00", end: "18:00" };
 
 export default function SettingsPage() {
   const { tenantId, membership } = useCurrentTenant();
@@ -35,6 +54,8 @@ export default function SettingsPage() {
   const canManageSettings = membership?.role.permissions.some((p) => p.code === "settings.manage") ?? false;
   const [serverError, setServerError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [businessHours, setBusinessHours] = useState<BusinessHours>({});
+  const [businessHoursSavedAt, setBusinessHoursSavedAt] = useState<number | null>(null);
 
   const settingsQuery = useQuery({
     queryKey: ["tenant-settings", tenantId],
@@ -70,7 +91,21 @@ export default function SettingsPage() {
       dataRetentionDays: settingsQuery.data.data_retention_days,
       privacyText: settingsQuery.data.privacy_text ?? "",
     });
+    setBusinessHours(settingsQuery.data.business_hours ?? {});
   }, [reset, settingsQuery.data]);
+
+  const businessHoursMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<TenantSettingsOut>("/tenants/me/settings", {
+        method: "PATCH",
+        body: { business_hours: businessHours },
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["tenant-settings", tenantId], data);
+      setBusinessHoursSavedAt(Date.now());
+    },
+    onError: (err) => setServerError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
 
   const mutation = useMutation({
     mutationFn: (values: TenantSettingsInput) =>
@@ -140,6 +175,83 @@ export default function SettingsPage() {
             </a>
           ) : null}
         </div>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold text-surface-100">Business hours</h2>
+        <p className="mb-3 text-sm text-surface-400">
+          Drives available appointment slots. A closed day shows no slots for booking.
+        </p>
+        {businessHoursSavedAt ? (
+          <Alert tone="success" className="mb-3">
+            Business hours saved.
+          </Alert>
+        ) : null}
+        <fieldset disabled={!canManageSettings} className="space-y-2 disabled:opacity-70">
+          {WEEKDAYS.map(([key, label]) => {
+            const window = businessHours[key] ?? null;
+            const isOpen = window !== null;
+            return (
+              <div key={key} className="flex items-center gap-3">
+                <label className="flex w-32 items-center gap-2 text-sm text-surface-300">
+                  <input
+                    type="checkbox"
+                    checked={isOpen}
+                    onChange={(e) =>
+                      setBusinessHours((prev) => ({
+                        ...prev,
+                        [key]: e.target.checked ? DEFAULT_WINDOW : null,
+                      }))
+                    }
+                  />
+                  {label}
+                </label>
+                {isOpen ? (
+                  <>
+                    <Input
+                      type="time"
+                      className="w-32"
+                      value={window.start}
+                      onChange={(e) =>
+                        setBusinessHours((prev) => ({
+                          ...prev,
+                          [key]: { start: e.target.value, end: window.end },
+                        }))
+                      }
+                    />
+                    <span className="text-surface-500">to</span>
+                    <Input
+                      type="time"
+                      className="w-32"
+                      value={window.end}
+                      onChange={(e) =>
+                        setBusinessHours((prev) => ({
+                          ...prev,
+                          [key]: { start: window.start, end: e.target.value },
+                        }))
+                      }
+                    />
+                  </>
+                ) : (
+                  <span className="text-sm text-surface-500">Closed</span>
+                )}
+              </div>
+            );
+          })}
+          {canManageSettings ? (
+            <Button
+              type="button"
+              className="mt-2"
+              loading={businessHoursMutation.isPending}
+              onClick={() => {
+                setServerError(null);
+                businessHoursMutation.mutate();
+              }}
+            >
+              Save business hours
+            </Button>
+          ) : null}
+        </fieldset>
       </Card>
 
       <Card>

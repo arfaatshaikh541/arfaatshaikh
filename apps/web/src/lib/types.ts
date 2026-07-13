@@ -330,6 +330,64 @@ export const WORKFLOW_CONDITION_FIELDS = [
 
 export const WORKFLOW_CONDITION_OPERATORS = ["equals", "not_equals", "at_least"] as const;
 
+export interface OverviewStatsOut {
+  total_leads: number;
+  hot_leads: number;
+  open_tasks: number;
+  overdue_tasks: number;
+  upcoming_appointments: number;
+}
+
+export interface FunnelStageOut {
+  stage_id: string;
+  name: string;
+  sort_order: number;
+  is_won: boolean;
+  is_lost: boolean;
+  lead_count: number;
+}
+
+export interface SourceCountOut {
+  source: string;
+  count: number;
+}
+
+export interface PriorityCountOut {
+  priority: string;
+  count: number;
+}
+
+export interface MemberPerformanceOut {
+  membership_id: string;
+  member_name: string;
+  leads_assigned: number;
+  leads_won: number;
+}
+
+export interface TaskStatsOut {
+  open: number;
+  overdue: number;
+  completed_last_30_days: number;
+}
+
+export interface AppointmentStatsOut {
+  scheduled: number;
+  confirmed: number;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+}
+
+export interface DashboardReportOut {
+  overview: OverviewStatsOut;
+  pipeline_funnel: FunnelStageOut[];
+  lead_sources: SourceCountOut[];
+  score_distribution: PriorityCountOut[];
+  team_performance: MemberPerformanceOut[];
+  task_stats: TaskStatsOut;
+  appointment_stats: AppointmentStatsOut;
+}
+
 export const SCORING_RULE_TYPES = [
   ["service_equals", "Service equals"],
   ["source_equals", "Source equals"],
