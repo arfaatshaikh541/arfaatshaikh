@@ -13,6 +13,8 @@ export default function RootPage() {
     if (isLoading) return;
     if (isError || !data) {
       router.replace("/login");
+    } else if (data.is_platform_super_admin) {
+      router.replace("/platform");
     } else {
       router.replace("/dashboard");
     }

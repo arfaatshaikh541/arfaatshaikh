@@ -42,6 +42,7 @@ describe("LoginPage", () => {
 
   it("submits valid credentials and navigates to the dashboard", async () => {
     apiFetchMock.mockResolvedValueOnce({ user: { id: "1" } });
+    apiFetchMock.mockResolvedValueOnce({ id: "1", is_platform_super_admin: false });
     const user = userEvent.setup();
     renderWithClient(<LoginPage />);
 
@@ -54,5 +55,18 @@ describe("LoginPage", () => {
       "/auth/login",
       expect.objectContaining({ method: "POST" })
     );
+  });
+
+  it("navigates a platform super admin to the platform area", async () => {
+    apiFetchMock.mockResolvedValueOnce({ user: { id: "2" } });
+    apiFetchMock.mockResolvedValueOnce({ id: "2", is_platform_super_admin: true });
+    const user = userEvent.setup();
+    renderWithClient(<LoginPage />);
+
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "hunter22222");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/platform"));
   });
 });

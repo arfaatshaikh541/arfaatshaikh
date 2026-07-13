@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, type LoginInput } from "@leadflow/shared-types";
+import { loginSchema, type LoginInput, type CurrentUser } from "@leadflow/shared-types";
 import { Alert, Button, FormError, Input, Label } from "@leadflow/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -26,7 +26,8 @@ export default function LoginPage() {
     try {
       await apiFetch("/auth/login", { method: "POST", body: values, withTenant: false });
       await queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      router.push("/dashboard");
+      const user = await apiFetch<CurrentUser>("/auth/me", { withTenant: false });
+      router.push(user.is_platform_super_admin ? "/platform" : "/dashboard");
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : "Something went wrong.");
     }

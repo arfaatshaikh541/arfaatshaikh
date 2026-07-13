@@ -388,6 +388,46 @@ export interface DashboardReportOut {
   appointment_stats: AppointmentStatsOut;
 }
 
+export interface PlatformTenantOut {
+  id: string;
+  slug: string;
+  public_key: string;
+  name: string;
+  legal_name: string | null;
+  status: string;
+  timezone: string;
+  currency: string;
+}
+
+export interface SubscriptionPlanOut {
+  id: string;
+  code: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  features: string[];
+  is_active: boolean;
+}
+
+export interface SubscriptionOut {
+  id: string;
+  tenant_id: string;
+  plan_id: string;
+  status: string;
+  current_period_end: string | null;
+}
+
+export interface PlatformOverviewOut {
+  total_tenants: number;
+  total_leads: number;
+  total_appointments: number;
+  tenants_by_status: { status: string; count: number }[];
+  subscriptions_by_status: { status: string; count: number }[];
+  subscriptions_by_plan: { plan_code: string; count: number }[];
+}
+
+export const SUBSCRIPTION_STATUSES = ["trialing", "active", "past_due", "canceled"] as const;
+
 export const SCORING_RULE_TYPES = [
   ["service_equals", "Service equals"],
   ["source_equals", "Source equals"],
