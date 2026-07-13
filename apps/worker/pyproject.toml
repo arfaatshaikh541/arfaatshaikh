@@ -1,0 +1,33 @@
+[project]
+name = "leadflow-worker"
+version = "0.1.0"
+description = "Lead-to-Booking Automation SaaS - background worker"
+requires-python = ">=3.11"
+dependencies = [
+    "celery>=5.4,<5.5",
+    "redis>=5.0,<6.0",
+]
+
+# This package imports app.* from apps/api directly (see worker/celery_app.py)
+# rather than duplicating models/services, so the worker never drifts from
+# what the API believes the schema/business logic is. apps/api must be
+# installed into the same environment: `pip install -e ../api` before
+# `pip install -e .` here. The Dockerfile does both; see
+# docs/deployment/local-development.md for the non-Docker equivalent.
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9.0",
+    "ruff>=0.6,<0.7",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["worker*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

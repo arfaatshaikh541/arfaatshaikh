@@ -1,0 +1,15 @@
+{
+  "name": "leadflow",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @leadflow/web dev",
+    "build": "pnpm --filter @leadflow/web build",
+    "lint": "pnpm --filter @leadflow/web lint",
+    "typecheck": "pnpm --filter @leadflow/web typecheck",
+    "test": "pnpm --filter @leadflow/web test"
+  }
+}

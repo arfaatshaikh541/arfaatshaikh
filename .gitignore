@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+apps/api/var/
+
+# Node
+node_modules/
+.pnpm-store/
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+!.env.example
+
+# OS
+.DS_Store
+
+# Logs
+*.log
