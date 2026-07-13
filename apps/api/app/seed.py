@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import configure_logging, get_logger
 from app.core.pipeline_stages import DEFAULT_SERVICES
+from app.core.roles import DEFAULT_ROLE_BY_SLUG
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.lead import Lead
@@ -241,6 +242,17 @@ def seed() -> None:
         else:
             role_map = {r.slug: r for r in roles.list_for_tenant(tenant.id)}
             logger.info("seed.tenant_exists")
+
+        # System roles (is_system=True) are owned by the product, not the
+        # tenant, so re-sync their permission grants to the current
+        # DEFAULT_ROLES definition on every run. This backfills a demo
+        # tenant created before a milestone that added new permissions
+        # (e.g. scoring.manage in M3) without touching any custom role a
+        # tenant admin created themselves.
+        for slug, role in role_map.items():
+            default_role = DEFAULT_ROLE_BY_SLUG.get(slug)
+            if role.is_system and default_role is not None:
+                roles.update_permissions(role, list(default_role.permissions))
 
         # M3 additions run unconditionally (each is independently idempotent)
         # so an existing demo tenant seeded before Milestone 3 gets backfilled
