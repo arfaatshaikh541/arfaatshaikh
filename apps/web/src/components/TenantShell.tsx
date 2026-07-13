@@ -21,6 +21,8 @@ const NAV = [
   { href: "/scoring", label: "Scoring" },
   { href: "/assignment", label: "Assignment" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/appointments", label: "Appointments" },
+  { href: "/workflow-rules", label: "Workflow Automation" },
   { href: "/message-templates", label: "Message Templates" },
   { href: "/team", label: "Team" },
   { href: "/settings", label: "Settings" },

@@ -238,6 +238,98 @@ export interface NotificationOut {
   created_at: string;
 }
 
+export interface AppointmentOut {
+  id: string;
+  lead_id: string;
+  assigned_membership_id: string | null;
+  branch_id: string | null;
+  service_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  location_type: string;
+  notes: string | null;
+  cancellation_reason: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+}
+
+export interface AppointmentListOut {
+  items: AppointmentOut[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface TimeSlotOut {
+  starts_at: string;
+  ends_at: string;
+}
+
+export interface WorkflowConditionValue {
+  field: string;
+  operator: string;
+  value: unknown;
+}
+
+export interface WorkflowActionValue {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRuleOut {
+  id: string;
+  name: string;
+  trigger_type: string;
+  conditions: WorkflowConditionValue[];
+  actions: WorkflowActionValue[];
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface WorkflowExecutionLogOut {
+  id: string;
+  workflow_rule_id: string;
+  lead_id: string | null;
+  trigger_type: string;
+  actions_taken: { type: string; result: string; error?: string }[];
+  executed_at: string;
+}
+
+export const APPOINTMENT_STATUSES = [
+  "scheduled",
+  "confirmed",
+  "completed",
+  "cancelled",
+  "no_show",
+] as const;
+
+export const APPOINTMENT_LOCATION_TYPES = ["in_person", "online_meeting", "phone"] as const;
+
+export const WORKFLOW_TRIGGER_TYPES = [
+  ["lead_created", "Lead created"],
+  ["lead_stage_changed", "Lead stage changed"],
+  ["lead_assigned", "Lead assigned"],
+  ["appointment_booked", "Appointment booked"],
+] as const;
+
+export const WORKFLOW_ACTION_TYPES = [
+  ["create_task", "Create a task"],
+  ["send_email", "Send an email"],
+  ["add_tag", "Add a tag"],
+  ["create_notification", "Notify the assignee"],
+] as const;
+
+export const WORKFLOW_CONDITION_FIELDS = [
+  "service_id",
+  "source",
+  "priority",
+  "estimated_value",
+  "to_stage_slug",
+] as const;
+
+export const WORKFLOW_CONDITION_OPERATORS = ["equals", "not_equals", "at_least"] as const;
+
 export const SCORING_RULE_TYPES = [
   ["service_equals", "Service equals"],
   ["source_equals", "Source equals"],

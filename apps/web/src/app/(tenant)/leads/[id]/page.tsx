@@ -10,6 +10,8 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 import {
   PRIORITY_LABELS,
   PRIORITY_TONES,
+  type AppointmentListOut,
+  type AppointmentOut,
   type LeadDetailOut,
   type LeadNoteOut,
   type LossReasonOut,
@@ -19,6 +21,7 @@ import {
   type TaskListOut,
   type TaskOut,
   type TimelineEntryOut,
+  type TimeSlotOut,
 } from "@/lib/types";
 
 interface ScoreReason {
@@ -34,12 +37,19 @@ export default function LeadDetailPage() {
   const queryClient = useQueryClient();
   const canManageUsers = membership?.role.permissions.some((p) => p.code === "users.manage") ?? false;
   const canManageTasks = membership?.role.permissions.some((p) => p.code === "tasks.manage") ?? false;
+  const canManageAppointments =
+    membership?.role.permissions.some((p) => p.code === "appointments.manage") ?? false;
   const [noteBody, setNoteBody] = useState("");
   const [pendingLostStage, setPendingLostStage] = useState<string | null>(null);
   const [lossReasonId, setLossReasonId] = useState("");
   const [selectedTagId, setSelectedTagId] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [bookingAssigneeId, setBookingAssigneeId] = useState("");
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingDuration, setBookingDuration] = useState(30);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlotOut[] | null>(null);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
 
   const leadQuery = useQuery({
     queryKey: ["lead", leadId],
@@ -64,7 +74,7 @@ export default function LeadDetailPage() {
   const membersQuery = useQuery({
     queryKey: ["members", tenantId],
     queryFn: () => apiFetch<MemberOut[]>("/tenants/me/members"),
-    enabled: Boolean(tenantId) && canManageUsers,
+    enabled: Boolean(tenantId) && (canManageUsers || canManageAppointments),
   });
   const notesQuery = useQuery({
     queryKey: ["lead-notes", leadId],
@@ -144,6 +154,54 @@ export default function LeadDetailPage() {
     mutationFn: (taskId: string) =>
       apiFetch<TaskOut>(`/tenants/me/tasks/${taskId}/complete`, { method: "POST" }),
     onSuccess: invalidateTasks,
+  });
+
+  const appointmentsQuery = useQuery({
+    queryKey: ["lead-appointments", leadId],
+    queryFn: () => apiFetch<AppointmentListOut>(`/tenants/me/appointments?lead_id=${leadId}&page_size=50`),
+    enabled: Boolean(tenantId && leadId) && canManageAppointments,
+  });
+  const invalidateAppointments = () =>
+    queryClient.invalidateQueries({ queryKey: ["lead-appointments", leadId] });
+
+  const findSlotsMutation = useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams({
+        on_date: bookingDate,
+        duration_minutes: String(bookingDuration),
+      });
+      if (bookingAssigneeId) params.set("assigned_membership_id", bookingAssigneeId);
+      return apiFetch<TimeSlotOut[]>(`/tenants/me/appointments/available-slots?${params}`);
+    },
+    onSuccess: setAvailableSlots,
+    onError: (err) => setAppointmentError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
+
+  const bookAppointmentMutation = useMutation({
+    mutationFn: (slot: TimeSlotOut) =>
+      apiFetch<AppointmentOut>("/tenants/me/appointments", {
+        method: "POST",
+        body: {
+          lead_id: leadId,
+          assigned_membership_id: bookingAssigneeId || null,
+          starts_at: slot.starts_at,
+          ends_at: slot.ends_at,
+        },
+      }),
+    onSuccess: () => {
+      setAvailableSlots(null);
+      invalidateAppointments();
+    },
+    onError: (err) => setAppointmentError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
+
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: (appointmentId: string) =>
+      apiFetch<AppointmentOut>(`/tenants/me/appointments/${appointmentId}/cancel`, {
+        method: "POST",
+        body: { reason: "Cancelled from lead detail." },
+      }),
+    onSuccess: invalidateAppointments,
   });
 
   if (leadQuery.isLoading || !leadQuery.data) {
@@ -315,6 +373,108 @@ export default function LeadDetailPage() {
             ) : null}
           </div>
         </Card>
+
+        {canManageAppointments ? (
+          <Card>
+            <h2 className="mb-3 text-sm font-semibold text-surface-100">Appointments</h2>
+            {appointmentError ? (
+              <Alert tone="error" className="mb-3">
+                {appointmentError}
+              </Alert>
+            ) : null}
+            <div className="mb-4 space-y-2 rounded-md border border-surface-800 p-3">
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  className="rounded-md border border-surface-700 bg-surface-900 px-2 py-1.5 text-sm text-surface-50"
+                  value={bookingAssigneeId}
+                  onChange={(e) => setBookingAssigneeId(e.target.value)}
+                >
+                  <option value="">Any staff member</option>
+                  {membersQuery.data?.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.first_name} {m.last_name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  className="rounded-md border border-surface-700 bg-surface-900 px-2 py-1.5 text-sm text-surface-50"
+                  value={bookingDate}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                />
+                <select
+                  className="rounded-md border border-surface-700 bg-surface-900 px-2 py-1.5 text-sm text-surface-50"
+                  value={bookingDuration}
+                  onChange={(e) => setBookingDuration(Number(e.target.value))}
+                >
+                  <option value={30}>30 min</option>
+                  <option value={60}>60 min</option>
+                  <option value={90}>90 min</option>
+                </select>
+              </div>
+              <Button
+                variant="secondary"
+                disabled={!bookingDate}
+                loading={findSlotsMutation.isPending}
+                onClick={() => {
+                  setAppointmentError(null);
+                  findSlotsMutation.mutate();
+                }}
+              >
+                Find available slots
+              </Button>
+              {availableSlots ? (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {availableSlots.length === 0 ? (
+                    <p className="text-xs text-surface-500">No open slots that day.</p>
+                  ) : (
+                    availableSlots.map((slot) => (
+                      <Button
+                        key={slot.starts_at}
+                        variant="ghost"
+                        loading={bookAppointmentMutation.isPending}
+                        onClick={() => bookAppointmentMutation.mutate(slot)}
+                      >
+                        {new Date(slot.starts_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              {appointmentsQuery.data?.items.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="flex items-center justify-between border-b border-surface-900 pb-2 text-sm"
+                >
+                  <div>
+                    <p className="text-surface-200">
+                      {new Date(appointment.starts_at).toLocaleString()}
+                    </p>
+                    <Badge tone={appointment.status === "cancelled" ? "danger" : "neutral"}>
+                      {appointment.status}
+                    </Badge>
+                  </div>
+                  {["scheduled", "confirmed"].includes(appointment.status) ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() => cancelAppointmentMutation.mutate(appointment.id)}
+                    >
+                      Cancel
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+              {appointmentsQuery.data && appointmentsQuery.data.items.length === 0 ? (
+                <p className="text-sm text-surface-500">No appointments for this lead yet.</p>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
 
         <Card>
           <h2 className="mb-3 text-sm font-semibold text-surface-100">Activity timeline</h2>
