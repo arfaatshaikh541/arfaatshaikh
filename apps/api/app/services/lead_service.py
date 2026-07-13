@@ -10,6 +10,7 @@ from app.db.base import utcnow
 from app.models.lead import Lead, LeadNote
 from app.repositories.audit import AuditLogRepository
 from app.repositories.branch import BranchRepository
+from app.repositories.communication import MessageLogRepository
 from app.repositories.lead import (
     LeadAnswerRepository,
     LeadFilters,
@@ -22,7 +23,15 @@ from app.repositories.lead import (
 from app.repositories.membership import MembershipRepository
 from app.repositories.pipeline import LossReasonRepository, PipelineStageRepository, TagRepository
 from app.repositories.service import ServiceRepository
+from app.repositories.tenant import TenantRepository
+from app.repositories.user import UserRepository
+from app.services.assignment_service import AssignmentService
+from app.services.email_service import EmailMessage, send_email_safely
 from app.services.errors import NotFoundError, ValidationError
+from app.services.message_template_service import MessageTemplateService
+from app.services.notification_service import NotificationService
+from app.services.scoring_service import ScoringService
+from app.services.task_service import TaskService
 
 REFERENCE_PREFIX = "LD"
 
@@ -48,6 +57,13 @@ class LeadService:
         self.tags = TagRepository(db)
         self.loss_reasons = LossReasonRepository(db)
         self.audit = AuditLogRepository(db)
+        self.scoring = ScoringService(db)
+        self.assignment = AssignmentService(db)
+        self.tenants = TenantRepository(db)
+        self.users = UserRepository(db)
+        self.message_logs = MessageLogRepository(db)
+        self.message_templates = MessageTemplateService(db)
+        self.notifications = NotificationService(db)
 
     # -- lookups -------------------------------------------------------
 
@@ -166,6 +182,12 @@ class LeadService:
                 value=answer.value,
             )
 
+        # Score after answers are attached: the answer_equals rule type
+        # inspects lead.answers, and priority defaults to whatever the
+        # scoring engine derives unless a caller later overrides it via
+        # an explicit `priority` field on update().
+        self.scoring.apply(tenant_id, lead)
+
         self.stage_history.create(
             lead_id=lead.id,
             from_stage_id=None,
@@ -180,7 +202,121 @@ class LeadService:
             entity_id=str(lead.id),
             metadata={"source": source, "reference_number": lead.reference_number},
         )
+
+        if lead.email:
+            self._send_acknowledgement_email(tenant_id, lead)
+
+        decision = self.assignment.auto_assign(tenant_id, lead)
+        if decision.membership_id is not None:
+            lead.assigned_membership_id = decision.membership_id
+            self.db.flush()
+            self.audit.record(
+                event_type="lead.assigned",
+                tenant_id=tenant_id,
+                actor_user_id=None,
+                entity_type="lead",
+                entity_id=str(lead.id),
+                metadata={
+                    "assigned_membership_id": str(decision.membership_id),
+                    "strategy": decision.strategy,
+                    "rule_id": str(decision.rule_id) if decision.rule_id else None,
+                    "automatic": True,
+                },
+            )
+            self._send_assignment_alert(tenant_id, lead, decision.membership_id)
+
         return lead
+
+    # -- communications (Module 10) -----------------------------------------
+    # Best-effort: a delivery failure here must never break lead creation, so
+    # every send is wrapped and logged to MessageLogRepository (append-only)
+    # rather than propagated. See docs/architecture/erd-summary-m3.md.
+
+    def _lead_render_context(self, tenant_id: uuid.UUID, lead: Lead) -> dict[str, str]:
+        tenant = self.tenants.get_by_id(tenant_id)
+        service = (
+            self.services_repo.get_by_id_for_tenant(tenant_id, lead.service_id)
+            if lead.service_id
+            else None
+        )
+        return {
+            "first_name": lead.first_name,
+            "last_name": lead.last_name,
+            "lead_name": f"{lead.first_name} {lead.last_name}".strip(),
+            "lead_email": lead.email or "",
+            "lead_id": str(lead.id),
+            "reference_number": lead.reference_number,
+            "tenant_name": tenant.name if tenant else "",
+            "service_name": service.name if service else "",
+        }
+
+    def _send_acknowledgement_email(self, tenant_id: uuid.UUID, lead: Lead) -> None:
+        rendered = self.message_templates.render(
+            tenant_id, "acknowledgement", self._lead_render_context(tenant_id, lead)
+        )
+        if rendered is None or not lead.email:
+            return
+        status = "sent"
+        error_message = None
+        try:
+            send_email_safely(
+                EmailMessage(to=lead.email, subject=rendered.subject, text_body=rendered.body)
+            )
+        except Exception as exc:  # noqa: BLE001 - delivery failure must not break lead creation
+            status = "failed"
+            error_message = str(exc)
+        self.message_logs.record(
+            tenant_id=tenant_id,
+            template_key="acknowledgement",
+            channel="email",
+            recipient=lead.email,
+            status=status,
+            lead_id=lead.id,
+            error_message=error_message,
+        )
+
+    def _send_assignment_alert(
+        self, tenant_id: uuid.UUID, lead: Lead, membership_id: uuid.UUID
+    ) -> None:
+        membership = self.memberships.get_by_id_for_tenant(tenant_id, membership_id)
+        if membership is None:
+            return
+        assignee = self.users.get_by_id(membership.user_id)
+        if assignee is None:
+            return
+
+        self.notifications.create(
+            tenant_id,
+            user_id=assignee.id,
+            title="New lead assigned to you",
+            body=f"{lead.first_name} {lead.last_name}".strip() or lead.reference_number,
+            related_entity_type="lead",
+            related_entity_id=str(lead.id),
+        )
+
+        context = self._lead_render_context(tenant_id, lead)
+        context["assignee_name"] = f"{assignee.first_name} {assignee.last_name}".strip()
+        rendered = self.message_templates.render(tenant_id, "assignment_alert", context)
+        if rendered is None:
+            return
+        status = "sent"
+        error_message = None
+        try:
+            send_email_safely(
+                EmailMessage(to=assignee.email, subject=rendered.subject, text_body=rendered.body)
+            )
+        except Exception as exc:  # noqa: BLE001 - delivery failure must not break lead creation
+            status = "failed"
+            error_message = str(exc)
+        self.message_logs.record(
+            tenant_id=tenant_id,
+            template_key="assignment_alert",
+            channel="email",
+            recipient=assignee.email,
+            status=status,
+            lead_id=lead.id,
+            error_message=error_message,
+        )
 
     # -- update ------------------------------------------------------------
 
@@ -200,12 +336,26 @@ class LeadService:
             if self.branches.get_by_id_for_tenant(tenant_id, fields["branch_id"]) is None:  # type: ignore[arg-type]
                 raise ValidationError("Branch does not belong to this tenant.")
 
+        manual_priority_override = fields.get("priority") is not None
+        scoring_relevant_fields = {"service_id", "estimated_value"}
+
         changed_fields = []
         for key, value in fields.items():
             if value is not None and getattr(lead, key, None) != value:
                 setattr(lead, key, value)
                 changed_fields.append(key)
         self.db.flush()
+
+        # A caller who explicitly set `priority` is manually overriding the
+        # scoring engine's band for this lead - don't immediately recompute
+        # it back. Otherwise, if a scoring-relevant field changed, recompute
+        # both score and priority so they never go stale.
+        if (
+            changed_fields
+            and not manual_priority_override
+            and scoring_relevant_fields.intersection(changed_fields)
+        ):
+            self.scoring.apply(tenant_id, lead)
 
         if changed_fields:
             self.audit.record(
@@ -262,6 +412,22 @@ class LeadService:
             entity_id=str(lead.id),
             metadata={"from_stage_id": str(from_stage_id), "to_stage_id": str(to_stage.id)},
         )
+
+        # Default automation (Module 9): entering the "qualified" stage of
+        # the default template creates a callback task for the assignee.
+        if to_stage.slug == "qualified" and from_stage_id != to_stage.id:
+            TaskService(self.db).create_qualified_callback_task(
+                tenant_id, lead_id=lead.id, assigned_membership_id=lead.assigned_membership_id
+            )
+            self.audit.record(
+                event_type="workflow.executed",
+                tenant_id=tenant_id,
+                actor_user_id=None,
+                entity_type="lead",
+                entity_id=str(lead.id),
+                metadata={"automation": "qualified_callback_task"},
+            )
+
         return lead
 
     def assign(
