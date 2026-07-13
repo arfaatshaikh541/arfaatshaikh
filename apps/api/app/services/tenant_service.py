@@ -15,6 +15,7 @@ from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
 from app.services.catalog_service import slugify
 from app.services.errors import ConflictError, NotFoundError, ValidationError
+from app.services.workflow_service import WorkflowService
 
 
 class TenantService:
@@ -26,6 +27,7 @@ class TenantService:
         self.memberships = MembershipRepository(db)
         self.pipeline_stages = PipelineStageRepository(db)
         self.services_repo = ServiceRepository(db)
+        self.workflows = WorkflowService(db)
 
     def create_tenant_with_owner(
         self,
@@ -53,6 +55,7 @@ class TenantService:
             self.services_repo.create(
                 tenant_id=tenant.id, name=service_name, slug=slugify(service_name), sort_order=index
             )
+        self.workflows.create_defaults_for_tenant(tenant.id)
 
         owner = self.users.get_by_email(owner_email)
         if owner is None:

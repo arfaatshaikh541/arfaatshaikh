@@ -31,7 +31,7 @@ from app.services.errors import NotFoundError, ValidationError
 from app.services.message_template_service import MessageTemplateService
 from app.services.notification_service import NotificationService
 from app.services.scoring_service import ScoringService
-from app.services.task_service import TaskService
+from app.services.workflow_service import WorkflowService
 
 REFERENCE_PREFIX = "LD"
 
@@ -64,6 +64,7 @@ class LeadService:
         self.message_logs = MessageLogRepository(db)
         self.message_templates = MessageTemplateService(db)
         self.notifications = NotificationService(db)
+        self.workflows = WorkflowService(db)
 
     # -- lookups -------------------------------------------------------
 
@@ -224,8 +225,27 @@ class LeadService:
                 },
             )
             self._send_assignment_alert(tenant_id, lead, decision.membership_id)
+            self._run_workflows(tenant_id, trigger_type="lead_assigned", lead=lead)
+
+        self._run_workflows(tenant_id, trigger_type="lead_created", lead=lead)
 
         return lead
+
+    def _run_workflows(
+        self, tenant_id: uuid.UUID, *, trigger_type: str, lead: Lead, context: dict | None = None
+    ) -> None:
+        fired = self.workflows.evaluate_triggers(
+            tenant_id, trigger_type=trigger_type, lead=lead, context=context
+        )
+        if fired:
+            self.audit.record(
+                event_type="workflow.executed",
+                tenant_id=tenant_id,
+                actor_user_id=None,
+                entity_type="lead",
+                entity_id=str(lead.id),
+                metadata={"trigger_type": trigger_type, "rule_ids": [str(r.id) for r in fired]},
+            )
 
     # -- communications (Module 10) -----------------------------------------
     # Best-effort: a delivery failure here must never break lead creation, so
@@ -413,19 +433,15 @@ class LeadService:
             metadata={"from_stage_id": str(from_stage_id), "to_stage_id": str(to_stage.id)},
         )
 
-        # Default automation (Module 9): entering the "qualified" stage of
-        # the default template creates a callback task for the assignee.
-        if to_stage.slug == "qualified" and from_stage_id != to_stage.id:
-            TaskService(self.db).create_qualified_callback_task(
-                tenant_id, lead_id=lead.id, assigned_membership_id=lead.assigned_membership_id
-            )
-            self.audit.record(
-                event_type="workflow.executed",
-                tenant_id=tenant_id,
-                actor_user_id=None,
-                entity_type="lead",
-                entity_id=str(lead.id),
-                metadata={"automation": "qualified_callback_task"},
+        # Module 12: tenant-configurable workflow rules react to stage
+        # changes (e.g. the default "qualified lead callback" rule seeded
+        # for every tenant - see WorkflowService.create_defaults_for_tenant).
+        if from_stage_id != to_stage.id:
+            self._run_workflows(
+                tenant_id,
+                trigger_type="lead_stage_changed",
+                lead=lead,
+                context={"to_stage_slug": to_stage.slug},
             )
 
         return lead
@@ -453,6 +469,8 @@ class LeadService:
             entity_id=str(lead.id),
             metadata={"assigned_membership_id": str(membership_id) if membership_id else None},
         )
+        if membership_id is not None:
+            self._run_workflows(tenant_id, trigger_type="lead_assigned", lead=lead)
         return lead
 
     def add_note(

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes import (
+    appointments,
     assignment,
     auth,
     catalog,
@@ -21,6 +22,7 @@ from app.api.routes import (
     scoring,
     tasks,
     tenants,
+    workflows,
 )
 from app.core.config import get_settings
 from app.core.cookies import CSRF_COOKIE, CSRF_HEADER, REFRESH_TOKEN_COOKIE, UNSAFE_METHODS
@@ -138,6 +140,8 @@ def create_app() -> FastAPI:
     app.include_router(tasks.task_types_router, prefix=api)
     app.include_router(communication.templates_router, prefix=api)
     app.include_router(communication.notifications_router, prefix=api)
+    app.include_router(appointments.router, prefix=api)
+    app.include_router(workflows.router, prefix=api)
 
     return app
 

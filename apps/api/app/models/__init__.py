@@ -1,3 +1,4 @@
+from app.models.appointment import Appointment
 from app.models.assignment import AssignmentRule, AssignmentRuleState
 from app.models.audit import AuditLog
 from app.models.branch import Branch
@@ -18,8 +19,10 @@ from app.models.task import Task, TaskComment, TaskType
 from app.models.tenant import Tenant, TenantDomain, TenantFeature, TenantSettings
 from app.models.tokens import EmailVerificationToken, LoginAttempt, PasswordResetToken
 from app.models.user import User
+from app.models.workflow import WorkflowExecutionLog, WorkflowRule
 
 __all__ = [
+    "Appointment",
     "AssignmentRule",
     "AssignmentRuleState",
     "AuditLog",
@@ -65,4 +68,6 @@ __all__ = [
     "LoginAttempt",
     "PasswordResetToken",
     "User",
+    "WorkflowExecutionLog",
+    "WorkflowRule",
 ]
