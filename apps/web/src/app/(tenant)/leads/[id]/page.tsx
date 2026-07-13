@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { apiFetch } from "@/lib/api-client";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import {
   PRIORITY_LABELS,
   PRIORITY_TONES,
@@ -16,8 +16,16 @@ import {
   type MemberOut,
   type PipelineStageOut,
   type TagOut,
+  type TaskListOut,
+  type TaskOut,
   type TimelineEntryOut,
 } from "@/lib/types";
+
+interface ScoreReason {
+  rule_id: string;
+  name: string;
+  points: number;
+}
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,10 +33,13 @@ export default function LeadDetailPage() {
   const { tenantId, membership } = useCurrentTenant();
   const queryClient = useQueryClient();
   const canManageUsers = membership?.role.permissions.some((p) => p.code === "users.manage") ?? false;
+  const canManageTasks = membership?.role.permissions.some((p) => p.code === "tasks.manage") ?? false;
   const [noteBody, setNoteBody] = useState("");
   const [pendingLostStage, setPendingLostStage] = useState<string | null>(null);
   const [lossReasonId, setLossReasonId] = useState("");
   const [selectedTagId, setSelectedTagId] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [taskError, setTaskError] = useState<string | null>(null);
 
   const leadQuery = useQuery({
     queryKey: ["lead", leadId],
@@ -63,6 +74,11 @@ export default function LeadDetailPage() {
   const timelineQuery = useQuery({
     queryKey: ["lead-timeline", leadId],
     queryFn: () => apiFetch<TimelineEntryOut[]>(`/tenants/me/leads/${leadId}/timeline`),
+    enabled: Boolean(tenantId && leadId),
+  });
+  const tasksQuery = useQuery({
+    queryKey: ["lead-tasks", leadId],
+    queryFn: () => apiFetch<TaskListOut>(`/tenants/me/tasks?lead_id=${leadId}&page_size=50`),
     enabled: Boolean(tenantId && leadId),
   });
 
@@ -110,6 +126,24 @@ export default function LeadDetailPage() {
     mutationFn: (tagId: string) =>
       apiFetch(`/tenants/me/leads/${leadId}/tags/${tagId}`, { method: "DELETE" }),
     onSuccess: invalidateLead,
+  });
+
+  const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
+
+  const addTaskMutation = useMutation({
+    mutationFn: (title: string) =>
+      apiFetch<TaskOut>("/tenants/me/tasks", { method: "POST", body: { title, lead_id: leadId } }),
+    onSuccess: () => {
+      setNewTaskTitle("");
+      invalidateTasks();
+    },
+    onError: (err) => setTaskError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
+
+  const completeTaskMutation = useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch<TaskOut>(`/tenants/me/tasks/${taskId}/complete`, { method: "POST" }),
+    onSuccess: invalidateTasks,
   });
 
   if (leadQuery.isLoading || !leadQuery.data) {
@@ -224,6 +258,65 @@ export default function LeadDetailPage() {
         </Card>
 
         <Card>
+          <h2 className="mb-3 text-sm font-semibold text-surface-100">Tasks</h2>
+          {taskError ? (
+            <Alert tone="error" className="mb-3">
+              {taskError}
+            </Alert>
+          ) : null}
+          {canManageTasks ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setTaskError(null);
+                if (newTaskTitle.trim()) addTaskMutation.mutate(newTaskTitle.trim());
+              }}
+              className="mb-4 flex gap-2"
+            >
+              <input
+                className="flex-1 rounded-md border border-surface-700 bg-surface-900 px-3 py-2 text-sm text-surface-50"
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="Add a follow-up task…"
+              />
+              <Button type="submit" loading={addTaskMutation.isPending}>
+                Add
+              </Button>
+            </form>
+          ) : null}
+          <div className="space-y-2">
+            {tasksQuery.data?.items.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between border-b border-surface-900 pb-2 text-sm"
+              >
+                <div>
+                  <p className={task.status === "completed" ? "text-surface-500 line-through" : "text-surface-200"}>
+                    {task.title}
+                  </p>
+                  <p className="text-xs text-surface-500">
+                    {task.due_at ? new Date(task.due_at).toLocaleString() : "No due date"}
+                    {task.is_overdue ? (
+                      <Badge tone="danger" className="ml-2">
+                        overdue
+                      </Badge>
+                    ) : null}
+                  </p>
+                </div>
+                {canManageTasks && task.status === "open" ? (
+                  <Button variant="ghost" onClick={() => completeTaskMutation.mutate(task.id)}>
+                    Complete
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+            {tasksQuery.data && tasksQuery.data.items.length === 0 ? (
+              <p className="text-sm text-surface-500">No tasks for this lead yet.</p>
+            ) : null}
+          </div>
+        </Card>
+
+        <Card>
           <h2 className="mb-3 text-sm font-semibold text-surface-100">Activity timeline</h2>
           <div className="space-y-2">
             {timelineQuery.data?.map((entry) => (
@@ -239,6 +332,28 @@ export default function LeadDetailPage() {
       </div>
 
       <div className="space-y-6">
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold text-surface-100">Score</h2>
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-2xl font-semibold text-surface-50">{lead.score}</span>
+            <Badge tone={PRIORITY_TONES[lead.priority] ?? "neutral"}>
+              {PRIORITY_LABELS[lead.priority] ?? lead.priority}
+            </Badge>
+          </div>
+          {(lead.score_reasons as ScoreReason[]).length > 0 ? (
+            <ul className="space-y-1 text-xs text-surface-400">
+              {(lead.score_reasons as ScoreReason[]).map((reason) => (
+                <li key={reason.rule_id} className="flex items-center justify-between">
+                  <span>{reason.name}</span>
+                  <span className="text-surface-300">+{reason.points}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-surface-500">No scoring rules matched this lead.</p>
+          )}
+        </Card>
+
         <Card>
           <h2 className="mb-3 text-sm font-semibold text-surface-100">Stage</h2>
           <select

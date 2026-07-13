@@ -159,6 +159,105 @@ export interface MemberOut {
   status: string;
 }
 
+export interface ScoringRuleOut {
+  id: string;
+  name: string;
+  rule_type: string;
+  config: Record<string, unknown>;
+  points: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface TenantScoringSettingsOut {
+  hot_threshold: number;
+  warm_threshold: number;
+  standard_threshold: number;
+}
+
+export interface AssignmentRuleOut {
+  id: string;
+  name: string;
+  strategy: string;
+  config: Record<string, unknown>;
+  sort_order: number;
+  is_active: boolean;
+  fallback_membership_id: string | null;
+}
+
+export interface TaskTypeOut {
+  id: string;
+  name: string;
+}
+
+export interface TaskOut {
+  id: string;
+  lead_id: string | null;
+  task_type_id: string | null;
+  title: string;
+  description: string | null;
+  assigned_membership_id: string | null;
+  priority: string;
+  status: string;
+  due_at: string | null;
+  completed_at: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  is_overdue: boolean;
+}
+
+export interface TaskListOut {
+  items: TaskOut[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface TaskCommentOut {
+  id: string;
+  author_user_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MessageTemplateOut {
+  id: string;
+  key: string;
+  subject: string;
+  body: string;
+  is_active: boolean;
+}
+
+export interface NotificationOut {
+  id: string;
+  title: string;
+  body: string | null;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export const SCORING_RULE_TYPES = [
+  ["service_equals", "Service equals"],
+  ["source_equals", "Source equals"],
+  ["estimated_value_at_least", "Estimated value at least"],
+  ["consent_given", "Consent given"],
+  ["complete_contact_info", "Complete contact info"],
+  ["repeat_enquiry", "Repeat enquiry"],
+  ["answer_equals", "Qualification answer equals"],
+] as const;
+
+export const ASSIGNMENT_STRATEGIES = [
+  ["round_robin", "Round robin"],
+  ["service_based", "Service based"],
+  ["branch_based", "Branch based"],
+  ["priority_based", "Priority based"],
+  ["manual_fallback", "Manual fallback"],
+] as const;
+
+export const TASK_PRIORITIES = ["low", "normal", "high"] as const;
+
 export const PRIORITY_LABELS: Record<string, string> = {
   hot: "Hot",
   warm: "Warm",

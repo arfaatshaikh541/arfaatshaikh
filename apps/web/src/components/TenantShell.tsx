@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -17,6 +18,10 @@ const NAV = [
   { href: "/services", label: "Services" },
   { href: "/qualification-form", label: "Qualification Form" },
   { href: "/pipeline", label: "Pipeline Stages" },
+  { href: "/scoring", label: "Scoring" },
+  { href: "/assignment", label: "Assignment" },
+  { href: "/tasks", label: "Tasks" },
+  { href: "/message-templates", label: "Message Templates" },
   { href: "/team", label: "Team" },
   { href: "/settings", label: "Settings" },
 ];
@@ -126,6 +131,7 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
             ) : null}
           </div>
           <div className="flex items-center gap-3">
+            <NotificationsBell />
             <span className="text-sm text-surface-400">
               {user.first_name} {user.last_name}
             </span>
