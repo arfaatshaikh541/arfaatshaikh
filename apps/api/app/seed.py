@@ -17,7 +17,10 @@ rows before creating anything.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 from app.core.logging import configure_logging, get_logger
 from app.core.pipeline_stages import DEFAULT_SERVICES
@@ -31,8 +34,12 @@ from app.repositories.role import RoleRepository
 from app.repositories.service import ServiceRepository
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
+from app.services.assignment_service import AssignmentService
 from app.services.catalog_service import slugify
 from app.services.lead_service import LeadService
+from app.services.message_template_service import MessageTemplateService
+from app.services.scoring_service import ScoringService
+from app.services.task_service import TaskService
 
 logger = get_logger("app.seed")
 
@@ -136,6 +143,47 @@ DEMO_LEADS: list[dict[str, Any]] = [
 ]
 
 
+DEFAULT_DEMO_SCORING_RULES: list[dict[str, Any]] = [
+    {
+        "name": "[DEMO] High estimated value",
+        "rule_type": "estimated_value_at_least",
+        "config": {"min_value": 15000},
+        "points": 30,
+    },
+    {
+        "name": "[DEMO] Consent given",
+        "rule_type": "consent_given",
+        "config": {},
+        "points": 15,
+    },
+    {
+        "name": "[DEMO] Complete contact info",
+        "rule_type": "complete_contact_info",
+        "config": {},
+        "points": 15,
+    },
+    {
+        "name": "[DEMO] Repeat enquiry",
+        "rule_type": "repeat_enquiry",
+        "config": {},
+        "points": 20,
+    },
+]
+
+
+def _seed_scoring_rules(db: Session, tenant_id: uuid.UUID) -> None:
+    scoring = ScoringService(db)
+    for index, rule in enumerate(DEFAULT_DEMO_SCORING_RULES):
+        scoring.create_rule(
+            tenant_id,
+            name=rule["name"],
+            rule_type=rule["rule_type"],
+            config=rule["config"],
+            points=rule["points"],
+            sort_order=index,
+        )
+
+
 def seed() -> None:
     db = SessionLocal()
     try:
@@ -194,7 +242,18 @@ def seed() -> None:
             role_map = {r.slug: r for r in roles.list_for_tenant(tenant.id)}
             logger.info("seed.tenant_exists")
 
+        # M3 additions run unconditionally (each is independently idempotent)
+        # so an existing demo tenant seeded before Milestone 3 gets backfilled
+        # instead of only new tenants getting scoring/templates/task types.
+        if not ScoringService(db).list_rules(tenant.id):
+            _seed_scoring_rules(db, tenant.id)
+        MessageTemplateService(db).seed_defaults_for_tenant(tenant.id)
+        if not TaskService(db).list_task_types(tenant.id):
+            for type_name in ("Callback", "Document Collection", "Site Visit"):
+                TaskService(db).create_task_type(tenant.id, name=type_name)
+
         owner_user = None
+        membership_by_role: dict[str, Any] = {}
         for demo_user in DEMO_USERS:
             user = users.get_by_email(demo_user["email"])
             if user is None:
@@ -207,14 +266,33 @@ def seed() -> None:
                 )
             if demo_user["role_slug"] == "owner":
                 owner_user = user
-            existing_membership = memberships.get_for_user_and_tenant(user.id, tenant.id)
-            if existing_membership is None:
+            membership = memberships.get_for_user_and_tenant(user.id, tenant.id)
+            if membership is None:
                 role = role_map[demo_user["role_slug"]]
-                memberships.create(tenant_id=tenant.id, user_id=user.id, role_id=role.id)
+                membership = memberships.create(
+                    tenant_id=tenant.id, user_id=user.id, role_id=role.id
+                )
                 logger.info(
                     "seed.member_created",
                     extra={"extra_fields": {"email": user.email, "role": demo_user["role_slug"]}},
                 )
+            membership_by_role[demo_user["role_slug"]] = membership
+
+        if not AssignmentService(db).list_rules(tenant.id):
+            round_robin_members = [
+                str(membership_by_role[slug].id)
+                for slug in ("sales_agent", "manager")
+                if slug in membership_by_role
+            ]
+            if round_robin_members:
+                AssignmentService(db).create_rule(
+                    tenant.id,
+                    name="[DEMO] Round robin between sales staff",
+                    strategy="round_robin",
+                    config={"membership_ids": round_robin_members},
+                    sort_order=0,
+                )
+                logger.info("seed.assignment_rule_created")
 
         existing_lead_count = db.query(Lead).filter_by(tenant_id=tenant.id).count()
         if existing_lead_count == 0 and owner_user is not None:
@@ -236,6 +314,17 @@ def seed() -> None:
                     consent_given=demo_lead["consent_given"],
                     consent_text_shown="[DEMO DATA] seeded consent record.",
                     utm={"utm_source": demo_lead.get("utm_source")},
+                )
+                # The scoring engine (Module 7) recomputes priority from the
+                # active scoring rules on every create(); re-assert the
+                # curated demo priority afterwards so the demo pipeline
+                # board shows a deliberate spread of hot/warm/standard/low
+                # leads rather than whatever the seeded rules compute.
+                lead_service.update(
+                    tenant.id,
+                    lead.id,
+                    actor_user_id=owner_user.id,
+                    priority=demo_lead["priority"],
                 )
                 target_stage = stage_by_slug.get(demo_lead["stage_slug"])
                 if target_stage is not None and target_stage.id != lead.stage_id:

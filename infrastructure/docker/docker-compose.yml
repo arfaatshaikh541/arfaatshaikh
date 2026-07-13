@@ -78,6 +78,25 @@ services:
       redis:
         condition: service_healthy
 
+  worker-beat:
+    build:
+      context: ../../
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://leadflow:leadflow@postgres:5432/leadflow
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+    command: ["celery", "-A", "worker.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   web:
     build:
       context: ../../
