@@ -18,6 +18,7 @@ rows before creating anything.
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -26,7 +27,9 @@ from app.core.logging import configure_logging, get_logger
 from app.core.pipeline_stages import DEFAULT_SERVICES
 from app.core.roles import DEFAULT_ROLE_BY_SLUG
 from app.core.security import hash_password
+from app.db.base import utcnow
 from app.db.session import SessionLocal
+from app.models.appointment import Appointment
 from app.models.lead import Lead
 from app.models.subscription import Subscription, SubscriptionPlan
 from app.repositories.membership import MembershipRepository
@@ -35,7 +38,9 @@ from app.repositories.role import RoleRepository
 from app.repositories.service import ServiceRepository
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
+from app.services.appointment_service import AppointmentService
 from app.services.assignment_service import AssignmentService
+from app.services.availability_service import DEFAULT_BUSINESS_HOURS
 from app.services.catalog_service import slugify
 from app.services.lead_service import LeadService
 from app.services.message_template_service import MessageTemplateService
@@ -254,6 +259,13 @@ def seed() -> None:
             if role.is_system and default_role is not None:
                 roles.update_permissions(role, list(default_role.permissions))
 
+        # M4: business hours drive the booking availability engine: back
+        # fill the standard UAE working week for any tenant that doesn't
+        # have hours configured yet (fresh tenants included).
+        settings = tenants.get_settings(tenant.id)
+        if settings is not None and not settings.business_hours:
+            settings.business_hours = DEFAULT_BUSINESS_HOURS
+
         # M3 additions run unconditionally (each is independently idempotent)
         # so an existing demo tenant seeded before Milestone 3 gets backfilled
         # instead of only new tenants getting scoring/templates/task types.
@@ -349,6 +361,45 @@ def seed() -> None:
             logger.info(
                 "seed.demo_leads_created", extra={"extra_fields": {"count": len(DEMO_LEADS)}}
             )
+
+        # M4: demo appointments reference the demo leads above by last name,
+        # so this runs unconditionally (guarded by its own existence check)
+        # rather than only inside the fresh-lead-creation branch - a demo
+        # tenant seeded before Milestone 4 already has the leads but no
+        # appointments yet.
+        if not db.query(Appointment).filter_by(tenant_id=tenant.id).first():
+            sales_membership = membership_by_role.get("sales_agent")
+            khalid = (
+                db.query(Lead).filter_by(tenant_id=tenant.id, last_name="Khalid Al Suwaidi").first()
+            )
+            david = db.query(Lead).filter_by(tenant_id=tenant.id, last_name="David Chen").first()
+            if sales_membership is not None and khalid is not None and david is not None:
+                appointment_service = AppointmentService(db)
+                upcoming = appointment_service.create(
+                    tenant.id,
+                    created_by_user_id=owner_user.id if owner_user else None,
+                    lead_id=khalid.id,
+                    assigned_membership_id=sales_membership.id,
+                    service_id=khalid.service_id,
+                    starts_at=utcnow() + timedelta(days=2, hours=10),
+                    ends_at=utcnow() + timedelta(days=2, hours=11),
+                    notes="[DEMO DATA] Initial consultation call.",
+                )
+                appointment_service.confirm(tenant.id, upcoming.id)
+
+                past_starts_at = utcnow() - timedelta(days=5)
+                past = appointment_service.create(
+                    tenant.id,
+                    created_by_user_id=owner_user.id if owner_user else None,
+                    lead_id=david.id,
+                    assigned_membership_id=sales_membership.id,
+                    service_id=david.service_id,
+                    starts_at=past_starts_at,
+                    ends_at=past_starts_at + timedelta(hours=1),
+                    notes="[DEMO DATA] Onboarding kickoff meeting.",
+                )
+                appointment_service.complete(tenant.id, past.id)
+                logger.info("seed.demo_appointments_created")
 
         plan = db.query(SubscriptionPlan).filter_by(code="growth").one_or_none()
         if plan is None:

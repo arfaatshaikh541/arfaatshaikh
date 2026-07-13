@@ -30,5 +30,9 @@ celery_app.conf.update(
             "task": "worker.tasks.send_follow_up_reminders",
             "schedule": crontab(minute="*/15"),
         },
+        "send-appointment-reminders": {
+            "task": "worker.tasks.send_appointment_reminders",
+            "schedule": crontab(minute="*/15"),
+        },
     },
 )

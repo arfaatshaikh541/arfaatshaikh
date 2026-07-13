@@ -13,8 +13,10 @@ from sqlalchemy import select
 
 from app.db.base import utcnow
 from app.db.session import SessionLocal
+from app.models.appointment import Appointment
 from app.models.lead import Lead
 from app.repositories.communication import MessageLogRepository, NotificationRepository
+from app.repositories.lead import LeadRepository
 from app.repositories.membership import MembershipRepository
 from app.repositories.task import TaskFilters, TaskRepository
 from app.repositories.tenant import TenantRepository
@@ -134,6 +136,90 @@ def send_follow_up_reminders() -> int:
                     error_message=error_message,
                 )
                 sent += 1
+        db.commit()
+        return sent
+    finally:
+        db.close()
+
+
+@celery_app.task(name="worker.tasks.send_appointment_reminders")
+def send_appointment_reminders() -> int:
+    """Email the tenant's "appointment_reminder" template roughly 24 hours
+    before each upcoming scheduled/confirmed appointment. Dedupe reuses
+    the same 24h MessageLog window as send_follow_up_reminders; since
+    MessageLog has no appointment_id column, dedupe is per-lead rather
+    than per-appointment - a documented limitation for a lead with two
+    appointments in the same reminder window. See
+    docs/architecture/erd-summary-m4.md."""
+    db = SessionLocal()
+    sent = 0
+    now = utcnow()
+    window_start = now + timedelta(hours=23)
+    window_end = now + timedelta(hours=25)
+    recent_cutoff = now - timedelta(hours=24)
+    try:
+        tenants = TenantRepository(db).list_all(limit=1000)
+        templates = MessageTemplateService(db)
+        message_logs = MessageLogRepository(db)
+        leads_repo = LeadRepository(db)
+
+        for tenant in tenants:
+            stmt = select(Appointment).where(
+                Appointment.tenant_id == tenant.id,
+                Appointment.status.in_(("scheduled", "confirmed")),
+                Appointment.starts_at >= window_start,
+                Appointment.starts_at < window_end,
+            )
+            upcoming = list(db.execute(stmt).scalars().all())
+            if not upcoming:
+                continue
+
+            recent_logs = message_logs.list_for_tenant(tenant.id, limit=1000)
+            recently_sent_lead_ids = {
+                log.lead_id
+                for log in recent_logs
+                if log.template_key == "appointment_reminder" and log.created_at >= recent_cutoff
+            }
+
+            for appointment in upcoming:
+                if appointment.lead_id in recently_sent_lead_ids:
+                    continue
+                lead = leads_repo.get_by_id_for_tenant(tenant.id, appointment.lead_id)
+                if lead is None or not lead.email:
+                    continue
+                rendered = templates.render(
+                    tenant.id,
+                    "appointment_reminder",
+                    {
+                        "first_name": lead.first_name,
+                        "tenant_name": tenant.name,
+                        "appointment_time": appointment.starts_at.isoformat(),
+                    },
+                )
+                if rendered is None:
+                    continue
+                status = "sent"
+                error_message = None
+                try:
+                    send_email_safely(
+                        EmailMessage(
+                            to=lead.email, subject=rendered.subject, text_body=rendered.body
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - log and continue with the next lead
+                    status = "failed"
+                    error_message = str(exc)
+                message_logs.record(
+                    tenant_id=tenant.id,
+                    template_key="appointment_reminder",
+                    channel="email",
+                    recipient=lead.email,
+                    status=status,
+                    lead_id=lead.id,
+                    error_message=error_message,
+                )
+                sent += 1
+                recently_sent_lead_ids.add(lead.id)
         db.commit()
         return sent
     finally:
