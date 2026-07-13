@@ -32,6 +32,11 @@ PERMISSIONS: list[PermissionDef] = [
     PermissionDef("settings.manage", "Update tenant settings, branding and configuration"),
     PermissionDef("exports.create", "Generate data exports"),
     PermissionDef("billing.view", "View subscription and billing information"),
+    PermissionDef("scoring.manage", "Configure lead scoring rules and thresholds"),
+    PermissionDef("assignment.manage", "Configure lead assignment rules"),
+    PermissionDef("tasks.view", "View tasks and follow-ups"),
+    PermissionDef("tasks.manage", "Create, update and complete tasks and follow-ups"),
+    PermissionDef("templates.manage", "Configure message templates"),
 ]
 
 PERMISSION_CODES: frozenset[str] = frozenset(p.code for p in PERMISSIONS)

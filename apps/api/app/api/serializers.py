@@ -1,11 +1,14 @@
 from sqlalchemy.orm import Session
 
+from app.db.base import utcnow
 from app.models.lead import Lead
+from app.models.task import Task
 from app.models.user import User
 from app.repositories.membership import MembershipRepository
 from app.repositories.tenant import TenantRepository
 from app.schemas.lead import LeadAnswerOut, LeadDetailOut
 from app.schemas.rbac import RoleOut
+from app.schemas.task import TaskOut
 from app.schemas.user import CurrentUserOut, MembershipSummary
 
 
@@ -42,3 +45,9 @@ def build_lead_detail_out(lead: Lead) -> LeadDetailOut:
     base.answers = [LeadAnswerOut.model_validate(a) for a in lead.answers]
     base.tag_ids = [link.tag_id for link in lead.tag_links]
     return base
+
+
+def build_task_out(task: Task) -> TaskOut:
+    out = TaskOut.model_validate(task)
+    out.is_overdue = task.status == "open" and task.due_at is not None and task.due_at < utcnow()
+    return out

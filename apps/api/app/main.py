@@ -6,8 +6,10 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes import (
+    assignment,
     auth,
     catalog,
+    communication,
     health,
     invitations,
     leads,
@@ -16,6 +18,8 @@ from app.api.routes import (
     public_enquiry,
     qualification,
     roles,
+    scoring,
+    tasks,
     tenants,
 )
 from app.core.config import get_settings
@@ -128,6 +132,12 @@ def create_app() -> FastAPI:
     app.include_router(qualification.router, prefix=api)
     app.include_router(leads.router, prefix=api)
     app.include_router(public_enquiry.router, prefix=api)
+    app.include_router(scoring.router, prefix=api)
+    app.include_router(assignment.router, prefix=api)
+    app.include_router(tasks.router, prefix=api)
+    app.include_router(tasks.task_types_router, prefix=api)
+    app.include_router(communication.templates_router, prefix=api)
+    app.include_router(communication.notifications_router, prefix=api)
 
     return app
 

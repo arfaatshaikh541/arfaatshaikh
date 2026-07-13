@@ -23,6 +23,11 @@ _ALL = [
     "settings.manage",
     "exports.create",
     "billing.view",
+    "scoring.manage",
+    "assignment.manage",
+    "tasks.view",
+    "tasks.manage",
+    "templates.manage",
 ]
 
 
@@ -55,6 +60,9 @@ DEFAULT_ROLES: list[DefaultRoleDef] = [
             "reports.view",
             "exports.create",
             "workflows.manage",
+            "tasks.view",
+            "tasks.manage",
+            "assignment.manage",
         ),
     ),
     DefaultRoleDef(
@@ -68,6 +76,8 @@ DEFAULT_ROLES: list[DefaultRoleDef] = [
             "conversations.view",
             "conversations.reply",
             "appointments.manage",
+            "tasks.view",
+            "tasks.manage",
         ),
     ),
     DefaultRoleDef(
@@ -78,6 +88,8 @@ DEFAULT_ROLES: list[DefaultRoleDef] = [
             "conversations.view",
             "conversations.reply",
             "appointments.manage",
+            "tasks.view",
+            "tasks.manage",
         ),
     ),
     DefaultRoleDef(
@@ -87,6 +99,7 @@ DEFAULT_ROLES: list[DefaultRoleDef] = [
             "leads.view",
             "conversations.view",
             "reports.view",
+            "tasks.view",
         ),
     ),
 ]
