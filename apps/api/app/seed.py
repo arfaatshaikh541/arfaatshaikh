@@ -46,6 +46,7 @@ from app.services.lead_service import LeadService
 from app.services.message_template_service import MessageTemplateService
 from app.services.scoring_service import ScoringService
 from app.services.task_service import TaskService
+from app.services.workflow_service import WorkflowService
 
 logger = get_logger("app.seed")
 
@@ -265,6 +266,14 @@ def seed() -> None:
         settings = tenants.get_settings(tenant.id)
         if settings is not None and not settings.business_hours:
             settings.business_hours = DEFAULT_BUSINESS_HOURS
+
+        # M4: the default "qualified lead callback" workflow rule is
+        # normally seeded by TenantService.create_tenant_with_owner, but a
+        # demo tenant created before Milestone 4 never went through that
+        # path with the workflow engine in place - back fill it here too.
+        # create_defaults_for_tenant() is itself idempotent (checks for an
+        # existing lead_stage_changed rule before creating one).
+        WorkflowService(db).create_defaults_for_tenant(tenant.id)
 
         # M3 additions run unconditionally (each is independently idempotent)
         # so an existing demo tenant seeded before Milestone 3 gets backfilled
