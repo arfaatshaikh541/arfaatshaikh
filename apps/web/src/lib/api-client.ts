@@ -29,11 +29,12 @@ interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   withTenant?: boolean;
+  headers?: Record<string, string>;
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, withTenant = true } = options;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...options.headers };
 
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";

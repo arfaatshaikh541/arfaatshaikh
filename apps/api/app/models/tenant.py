@@ -15,6 +15,9 @@ class Tenant(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
+    public_key: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), unique=True, nullable=False, default=new_uuid, index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     legal_name: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")

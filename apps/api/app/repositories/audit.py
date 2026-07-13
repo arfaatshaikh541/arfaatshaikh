@@ -44,3 +44,18 @@ class AuditLogRepository:
             .limit(limit)
         )
         return list(self.db.execute(stmt).scalars().all())
+
+    def list_for_entity(
+        self, tenant_id: uuid.UUID, *, entity_type: str, entity_id: str, limit: int = 200
+    ) -> list[AuditLog]:
+        stmt = (
+            select(AuditLog)
+            .where(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.entity_type == entity_type,
+                AuditLog.entity_id == entity_id,
+            )
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())

@@ -10,6 +10,13 @@ import { useForm } from "react-hook-form";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
+interface TenantOut {
+  id: string;
+  slug: string;
+  public_key: string;
+  name: string;
+}
+
 interface TenantSettingsOut {
   logo_url: string | null;
   brand_primary_color: string;
@@ -34,6 +41,15 @@ export default function SettingsPage() {
     queryFn: () => apiFetch<TenantSettingsOut>("/tenants/me/settings"),
     enabled: Boolean(tenantId),
   });
+  const tenantQuery = useQuery({
+    queryKey: ["tenant", tenantId],
+    queryFn: () => apiFetch<TenantOut>("/tenants/me"),
+    enabled: Boolean(tenantId),
+  });
+  const publicFormUrl =
+    typeof window !== "undefined" && tenantQuery.data
+      ? `${window.location.origin}/enquire/${tenantQuery.data.public_key}`
+      : "";
 
   const {
     register,
@@ -109,6 +125,22 @@ export default function SettingsPage() {
           Settings saved.
         </Alert>
       ) : null}
+
+      <Card className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold text-surface-100">Public enquiry form</h2>
+        <p className="mb-3 text-sm text-surface-400">
+          Share this link, or embed it on your website, so visitors can submit enquiries directly
+          into your pipeline.
+        </p>
+        <div className="flex gap-2">
+          <Input readOnly value={publicFormUrl} className="flex-1 font-mono text-xs" />
+          {publicFormUrl ? (
+            <a href={publicFormUrl} target="_blank" rel="noreferrer">
+              <Button variant="secondary">Open</Button>
+            </a>
+          ) : null}
+        </div>
+      </Card>
 
       <Card>
         <form onSubmit={handleSubmit(onSubmit)} noValidate>

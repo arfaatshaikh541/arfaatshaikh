@@ -36,6 +36,7 @@ class TenantCreate(BaseModel):
 class TenantOut(ORMModel):
     id: uuid.UUID
     slug: str
+    public_key: uuid.UUID
     name: str
     legal_name: str | None
     status: str

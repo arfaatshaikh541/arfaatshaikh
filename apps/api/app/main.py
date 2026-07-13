@@ -5,7 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.routes import auth, health, invitations, members, platform, roles, tenants
+from app.api.routes import (
+    auth,
+    catalog,
+    health,
+    invitations,
+    leads,
+    members,
+    platform,
+    public_enquiry,
+    qualification,
+    roles,
+    tenants,
+)
 from app.core.config import get_settings
 from app.core.cookies import CSRF_COOKIE, CSRF_HEADER, REFRESH_TOKEN_COOKIE, UNSAFE_METHODS
 from app.core.logging import configure_logging
@@ -31,6 +43,13 @@ _CSRF_EXEMPT_PATHS = frozenset(
     }
 )
 
+# The public enquiry form is designed to be embedded on arbitrary external
+# websites (Module 15) and never relies on ambient tenant-app cookies for
+# authorization - it's unauthenticated by design and protected instead by
+# honeypot/rate-limiting/idempotency (see public_enquiry_service.py), so
+# CSRF's double-submit check would only break legitimate cross-site embeds.
+_CSRF_EXEMPT_PREFIXES = ("/api/public/",)
+
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     """Double-submit-cookie CSRF protection for cookie-authenticated mutating
@@ -41,6 +60,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             request.method in UNSAFE_METHODS
             and REFRESH_TOKEN_COOKIE in request.cookies
             and request.url.path not in _CSRF_EXEMPT_PATHS
+            and not request.url.path.startswith(_CSRF_EXEMPT_PREFIXES)
         ):
             cookie_token = request.cookies.get(CSRF_COOKIE)
             header_token = request.headers.get(CSRF_HEADER)
@@ -71,7 +91,13 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", CSRF_HEADER, "X-Tenant-Id"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            CSRF_HEADER,
+            "X-Tenant-Id",
+            "Idempotency-Key",
+        ],
     )
     app.add_middleware(CSRFMiddleware)
 
@@ -98,6 +124,10 @@ def create_app() -> FastAPI:
     app.include_router(invitations.tenant_router, prefix=api)
     app.include_router(invitations.public_router, prefix=api)
     app.include_router(platform.router, prefix=api)
+    app.include_router(catalog.router, prefix=api)
+    app.include_router(qualification.router, prefix=api)
+    app.include_router(leads.router, prefix=api)
+    app.include_router(public_enquiry.router, prefix=api)
 
     return app
 

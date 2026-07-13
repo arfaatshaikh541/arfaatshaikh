@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
 
+from app.models.lead import Lead
 from app.models.user import User
 from app.repositories.membership import MembershipRepository
 from app.repositories.tenant import TenantRepository
+from app.schemas.lead import LeadAnswerOut, LeadDetailOut
 from app.schemas.rbac import RoleOut
 from app.schemas.user import CurrentUserOut, MembershipSummary
 
@@ -33,3 +35,10 @@ def build_current_user_out(db: Session, user: User) -> CurrentUserOut:
         email_verified=user.email_verified_at is not None,
         memberships=summaries,
     )
+
+
+def build_lead_detail_out(lead: Lead) -> LeadDetailOut:
+    base = LeadDetailOut.model_validate(lead)
+    base.answers = [LeadAnswerOut.model_validate(a) for a in lead.answers]
+    base.tag_ids = [link.tag_id for link in lead.tag_links]
+    return base

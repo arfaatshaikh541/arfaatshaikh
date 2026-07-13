@@ -12,6 +12,11 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/leads", label: "Leads" },
+  { href: "/leads/board", label: "Pipeline board" },
+  { href: "/services", label: "Services" },
+  { href: "/qualification-form", label: "Qualification Form" },
+  { href: "/pipeline", label: "Pipeline Stages" },
   { href: "/team", label: "Team" },
   { href: "/settings", label: "Settings" },
 ];

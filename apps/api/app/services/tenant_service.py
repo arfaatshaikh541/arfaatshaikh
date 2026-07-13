@@ -4,12 +4,16 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.core.pipeline_stages import DEFAULT_SERVICES
 from app.core.security import hash_password
 from app.models.tenant import Tenant, TenantSettings
 from app.repositories.membership import MembershipRepository
+from app.repositories.pipeline import PipelineStageRepository
 from app.repositories.role import RoleRepository
+from app.repositories.service import ServiceRepository
 from app.repositories.tenant import TenantRepository
 from app.repositories.user import UserRepository
+from app.services.catalog_service import slugify
 from app.services.errors import ConflictError, NotFoundError, ValidationError
 
 
@@ -20,6 +24,8 @@ class TenantService:
         self.users = UserRepository(db)
         self.roles = RoleRepository(db)
         self.memberships = MembershipRepository(db)
+        self.pipeline_stages = PipelineStageRepository(db)
+        self.services_repo = ServiceRepository(db)
 
     def create_tenant_with_owner(
         self,
@@ -42,6 +48,11 @@ class TenantService:
             slug=slug, name=name, legal_name=legal_name, timezone=timezone, currency=currency
         )
         roles = self.roles.create_defaults_for_tenant(tenant.id)
+        self.pipeline_stages.create_defaults_for_tenant(tenant.id)
+        for index, service_name in enumerate(DEFAULT_SERVICES):
+            self.services_repo.create(
+                tenant_id=tenant.id, name=service_name, slug=slugify(service_name), sort_order=index
+            )
 
         owner = self.users.get_by_email(owner_email)
         if owner is None:

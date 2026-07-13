@@ -30,6 +30,10 @@ class TenantRepository:
         stmt = select(Tenant).where(Tenant.slug == slug)
         return self.db.execute(stmt).scalar_one_or_none()
 
+    def get_by_public_key(self, public_key: uuid.UUID) -> Tenant | None:
+        stmt = select(Tenant).where(Tenant.public_key == public_key)
+        return self.db.execute(stmt).scalar_one_or_none()
+
     def list_all(self, *, limit: int = 100, offset: int = 0) -> list[Tenant]:
         stmt = select(Tenant).order_by(Tenant.created_at.desc()).limit(limit).offset(offset)
         return list(self.db.execute(stmt).scalars().all())
