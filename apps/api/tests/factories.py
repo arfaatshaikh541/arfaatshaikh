@@ -48,6 +48,22 @@ def make_tenant_with_owner(
     return tenant, owner
 
 
+def make_platform_admin(db: Session, *, email: str | None = None) -> User:
+    from app.repositories.user import UserRepository
+
+    email = email or f"admin-{uuid.uuid4().hex[:8]}@factory.testmail.dev"
+    admin = UserRepository(db).create(
+        email=email,
+        hashed_password=hash_password(DEFAULT_PASSWORD),
+        first_name="Platform",
+        last_name="Admin",
+        is_platform_super_admin=True,
+        email_verified=True,
+    )
+    db.commit()
+    return admin
+
+
 def add_member(
     db: Session, tenant: Tenant, *, role_slug: str, email: str | None = None
 ) -> tuple[User, Membership]:

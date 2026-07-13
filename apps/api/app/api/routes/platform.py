@@ -9,7 +9,16 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_platform_admin
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.platform_reporting import PlatformOverviewOut
+from app.schemas.subscription import (
+    SubscriptionAssignRequest,
+    SubscriptionOut,
+    SubscriptionPlanCreate,
+    SubscriptionPlanOut,
+    SubscriptionPlanUpdate,
+)
 from app.schemas.tenant import TenantCreate, TenantOut
+from app.services.platform_reporting_service import PlatformReportingService
 from app.services.platform_service import PlatformService
 from app.services.tenant_service import TenantService
 
@@ -69,3 +78,70 @@ def set_tenant_status(
     )
     db.commit()
     return TenantOut.model_validate(tenant)
+
+
+@router.get("/plans", response_model=list[SubscriptionPlanOut])
+def list_plans(
+    db: Session = Depends(get_db), _admin: User = Depends(get_platform_admin)
+) -> list[SubscriptionPlanOut]:
+    plans = PlatformService(db).list_plans()
+    return [SubscriptionPlanOut.model_validate(p) for p in plans]
+
+
+@router.post("/plans", response_model=SubscriptionPlanOut, status_code=201)
+def create_plan(
+    payload: SubscriptionPlanCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_platform_admin),
+) -> SubscriptionPlanOut:
+    plan = PlatformService(db).create_plan(
+        code=payload.code,
+        name=payload.name,
+        price_cents=payload.price_cents,
+        currency=payload.currency,
+        features=payload.features,
+    )
+    db.commit()
+    return SubscriptionPlanOut.model_validate(plan)
+
+
+@router.patch("/plans/{plan_id}", response_model=SubscriptionPlanOut)
+def update_plan(
+    plan_id: uuid.UUID,
+    payload: SubscriptionPlanUpdate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_platform_admin),
+) -> SubscriptionPlanOut:
+    plan = PlatformService(db).update_plan(plan_id, **payload.model_dump(exclude_unset=True))
+    db.commit()
+    return SubscriptionPlanOut.model_validate(plan)
+
+
+@router.get("/tenants/{tenant_id}/subscription", response_model=SubscriptionOut | None)
+def get_tenant_subscription(
+    tenant_id: uuid.UUID, db: Session = Depends(get_db), _admin: User = Depends(get_platform_admin)
+) -> SubscriptionOut | None:
+    subscription = PlatformService(db).get_tenant_subscription(tenant_id)
+    return SubscriptionOut.model_validate(subscription) if subscription else None
+
+
+@router.post("/tenants/{tenant_id}/subscription", response_model=SubscriptionOut)
+def assign_tenant_subscription(
+    tenant_id: uuid.UUID,
+    payload: SubscriptionAssignRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_platform_admin),
+) -> SubscriptionOut:
+    subscription = PlatformService(db).assign_subscription(
+        actor=admin, tenant_id=tenant_id, plan_id=payload.plan_id, status=payload.status
+    )
+    db.commit()
+    return SubscriptionOut.model_validate(subscription)
+
+
+@router.get("/overview", response_model=PlatformOverviewOut)
+def get_platform_overview(
+    db: Session = Depends(get_db), _admin: User = Depends(get_platform_admin)
+) -> PlatformOverviewOut:
+    overview = PlatformReportingService(db).get_overview()
+    return PlatformOverviewOut.model_validate(overview)
