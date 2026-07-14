@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (lint, migrate, test)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci_only
+          POSTGRES_DB: cops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_SECRET_KEY: ci-only-secret-key-not-for-production-00000000
+      DATABASE_URL: postgresql+psycopg://app_runtime:app_runtime_ci_only@127.0.0.1:5432/cops_test
+      MIGRATION_DATABASE_URL: postgresql+psycopg://app_migrator:app_migrator_ci_only@127.0.0.1:5432/cops_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      RATE_LIMIT_REDIS_URL: redis://127.0.0.1:6379/9
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/1
+      CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/2
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "1025"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install API package (+ dev extras)
+        working-directory: apps/api
+        run: pip install -e ".[dev]"
+
+      - name: Provision app_migrator / app_runtime roles
+        env:
+          PGPASSWORD: postgres_ci_only
+        run: |
+          psql -h 127.0.0.1 -U postgres -d cops_test <<'EOSQL'
+          CREATE ROLE app_migrator WITH LOGIN PASSWORD 'app_migrator_ci_only' NOSUPERUSER BYPASSRLS CREATEDB;
+          CREATE ROLE app_runtime WITH LOGIN PASSWORD 'app_runtime_ci_only' NOSUPERUSER NOBYPASSRLS;
+          GRANT ALL PRIVILEGES ON DATABASE cops_test TO app_migrator;
+          GRANT CONNECT ON DATABASE cops_test TO app_runtime;
+          ALTER DATABASE cops_test OWNER TO app_migrator;
+          ALTER DEFAULT PRIVILEGES FOR ROLE app_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_runtime;
+          ALTER DEFAULT PRIVILEGES FOR ROLE app_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_runtime;
+          GRANT USAGE ON SCHEMA public TO app_runtime;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS "citext";
+          EOSQL
+
+      - name: Ruff lint
+        working-directory: apps/api
+        run: ruff check app
+
+      - name: Run migrations
+        working-directory: apps/api
+        run: alembic upgrade head
+
+      - name: Run pytest
+        working-directory: apps/api
+        run: pytest -q
+
+  frontend:
+    name: Frontend (lint, typecheck, build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --workspaces --include-workspace-root
+
+      - name: ESLint
+        working-directory: apps/web
+        run: npx eslint .
+
+      - name: TypeScript
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        working-directory: apps/web
+        run: npx vitest run
+
+      - name: Production build
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+        run: npx next build

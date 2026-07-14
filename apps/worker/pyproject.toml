@@ -1,0 +1,17 @@
+[project]
+name = "cops-worker"
+version = "0.1.0"
+description = "Client Operations Platform — Celery worker (re-uses the api package's service layer)"
+requires-python = ">=3.11"
+dependencies = [
+    "celery>=5.4,<6.0",
+    "redis>=5.0,<6.0",
+    "cops-api",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
