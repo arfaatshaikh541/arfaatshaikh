@@ -33,6 +33,37 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _score_assign_and_notify(db: Session, *, tenant: Tenant, lead: Lead, actor_id: uuid.UUID | None = None) -> None:
+    """Shared post-creation pipeline for both capture paths: deterministic
+    scoring, rule-based auto-assignment, and a soft-failing "lead assigned"
+    notification if a rule actually assigned someone and an active
+    template exists. Never raises — scoring/assignment/notification
+    problems must not prevent a lead from having been created."""
+    from app.modules.assignment.service import assign_lead_automatically
+    from app.modules.communications.models import EmailTriggerEvent
+    from app.modules.communications.service import send_templated_email
+    from app.modules.identity.repository import UserRepository
+    from app.modules.scoring.service import score_and_apply
+
+    score_and_apply(db, tenant_id=tenant.id, lead=lead, actor_id=actor_id)
+    assign_lead_automatically(db, tenant_id=tenant.id, lead=lead, actor_id=actor_id)
+
+    if lead.assigned_user_id is None:
+        return
+    assigned_user = UserRepository(db).get_by_id(lead.assigned_user_id)
+    if assigned_user is None:
+        return
+    send_templated_email(
+        db, tenant_id=tenant.id, trigger_event=EmailTriggerEvent.LEAD_ASSIGNED, recipient=assigned_user.email,
+        lead_id=lead.id,
+        context={
+            "first_name": lead.first_name, "last_name": lead.last_name, "company": lead.company or "",
+            "reference_number": lead.reference_number, "tenant_name": tenant.name,
+            "assigned_user_name": f"{assigned_user.first_name} {assigned_user.last_name}".strip(),
+        },
+    )
+
+
 def generate_reference_number(tenant_slug: str) -> str:
     prefix = "".join(ch for ch in tenant_slug.upper() if ch.isalnum())[:4] or "LEAD"
     return f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
@@ -144,6 +175,8 @@ def capture_public_lead(
             summary=f"Flagged as a possible duplicate of {duplicate.reference_number}",
         )
 
+    _score_assign_and_notify(db, tenant=tenant, lead=lead, actor_id=None)
+
     from app.modules.crm.service import create_task
 
     create_task(
@@ -194,6 +227,9 @@ def create_manual_lead(db: Session, *, tenant_id: uuid.UUID, tenant_slug: str, c
     )
     record_activity(db, tenant_id=tenant_id, lead_id=lead.id, actor_id=created_by, activity_type="lead.created", summary="Lead created manually")
     log_event(db, tenant_id=tenant_id, actor_user_id=created_by, action="lead.created", entity_type="lead", entity_id=lead.id)
+
+    tenant = tenancy_service.get_tenant_or_404(db, tenant_id)
+    _score_assign_and_notify(db, tenant=tenant, lead=lead, actor_id=created_by)
     return lead
 
 
@@ -208,6 +244,8 @@ def update_lead(db: Session, *, tenant_id: uuid.UUID, lead: Lead, updates: dict,
     for field, value in updates.items():
         if value is not None:
             setattr(lead, field, value)
+    if "priority" in updates and updates["priority"] is not None:
+        lead.priority_locked = True
     db.add(lead)
     db.flush()
     from app.modules.crm.service import record_activity

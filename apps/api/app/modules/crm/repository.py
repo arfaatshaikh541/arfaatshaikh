@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -181,6 +182,22 @@ class TaskRepository:
         if status:
             stmt = stmt.where(Task.status == status)
         return list(self.db.execute(stmt.order_by(Task.due_at.asc().nulls_last())).scalars().all())
+
+    def list_due_for_reminder(self, *, before: datetime, tenant_id: uuid.UUID | None = None) -> list[Task]:
+        """Open tasks with an assignee, a due date at/before `before`, and
+        no reminder sent yet — used by the Celery beat reminder sweep,
+        idempotent since `reminder_sent_at` is set the moment a reminder
+        is dispatched."""
+        stmt = select(Task).where(
+            Task.status == TaskStatus.OPEN,
+            Task.due_at.isnot(None),
+            Task.due_at <= before,
+            Task.reminder_sent_at.is_(None),
+            Task.assigned_user_id.isnot(None),
+        )
+        if tenant_id is not None:
+            stmt = stmt.where(Task.tenant_id == tenant_id)
+        return list(self.db.execute(stmt).scalars().all())
 
 
 class TaskCommentRepository:

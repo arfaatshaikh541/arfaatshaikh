@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api-client";
-import type { ActivityItem, AttachmentItem, LeadDetail, NoteItem, TagItem, TaskItem } from "@/lib/types";
+import type { ActivityItem, AttachmentItem, LeadDetail, NoteItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = use(params);
@@ -24,6 +24,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
   const tagsQuery = useQuery({ queryKey: ["lead", leadId, "tags"], queryFn: () => api.get<TagItem[]>(`/tenant/leads/${leadId}/tags`) });
   const tasksQuery = useQuery({ queryKey: ["lead", leadId, "tasks"], queryFn: () => api.get<TaskItem[]>(`/tenant/leads/${leadId}/tasks`) });
   const attachmentsQuery = useQuery({ queryKey: ["lead", leadId, "attachments"], queryFn: () => api.get<AttachmentItem[]>(`/tenant/leads/${leadId}/attachments`) });
+  const scoreQuery = useQuery({ queryKey: ["lead", leadId, "score"], queryFn: () => api.get<ScoreBreakdown>(`/tenant/scoring/leads/${leadId}/breakdown`) });
 
   const invalidateLead = () => {
     queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -121,7 +122,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
               </div>
               <div>
                 <dt className="text-ink-faint">Priority</dt>
-                <dd className="capitalize text-ink">{lead.priority}</dd>
+                <dd className="capitalize text-ink">
+                  {lead.priority}
+                  {lead.priority_locked && <span className="ml-1.5 text-xs text-ink-faint">(manually set)</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-ink-faint">Score</dt>
+                <dd className="text-ink">{lead.score ?? "—"}</dd>
               </div>
               <div>
                 <dt className="text-ink-faint">Preferred contact</dt>
@@ -193,6 +201,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
         </div>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader title="Score breakdown" description="Why this lead scored the way it did." />
+            {scoreQuery.data?.total_score == null ? (
+              <p className="text-sm text-ink-muted">Not scored yet.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-2xl font-semibold text-ink">{scoreQuery.data.total_score}</p>
+                <ul className="space-y-1">
+                  {scoreQuery.data.breakdown.map((entry) => (
+                    <li key={entry.rule_id} className="flex justify-between text-sm">
+                      <span className="text-ink-muted">{entry.rule_name}</span>
+                      <span className="text-ink">+{entry.points}</span>
+                    </li>
+                  ))}
+                  {scoreQuery.data.breakdown.length === 0 && <li className="text-sm text-ink-faint">No rules matched.</li>}
+                </ul>
+              </div>
+            )}
+          </Card>
+
           <Card>
             <CardHeader title="Tags" />
             <div className="flex flex-wrap gap-2">

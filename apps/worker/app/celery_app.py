@@ -9,7 +9,7 @@ celery_app = Celery(
     "cops_worker",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.cleanup"],
+    include=["app.tasks.cleanup", "app.tasks.communications"],
 )
 
 celery_app.conf.update(
@@ -35,5 +35,13 @@ celery_app.conf.beat_schedule = {
     "cleanup-expired-feature-overrides": {
         "task": "app.tasks.cleanup.cleanup_expired_feature_overrides",
         "schedule": crontab(minute=30, hour="*/6"),
+    },
+    "retry-failed-email-deliveries": {
+        "task": "app.tasks.communications.retry_email_deliveries",
+        "schedule": crontab(minute="*/15"),
+    },
+    "send-task-reminders": {
+        "task": "app.tasks.communications.send_task_reminders",
+        "schedule": crontab(minute="*/15"),
     },
 }

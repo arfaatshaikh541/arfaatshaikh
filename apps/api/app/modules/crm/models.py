@@ -137,6 +137,9 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Distinguishes staff-created tasks from ones a workflow rule created
     # (Milestone 5) — reserved now so that migration isn't needed later.
     source: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    # Set once a task-reminder email has been sent, so the reminder sweep
+    # (Milestone 3) never re-notifies the same task twice.
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TaskComment(UUIDPrimaryKeyMixin, Base):

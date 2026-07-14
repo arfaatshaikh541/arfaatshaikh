@@ -23,3 +23,12 @@ class FakeEmailProvider(EmailProvider):
                         query = parse_qs(urlparse(url).query)
                         return query["token"][0]
         raise AssertionError(f"No email with a token link was sent to {to}")
+
+
+class FailingEmailProvider(EmailProvider):
+    """Always raises — used to exercise the FAILED delivery-log path and
+    the retry-transitions-to-SENT path (by swapping to `FakeEmailProvider`
+    partway through a test)."""
+
+    def send(self, *, to: str, subject: str, text_body: str, html_body: str | None = None) -> None:
+        raise ConnectionError("simulated SMTP failure")

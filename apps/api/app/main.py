@@ -17,6 +17,8 @@ from app.core.logging import (
     user_id_var,
 )
 from app.core.storage import LocalDiskAdapter, get_storage_adapter
+from app.modules.assignment.routes import router as assignment_router
+from app.modules.communications.routes import router as communications_router
 from app.modules.crm.routes import (
     leads_crm_router,
     pipelines_router,
@@ -40,6 +42,7 @@ from app.modules.leads.routes import (
 )
 from app.modules.permissions.routes import router as roles_router
 from app.modules.platform_admin.routes import router as platform_admin_router
+from app.modules.scoring.routes import router as scoring_router
 from app.modules.subscriptions.routes import router as subscriptions_router
 from app.modules.tenancy.routes import router as tenant_settings_router
 
@@ -116,6 +119,9 @@ def create_app() -> FastAPI:
         leads_crm_router,
         tasks_router,
         tags_router,
+        scoring_router,
+        assignment_router,
+        communications_router,
     ):
         api_router.include_router(router)
 

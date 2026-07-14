@@ -223,6 +223,10 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     priority: Mapped[LeadPriority] = mapped_column(
         Enum(LeadPriority, name="lead_priority", native_enum=False, length=20), nullable=False, default=LeadPriority.MEDIUM
     )
+    # Set automatically the moment staff manually change `priority` — once
+    # true, scoring's auto-priority mapping (Milestone 3) no longer
+    # overwrites it on recompute.
+    priority_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     estimated_value: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
 

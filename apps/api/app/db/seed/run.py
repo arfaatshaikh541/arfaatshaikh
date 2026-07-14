@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.core.db import session_scope, set_rls_context
 from app.core.security import hash_password
 from app.db.seed.catalog import ADD_ONS, MODULES, PLANS, USAGE_METRICS
+from app.db.seed.engagement_operations_template import apply_engagement_operations_template
 from app.db.seed.professional_services_template import apply_professional_services_template
 from app.modules.entitlements.repository import UsageMetricRepository
 from app.modules.identity.models import MembershipStatus
@@ -130,7 +131,7 @@ def seed_demo_tenant(db) -> None:
 
     roles = provision_default_roles_for_tenant(db, tenant.id)
     assign_plan(db, tenant_id=tenant.id, plan_code="growth", changed_by=None)
-    apply_professional_services_template(db, tenant.id)
+    question_ids_by_label = apply_professional_services_template(db, tenant.id)
 
     user_repo = UserRepository(db)
     membership_repo = MembershipRepository(db)
@@ -151,6 +152,10 @@ def seed_demo_tenant(db) -> None:
             user.email_verified = True
         membership_repo.create(tenant_id=tenant.id, user_id=user.id, role_id=roles[role_name].id, status=MembershipStatus.ACTIVE)
         created_users[role_name] = user.id
+
+    apply_engagement_operations_template(
+        db, tenant.id, question_ids_by_label=question_ids_by_label, owner_user_id=created_users["Tenant Owner"]
+    )
 
     logger.info("Created demo tenant '%s' with %d users", tenant.name, len(demo_users))
     seed_demo_leads(db, tenant_id=tenant.id, tenant_slug=tenant.slug, agent_user_id=created_users["Sales Agent"])

@@ -18,6 +18,9 @@ TENANT_PERMISSIONS: dict[str, str] = {
     "leads.assign": "Assign leads to staff",
     "leads.export": "Export lead data",
     "services.manage": "Manage services and qualification forms",
+    "scoring.manage": "Manage lead scoring rules and thresholds",
+    "assignment.manage": "Manage lead assignment rules",
+    "communications.manage": "Manage email templates and delivery logs",
     "tasks.view": "View tasks",
     "tasks.manage": "Create, update, and complete tasks",
     "appointments.view": "View appointments",
@@ -57,7 +60,7 @@ DEFAULT_TENANT_ROLES: dict[str, list[str]] = {
     "Tenant Owner": list(TENANT_PERMISSIONS.keys()),
     "Administrator": [
         "leads.view", "leads.create", "leads.update", "leads.delete", "leads.assign", "leads.export",
-        "services.manage",
+        "services.manage", "scoring.manage", "assignment.manage", "communications.manage",
         "tasks.view", "tasks.manage",
         "appointments.view", "appointments.manage",
         "workflows.view", "workflows.manage",
@@ -70,7 +73,7 @@ DEFAULT_TENANT_ROLES: dict[str, list[str]] = {
     ],
     "Manager": [
         "leads.view", "leads.create", "leads.update", "leads.assign", "leads.export",
-        "services.manage",
+        "services.manage", "scoring.manage", "assignment.manage",
         "tasks.view", "tasks.manage",
         "appointments.view", "appointments.manage",
         "workflows.view",

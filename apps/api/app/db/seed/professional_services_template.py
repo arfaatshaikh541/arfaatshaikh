@@ -67,7 +67,12 @@ DEFAULT_QUESTIONS: list[dict] = [
 ]
 
 
-def apply_professional_services_template(db: Session, tenant_id) -> None:
+def apply_professional_services_template(db: Session, tenant_id) -> dict:
+    """Returns a map of {question_label: question_id} for the created
+    default form's questions, so callers (e.g. the Milestone 3 engagement-
+    operations template) can reference specific questions in scoring
+    rules without re-querying. Returns {} when the tenant was already
+    templated (idempotent no-op)."""
     from app.modules.crm.service import ensure_default_pipeline
     from app.modules.leads import service as leads_service
     from app.modules.leads.models import QualificationQuestionType
@@ -77,16 +82,19 @@ def apply_professional_services_template(db: Session, tenant_id) -> None:
 
     service_repo = ServiceRepository(db)
     if service_repo.list_for_tenant(tenant_id):
-        return  # already templated (idempotent — never duplicate on re-run)
+        return {}  # already templated (idempotent — never duplicate on re-run)
 
     for index, service_def in enumerate(DEFAULT_SERVICES):
         service_repo.create(tenant_id=tenant_id, name=service_def["name"], description=service_def["description"], sort_order=index)
 
     form = leads_service.create_qualification_form(db, tenant_id=tenant_id, name="Default Enquiry Form")
+    question_ids_by_label: dict[str, object] = {}
     for question_def in DEFAULT_QUESTIONS:
-        leads_service.add_question(
+        question = leads_service.add_question(
             db, tenant_id=tenant_id, form_id=form.id, label=question_def["label"],
             question_type=QualificationQuestionType(question_def["question_type"]),
             is_required=question_def["is_required"], maps_to_field=question_def["maps_to_field"],
             options=question_def["options"],
         )
+        question_ids_by_label[question_def["label"]] = question.id
+    return question_ids_by_label

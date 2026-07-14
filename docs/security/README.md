@@ -1,6 +1,6 @@
-# Security — Milestones 1 & 2
+# Security — Milestones 1, 2 & 3
 
-This documents what is actually implemented as of Milestone 2, what is
+This documents what is actually implemented as of Milestone 3, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
@@ -31,6 +31,15 @@ The only unauthenticated, write-capable endpoint in the platform is
 | Storage keys | Tenant- and entity-namespaced, UUID-randomised (`build_storage_key`) — never sequential or guessable |
 | Downloads | Short-lived (10-minute), single-purpose signed URLs — local dev via a random Redis-backed token redeemed at `GET /api/files/{token}`, production via real S3 presigned URLs (`S3Adapter.get_download_url`). The browser never learns the real storage key |
 | Malware scanning | **Not implemented** — reserved integration point per the architecture doc, expected before Milestone 7 (formal document collection) at the latest |
+
+## Email template rendering (Milestone 3)
+
+| Control | Implementation |
+|---|---|
+| No template-injection surface | Merge fields use a fixed `{{field}}` whitelist substituted via `re.sub` (`app/modules/communications/service.py::render_template`) — never Jinja2 or any engine with code-execution capability, even though Jinja2 is already a dependency for other purposes. An unknown `{{field}}` is left as literal text, not evaluated |
+| Test-send safety | `POST /tenant/communications/templates/{id}/send-test` always sends to the requesting user's own email address (looked up server-side from the session), never a client-supplied recipient — no open-mail-relay / spam risk |
+| Soft-fail by design | A disabled `communications` module, a missing active template, or an exhausted `messages` usage limit all cause `send_templated_email` to return `None` rather than raise — a notification failure can never block the core action (lead creation, stage change) that triggered it. Verified by automated tests |
+| Delivery retry | Failed sends are logged (`email_delivery_logs`, rendered-content snapshot, not re-rendered from context) and retried by a Celery beat sweep up to a fixed attempt cap — never an unbounded retry loop |
 
 ## Authentication
 

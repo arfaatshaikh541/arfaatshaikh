@@ -105,6 +105,21 @@ def change_stage(db: Session, *, tenant_id: uuid.UUID, lead_id: uuid.UUID, new_s
         summary=f"Stage changed to {new_stage.name}", metadata_json={"to_stage": new_stage.name, "loss_reason": loss_reason},
     )
     log_event(db, tenant_id=tenant_id, actor_user_id=actor_id, action="lead.stage_changed", entity_type="lead", entity_id=lead_id, after={"stage": new_stage.name})
+
+    if lead.email and (new_stage.is_won or new_stage.is_lost):
+        from app.modules.communications.models import EmailTriggerEvent
+        from app.modules.communications.service import send_templated_email
+        from app.modules.tenancy import service as tenancy_service
+
+        tenant = tenancy_service.get_tenant_or_404(db, tenant_id)
+        send_templated_email(
+            db, tenant_id=tenant_id, trigger_event=EmailTriggerEvent.STAGE_CHANGED, recipient=lead.email,
+            lead_id=lead.id, stage_outcome="won" if new_stage.is_won else "lost",
+            context={
+                "first_name": lead.first_name, "last_name": lead.last_name, "company": lead.company or "",
+                "reference_number": lead.reference_number, "tenant_name": tenant.name, "stage_name": new_stage.name,
+            },
+        )
     return lead
 
 

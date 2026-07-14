@@ -121,6 +121,8 @@ export interface LeadDetail {
   stage_id: string | null;
   pipeline_id: string | null;
   priority: "low" | "medium" | "high";
+  priority_locked: boolean;
+  score: number | null;
   estimated_value: number | null;
   assigned_user_id: string | null;
   preferred_contact_method: string | null;
@@ -173,4 +175,83 @@ export interface AttachmentItem {
   size_bytes: number;
   uploaded_by: string | null;
   created_at: string;
+}
+
+export type ScoringOperator = "equals" | "not_equals" | "contains" | "greater_than" | "less_than" | "is_set" | "in";
+
+export interface ScoringRule {
+  id: string;
+  name: string;
+  field: string;
+  operator: ScoringOperator;
+  value: unknown;
+  points: number;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface ScoringSettings {
+  hot_threshold: number;
+  warm_threshold: number;
+  auto_priority: boolean;
+}
+
+export interface ScoreBreakdownEntry {
+  rule_id: string;
+  rule_name: string;
+  points: number;
+}
+
+export interface ScoreBreakdown {
+  total_score: number | null;
+  breakdown: ScoreBreakdownEntry[];
+  computed_at: string | null;
+}
+
+export type AssignmentStrategy = "round_robin" | "service_based" | "priority_based";
+
+export interface AssignmentRule {
+  id: string;
+  name: string;
+  strategy: AssignmentStrategy;
+  conditions: Record<string, unknown>;
+  eligible_user_ids: string[];
+  sort_order: number;
+  is_active: boolean;
+}
+
+export type EmailTriggerEvent = "manual" | "lead_created" | "lead_assigned" | "stage_changed" | "task_reminder";
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  trigger_event: EmailTriggerEvent;
+  trigger_stage_outcome: string | null;
+  subject: string;
+  body_text: string;
+  body_html: string | null;
+  is_active: boolean;
+}
+
+export interface EmailDeliveryLog {
+  id: string;
+  template_id: string | null;
+  lead_id: string | null;
+  recipient: string;
+  subject: string;
+  status: "pending" | "sent" | "failed";
+  attempt_count: number;
+  last_error: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface TenantMember {
+  membership_id: string;
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role_name: string;
+  status: string;
 }

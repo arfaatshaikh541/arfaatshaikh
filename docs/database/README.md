@@ -3,8 +3,9 @@
 PostgreSQL 16. UUID primary keys throughout. All timestamps stored as
 `timestamptz` (UTC). Every tenant-owned table has row-level security
 enabled — see `app/alembic/versions/57bf2768a62d_row_level_security_policies.py`
-(Milestone 1) and `app/alembic/versions/45ce592d6cd5_milestone_2_row_level_security_policies.py`
-(Milestone 2) for the exact policies and the reasoning behind each one.
+(Milestone 1), `app/alembic/versions/45ce592d6cd5_milestone_2_row_level_security_policies.py`
+(Milestone 2), and `app/alembic/versions/9fa62b59def2_milestone_3_row_level_security_policies.py`
+(Milestone 3) for the exact policies and the reasoning behind each one.
 
 ## Entity-relationship diagram (as built)
 
@@ -330,6 +331,91 @@ capture form, deliberately distinct from the tenant's slug/UUID and
 **not** row-level-secured (same reasoning as invitations/sessions — see
 below).
 
+## Entity-relationship diagram — Milestone 3 additions (Scoring, Assignment, Communications)
+
+```mermaid
+erDiagram
+    LEADS ||--o{ LEAD_SCORE_LOGS : "scored, logged for"
+    SCORING_RULES ||--o{ LEAD_SCORE_LOGS : "referenced by breakdown"
+    ASSIGNMENT_RULES ||--o| ASSIGNMENT_RULE_ROUND_ROBIN_STATE : "tracks cursor for"
+    EMAIL_TEMPLATES ||--o{ EMAIL_DELIVERY_LOGS : "rendered into"
+    LEADS ||--o{ EMAIL_DELIVERY_LOGS : "notification about"
+
+    SCORING_RULES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        string field "lead attribute, or answer:<question_id>"
+        enum operator "EQUALS|NOT_EQUALS|CONTAINS|GREATER_THAN|LESS_THAN|IS_SET|IN"
+        jsonb value
+        int points
+        int sort_order
+        bool is_active
+    }
+    SCORING_SETTINGS {
+        uuid id PK
+        uuid tenant_id FK UK
+        int hot_threshold
+        int warm_threshold
+        bool auto_priority
+    }
+    LEAD_SCORE_LOGS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        int total_score
+        jsonb breakdown "[{rule_id, rule_name, points}]"
+        timestamptz created_at
+    }
+    ASSIGNMENT_RULES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        enum strategy "ROUND_ROBIN|SERVICE_BASED|PRIORITY_BASED"
+        jsonb conditions
+        jsonb eligible_user_ids
+        int sort_order
+        bool is_active
+    }
+    ASSIGNMENT_RULE_ROUND_ROBIN_STATE {
+        uuid id PK
+        uuid tenant_id FK
+        uuid rule_id FK UK
+        int last_assigned_index
+    }
+    EMAIL_TEMPLATES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        enum trigger_event "MANUAL|LEAD_CREATED|LEAD_ASSIGNED|STAGE_CHANGED|TASK_REMINDER"
+        string trigger_stage_outcome "nullable — won|lost, STAGE_CHANGED only"
+        string subject
+        text body_text
+        text body_html "nullable"
+        bool is_active
+    }
+    EMAIL_DELIVERY_LOGS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid template_id FK "nullable"
+        uuid lead_id FK "nullable"
+        string recipient
+        string subject
+        text body_text "rendered snapshot, resent as-is on retry"
+        text body_html "nullable"
+        enum status "PENDING|SENT|FAILED"
+        int attempt_count
+        text last_error "nullable"
+        timestamptz sent_at "nullable"
+        timestamptz created_at
+    }
+```
+
+Also added in Milestone 3: `Lead.priority_locked` (set the moment staff
+manually change a lead's priority, so scoring's auto-priority mapping
+never silently overwrites a human decision) and `Task.reminder_sent_at`
+(idempotency marker for the task-reminder sweep).
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -339,7 +425,7 @@ below).
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture explicitly sets that context from its capture token before touching any of them) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture explicitly sets that context from its capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
@@ -353,6 +439,10 @@ Milestone 2:
 3. `235868a48cb8_milestone_2_lead_capture_and_crm_schema.py` — services, qualification forms, leads, pipelines, notes, tasks, tags, attachments, activities.
 4. `45ce592d6cd5_milestone_2_row_level_security_policies.py` — RLS for all of the above.
 5. `80b63d28fe69_add_tenant_capture_tokens.py` — the public lead-capture token table, with a data backfill for any tenant created before this migration.
+
+Milestone 3:
+6. `c8f73ca17737_milestone_3_scoring_assignment_communications_schema.py` — scoring rules/settings/logs, assignment rules/round-robin state, email templates/delivery logs, plus `leads.priority_locked` (server-default `false`, since `leads` already has rows by this point) and `tasks.reminder_sent_at`.
+7. `9fa62b59def2_milestone_3_row_level_security_policies.py` — RLS for all of the above.
 
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and
@@ -368,13 +458,18 @@ restore-testing guidance.
 - A demo tenant ("Rafana Advisory Demo — Fictional Demo Data", Growth
   plan) with three demo users (Tenant Owner, Manager, Sales Agent), the
   Professional Services template (9 default services, a 9-question
-  qualification form, the 10-stage default pipeline), and 3 fictional
-  demo leads with a note each.
+  qualification form, the 10-stage default pipeline), the Engagement
+  Operations template (4 scoring rules, 1 round-robin assignment rule,
+  3 email templates), and 3 fictional demo leads with a note each —
+  each of which is scored, auto-assigned, and triggers a real (though
+  soft-failing-if-unreachable) notification send through the same code
+  path a production lead would use.
 
-`app/db/seed/professional_services_template.py` applies the same
-Professional Services template to every newly created tenant (called
-from `platform_admin.service.create_tenant_with_owner`), not just the
-seeded demo tenant.
+`app/db/seed/professional_services_template.py` applies the Professional
+Services template and `app/db/seed/engagement_operations_template.py`
+applies the Engagement Operations template to every newly created tenant
+(both called from `platform_admin.service.create_tenant_with_owner`), not
+just the seeded demo tenant.
 
 All demo data is clearly labelled as fictional; no real personal
 information is used.

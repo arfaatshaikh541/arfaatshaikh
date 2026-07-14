@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.db.seed.engagement_operations_template import apply_engagement_operations_template
 from app.db.seed.professional_services_template import apply_professional_services_template
 from app.modules.audit.service import log_event
 from app.modules.entitlements import service as entitlements_service
@@ -40,7 +41,8 @@ def create_tenant_with_owner(
         db, tenant_id=tenant.id, plan_code=plan_code, changed_by=created_by, status=SubscriptionStatus.ACTIVE
     )
 
-    apply_professional_services_template(db, tenant.id)
+    question_ids_by_label = apply_professional_services_template(db, tenant.id)
+    apply_engagement_operations_template(db, tenant.id, question_ids_by_label=question_ids_by_label, owner_user_id=owner.id)
 
     log_event(
         db, tenant_id=tenant.id, actor_user_id=created_by, action="tenant.created",
