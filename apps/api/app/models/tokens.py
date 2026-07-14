@@ -44,3 +44,18 @@ class LoginAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
+
+
+class SignupAttempt(Base):
+    """Append-only, IP-keyed rate limit for the public self-serve
+    /auth/signup endpoint. No tenant_id - signup happens before any
+    tenant exists, unlike public_form_attempts which is scoped to one
+    tenant's enquiry form."""
+
+    __tablename__ = "signup_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    ip_address: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )

@@ -17,7 +17,12 @@ from app.models.session import AuthSession
 from app.models.subscription import Subscription, SubscriptionPlan
 from app.models.task import Task, TaskComment, TaskType
 from app.models.tenant import Tenant, TenantDomain, TenantFeature, TenantSettings
-from app.models.tokens import EmailVerificationToken, LoginAttempt, PasswordResetToken
+from app.models.tokens import (
+    EmailVerificationToken,
+    LoginAttempt,
+    PasswordResetToken,
+    SignupAttempt,
+)
 from app.models.user import User
 from app.models.workflow import WorkflowExecutionLog, WorkflowRule
 
@@ -67,6 +72,7 @@ __all__ = [
     "EmailVerificationToken",
     "LoginAttempt",
     "PasswordResetToken",
+    "SignupAttempt",
     "User",
     "WorkflowExecutionLog",
     "WorkflowRule",

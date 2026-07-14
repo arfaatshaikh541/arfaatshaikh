@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     login_rate_limit_attempts: int = 5
     login_rate_limit_window_minutes: int = 15
 
+    signup_rate_limit_attempts: int = 5
+    signup_rate_limit_window_minutes: int = 60
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

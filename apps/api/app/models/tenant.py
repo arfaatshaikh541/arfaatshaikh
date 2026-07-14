@@ -57,6 +57,7 @@ class TenantSettings(TimestampMixin, Base):
     locale: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
     data_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=730)
     privacy_text: Mapped[str | None] = mapped_column(Text)
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     tenant: Mapped["Tenant"] = relationship(back_populates="settings")
 

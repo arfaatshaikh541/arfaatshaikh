@@ -20,8 +20,10 @@ from app.schemas.auth import (
     VerifyEmailRequest,
 )
 from app.schemas.common import MessageResponse
+from app.schemas.tenant import TenantCreate
 from app.schemas.user import ChangePasswordRequest, CurrentUserOut
 from app.services.auth_service import AuthService, IssuedTokens
+from app.services.tenant_service import TenantService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -65,6 +67,41 @@ def clear_auth_cookies(response: Response) -> None:
     settings = get_settings()
     for name in (ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, CSRF_COOKIE):
         response.delete_cookie(name, domain=settings.cookie_domain or None, path="/")
+
+
+@router.post("/signup", response_model=LoginResponse, status_code=201)
+def signup(
+    payload: TenantCreate,
+    response: Response,
+    db: Session = Depends(get_db),
+    ip: str = Depends(client_ip),
+) -> LoginResponse:
+    TenantService(db).self_signup(
+        name=payload.name,
+        slug=payload.slug,
+        legal_name=payload.legal_name,
+        timezone=payload.timezone,
+        currency=payload.currency,
+        owner_email=payload.owner_email,
+        owner_first_name=payload.owner_first_name,
+        owner_last_name=payload.owner_last_name,
+        owner_password=payload.owner_password,
+        ip_address=ip,
+    )
+    db.commit()
+
+    auth_service = AuthService(db)
+    tokens = auth_service.login(
+        email=payload.owner_email,
+        password=payload.owner_password,
+        ip_address=ip,
+        user_agent=None,
+    )
+    auth_service.start_email_verification(tokens.user)
+    db.commit()
+
+    set_auth_cookies(response, tokens)
+    return LoginResponse(user=build_current_user_out(db, tokens.user))
 
 
 @router.post("/login", response_model=LoginResponse)

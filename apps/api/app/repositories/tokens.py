@@ -5,7 +5,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import utcnow
-from app.models.tokens import EmailVerificationToken, LoginAttempt, PasswordResetToken
+from app.models.tokens import (
+    EmailVerificationToken,
+    LoginAttempt,
+    PasswordResetToken,
+    SignupAttempt,
+)
 
 
 class EmailVerificationTokenRepository:
@@ -83,5 +88,25 @@ class LoginAttemptRepository:
                 LoginAttempt.success.is_(False),
                 LoginAttempt.created_at >= since,
             )
+        )
+        return int(self.db.execute(stmt).scalar_one())
+
+
+class SignupAttemptRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def record(self, *, ip_address: str) -> SignupAttempt:
+        attempt = SignupAttempt(ip_address=ip_address, created_at=utcnow())
+        self.db.add(attempt)
+        self.db.flush()
+        return attempt
+
+    def count_recent(self, *, ip_address: str, window_minutes: int) -> int:
+        since = utcnow() - timedelta(minutes=window_minutes)
+        stmt = (
+            select(func.count())
+            .select_from(SignupAttempt)
+            .where(SignupAttempt.ip_address == ip_address, SignupAttempt.created_at >= since)
         )
         return int(self.db.execute(stmt).scalar_one())

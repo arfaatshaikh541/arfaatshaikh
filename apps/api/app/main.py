@@ -33,13 +33,14 @@ from app.services.errors import ServiceError
 
 # Endpoints exempt from the double-submit CSRF check because the cookie
 # they read is itself the credential being presented for that specific
-# action (login submits fresh credentials; refresh/logout act on the
+# action (login/signup submit fresh credentials; refresh/logout act on the
 # refresh_token cookie directly) rather than ambient authority being used
 # to perform an unrelated state change on the user's behalf. Every other
 # mutating, cookie-authenticated endpoint (settings, roles, members, etc.)
 # stays protected.
 _CSRF_EXEMPT_PATHS = frozenset(
     {
+        "/api/auth/signup",
         "/api/auth/login",
         "/api/auth/refresh",
         "/api/auth/logout",
