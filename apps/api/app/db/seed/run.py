@@ -15,11 +15,13 @@ tenant name and user names below. Nothing here is real personal
 information.
 """
 import logging
+import uuid
 
 from app.core.config import get_settings
 from app.core.db import session_scope, set_rls_context
 from app.core.security import hash_password
 from app.db.seed.catalog import ADD_ONS, MODULES, PLANS, USAGE_METRICS
+from app.db.seed.professional_services_template import apply_professional_services_template
 from app.modules.entitlements.repository import UsageMetricRepository
 from app.modules.identity.models import MembershipStatus
 from app.modules.identity.repository import MembershipRepository, UserRepository
@@ -128,6 +130,7 @@ def seed_demo_tenant(db) -> None:
 
     roles = provision_default_roles_for_tenant(db, tenant.id)
     assign_plan(db, tenant_id=tenant.id, plan_code="growth", changed_by=None)
+    apply_professional_services_template(db, tenant.id)
 
     user_repo = UserRepository(db)
     membership_repo = MembershipRepository(db)
@@ -137,6 +140,7 @@ def seed_demo_tenant(db) -> None:
         ("manager@rafana-demo.internal", "Demo", "Manager", "Manager"),
         ("agent@rafana-demo.internal", "Demo", "Sales Agent", "Sales Agent"),
     ]
+    created_users: dict[str, uuid.UUID] = {}
     for email, first_name, last_name, role_name in demo_users:
         user = user_repo.get_by_email(email)
         if user is None:
@@ -146,8 +150,34 @@ def seed_demo_tenant(db) -> None:
             )
             user.email_verified = True
         membership_repo.create(tenant_id=tenant.id, user_id=user.id, role_id=roles[role_name].id, status=MembershipStatus.ACTIVE)
+        created_users[role_name] = user.id
 
     logger.info("Created demo tenant '%s' with %d users", tenant.name, len(demo_users))
+    seed_demo_leads(db, tenant_id=tenant.id, tenant_slug=tenant.slug, agent_user_id=created_users["Sales Agent"])
+
+
+def seed_demo_leads(db, *, tenant_id, tenant_slug: str, agent_user_id) -> None:
+    from app.modules.leads.repository import ServiceRepository
+    from app.modules.leads.schemas import ManualLeadCreateRequest
+    from app.modules.leads.service import create_manual_lead
+
+    services = {s.name: s for s in ServiceRepository(db).list_for_tenant(tenant_id)}
+    demo_leads = [
+        ("Fatima", "Al Mansoori", "fatima.almansoori@democlient.internal", "External Audit"),
+        ("Yusuf", "Hassan", "yusuf.hassan@democlient.internal", "Corporate Tax"),
+        ("Layla", "Ibrahim", "layla.ibrahim@democlient.internal", "Business Setup"),
+    ]
+    for first_name, last_name, email, service_name in demo_leads:
+        service = services.get(service_name)
+        payload = ManualLeadCreateRequest(
+            first_name=first_name, last_name=last_name, email=email, company=f"{last_name} Holdings (Fictional)",
+            service_id=service.id if service else None,
+        )
+        lead = create_manual_lead(db, tenant_id=tenant_id, tenant_slug=tenant_slug, created_by=agent_user_id, payload=payload)
+        from app.modules.crm.service import add_note
+
+        add_note(db, tenant_id=tenant_id, lead_id=lead.id, author_id=agent_user_id, body="Initial enquiry received. (Fictional demo note.)")
+    logger.info("Seeded %d demo leads", len(demo_leads))
 
 
 def run() -> None:

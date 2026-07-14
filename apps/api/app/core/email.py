@@ -100,3 +100,19 @@ def send_invitation_email(*, to: str, tenant_name: str, invite_url: str) -> None
             f'<p><a href="{invite_url}">Accept your invitation</a></p><p>This link expires in 7 days.</p>'
         ),
     )
+
+
+def send_lead_acknowledgement_email(*, to: str, tenant_name: str, first_name: str, reference_number: str) -> None:
+    get_email_provider().send(
+        to=to,
+        subject=f"Thank you for contacting {tenant_name}",
+        text_body=(
+            f"Hi {first_name},\n\nThank you for your enquiry with {tenant_name}. "
+            f"Your reference number is {reference_number}. A member of our team will be in touch shortly."
+        ),
+        html_body=(
+            f"<p>Hi {first_name},</p><p>Thank you for your enquiry with <strong>{tenant_name}</strong>. "
+            f"Your reference number is <strong>{reference_number}</strong>. "
+            "A member of our team will be in touch shortly.</p>"
+        ),
+    )

@@ -3,7 +3,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.tenancy.models import Tenant, TenantDomain, TenantSettings
+from app.core.security import generate_opaque_token
+from app.modules.tenancy.models import Tenant, TenantCaptureToken, TenantDomain, TenantSettings
 
 
 class TenantRepository:
@@ -29,6 +30,7 @@ class TenantRepository:
         self.db.flush()
         settings = TenantSettings(tenant_id=tenant.id)
         self.db.add(settings)
+        self.db.add(TenantCaptureToken(tenant_id=tenant.id, token=generate_opaque_token(num_bytes=24)))
         self.db.flush()
         return tenant
 
@@ -47,3 +49,18 @@ class TenantDomainRepository:
         self.db.add(record)
         self.db.flush()
         return record
+
+
+class TenantCaptureTokenRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_token(self, token: str) -> TenantCaptureToken | None:
+        return self.db.execute(
+            select(TenantCaptureToken).where(TenantCaptureToken.token == token, TenantCaptureToken.is_active.is_(True))
+        ).scalar_one_or_none()
+
+    def get_for_tenant(self, tenant_id: uuid.UUID) -> TenantCaptureToken | None:
+        return self.db.execute(
+            select(TenantCaptureToken).where(TenantCaptureToken.tenant_id == tenant_id, TenantCaptureToken.is_active.is_(True))
+        ).scalar_one_or_none()

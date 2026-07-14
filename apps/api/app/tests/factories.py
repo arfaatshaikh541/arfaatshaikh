@@ -74,13 +74,16 @@ def create_platform_admin(db: Session, *, email: str = "platform-admin@test.inte
 
 def create_tenant_with_owner(
     db: Session, *, name: str = "Test Co", plan_code: str = "growth", owner_email: str = "owner@test.internal",
-    owner_password: str = "OwnerPass!2345",
+    owner_password: str = "OwnerPass!2345", with_template: bool = True,
 ) -> tuple[Tenant, User]:
     """Provisions a tenant, its default roles, an active Tenant Owner
     membership, and a subscription — using the same building blocks as
     the real platform-admin create-tenant workflow, just with the
     password set directly instead of via the email-link flow (tested
-    separately in the invitation/provisioning tests)."""
+    separately in the invitation/provisioning tests). Also applies the
+    Professional Services template (default pipeline, services,
+    qualification form) by default, matching what real tenant creation
+    does — pass `with_template=False` for tests that want a bare tenant."""
     set_rls_context(db, tenant_id=None, is_platform_admin=True)
     tenant = TenantRepository(db).create(name=name, slug=name.lower().replace(" ", "-") + "-" + uuid.uuid4().hex[:6])
     set_rls_context(db, tenant_id=tenant.id, is_platform_admin=True)
@@ -91,7 +94,21 @@ def create_tenant_with_owner(
     MembershipRepository(db).create(tenant_id=tenant.id, user_id=owner.id, role_id=roles["Tenant Owner"].id, status=MembershipStatus.ACTIVE)
 
     assign_plan(db, tenant_id=tenant.id, plan_code=plan_code, changed_by=None, status=SubscriptionStatus.ACTIVE)
+
+    if with_template:
+        from app.db.seed.professional_services_template import apply_professional_services_template
+
+        apply_professional_services_template(db, tenant.id)
+
     return tenant, owner
+
+
+def create_capture_token(db: Session, tenant_id: uuid.UUID) -> str:
+    from app.modules.tenancy.repository import TenantCaptureTokenRepository
+
+    existing = TenantCaptureTokenRepository(db).get_for_tenant(tenant_id)
+    assert existing is not None, "tenant has no capture token"
+    return existing.token
 
 
 def add_member(db: Session, *, tenant: Tenant, email: str, password: str, role_name: str) -> User:

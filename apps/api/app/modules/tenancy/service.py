@@ -3,9 +3,10 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.core.db import set_rls_context
 from app.core.errors import ConflictError, NotFoundError
-from app.modules.tenancy.models import Tenant, TenantSettings, TenantStatus
-from app.modules.tenancy.repository import TenantRepository
+from app.modules.tenancy.models import Tenant, TenantCaptureToken, TenantSettings, TenantStatus
+from app.modules.tenancy.repository import TenantCaptureTokenRepository, TenantRepository
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -60,6 +61,31 @@ def set_tenant_status(db: Session, *, tenant: Tenant, status: TenantStatus) -> T
     tenant.status = status
     db.add(tenant)
     db.flush()
+    return tenant
+
+
+def get_capture_token(db: Session, tenant_id: uuid.UUID) -> TenantCaptureToken | None:
+    return TenantCaptureTokenRepository(db).get_for_tenant(tenant_id)
+
+
+def resolve_tenant_by_capture_token(db: Session, token: str) -> Tenant | None:
+    """Public, unauthenticated lookup — the token itself is the
+    authorization proof. Returns None (never raises) for an unknown or
+    inactive token so the public capture endpoint can respond with a
+    generic 404 rather than distinguishing "wrong token" from "tenant
+    archived" etc."""
+    capture_token = TenantCaptureTokenRepository(db).get_by_token(token)
+    if capture_token is None:
+        return None
+    # The capture token itself (looked up above with no RLS restriction,
+    # same reasoning as invitations/sessions) is the authorization proof
+    # for this specific tenant — establish that as the RLS context before
+    # reading the (RLS-protected) tenants row, exactly as
+    # `identity_service.accept_invitation` does for its own token.
+    set_rls_context(db, tenant_id=capture_token.tenant_id, is_platform_admin=False)
+    tenant = get_tenant(db, capture_token.tenant_id)
+    if tenant is None or tenant.status in {TenantStatus.SUSPENDED, TenantStatus.ARCHIVED}:
+        return None
     return tenant
 
 

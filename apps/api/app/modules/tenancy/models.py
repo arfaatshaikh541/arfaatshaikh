@@ -56,3 +56,22 @@ class TenantDomain(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     tenant: Mapped["Tenant"] = relationship(back_populates="domains")
+
+
+class TenantCaptureToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A stable, unguessable public identifier for a tenant's public lead
+    capture form(s) — deliberately distinct from the tenant's slug/UUID
+    so the public capture endpoint never has to expose (or accept)
+    anything that could be used to probe internal tenant identifiers.
+    Looked up only by this token's own uniqueness, so — like invitations,
+    sessions, and reset tokens — it is intentionally NOT row-level-
+    secured; the token itself is the authorization proof."""
+
+    __tablename__ = "tenant_capture_tokens"
+    __table_args__ = (UniqueConstraint("token", name="uq_tenant_capture_tokens_token"),)
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

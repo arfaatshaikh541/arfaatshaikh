@@ -31,6 +31,10 @@ export default function SettingsPage() {
     queryKey: ["tenant", "settings"],
     queryFn: () => api.get<TenantSettings>("/tenant/settings"),
   });
+  const captureLinkQuery = useQuery({
+    queryKey: ["tenant", "capture-link"],
+    queryFn: () => api.get<{ url: string | null }>("/tenant/settings/capture-link"),
+  });
 
   const { register, handleSubmit, reset } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
@@ -73,6 +77,15 @@ export default function SettingsPage() {
               {mutation.isPending ? "Saving…" : "Save changes"}
             </Button>
           </form>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title="Public lead capture link" description="Share this link to collect enquiries through your public form." />
+        {captureLinkQuery.data?.url ? (
+          <Input readOnly value={captureLinkQuery.data.url} onFocus={(e) => e.target.select()} />
+        ) : (
+          <p className="text-sm text-ink-muted">No capture link available.</p>
         )}
       </Card>
     </div>

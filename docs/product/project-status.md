@@ -1,97 +1,73 @@
 # Project status
 
-**Current milestone:** Milestone 1 — Core SaaS Foundation
-**Status:** Complete, verified against a real PostgreSQL + Redis stack. Awaiting your review before starting Milestone 2.
+**Current milestone:** Milestone 2 — Lead Capture and CRM
+**Status:** Complete, verified against a real PostgreSQL + Redis stack. Awaiting your review before starting Milestone 3.
 **Last updated:** 2026-07-14
 
 ---
 
-## What was built
-
-### Monorepo & infrastructure
-- `apps/api` (FastAPI, modular monolith), `apps/worker` (Celery), `apps/web` (Next.js App Router).
-- `infrastructure/docker/docker-compose.yml`: postgres, redis, minio, mailhog, api, worker, web.
-- `infrastructure/docker/postgres/init-roles.sh`: provisions `app_migrator` (BYPASSRLS, owns schema) and `app_runtime` (NOBYPASSRLS, used at request time) roles — the same script runs in local dev and is documented for production.
-- `.env.example` with every variable documented, `REQUIRES EXTERNAL CREDENTIAL` flagged where relevant.
-- `.github/workflows/ci.yml`: backend (ruff, alembic migrate, pytest against real ephemeral Postgres+Redis) and frontend (eslint, tsc, vitest, next build) jobs.
+## What was built (Milestone 2)
 
 ### Backend (`apps/api`)
-- **Core**: Pydantic Settings config, SQLAlchemy engine/session with RLS session-variable helpers, Argon2id + opaque-token session helpers, structured JSON logging, global exception handling (no stack traces to clients), rate limiting, pagination.
-- **Tenancy module**: `Tenant`, `TenantSettings`, `TenantDomain`; status lifecycle (active/suspended/read_only/archived).
-- **Identity module**: `User`, `Membership`, `Invitation`, `Session`, email-verification and password-reset tokens, login-attempt log. Full auth flows: login, logout, invitation-based registration, forgot/reset password, email verification, tenant switching.
-- **Permissions module**: `Role`, `Permission`, `RolePermission`; full tenant permission catalog + disjoint platform permission catalog; default tenant roles (Tenant Owner, Administrator, Manager, Sales Agent, Support Agent, Viewer) provisioned per-tenant from templates.
-- **Subscriptions module**: `Module`, `Feature`, `SubscriptionPlan`, `PlanFeature`, `TenantSubscription`, `AddOn`, `TenantAddOn`. Seed catalog covers all 17 spec'd modules plus an `account` module for seat limits, and the four spec'd plans (Starter/Growth/Professional/Enterprise).
-- **Entitlements module**: `TenantFeatureOverride`, `UsageMetric`, `UsageRecord`; the `resolve_entitlements()` function is the single source of truth consumed by both backend enforcement (`require_module`/`require_feature`/`check_usage_limit`) and the `/me/entitlements` endpoint the frontend polls. Usage-limit checks use `SELECT ... FOR UPDATE` for concurrency safety.
-- **Audit module**: `AuditLog` (immutable, insert-only), `SupportAccessLog`, `FeatureChangeLog`; every auth/tenancy/role/subscription/entitlement mutation writes an entry.
-- **Platform admin module**: tenant creation (with owner provisioning), status changes, plan assignment, add-on grants, feature overrides, usage view, audit/support-access log views — all behind `require_platform_admin`.
-- **Database**: 2 Alembic migrations (schema, then RLS policies) — both applied, downgraded, and re-applied cleanly against a real PostgreSQL 16 instance during this session. Row-level security enabled and `FORCE`d on every tenant-owned table.
-- **Seed script** (`app/db/seed/run.py`): idempotent; platform admin, demo tenant "Rafana Advisory Demo" (Growth plan) with 3 demo users, full permission/module/plan/add-on catalog.
-- **Worker**: Celery + beat, three scheduled cleanup tasks (expired sessions, expired invitations, expired feature overrides), all re-using the API package's service layer directly.
+- **Leads module**: `Service`, `ServiceCategory`, `QualificationForm`, `QualificationQuestion` (11 types: short/long text, email, phone, number, currency, date, single/multi-select, checkbox, yes/no), `QualificationOption`, `QualificationAnswer` (immutable historical record), `CustomFieldDefinition`/`CustomFieldOption` (schema only — see known limitations), `LeadSource`, `Lead` (every field from the spec: reference number, contact fields, service/source/pipeline/stage, priority, score placeholder for Milestone 3, estimated value, assignment, preferred contact method, next-follow-up, consent status, UTM attribution, duplicate flags).
+- **CRM module**: `Pipeline`/`PipelineStage` (the ten spec-default stages: New → Contacted → Qualified → Consultation Booked → Proposal Sent → Follow-Up → Won/Lost → Nurture → Archived), `LeadStageHistory`, `Tag`/`LeadTag`, `Note`, `Task`/`TaskComment`, `Activity` (unified append-only timeline), `Attachment`.
+- **Public lead capture** (`POST /api/public/capture/{token}/enquiry`, no auth): resolved by an unguessable per-tenant capture token (`TenantCaptureToken`, never the tenant's slug/UUID); honeypot field; Redis-backed throttling (10/10min per tenant+IP); idempotency key; duplicate detection (email/phone match within 30 days — flags, never silently drops); UTM + consent capture; `lead_capture` module + `leads` usage-limit enforcement even on this unauthenticated path. Verified end-to-end over real HTTP, including the honeypot and duplicate-detection cases.
+- **Manual lead creation** (authenticated, `leads.create` + `lead_capture` module + usage limit).
+- **CRM pipeline operations**: stage transitions (with full history + activity timeline entries), notes, tags, tasks (+ comments, completion), attachments (upload/list/signed-download-URL), all gated by `crm` (or `tasks`, for task creation) module entitlement and the relevant `leads.*`/`tasks.*`/`documents.*` permission.
+- **Object storage**: `StorageAdapter` interface actually implemented this milestone (`app/core/storage.py`) — `LocalDiskAdapter` (dev, Redis-backed single-use signed download tokens via `GET /api/files/{token}`) and `S3Adapter` (production, real S3 presigned URLs). MIME allow-list + 20MB size limit enforced before any write.
+- **Professional Services template**: 9 default services, a 9-question default qualification form (exactly matching the spec's question list, including options for emirates/revenue/budget ranges), and the default pipeline — applied automatically to every newly created tenant (`app/db/seed/professional_services_template.py`), not just the demo tenant.
+- **New permission**: `services.manage` (services/qualification-form configuration), added to Tenant Owner/Administrator/Manager by default; `documents.upload` added to Sales Agent (needed to attach files to their own leads — the existing catalog only granted it to Administrator/Support Agent, which was too restrictive for basic CRM attachments).
+- **New endpoint**: `GET /api/tenant/settings/capture-link` — surfaces the tenant's public capture URL in the UI instead of requiring direct DB access.
+- **Two new Alembic migrations** (schema + RLS) plus a third for the tenant capture token table (with data backfill for pre-existing tenants), all exercised upgrade/downgrade/re-upgrade against real Postgres.
+- **14 new pytest tests** (54 total with Milestone 1's), covering: public capture happy path, unknown token, honeypot, idempotency, duplicate detection, throttling, module-disabled rejection; CRM stage transitions + history + timeline, notes/tags/tasks, cross-tenant isolation for leads/attachments, permission enforcement, usage-limit enforcement at the exact boundary, and the Professional Services template.
 
 ### Frontend (`apps/web`)
-- Next.js 15 App Router, TypeScript strict mode, Tailwind (dark neutral UI, restrained orange accent per the approved design direction).
-- Auth pages: login, accept-invitation, forgot-password, reset-password, verify-email.
-- Tenant app: dashboard shell, sidebar with tenant switcher and permission-gated nav, settings, users (list + invite), roles (list + create custom role), subscription/module-access view.
-- Platform admin app: overview, tenant list + create, tenant detail (status/plan/overrides/usage), plans, modules, audit logs.
-- `useEntitlements()` / `RequireModule` / `RequirePermission` — frontend hints only; every route independently re-checks on the backend.
-- TanStack Query for all data fetching; React Hook Form + Zod for validation.
+- Public enquiry page (`/enquire/[token]`) — service picker, dynamically-rendered qualification questions (all 11 types), honeypot field (visually hidden), consent checkbox, generic success response regardless of honeypot triggering.
+- Tenant admin: Services screen (list + create), Qualification Forms screen (list + create) and per-form question editor (add question with type-specific options, required flag, reorder via up/down controls).
+- Lead table (search, priority, stage columns) and a Kanban board (columns per pipeline stage, stage change via a per-card select — see known limitations re: drag-and-drop) sharing one query.
+- Lead detail page: contact details, notes (add/list), tasks (add/complete), tags (add), attachments (upload via native file input, list), and the activity timeline — all on one page.
+- Settings page now also shows the tenant's public capture link.
+- Sidebar nav gained Leads/Services/Qualification Forms, gated by `crm`/`lead_capture` module entitlements and the relevant permissions, using the same `useEntitlements()` mechanism as Milestone 1.
 
-### Tests
-- **Backend**: 40 pytest tests, all running against a real PostgreSQL test database (RLS enabled) and real Redis — no mocked DB. Savepoint-per-test isolation. Covers: login/logout/throttling/password-reset/email-verification, invitation accept flow, tenant isolation (cross-tenant reads, tenant-switch rejection, per-tenant data separation), tenant-status enforcement (suspended/read-only/archived, restore without data loss), authorization (permission checks, platform-permission-not-assignable, system-role-immutable, cross-role rejection), entitlements (module/feature gating, plan upgrade/downgrade preserving data, feature overrides, add-on grants, usage-limit enforcement including the exact-boundary case), and platform admin (tenant CRUD, status/plan changes, platform/tenant role separation).
-- **Frontend**: 4 vitest tests (Button component, login form validation) using Testing Library.
-- `ruff check app` — 0 errors. `eslint` — 0 errors. `tsc --noEmit` — 0 errors. `next build` — succeeds, 18 routes.
+### Tests & verification
+- `ruff check app` — 0 errors. `pytest -q` — 54 passed. `eslint` — 0 errors. `tsc --noEmit` — 0 errors. `next build` — succeeds, 22 routes. `vitest run` — 4 passed.
+- Manually smoke-tested over real HTTP against the seeded demo tenant: full public capture flow (services → form → submit → acknowledgement email → follow-up task auto-created), duplicate detection, honeypot, Kanban stage change → history → timeline, notes/tags, file upload → signed download URL redemption, and the new capture-link endpoint.
 
 ## Acceptance criteria — verified
 
-| Criterion | Verified how |
+| Criterion (from your Milestone 2 spec) | Verified how |
 |---|---|
-| Project starts locally | `apps/api`, `apps/worker` run against real Postgres 16 + Redis 7 in this session (docker-compose is written and `docker compose config` validated, but the actual container build/run was not exercised — see Known Limitations) |
-| Migrations run | `alembic upgrade head` / `downgrade -1` / re-`upgrade head` all exercised against real Postgres |
-| Seed data runs | `python -m app.db.seed.run`, twice (idempotency confirmed) |
-| Login works | Automated test + manual curl smoke test against seeded demo user |
-| Logout works | Automated test: session cookie no longer authenticates after logout |
-| Password reset architecture works | Automated test: request → email (captured) → reset → old password fails, new password works → old session revoked |
-| Tenant switching works | Automated test + manual smoke test; rejects switching into a non-member tenant |
-| Role checks work | Automated tests: Viewer blocked from `/tenant/users`, permission catalog never exposes platform permissions |
-| Two tenants coexist, isolated | Automated tests: separate membership lists, settings updates don't leak, cross-tenant switch rejected |
-| Module entitlements enforced by backend | Automated test asserts `assert_module_enabled` raises for a module not in the Starter plan; manual smoke test confirmed the full HTTP path (Starter plan tenant's `/me/entitlements` omits `booking`) |
-| Disabled module API access rejected | Same mechanism as above — `require_module()` is the actual dependency every future module route will use |
-| Frontend reflects entitlements | `useEntitlements()` drives nav visibility; manually verified against the running API during this session (not screenshotted, no browser available in this sandbox — see Known Limitations) |
-| Subscription plan assignment works | Automated test + manual smoke test (starter → professional, unlocks `document_collection`) |
-| Add-on / override access works | Automated tests + manual smoke test (WhatsApp add-on unlocks `whatsapp` module on a Starter-plan tenant) |
-| Suspended tenant restrictions work | Automated test + manual smoke test (403 on all access; GET allowed, PATCH blocked in read-only; full access restored with zero data loss) |
-| Platform roles stay separate | Automated test: tenant Administrator gets 403 on every `/platform/*` route |
-| Backend tests pass | `pytest -q` → 40 passed |
-| Frontend lint passes | `eslint .` → 0 errors |
-| Frontend type checking passes | `tsc --noEmit` → 0 errors |
-| Production builds pass | `next build` → succeeds |
+| Services, qualification forms, custom fields | Services + qualification forms fully built and editable; custom fields are schema-only this milestone (see known limitations) |
+| Public enquiry form | `/enquire/[token]` page + `POST /public/capture/{token}/enquiry`, manually and automatically tested |
+| Lead creation, duplicate detection | Automated tests + manual smoke test (heuristic email/phone match within 30 days, flags rather than drops) |
+| Lead table | `/leads` table view — search, priority, stage columns |
+| Kanban pipeline | `/leads?view=board` — columns per stage; stage change via dropdown rather than physical drag-and-drop (see known limitations) |
+| Lead detail | `/leads/[leadId]` — details, notes, tasks, tags, attachments, timeline all in one page |
+| Notes, tags, tasks, attachments | All built, permission- and module-gated, automated tests + manual verification including real file upload/download |
+| Activity timeline | `Activity` model, written by service-layer code at each mutation point, not reconstructed after the fact; automated test asserts both a creation and a stage-change entry appear |
+| Filters, search | Search by name/email/phone/company/reference number; stage/assigned-user/service filters on the list endpoint |
+| Entitlement enforcement | `lead_capture`/`crm`/`tasks` module checks and `leads` usage-limit checks on every relevant route, including the public capture path; automated tests for module-disabled rejection and usage-limit boundary |
 
 ## Known limitations
 
-1. **Docker Compose was not actually run end-to-end in this session.** The dev sandbox has no Docker daemon. Every backend/worker code path was instead verified by running the same Python processes directly against a locally-installed PostgreSQL 16 and Redis 7 (identical role provisioning, identical migrations, identical RLS policies) — this exercises the same application code, but the Dockerfiles/compose networking themselves are unverified. **Recommend running `docker compose up --build` once in an environment with Docker before considering this production-ready.**
-2. **No browser was available to visually verify the frontend.** Lint, typecheck, unit tests, and production build all pass, and the API endpoints they call were manually confirmed working — but no screenshot or interactive browser session confirms the UI renders/behaves correctly. **Recommend a manual click-through before Milestone 2.**
-3. **Session lookups are DB-only, not Redis-cached**, per the architecture doc's noted trade-off (correctness over premature optimization) — revisit if login-path latency becomes a real issue.
-4. **Communications module is a minimal SMTP-only stub** (`app/core/email.py`) — plain text/HTML, no DB-driven templates. Full templating is Milestone 3 scope per your spec.
-5. **CSRF double-submit token is not implemented** — `SameSite=Lax` cookies are the interim mitigation. Flagged for Milestone 10.
-6. **Rate limiting is login-only**, not platform-wide. Flagged for Milestone 10.
-7. **`packages/ui`, `packages/shared-types`, `packages/config`** from the original architecture sketch were **not created** — nothing in Milestone 1 needed cross-app sharing yet (only one frontend app exists). They'll be introduced when a real second consumer appears.
-8. Two bugs were found and fixed *during this session's own testing* (not present in the final code, but worth recording): an initial RLS policy design didn't account for the "list my own tenants before selecting one" login/switch-tenant read path (fixed via an `app.current_user_id` GUC and membership-based visibility policies on `tenants`/`roles`), and `audit_logs` initially blocked inserts from public, pre-authentication endpoints (fixed via an insert-unrestricted policy, since audit `tenant_id` is always server-assigned, never client input).
-9. `npm audit` still reports 2 moderate advisories from Next.js's own bundled internal `postcss` dependency (not our top-level one, which is patched) — this is an upstream Next.js packaging choice, not something fixable from this repo without downgrading Next.js.
+1. **Kanban board uses a "move to" dropdown per card, not physical drag-and-drop.** No drag-and-drop library (e.g. `@dnd-kit`) was introduced this milestone — the dropdown achieves the same functional outcome (any stage → any stage in one action) without adding a new frontend dependency. Revisit if the product requirement is specifically the drag gesture, not just the outcome.
+2. **Custom fields are schema-only.** `custom_field_definitions`/`custom_field_options` tables exist and `Lead.custom_fields` (JSONB) is ready to receive values, but there is no admin UI or API route to define custom fields yet — the qualification-question system covers the spec's actual default-questions requirement, so this was deprioritised rather than left silently broken.
+3. **Reference numbers are non-sequential** (`{TENANT-PREFIX}-{8 hex chars}`, derived from the lead's own UUID) rather than a per-tenant incrementing counter, to avoid adding row-locking contention on lead creation. Revisit if the product requirement is specifically sequential numbering.
+4. **Duplicate detection is a flag, not a merge or a block** — by design, per the spec's "duplicate lead detection" (distinct from "duplicate-submission protection," which idempotency keys handle). A human still has to look at the two records.
+5. **Public capture module/permission split**: creating a lead (public or manual) requires the `lead_capture` module; everything else (pipeline, notes, tasks, tags, attachments, timeline) requires `crm` (or `tasks` specifically for task creation). Every seeded plan bundles `lead_capture` and `crm` together today, so this distinction isn't yet user-visible — it becomes relevant only if a future plan unbundles them.
+6. **Same environment caveats as Milestone 1 carry forward**: Docker Compose itself was not run end-to-end in this sandbox (no Docker daemon available); all verification used the same application code run directly against local PostgreSQL 16 + Redis 7. No browser was available to visually confirm the new UI — lint/typecheck/build/tests pass and the underlying API calls were manually confirmed working, but no screenshot confirms rendering/interaction.
+7. Two more RLS/service-layer bugs were found and fixed during this milestone's own testing (not present in the final code): the public capture token lookup initially couldn't read the (RLS-protected) `tenants` row before establishing tenant context (fixed the same way as Milestone 1's `accept_invitation` bug — `resolve_tenant_by_capture_token` now sets RLS context immediately after the token itself, which is unprotected, resolves); and manual lead creation was double-incrementing the `leads` usage counter (once via the route's `check_usage_limit` dependency, once inside the service function itself) — fixed by making the route-level dependency the single source of truth for that path, keeping the service-internal check only on the public-capture path which has no dependency chain to rely on.
 
 ## Pending decisions
 
-From the architecture document's open items — proceeded with the stated recommendations since no response was given; flagging here in case you want to change any before Milestone 2:
-1. **Tenant identification in URLs**: implemented as derived from session only (no subdomain/path-slug routing yet) — the Next.js app doesn't route by tenant slug in the URL at all in M1. Confirm this is fine for now, or if you want `/t/{slug}/...`-style URLs before Milestone 2.
-2. **Read-only vs suspended semantics**: implemented as recommended — `suspended` blocks everything, `read_only` allows GET/HEAD/OPTIONS only.
-3. **Session lifetime**: 12h absolute / 60min idle, as recommended, configurable via env vars.
-4. **Production email/storage providers**: not chosen — `.env.example` documents the adapter points (SMTP host for email, S3-compatible endpoint for storage) but no specific provider is wired up. Needed before a real deployment, not before Milestone 2.
+None new this milestone — Milestone 1's pending decisions (tenant-URL routing, production email/storage provider choice) remain open and don't block Milestone 3.
 
 ## Next action
 
-Awaiting your review of Milestone 1. To proceed, reply exactly: **APPROVE MILESTONE 2**
+Awaiting your review of Milestone 2. To proceed, reply exactly: **APPROVE MILESTONE 3**
 
-Milestone 2 (per the approved architecture) is Lead Capture and CRM:
-services, qualification forms, custom fields, public enquiry form, lead
-creation, duplicate detection, lead table, Kanban pipeline, lead detail,
-notes, tags, tasks, attachments, activity timeline, filters, search, and
-entitlement enforcement on all of it.
+Milestone 3 (per the approved architecture) is Scoring, Assignment, and
+Communications: deterministic scoring rules with explainable results,
+assignment rules (round-robin/service-based/branch-based/priority-based),
+tenant-configurable email templates with delivery logs and retries, task
+reminders, and entitlement/usage enforcement throughout.

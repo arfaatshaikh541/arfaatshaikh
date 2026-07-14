@@ -9,8 +9,11 @@ import { useAuth, useInvalidateAuth } from "@/lib/auth-context";
 import { useEntitlements } from "@/lib/entitlements";
 import { TenantSwitcher } from "./tenant-switcher";
 
-const NAV_ITEMS: { href: string; label: string; permission?: string }[] = [
+const NAV_ITEMS: { href: string; label: string; permission?: string; module?: string }[] = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/leads", label: "Leads", permission: "leads.view", module: "crm" },
+  { href: "/services", label: "Services", permission: "services.manage", module: "lead_capture" },
+  { href: "/qualification-forms", label: "Qualification Forms", permission: "services.manage", module: "lead_capture" },
   { href: "/users", label: "Users", permission: "users.manage" },
   { href: "/roles", label: "Roles", permission: "roles.manage" },
   { href: "/subscription", label: "Subscription", permission: "subscriptions.view" },
@@ -32,7 +35,11 @@ export function TenantSidebar() {
     },
   });
 
-  const visibleItems = NAV_ITEMS.filter((item) => !item.permission || entitlements?.permissions.includes(item.permission));
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (item.permission && !entitlements?.permissions.includes(item.permission)) return false;
+    if (item.module && !entitlements?.modules[item.module]) return false;
+    return true;
+  });
 
   return (
     <aside className="flex h-screen w-60 flex-none flex-col border-r border-surface-border bg-surface-raised">

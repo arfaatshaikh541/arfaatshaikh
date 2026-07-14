@@ -27,3 +27,14 @@ def update_settings(
         db, tenant_id=ctx.tenant_id, updates=payload.model_dump(exclude_unset=True)
     )
     return TenantSettingsResponse.model_validate(settings)
+
+
+@router.get("/capture-link")
+def get_capture_link(ctx: TenantContext = Depends(require_permission("settings.manage")), db: Session = Depends(get_db)) -> dict:
+    from app.core.config import get_settings as get_app_settings
+
+    token = tenancy_service.get_capture_token(db, ctx.tenant_id)
+    if token is None:
+        return {"url": None}
+    web_origin = get_app_settings().cors_origins_list[0] if get_app_settings().cors_origins_list else ""
+    return {"url": f"{web_origin}/enquire/{token.token}"}

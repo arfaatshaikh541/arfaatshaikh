@@ -6,8 +6,10 @@ from sqlalchemy import pool
 from app.core.config import get_settings
 from app.db.base import Base
 from app.modules.audit import models as audit_models  # noqa: F401
+from app.modules.crm import models as crm_models  # noqa: F401
 from app.modules.entitlements import models as entitlements_models  # noqa: F401
 from app.modules.identity import models as identity_models  # noqa: F401
+from app.modules.leads import models as leads_models  # noqa: F401
 from app.modules.permissions import models as permissions_models  # noqa: F401
 from app.modules.subscriptions import models as subscriptions_models  # noqa: F401
 

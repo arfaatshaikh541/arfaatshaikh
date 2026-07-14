@@ -2,12 +2,13 @@ import time
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import get_settings
 from app.core.db import engine
-from app.core.errors import register_exception_handlers
+from app.core.errors import NotFoundError, register_exception_handlers
 from app.core.logging import (
     configure_logging,
     new_request_id,
@@ -15,9 +16,28 @@ from app.core.logging import (
     tenant_id_var,
     user_id_var,
 )
+from app.core.storage import LocalDiskAdapter, get_storage_adapter
+from app.modules.crm.routes import (
+    leads_crm_router,
+    pipelines_router,
+    tags_router,
+    tasks_router,
+)
 from app.modules.entitlements.routes import router as entitlements_router
 from app.modules.identity.routes import router as auth_router
 from app.modules.identity.tenant_routes import router as tenant_users_router
+from app.modules.leads.routes import (
+    public_router as public_capture_router,
+)
+from app.modules.leads.routes import (
+    qualification_forms_router,
+)
+from app.modules.leads.routes import (
+    router as leads_router,
+)
+from app.modules.leads.routes import (
+    services_router as leads_services_router,
+)
 from app.modules.permissions.routes import router as roles_router
 from app.modules.platform_admin.routes import router as platform_admin_router
 from app.modules.subscriptions.routes import router as subscriptions_router
@@ -88,8 +108,27 @@ def create_app() -> FastAPI:
         subscriptions_router,
         entitlements_router,
         platform_admin_router,
+        public_capture_router,
+        leads_router,
+        leads_services_router,
+        qualification_forms_router,
+        pipelines_router,
+        leads_crm_router,
+        tasks_router,
+        tags_router,
     ):
         api_router.include_router(router)
+
+    @api_router.get("/files/{token}")
+    def download_file(token: str) -> Response:
+        adapter = get_storage_adapter()
+        if not isinstance(adapter, LocalDiskAdapter):
+            raise NotFoundError("Not found.")
+        key = adapter.resolve_token(token)
+        if key is None:
+            raise NotFoundError("This download link is invalid or has expired.")
+        return Response(content=adapter.read(key), media_type="application/octet-stream")
+
     app.include_router(api_router)
 
     @app.get("/healthz")

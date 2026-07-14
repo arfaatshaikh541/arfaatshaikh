@@ -1,10 +1,36 @@
-# Security — Milestone 1
+# Security — Milestones 1 & 2
 
-This documents what is actually implemented as of Milestone 1, what is
+This documents what is actually implemented as of Milestone 2, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
 at the bottom).
+
+## Public lead capture surface (Milestone 2)
+
+The only unauthenticated, write-capable endpoint in the platform is
+`POST /api/public/capture/{token}/enquiry`. Controls in place:
+
+| Control | Implementation |
+|---|---|
+| Tenant identification | An unguessable, per-tenant capture token (`tenant_capture_tokens.token`, 24 random bytes) — never the tenant's slug or UUID |
+| Honeypot | A hidden `website` field; a real visitor never fills it in. Filled in → identical success response returned, nothing persisted |
+| Throttling | Redis-backed, 10 submissions / 10 minutes per (tenant, IP); verified by automated test |
+| Idempotency | Optional client-supplied `idempotency_key` — a retried submission returns the same lead rather than creating a duplicate |
+| Duplicate detection | Heuristic match on (tenant, email/phone) within a 30-day window — flags rather than silently drops, so no real enquiry is lost |
+| Consent | `consent_given` boolean recorded as `consent_status` on the lead |
+| Entitlement enforcement | `lead_capture` module and the `leads` usage limit are checked before any row is written, even on this unauthenticated path |
+| No tenant internals exposed | The services/qualification-form endpoints behind this token return only public-safe fields (name, description) |
+
+## File uploads (Milestone 2)
+
+| Control | Implementation |
+|---|---|
+| MIME allow-list | `ALLOWED_ATTACHMENT_CONTENT_TYPES` in `app/modules/crm/service.py` — PDFs, common images, Office documents, plain text only |
+| Size limit | 20MB, enforced before any storage write |
+| Storage keys | Tenant- and entity-namespaced, UUID-randomised (`build_storage_key`) — never sequential or guessable |
+| Downloads | Short-lived (10-minute), single-purpose signed URLs — local dev via a random Redis-backed token redeemed at `GET /api/files/{token}`, production via real S3 presigned URLs (`S3Adapter.get_download_url`). The browser never learns the real storage key |
+| Malware scanning | **Not implemented** — reserved integration point per the architecture doc, expected before Milestone 7 (formal document collection) at the latest |
 
 ## Authentication
 

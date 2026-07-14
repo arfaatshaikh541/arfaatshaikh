@@ -58,7 +58,12 @@ docs/               Architecture, API, database, deployment, security, product, 
 Seeded credentials (development only — see `apps/api/app/db/seed/run.py`):
 - Platform admin: `platform-admin@dev.internal` / `ChangeMe!12345`
 - Demo tenant `Rafana Advisory Demo` (Growth plan): Tenant Owner
-  `owner@rafana-demo.internal` / `ChangeMe!12345`
+  `owner@rafana-demo.internal` / `ChangeMe!12345` (also seeded: a
+  Manager and a Sales Agent, same password, `manager@`/`agent@rafana-demo.internal`)
+
+The demo tenant's public lead-capture form URL is shown on its Settings
+page (sign in as the Tenant Owner above, then Settings → "Public lead
+capture link").
 
 ## Tests
 
