@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.pipeline_stages import DEFAULT_SERVICES
 from app.core.security import hash_password
+from app.db.base import utcnow
 from app.models.tenant import Tenant, TenantSettings
 from app.repositories.membership import MembershipRepository
 from app.repositories.pipeline import PipelineStageRepository
@@ -140,6 +141,12 @@ class TenantService:
             if value is not None:
                 setattr(settings, key, value)
         self.db.flush()
+        return settings
+
+    def complete_onboarding(self, settings: TenantSettings) -> TenantSettings:
+        if settings.onboarding_completed_at is None:
+            settings.onboarding_completed_at = utcnow()
+            self.db.flush()
         return settings
 
     def set_status(self, tenant: Tenant, status: str) -> Tenant:

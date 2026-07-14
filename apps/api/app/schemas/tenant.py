@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -54,6 +55,7 @@ class TenantSettingsOut(ORMModel):
     locale: str
     data_retention_days: int
     privacy_text: str | None
+    onboarding_completed_at: datetime | None
 
 
 class TenantSettingsUpdate(BaseModel):

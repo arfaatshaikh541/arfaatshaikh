@@ -40,6 +40,24 @@ def test_default_currency_and_timezone(client, db_session):
     assert body["timezone"] == "Asia/Dubai"
 
 
+def test_complete_onboarding_sets_timestamp_once(client, db_session):
+    tenant, owner = make_tenant_with_owner(db_session)
+    csrf = login(client, owner.email)
+    headers = {"X-Tenant-Id": str(tenant.id), "X-CSRF-Token": csrf}
+
+    get_resp = client.get("/api/tenants/me/settings", headers=headers)
+    assert get_resp.json()["onboarding_completed_at"] is None
+
+    first = client.post("/api/tenants/me/onboarding/complete", headers=headers)
+    assert first.status_code == 200
+    completed_at = first.json()["onboarding_completed_at"]
+    assert completed_at is not None
+
+    second = client.post("/api/tenants/me/onboarding/complete", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["onboarding_completed_at"] == completed_at
+
+
 def test_duplicate_tenant_slug_rejected(db_session):
     from tests.factories import make_tenant_with_owner as make
 

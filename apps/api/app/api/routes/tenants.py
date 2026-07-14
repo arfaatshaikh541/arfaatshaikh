@@ -51,3 +51,15 @@ def update_settings_route(
     settings = service.update_settings(settings, **payload.model_dump(exclude_unset=True))
     db.commit()
     return TenantSettingsOut.model_validate(settings)
+
+
+@router.post("/onboarding/complete", response_model=TenantSettingsOut)
+def complete_onboarding_route(
+    db: Session = Depends(get_db),
+    ctx: MembershipContext = Depends(require_permission("settings.manage")),
+) -> TenantSettingsOut:
+    service = TenantService(db)
+    settings = service.get_settings_or_404(ctx.tenant_id)
+    settings = service.complete_onboarding(settings)
+    db.commit()
+    return TenantSettingsOut.model_validate(settings)
