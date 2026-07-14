@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.modules.assignment import models as assignment_models  # noqa: F401
 from app.modules.audit import models as audit_models  # noqa: F401
+from app.modules.booking import models as booking_models  # noqa: F401
 from app.modules.communications import models as communications_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401
 from app.modules.entitlements import models as entitlements_models  # noqa: F401

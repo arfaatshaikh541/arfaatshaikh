@@ -1,17 +1,20 @@
-"""The Milestone 3 companion to `professional_services_template.py`:
-default scoring rules, one round-robin assignment rule, and three email
-templates, applied to every newly created tenant so scoring/assignment/
-communications aren't empty out of the box. Ordinary tenant-owned
-configuration data — fully editable afterward via the scoring/assignment/
-communications APIs, not special-cased application logic.
+"""The Milestone 3/4 companion to `professional_services_template.py`:
+default scoring rules, one round-robin assignment rule, default
+appointment types and staff availability, and the email templates for
+every automated trigger event — applied to every newly created tenant so
+scoring/assignment/communications/booking aren't empty out of the box.
+Ordinary tenant-owned configuration data — fully editable afterward via
+the relevant module's API, not special-cased application logic.
 """
 import uuid
+from datetime import time
 
 from sqlalchemy.orm import Session
 
 MERGE_FIELD_HELP = (
     "Available merge fields: {{first_name}}, {{last_name}}, {{company}}, {{reference_number}}, "
-    "{{tenant_name}}, {{stage_name}}, {{assigned_user_name}}, {{task_title}}, {{task_due_date}}"
+    "{{tenant_name}}, {{stage_name}}, {{assigned_user_name}}, {{task_title}}, {{task_due_date}}, "
+    "{{staff_name}}, {{appointment_type_name}}, {{appointment_date}}, {{appointment_time}}, {{location}}"
 )
 
 
@@ -82,3 +85,38 @@ def apply_engagement_operations_template(
         subject="Reminder: {{task_title}}",
         body_text=f"This is a reminder that '{{{{task_title}}}}' is due {{{{task_due_date}}}}.\n\n— {{{{tenant_name}}}}\n\n{MERGE_FIELD_HELP}",
     )
+    template_repo.create(
+        tenant_id=tenant_id, name="Appointment Booked", trigger_event=EmailTriggerEvent.APPOINTMENT_BOOKED,
+        subject="Appointment confirmed: {{appointment_date}} at {{appointment_time}}",
+        body_text=(
+            "Hi {{first_name}},\n\nYour {{appointment_type_name}} with {{staff_name}} is confirmed for "
+            "{{appointment_date}} at {{appointment_time}} ({{location}}).\n\n— {{tenant_name}}"
+        ),
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Appointment Reminder", trigger_event=EmailTriggerEvent.APPOINTMENT_REMINDER,
+        subject="Reminder: your appointment is on {{appointment_date}}",
+        body_text=(
+            "Hi {{first_name}},\n\nThis is a reminder of your {{appointment_type_name}} with {{staff_name}} on "
+            "{{appointment_date}} at {{appointment_time}} ({{location}}).\n\n— {{tenant_name}}"
+        ),
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Appointment Cancelled", trigger_event=EmailTriggerEvent.APPOINTMENT_CANCELLED,
+        subject="Your appointment on {{appointment_date}} has been cancelled",
+        body_text="Hi {{first_name}},\n\nYour {{appointment_type_name}} on {{appointment_date}} has been cancelled.\n\n— {{tenant_name}}",
+    )
+
+    from app.modules.booking import service as booking_service
+
+    booking_service.create_appointment_type(
+        db, tenant_id=tenant_id, name="Free Consultation", description="A 30-minute introductory consultation.", duration_minutes=30
+    )
+    booking_service.create_appointment_type(db, tenant_id=tenant_id, name="Callback", description="A 15-minute callback.", duration_minutes=15)
+
+    if owner_user_id:
+        weekday_hours = [
+            {"day_of_week": day, "start_time": time(9, 0), "end_time": time(17, 0)}
+            for day in range(5)  # Monday-Friday
+        ]
+        booking_service.set_weekly_availability(db, tenant_id, owner_user_id, windows=weekday_hours)

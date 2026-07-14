@@ -15,6 +15,9 @@ class EmailTriggerEvent(str, enum.Enum):
     LEAD_ASSIGNED = "lead_assigned"
     STAGE_CHANGED = "stage_changed"
     TASK_REMINDER = "task_reminder"
+    APPOINTMENT_BOOKED = "appointment_booked"
+    APPOINTMENT_REMINDER = "appointment_reminder"
+    APPOINTMENT_CANCELLED = "appointment_cancelled"
 
 
 class EmailDeliveryStatus(str, enum.Enum):
@@ -36,7 +39,7 @@ class EmailTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     trigger_event: Mapped[EmailTriggerEvent] = mapped_column(
-        Enum(EmailTriggerEvent, name="email_trigger_event", native_enum=False, length=20), nullable=False
+        Enum(EmailTriggerEvent, name="email_trigger_event", native_enum=False, length=30), nullable=False
     )
     # Only meaningful when trigger_event == STAGE_CHANGED: "won" or "lost".
     trigger_stage_outcome: Mapped[str | None] = mapped_column(String(10), nullable=True)

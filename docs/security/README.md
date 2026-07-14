@@ -1,6 +1,6 @@
-# Security — Milestones 1, 2 & 3
+# Security — Milestones 1 through 4
 
-This documents what is actually implemented as of Milestone 3, what is
+This documents what is actually implemented as of Milestone 4, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
@@ -40,6 +40,35 @@ The only unauthenticated, write-capable endpoint in the platform is
 | Test-send safety | `POST /tenant/communications/templates/{id}/send-test` always sends to the requesting user's own email address (looked up server-side from the session), never a client-supplied recipient — no open-mail-relay / spam risk |
 | Soft-fail by design | A disabled `communications` module, a missing active template, or an exhausted `messages` usage limit all cause `send_templated_email` to return `None` rather than raise — a notification failure can never block the core action (lead creation, stage change) that triggered it. Verified by automated tests |
 | Delivery retry | Failed sends are logged (`email_delivery_logs`, rendered-content snapshot, not re-rendered from context) and retried by a Celery beat sweep up to a fixed attempt cap — never an unbounded retry loop |
+
+## Public booking surface (Milestone 4)
+
+`POST /api/public/booking/{token}/book` is the second unauthenticated,
+write-capable endpoint. It reuses every control already proven for
+public lead capture rather than inventing new ones:
+
+| Control | Implementation |
+|---|---|
+| Tenant identification | The same unguessable per-tenant capture token as public lead capture — no separate booking-specific token |
+| Honeypot | Same hidden `website` field convention |
+| Throttling | Redis-backed, 10 requests / 10 minutes per (tenant, IP), independent counter from lead capture's |
+| Entitlement enforcement | The `booking` module is checked before any row is written, even on this unauthenticated path |
+| Double-booking prevention | The same overlap check + row lock used on the authenticated path (`AppointmentRepository.find_overlapping`) runs again server-side immediately before insert — a slot the client saw a moment earlier from a cached `GET /slots` response is never trusted blindly |
+| No staff account details exposed | `GET /public/booking/{token}/staff` returns only `id`/`first_name`/`last_name` for staff with configured availability — never email, role, or any other account field |
+| Past-date rejection | Both the slot computation and `create_appointment` independently reject anything at or before the current time |
+
+## Availability management authorization (Milestone 4)
+
+Setting a staff member's weekly availability requires `appointments.manage`
+(already broadly granted) plus a business-rule check
+(`booking.service.assert_can_manage_availability`): a user may always set
+their own hours, but setting someone *else's* requires `users.manage`.
+This mirrors how permission-code checks stay in the route layer
+throughout the codebase — the service function takes plain booleans
+(`actor_can_manage_others`) rather than a permission-context object, so
+the business rule itself has no dependency on the permission catalog.
+Verified by automated test (a Sales Agent can set their own availability
+but not the Tenant Owner's).
 
 ## Authentication
 

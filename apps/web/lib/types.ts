@@ -255,3 +255,46 @@ export interface TenantMember {
   role_name: string;
   status: string;
 }
+
+export interface AppointmentTypeItem {
+  id: string;
+  name: string;
+  description: string;
+  duration_minutes: number;
+  is_active: boolean;
+}
+
+export interface AvailabilityWindow {
+  id?: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface AvailabilityExceptionItem {
+  id: string;
+  date: string;
+  reason: string;
+}
+
+export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+
+export interface AppointmentItem {
+  id: string;
+  lead_id: string | null;
+  staff_user_id: string;
+  appointment_type_id: string | null;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  status: AppointmentStatus;
+  location: string;
+  notes: string;
+  cancelled_reason: string | null;
+  created_by: string | null;
+}
+
+export interface AvailableSlot {
+  start: string;
+  end: string;
+}

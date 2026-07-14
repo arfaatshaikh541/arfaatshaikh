@@ -18,6 +18,16 @@ from app.core.logging import (
 )
 from app.core.storage import LocalDiskAdapter, get_storage_adapter
 from app.modules.assignment.routes import router as assignment_router
+from app.modules.booking.routes import (
+    appointment_types_router,
+    availability_router,
+)
+from app.modules.booking.routes import (
+    public_router as public_booking_router,
+)
+from app.modules.booking.routes import (
+    router as appointments_router,
+)
 from app.modules.communications.routes import router as communications_router
 from app.modules.crm.routes import (
     leads_crm_router,
@@ -122,6 +132,10 @@ def create_app() -> FastAPI:
         scoring_router,
         assignment_router,
         communications_router,
+        public_booking_router,
+        appointment_types_router,
+        availability_router,
+        appointments_router,
     ):
         api_router.include_router(router)
 

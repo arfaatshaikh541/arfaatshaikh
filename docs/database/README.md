@@ -4,8 +4,9 @@ PostgreSQL 16. UUID primary keys throughout. All timestamps stored as
 `timestamptz` (UTC). Every tenant-owned table has row-level security
 enabled — see `app/alembic/versions/57bf2768a62d_row_level_security_policies.py`
 (Milestone 1), `app/alembic/versions/45ce592d6cd5_milestone_2_row_level_security_policies.py`
-(Milestone 2), and `app/alembic/versions/9fa62b59def2_milestone_3_row_level_security_policies.py`
-(Milestone 3) for the exact policies and the reasoning behind each one.
+(Milestone 2), `app/alembic/versions/9fa62b59def2_milestone_3_row_level_security_policies.py`
+(Milestone 3), and `app/alembic/versions/6900c997221c_milestone_4_row_level_security_policies.py`
+(Milestone 4) for the exact policies and the reasoning behind each one.
 
 ## Entity-relationship diagram (as built)
 
@@ -416,6 +417,71 @@ manually change a lead's priority, so scoring's auto-priority mapping
 never silently overwrites a human decision) and `Task.reminder_sent_at`
 (idempotency marker for the task-reminder sweep).
 
+## Entity-relationship diagram — Milestone 4 additions (Booking)
+
+```mermaid
+erDiagram
+    APPOINTMENT_TYPES ||--o{ APPOINTMENTS : "categorizes"
+    STAFF_AVAILABILITY }o--|| USERS : "recurring weekly hours for"
+    AVAILABILITY_EXCEPTIONS }o--|| USERS : "blocks a day for"
+    APPOINTMENTS }o--|| USERS : "assigned to (staff)"
+    APPOINTMENTS }o--o| LEADS : "optionally about"
+
+    APPOINTMENT_TYPES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        text description
+        int duration_minutes
+        bool is_active
+        int sort_order
+    }
+    STAFF_AVAILABILITY {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK
+        int day_of_week "0=Monday..6=Sunday"
+        time start_time "naive, tenant-timezone clock time"
+        time end_time
+        bool is_active
+    }
+    AVAILABILITY_EXCEPTIONS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK
+        date date
+        string reason
+    }
+    APPOINTMENTS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK "nullable — a callback needn't be tied to a lead"
+        uuid staff_user_id FK
+        uuid appointment_type_id FK "nullable"
+        string title
+        timestamptz starts_at
+        timestamptz ends_at
+        enum status "SCHEDULED|COMPLETED|CANCELLED|NO_SHOW"
+        string location
+        text notes
+        uuid created_by FK "nullable — NULL means client self-booked"
+        string cancelled_reason "nullable"
+        timestamptz reminder_sent_at "nullable"
+    }
+```
+
+`StaffAvailability.start_time`/`end_time` are naive clock times
+interpreted in the tenant's configured timezone
+(`TenantSettings.timezone`) and converted to UTC only at slot-computation
+time (`app/modules/booking/service.py::compute_available_slots`, using
+Python's stdlib `zoneinfo` — no new dependency). `Appointment.starts_at`/
+`ends_at` are always stored as real UTC `timestamptz` values, same as
+every other timestamp in the schema. Double-booking is prevented by
+re-checking for an overlapping `SCHEDULED` appointment under a row lock
+(`AppointmentRepository.find_overlapping`, `SELECT ... FOR UPDATE`)
+immediately before insert — a slot the client saw a moment earlier is
+never trusted blindly.
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -425,7 +491,7 @@ never silently overwrites a human decision) and `Task.reminder_sent_at`
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture explicitly sets that context from its capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py` and `apps/worker/app/tasks/booking.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
@@ -444,6 +510,10 @@ Milestone 3:
 6. `c8f73ca17737_milestone_3_scoring_assignment_communications_schema.py` — scoring rules/settings/logs, assignment rules/round-robin state, email templates/delivery logs, plus `leads.priority_locked` (server-default `false`, since `leads` already has rows by this point) and `tasks.reminder_sent_at`.
 7. `9fa62b59def2_milestone_3_row_level_security_policies.py` — RLS for all of the above.
 
+Milestone 4:
+8. `25ca81e21512_milestone_4_booking_schema.py` — appointment types, staff availability, availability exceptions, appointments, plus widening `email_templates.trigger_event` from VARCHAR(20) to VARCHAR(30) for the three new booking trigger event values (a plain column-width change, not a type migration, since the column is `native_enum=False`).
+9. `6900c997221c_milestone_4_row_level_security_policies.py` — RLS for all of the above.
+
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and
 restore-testing guidance.
@@ -460,10 +530,12 @@ restore-testing guidance.
   Professional Services template (9 default services, a 9-question
   qualification form, the 10-stage default pipeline), the Engagement
   Operations template (4 scoring rules, 1 round-robin assignment rule,
-  3 email templates), and 3 fictional demo leads with a note each —
-  each of which is scored, auto-assigned, and triggers a real (though
-  soft-failing-if-unreachable) notification send through the same code
-  path a production lead would use.
+  6 email templates covering every trigger event, 2 default appointment
+  types, and Mon–Fri 09:00–17:00 availability for the Tenant Owner), and
+  3 fictional demo leads with a note each — each of which is scored,
+  auto-assigned, and triggers a real (though soft-failing-if-unreachable)
+  notification send through the same code path a production lead would
+  use.
 
 `app/db/seed/professional_services_template.py` applies the Professional
 Services template and `app/db/seed/engagement_operations_template.py`

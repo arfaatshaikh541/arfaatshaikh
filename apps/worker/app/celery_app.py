@@ -9,7 +9,7 @@ celery_app = Celery(
     "cops_worker",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.cleanup", "app.tasks.communications"],
+    include=["app.tasks.cleanup", "app.tasks.communications", "app.tasks.booking"],
 )
 
 celery_app.conf.update(
@@ -42,6 +42,10 @@ celery_app.conf.beat_schedule = {
     },
     "send-task-reminders": {
         "task": "app.tasks.communications.send_task_reminders",
+        "schedule": crontab(minute="*/15"),
+    },
+    "send-appointment-reminders": {
+        "task": "app.tasks.booking.send_appointment_reminders",
         "schedule": crontab(minute="*/15"),
     },
 }

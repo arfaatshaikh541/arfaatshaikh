@@ -1,13 +1,14 @@
 "use client";
 
 import { use, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api-client";
-import type { ActivityItem, AttachmentItem, LeadDetail, NoteItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
+import type { ActivityItem, AppointmentItem, AttachmentItem, LeadDetail, NoteItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = use(params);
@@ -25,6 +26,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
   const tasksQuery = useQuery({ queryKey: ["lead", leadId, "tasks"], queryFn: () => api.get<TaskItem[]>(`/tenant/leads/${leadId}/tasks`) });
   const attachmentsQuery = useQuery({ queryKey: ["lead", leadId, "attachments"], queryFn: () => api.get<AttachmentItem[]>(`/tenant/leads/${leadId}/attachments`) });
   const scoreQuery = useQuery({ queryKey: ["lead", leadId, "score"], queryFn: () => api.get<ScoreBreakdown>(`/tenant/scoring/leads/${leadId}/breakdown`) });
+  const appointmentsQuery = useQuery({ queryKey: ["lead", leadId, "appointments"], queryFn: () => api.get<AppointmentItem[]>(`/tenant/appointments?lead_id=${leadId}`) });
 
   const invalidateLead = () => {
     queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -182,6 +184,25 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
                   )}
                 </div>
               ))}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Appointments" description="Consultations and callbacks booked with this lead." />
+            <div className="space-y-3">
+              {appointmentsQuery.data?.map((appointment) => (
+                <div key={appointment.id} className="rounded-md border border-surface-border p-3 text-sm">
+                  <p className="text-ink">{new Date(appointment.starts_at).toLocaleString([], { timeZone: "UTC" })}</p>
+                  <p className="text-xs text-ink-faint capitalize">{appointment.title} — {appointment.status}</p>
+                </div>
+              ))}
+              {appointmentsQuery.data?.length === 0 && <p className="text-sm text-ink-muted">No appointments booked yet.</p>}
+              <Link
+                href="/appointments"
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
+              >
+                Book an appointment
+              </Link>
             </div>
           </Card>
 
