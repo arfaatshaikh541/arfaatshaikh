@@ -55,6 +55,7 @@ from app.modules.platform_admin.routes import router as platform_admin_router
 from app.modules.scoring.routes import router as scoring_router
 from app.modules.subscriptions.routes import router as subscriptions_router
 from app.modules.tenancy.routes import router as tenant_settings_router
+from app.modules.workflow_automation.routes import router as workflows_router
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -136,6 +137,7 @@ def create_app() -> FastAPI:
         appointment_types_router,
         availability_router,
         appointments_router,
+        workflows_router,
     ):
         api_router.include_router(router)
 

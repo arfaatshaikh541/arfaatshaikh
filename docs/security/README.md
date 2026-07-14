@@ -1,6 +1,6 @@
-# Security — Milestones 1 through 4
+# Security — Milestones 1 through 5
 
-This documents what is actually implemented as of Milestone 4, what is
+This documents what is actually implemented as of Milestone 5, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
@@ -69,6 +69,16 @@ throughout the codebase — the service function takes plain booleans
 the business rule itself has no dependency on the permission catalog.
 Verified by automated test (a Sales Agent can set their own availability
 but not the Tenant Owner's).
+
+## Workflow automation execution safety (Milestone 5)
+
+| Control | Implementation |
+|---|---|
+| No arbitrary code execution | Workflow actions are a fixed enum (`SEND_EMAIL_TEMPLATE`/`CREATE_TASK`/`CHANGE_STAGE`/`ADD_TAG`) dispatched through an explicit `if`/`elif` chain (`workflow_automation.service._execute_step`) — there is no dynamic action resolution, code-string evaluation, or webhook/external-call action type in this milestone |
+| Condition evaluation has no injection surface | `workflow_automation/conditions.py` evaluates a fixed operator enum against a fixed field whitelist (`_DIRECT_FIELDS`), the same pattern as Milestone 3's scoring rules — never a dynamic expression language |
+| A failing step can't strand a run | Exceptions raised inside `_execute_step` (e.g. a workflow referencing a since-deleted template) are caught, logged as `FAILED` in `workflow_step_logs`, and the run still advances — a single bad step configuration can't leave a `WorkflowRun` permanently stuck consuming the sweep's attention every cycle |
+| Soft-fail by design | A disabled `workflow_automation` module or an exhausted `automation_runs` usage limit causes `evaluate_triggers_for_lead` to return without creating a run — the lead-creation/stage-change/tag/appointment action that fired the trigger is never blocked. Verified by automated tests |
+| Cross-tenant isolation | Every workflow/step/run/log table is `tenant_id`-scoped with RLS `FORCE`d, same as every other module; verified by automated test |
 
 ## Authentication
 

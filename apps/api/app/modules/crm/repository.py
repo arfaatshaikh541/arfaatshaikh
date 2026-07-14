@@ -48,6 +48,13 @@ class PipelineRepository:
             .all()
         )
 
+    def get_stage_by_name(self, tenant_id: uuid.UUID, pipeline_id: uuid.UUID, name: str) -> PipelineStage | None:
+        return self.db.execute(
+            select(PipelineStage).where(
+                PipelineStage.tenant_id == tenant_id, PipelineStage.pipeline_id == pipeline_id, PipelineStage.name == name
+            )
+        ).scalar_one_or_none()
+
     def get_stage(self, tenant_id: uuid.UUID, stage_id: uuid.UUID) -> PipelineStage | None:
         return self.db.execute(
             select(PipelineStage).where(PipelineStage.tenant_id == tenant_id, PipelineStage.id == stage_id)

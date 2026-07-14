@@ -44,9 +44,12 @@ def _score_assign_and_notify(db: Session, *, tenant: Tenant, lead: Lead, actor_i
     from app.modules.communications.service import send_templated_email
     from app.modules.identity.repository import UserRepository
     from app.modules.scoring.service import score_and_apply
+    from app.modules.workflow_automation.models import WorkflowTriggerEvent
+    from app.modules.workflow_automation.service import evaluate_triggers_for_lead
 
     score_and_apply(db, tenant_id=tenant.id, lead=lead, actor_id=actor_id)
     assign_lead_automatically(db, tenant_id=tenant.id, lead=lead, actor_id=actor_id)
+    evaluate_triggers_for_lead(db, tenant_id=tenant.id, trigger_event=WorkflowTriggerEvent.LEAD_CREATED, lead=lead)
 
     if lead.assigned_user_id is None:
         return

@@ -120,6 +120,14 @@ def change_stage(db: Session, *, tenant_id: uuid.UUID, lead_id: uuid.UUID, new_s
                 "reference_number": lead.reference_number, "tenant_name": tenant.name, "stage_name": new_stage.name,
             },
         )
+
+    from app.modules.workflow_automation.models import WorkflowTriggerEvent
+    from app.modules.workflow_automation.service import evaluate_triggers_for_lead
+
+    evaluate_triggers_for_lead(
+        db, tenant_id=tenant_id, trigger_event=WorkflowTriggerEvent.STAGE_CHANGED, lead=lead,
+        context={"stage_name": new_stage.name},
+    )
     return lead
 
 
@@ -191,6 +199,15 @@ def add_tag_to_lead(db: Session, *, tenant_id: uuid.UUID, lead_id: uuid.UUID, ta
         tag = tag_repo.create(tenant_id=tenant_id, name=tag_name)
     tag_repo.add_to_lead(tenant_id, lead_id, tag.id)
     record_activity(db, tenant_id=tenant_id, lead_id=lead_id, actor_id=actor_id, activity_type="tag.added", summary=f"Tag added: {tag.name}")
+
+    lead = LeadRepository(db).get(tenant_id, lead_id)
+    if lead is not None:
+        from app.modules.workflow_automation.models import WorkflowTriggerEvent
+        from app.modules.workflow_automation.service import evaluate_triggers_for_lead
+
+        evaluate_triggers_for_lead(
+            db, tenant_id=tenant_id, trigger_event=WorkflowTriggerEvent.TAG_ADDED, lead=lead, context={"tag_name": tag.name}
+        )
     return tag
 
 

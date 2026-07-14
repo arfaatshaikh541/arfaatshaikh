@@ -120,3 +120,20 @@ def apply_engagement_operations_template(
             for day in range(5)  # Monday-Friday
         ]
         booking_service.set_weekly_availability(db, tenant_id, owner_user_id, windows=weekday_hours)
+
+    from app.modules.workflow_automation import service as workflow_service
+    from app.modules.workflow_automation.models import WorkflowActionType, WorkflowTriggerEvent
+
+    welcome_workflow = workflow_service.create_workflow(
+        db, tenant_id=tenant_id, name="New Lead Welcome Sequence", description="Tags every new lead, then reminds staff to follow up if it hasn't moved.",
+        trigger_event=WorkflowTriggerEvent.LEAD_CREATED, trigger_config={}, conditions=[],
+    )
+    workflow_service.add_step(
+        db, tenant_id=tenant_id, workflow_id=welcome_workflow.id, delay_minutes=0,
+        action_type=WorkflowActionType.ADD_TAG, action_config={"tag_name": "New Lead"},
+    )
+    workflow_service.add_step(
+        db, tenant_id=tenant_id, workflow_id=welcome_workflow.id, delay_minutes=24 * 60,
+        action_type=WorkflowActionType.CREATE_TASK,
+        action_config={"title": "Follow up if no contact made", "description": "Auto-created by the New Lead Welcome Sequence workflow.", "due_in_hours": 4},
+    )

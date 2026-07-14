@@ -231,6 +231,15 @@ def create_appointment(
             db, tenant_id=tenant_id, trigger_event=EmailTriggerEvent.APPOINTMENT_BOOKED, recipient=recipient,
             lead_id=lead_id, context=_default_context(lead, tenant, staff_user, appointment_type, appointment),
         )
+
+    if lead is not None:
+        from app.modules.workflow_automation.models import WorkflowTriggerEvent
+        from app.modules.workflow_automation.service import evaluate_triggers_for_lead
+
+        evaluate_triggers_for_lead(
+            db, tenant_id=tenant_id, trigger_event=WorkflowTriggerEvent.APPOINTMENT_BOOKED, lead=lead,
+            context={"appointment_type_name": appointment_type.name if appointment_type else None},
+        )
     return appointment
 
 
@@ -349,11 +358,25 @@ def complete_appointment(db: Session, *, tenant_id: uuid.UUID, appointment: Appo
     db.flush()
     if appointment.lead_id:
         from app.modules.crm.service import record_activity
+        from app.modules.leads.repository import LeadRepository
 
         record_activity(
             db, tenant_id=tenant_id, lead_id=appointment.lead_id, actor_id=actor_id,
             activity_type="appointment.completed", summary="Appointment completed",
         )
+
+        lead = LeadRepository(db).get(tenant_id, appointment.lead_id)
+        if lead is not None:
+            from app.modules.workflow_automation.models import WorkflowTriggerEvent
+            from app.modules.workflow_automation.service import evaluate_triggers_for_lead
+
+            appointment_type = (
+                AppointmentTypeRepository(db).get(tenant_id, appointment.appointment_type_id) if appointment.appointment_type_id else None
+            )
+            evaluate_triggers_for_lead(
+                db, tenant_id=tenant_id, trigger_event=WorkflowTriggerEvent.APPOINTMENT_COMPLETED, lead=lead,
+                context={"appointment_type_name": appointment_type.name if appointment_type else None},
+            )
     return appointment
 
 

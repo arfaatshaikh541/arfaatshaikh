@@ -20,6 +20,7 @@ const NAV_ITEMS: { href: string; label: string; permission?: string; module?: st
   { href: "/appointments", label: "Appointments", permission: "appointments.view", module: "booking" },
   { href: "/availability", label: "My Availability", permission: "appointments.manage", module: "booking" },
   { href: "/appointment-types", label: "Appointment Types", permission: "availability.manage", module: "booking" },
+  { href: "/workflows", label: "Workflows", permission: "workflows.view", module: "workflow_automation" },
   { href: "/users", label: "Users", permission: "users.manage" },
   { href: "/roles", label: "Roles", permission: "roles.manage" },
   { href: "/subscription", label: "Subscription", permission: "subscriptions.view" },

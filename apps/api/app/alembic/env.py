@@ -20,6 +20,7 @@ from app.modules.subscriptions import models as subscriptions_models  # noqa: F4
 # Import every module's models so Base.metadata is fully populated before
 # autogenerate compares it against the database.
 from app.modules.tenancy import models as tenancy_models  # noqa: F401
+from app.modules.workflow_automation import models as workflow_automation_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

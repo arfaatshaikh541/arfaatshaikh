@@ -298,3 +298,60 @@ export interface AvailableSlot {
   start: string;
   end: string;
 }
+
+export type WorkflowTriggerEvent =
+  | "lead_created"
+  | "stage_changed"
+  | "score_threshold_reached"
+  | "tag_added"
+  | "appointment_booked"
+  | "appointment_completed";
+
+export type WorkflowActionType = "send_email_template" | "create_task" | "change_stage" | "add_tag";
+
+export type WorkflowConditionOperator = "equals" | "not_equals" | "contains" | "greater_than" | "less_than" | "is_set" | "in";
+
+export interface WorkflowCondition {
+  field: string;
+  operator: WorkflowConditionOperator;
+  value: unknown;
+}
+
+export interface WorkflowItem {
+  id: string;
+  name: string;
+  description: string;
+  trigger_event: WorkflowTriggerEvent;
+  trigger_config: Record<string, unknown>;
+  conditions: WorkflowCondition[];
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface WorkflowStepItem {
+  id: string;
+  sequence_order: number;
+  delay_minutes: number;
+  action_type: WorkflowActionType;
+  action_config: Record<string, unknown>;
+}
+
+export type WorkflowRunStatus = "running" | "completed" | "cancelled" | "failed";
+
+export interface WorkflowRunItem {
+  id: string;
+  workflow_id: string;
+  lead_id: string;
+  status: WorkflowRunStatus;
+  current_step_index: number;
+  next_run_at: string | null;
+  triggered_at: string;
+}
+
+export interface WorkflowStepLogItem {
+  id: string;
+  step_id: string;
+  status: "executed" | "failed" | "skipped";
+  result_summary: string;
+  executed_at: string;
+}

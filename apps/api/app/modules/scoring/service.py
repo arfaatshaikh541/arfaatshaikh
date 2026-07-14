@@ -170,6 +170,13 @@ def score_and_apply(db: Session, *, tenant_id: uuid.UUID, lead: Lead, actor_id: 
         db, tenant_id=tenant_id, lead_id=lead.id, actor_id=actor_id, activity_type="lead.scored",
         summary=f"Lead scored: {score} ({len(breakdown)} rule(s) matched)", metadata_json={"score": score, "breakdown": breakdown},
     )
+
+    from app.modules.workflow_automation.models import WorkflowTriggerEvent
+    from app.modules.workflow_automation.service import evaluate_triggers_for_lead
+
+    evaluate_triggers_for_lead(
+        db, tenant_id=tenant_id, trigger_event=WorkflowTriggerEvent.SCORE_THRESHOLD_REACHED, lead=lead, context={"score": score}
+    )
     return lead
 
 

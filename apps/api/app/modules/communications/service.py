@@ -120,6 +120,38 @@ def send_templated_email(
     )
 
 
+def send_template_by_id(
+    db: Session, *, tenant_id: uuid.UUID, template_id: uuid.UUID, recipient: str, context: dict, lead_id: uuid.UUID | None = None
+) -> EmailDeliveryLog | None:
+    """Sends a specific template directly, bypassing the trigger-event
+    lookup `send_templated_email` uses — for callers (workflow automation
+    steps) that already know exactly which template to send rather than
+    discovering one by trigger event. Same soft-fail/entitlement/usage-
+    limit behaviour as `send_templated_email`; also returns None (rather
+    than raising) when the template id doesn't resolve, since a workflow
+    step referencing a since-deleted template must not crash the run."""
+    entitlements = entitlements_service.resolve_entitlements(db, tenant_id)
+    if not entitlements.module_enabled("communications"):
+        return None
+
+    template = EmailTemplateRepository(db).get(tenant_id, template_id)
+    if template is None or not template.is_active:
+        return None
+
+    try:
+        entitlements_service.check_and_increment_usage(db, tenant_id, metric_code="messages", feature_code="messages")
+    except UsageLimitExceededError:
+        return None
+
+    subject = render_template(template.subject, context)
+    body_text = render_template(template.body_text, context)
+    body_html = render_template(template.body_html, context) if template.body_html else None
+    return _dispatch(
+        db, tenant_id=tenant_id, template_id=template.id, recipient=recipient, subject=subject,
+        body_text=body_text, body_html=body_html, lead_id=lead_id,
+    )
+
+
 def send_test_email(db: Session, *, tenant_id: uuid.UUID, template: EmailTemplate, recipient: str) -> EmailDeliveryLog:
     """Always sends regardless of module/usage state — a test send targets
     only the requesting admin's own email and must work even while

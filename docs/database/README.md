@@ -5,8 +5,9 @@ PostgreSQL 16. UUID primary keys throughout. All timestamps stored as
 enabled — see `app/alembic/versions/57bf2768a62d_row_level_security_policies.py`
 (Milestone 1), `app/alembic/versions/45ce592d6cd5_milestone_2_row_level_security_policies.py`
 (Milestone 2), `app/alembic/versions/9fa62b59def2_milestone_3_row_level_security_policies.py`
-(Milestone 3), and `app/alembic/versions/6900c997221c_milestone_4_row_level_security_policies.py`
-(Milestone 4) for the exact policies and the reasoning behind each one.
+(Milestone 3), `app/alembic/versions/6900c997221c_milestone_4_row_level_security_policies.py`
+(Milestone 4), and `app/alembic/versions/11bc088dd65b_milestone_5_row_level_security_policies.py`
+(Milestone 5) for the exact policies and the reasoning behind each one.
 
 ## Entity-relationship diagram (as built)
 
@@ -482,6 +483,66 @@ re-checking for an overlapping `SCHEDULED` appointment under a row lock
 immediately before insert — a slot the client saw a moment earlier is
 never trusted blindly.
 
+## Entity-relationship diagram — Milestone 5 additions (Workflow Automation)
+
+```mermaid
+erDiagram
+    WORKFLOWS ||--o{ WORKFLOW_STEPS : has
+    WORKFLOWS ||--o{ WORKFLOW_RUNS : "triggers"
+    WORKFLOW_RUNS }o--|| LEADS : "for"
+    WORKFLOW_RUNS ||--o{ WORKFLOW_STEP_LOGS : has
+    WORKFLOW_STEPS ||--o{ WORKFLOW_STEP_LOGS : "executed as"
+
+    WORKFLOWS {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        text description
+        enum trigger_event "LEAD_CREATED|STAGE_CHANGED|SCORE_THRESHOLD_REACHED|TAG_ADDED|APPOINTMENT_BOOKED|APPOINTMENT_COMPLETED"
+        jsonb trigger_config "narrows the trigger, e.g. {stage_name: Qualified}"
+        jsonb conditions "list of {field, operator, value} filters, AND semantics"
+        bool is_active
+        int sort_order
+    }
+    WORKFLOW_STEPS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid workflow_id FK
+        int sequence_order
+        int delay_minutes "0 = due as soon as the next sweep runs"
+        enum action_type "SEND_EMAIL_TEMPLATE|CREATE_TASK|CHANGE_STAGE|ADD_TAG"
+        jsonb action_config
+    }
+    WORKFLOW_RUNS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid workflow_id FK
+        uuid lead_id FK
+        enum status "RUNNING|COMPLETED|CANCELLED|FAILED"
+        int current_step_index
+        timestamptz next_run_at "nullable once terminal"
+        timestamptz triggered_at
+    }
+    WORKFLOW_STEP_LOGS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid workflow_run_id FK
+        uuid step_id FK
+        enum status "EXECUTED|FAILED|SKIPPED"
+        text result_summary
+        timestamptz executed_at
+    }
+```
+
+Every step — including `delay_minutes=0` ones — executes only via the
+Celery beat sweep (`process_due_steps_for_tenant`, called from
+`apps/worker/app/tasks/workflow_automation.py`), never synchronously at
+trigger time; see the module docstring in
+`app/modules/workflow_automation/service.py` for why. A step that raises
+is logged as `FAILED` in `workflow_step_logs` but the run still advances
+to the next step rather than getting permanently stuck — the same
+best-effort philosophy already applied to email delivery.
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -491,7 +552,7 @@ never trusted blindly.
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py` and `apps/worker/app/tasks/booking.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
@@ -514,6 +575,10 @@ Milestone 4:
 8. `25ca81e21512_milestone_4_booking_schema.py` — appointment types, staff availability, availability exceptions, appointments, plus widening `email_templates.trigger_event` from VARCHAR(20) to VARCHAR(30) for the three new booking trigger event values (a plain column-width change, not a type migration, since the column is `native_enum=False`).
 9. `6900c997221c_milestone_4_row_level_security_policies.py` — RLS for all of the above.
 
+Milestone 5:
+10. `4f265a2eb695_milestone_5_workflow_automation_schema.py` — workflows, workflow steps, workflow runs, workflow step logs.
+11. `11bc088dd65b_milestone_5_row_level_security_policies.py` — RLS for all of the above.
+
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and
 restore-testing guidance.
@@ -531,11 +596,12 @@ restore-testing guidance.
   qualification form, the 10-stage default pipeline), the Engagement
   Operations template (4 scoring rules, 1 round-robin assignment rule,
   6 email templates covering every trigger event, 2 default appointment
-  types, and Mon–Fri 09:00–17:00 availability for the Tenant Owner), and
-  3 fictional demo leads with a note each — each of which is scored,
-  auto-assigned, and triggers a real (though soft-failing-if-unreachable)
-  notification send through the same code path a production lead would
-  use.
+  types, Mon–Fri 09:00–17:00 availability for the Tenant Owner, and a
+  2-step "New Lead Welcome Sequence" workflow demonstrating a delayed
+  step), and 3 fictional demo leads with a note each — each of which is
+  scored, auto-assigned, triggers a real (though soft-failing-if-
+  unreachable) notification send, and fires the welcome workflow through
+  the same code path a production lead would use.
 
 `app/db/seed/professional_services_template.py` applies the Professional
 Services template and `app/db/seed/engagement_operations_template.py`
