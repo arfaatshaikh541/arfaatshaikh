@@ -37,3 +37,6 @@ infrastructure/docker/volumes/
 
 # --- Logs ---
 *.log
+
+# --- Local Redis snapshots (can appear if redis-server is run from this dir during dev) ---
+*.rdb
