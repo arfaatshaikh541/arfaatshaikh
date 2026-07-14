@@ -44,6 +44,26 @@ export const acceptInvitationSchema = z
   });
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
 
+export const signupSchema = z
+  .object({
+    name: z.string().min(2, "Must be at least 2 characters").max(200),
+    slug: z
+      .string()
+      .min(2, "Must be at least 2 characters")
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Lowercase letters, numbers and single hyphens only"),
+    ownerFirstName: z.string().min(1, "First name is required").max(100),
+    ownerLastName: z.string().min(1, "Last name is required").max(100),
+    ownerEmail: z.string().email(),
+    ownerPassword: z.string().min(10, "Must be at least 10 characters").max(200),
+    confirmPassword: z.string().min(10),
+  })
+  .refine((data) => data.ownerPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+export type SignupInput = z.infer<typeof signupSchema>;
+
 const hexColor = z
   .string()
   .regex(/^#[0-9A-Fa-f]{6}$/, "Must be a hex color like #F97316");

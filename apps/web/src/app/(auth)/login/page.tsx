@@ -63,7 +63,14 @@ export default function LoginPage() {
           Sign in
         </Button>
       </form>
-      <p className="mt-6 text-center text-xs text-surface-500">
+      <p className="mt-4 text-center text-xs text-surface-500">
+        New here?{" "}
+        <Link href="/signup" className="text-accent-500 hover:text-accent-400">
+          Create a workspace
+        </Link>
+        .
+      </p>
+      <p className="mt-2 text-center text-xs text-surface-500">
         Invited to a team? Use the link from your invitation email to{" "}
         <Link href="/accept-invitation" className="text-accent-500 hover:text-accent-400">
           accept it

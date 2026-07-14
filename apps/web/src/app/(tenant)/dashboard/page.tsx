@@ -1,7 +1,8 @@
 "use client";
 
-import { Badge, Card } from "@leadflow/ui";
+import { Alert, Badge, Button, Card } from "@leadflow/ui";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { apiFetch } from "@/lib/api-client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -14,6 +15,10 @@ interface TenantOut {
   status: string;
   timezone: string;
   currency: string;
+}
+
+interface TenantSettingsOut {
+  onboarding_completed_at: string | null;
 }
 
 interface MemberOut {
@@ -46,6 +51,12 @@ export default function DashboardPage() {
     enabled: Boolean(tenantId),
   });
 
+  const settingsQuery = useQuery({
+    queryKey: ["tenant-settings", tenantId],
+    queryFn: () => apiFetch<TenantSettingsOut>("/tenants/me/settings"),
+    enabled: Boolean(tenantId),
+  });
+
   const membersQuery = useQuery({
     queryKey: ["members", tenantId],
     queryFn: () => apiFetch<MemberOut[]>("/tenants/me/members"),
@@ -75,6 +86,15 @@ export default function DashboardPage() {
       <p className="mb-6 text-sm text-surface-400">
         {tenantQuery.data?.name ?? "…"} · {tenantQuery.data?.timezone} · {tenantQuery.data?.currency}
       </p>
+
+      {settingsQuery.data && !settingsQuery.data.onboarding_completed_at ? (
+        <Alert tone="info" className="mb-6 flex items-center justify-between gap-4">
+          <span>Finish setting up your workspace to get the most out of LeadFlow.</span>
+          <Link href="/onboarding">
+            <Button variant="secondary">Continue setup</Button>
+          </Link>
+        </Alert>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
