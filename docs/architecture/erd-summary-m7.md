@@ -32,10 +32,12 @@ rule - not just one lead row).
 
 Nullable timestamp, added to the existing `TenantSettings` model.
 `NULL` means the tenant hasn't finished (or has never seen) the setup
-wizard; set once, by the wizard's last step, via the existing `PATCH
-/tenants/me/settings` endpoint (`onboarding_completed_at` joins
-`business_hours` as a field that update schema already generically
-supports adding to). The dashboard reads this field to decide whether
+wizard. Set once, server-side, by a dedicated `POST
+/tenants/me/onboarding/complete` endpoint (idempotent - calling it
+again after completion is a no-op that returns the original
+timestamp) rather than letting the client PATCH an arbitrary
+timestamp through `TenantSettingsUpdate`. The dashboard reads this
+field (via the existing `GET /tenants/me/settings`) to decide whether
 to show a "finish setting up your workspace" banner.
 
 ### `POST /auth/signup`
@@ -67,17 +69,21 @@ platform-admin-only fields). Behavior:
 
 No CAPTCHA - matching the existing public enquiry form's stance
 (rate-limit + append-only attempt log is the only abuse defense
-anywhere in this codebase so far).
+anywhere in this codebase so far). `/auth/signup` is added to the
+CSRF-exempt path list alongside `/auth/login`, for the same reason:
+it submits fresh credentials rather than relying on ambient cookie
+authority.
 
 ## Onboarding wizard
 
-Purely a frontend flow over existing endpoints - no new backend
-surface beyond the completion flag above. Steps: welcome, confirm the
-seeded default services (toggle any off), set business hours (the
-same `business_hours` JSONB the Milestone 5 settings page already
-edits), optionally invite teammates (`POST
-/tenants/me/invitations`, already exists), done (`PATCH
-/tenants/me/settings` with `onboarding_completed_at` set to now). Each
-step is a thin form over an endpoint that already existed before this
-milestone; the wizard's only new logic is sequencing and the
-completion flag.
+Almost entirely a frontend flow over pre-existing endpoints - the only
+new backend surface is the completion endpoint above. Steps: welcome,
+confirm the seeded default services (read-only list - editing happens
+on the existing Services page), set business hours (the same
+`business_hours` JSONB the Milestone 5 settings page already edits,
+via `PATCH /tenants/me/settings`), optionally invite teammates
+(`POST /tenants/me/invitations`, already exists), done (`POST
+/tenants/me/onboarding/complete`). Every step but the last is a thin
+form over an endpoint that already existed before this milestone; the
+wizard's own logic is just sequencing, plus the completion flag and
+the dashboard banner that reads it.
