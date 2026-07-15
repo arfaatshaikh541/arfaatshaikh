@@ -8,7 +8,14 @@ import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { FindingActivityRead, FindingDetail, MembershipRead } from "@/lib/types";
+import type {
+  ActionCatalogEntry,
+  ActionRunRead,
+  FindingActivityRead,
+  FindingDetail,
+  MembershipRead,
+  RunActionResponse,
+} from "@/lib/types";
 
 const STATUS_TONE: Record<string, "positive" | "warning" | "neutral"> = {
   open: "warning",
@@ -27,6 +34,8 @@ export default function FindingDetailPage() {
   const canAcceptRisk = hasPermission("findings.accept_risk");
   const canRemediate = hasPermission("findings.remediate");
   const canAssignUsers = canAssign && hasPermission("users.manage");
+  const canViewActions = hasPermission("actions.view");
+  const canExecuteActions = hasPermission("actions.execute_safe");
   const queryClient = useQueryClient();
 
   const [actionError, setActionError] = useState<string | null>(null);
@@ -36,6 +45,9 @@ export default function FindingDetailPage() {
   const [acceptRiskExpiresAt, setAcceptRiskExpiresAt] = useState("");
   const [remediateNote, setRemediateNote] = useState("");
   const [dismissReason, setDismissReason] = useState("");
+  const [remediationError, setRemediationError] = useState<string | null>(null);
+  const [remediationNotice, setRemediationNotice] = useState<string | null>(null);
+  const [executingActionKey, setExecutingActionKey] = useState<string | null>(null);
 
   const findingQuery = useQuery({
     queryKey: ["findings", findingId],
@@ -53,6 +65,20 @@ export default function FindingDetailPage() {
     queryKey: ["users"],
     queryFn: () => apiClient.get<MembershipRead[]>("/api/users"),
     enabled: canAssignUsers,
+  });
+
+  const finding = findingQuery.data;
+
+  const actionCatalogQuery = useQuery({
+    queryKey: ["actions", "catalog", finding?.asset_id],
+    queryFn: () => apiClient.get<ActionCatalogEntry[]>("/api/actions/catalog", { asset_id: finding!.asset_id }),
+    enabled: canViewActions && Boolean(finding?.asset_id),
+  });
+
+  const actionRunsQuery = useQuery({
+    queryKey: ["actions", "for-finding", findingId],
+    queryFn: () => apiClient.get<ActionRunRead[]>("/api/actions", { finding_id: findingId }),
+    enabled: canViewActions && Boolean(findingId),
   });
 
   const invalidate = () => {
@@ -95,7 +121,29 @@ export default function FindingDetailPage() {
 
   const reopen = () => runAction(() => apiClient.post(`/api/findings/${findingId}/reopen`));
 
-  const finding = findingQuery.data;
+  const executeRemediation = async (actionKey: string) => {
+    setRemediationError(null);
+    setRemediationNotice(null);
+    setExecutingActionKey(actionKey);
+    try {
+      const response = await apiClient.post<RunActionResponse>("/api/actions/execute", {
+        asset_id: finding!.asset_id,
+        action_key: actionKey,
+        finding_id: findingId,
+      });
+      setRemediationNotice(
+        response.action_run.status === "approved"
+          ? "Action approved and running."
+          : "Action requires approval from someone with actions.approve_disruptive — see the Automation page.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["actions", "for-finding", findingId] });
+    } catch (err) {
+      setRemediationError(err instanceof ApiError ? err.message : "Something went wrong.");
+    } finally {
+      setExecutingActionKey(null);
+    }
+  };
+
   if (!finding) {
     return <p className="text-sm text-ink-500">Loading…</p>;
   }
@@ -161,6 +209,64 @@ export default function FindingDetailPage() {
           {JSON.stringify(finding.evidence, null, 2)}
         </pre>
       </Card>
+
+      {canViewActions ? (
+        <Card>
+          <CardHeader
+            title="Remediation actions"
+            description="Runs against the integration that reported this asset. Safe actions execute
+              immediately; disruptive ones need approval from someone with actions.approve_disruptive —
+              see the Automation page."
+          />
+          {remediationError ? <Alert tone="error">{remediationError}</Alert> : null}
+          {remediationNotice ? <Alert tone="success">{remediationNotice}</Alert> : null}
+
+          {actionCatalogQuery.data && actionCatalogQuery.data.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {actionCatalogQuery.data.map((action) => (
+                <li
+                  key={action.action_key}
+                  className="flex items-center justify-between rounded-md border border-surface-border p-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-ink-900">{action.name}</p>
+                    <p className="text-xs text-ink-500">
+                      Safety class {action.safety_class} · {action.reversible ? "Reversible" : "Not reversible"}
+                    </p>
+                  </div>
+                  {canExecuteActions ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isLoading={executingActionKey === action.action_key}
+                      onClick={() => executeRemediation(action.action_key)}
+                    >
+                      Run
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-500">
+              No automatable actions are available for this asset&apos;s provider.
+            </p>
+          )}
+
+          {actionRunsQuery.data && actionRunsQuery.data.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-1.5 border-t border-surface-border pt-4 text-sm">
+              {actionRunsQuery.data.map((run) => (
+                <div key={run.id} className="flex justify-between">
+                  <span className="text-ink-700">
+                    {run.action_key} — {run.status.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-ink-500">{new Date(run.requested_at).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {isOpenOrAssigned && (canAssign || canAcceptRisk || canRemediate) ? (
         <Card>

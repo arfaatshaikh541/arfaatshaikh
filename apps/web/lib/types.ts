@@ -220,3 +220,50 @@ export interface RiskSummaryRead {
   open_findings_total: number;
   open_findings_by_severity: Record<string, number>;
 }
+
+// --- Milestone 4: cyber autopilot (actions, playbooks, automation) ---
+
+export interface ActionCatalogEntry {
+  action_key: string;
+  name: string;
+  safety_class: number;
+  reversible: boolean;
+}
+
+export interface ActionRunRead {
+  id: string;
+  action_key: string;
+  provider_id: string;
+  safety_class: number;
+  status: string;
+  trigger: string;
+  asset_id: string;
+  asset_display_name: string;
+  finding_id: string | null;
+  playbook_id: string | null;
+  params: Record<string, unknown>;
+  result_message: string | null;
+  requested_at: string;
+  decided_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface RunActionResponse {
+  action_run: ActionRunRead;
+  task_id: string | null;
+}
+
+export interface PlaybookRead {
+  id: string;
+  name: string;
+  description: string;
+  rule_key: string;
+  action_key: string;
+  is_enabled: boolean;
+  created_at: string;
+}
+
+export interface AutomationSettingRead {
+  mode: string;
+}
