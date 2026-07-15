@@ -1,0 +1,135 @@
+name: gridkeep
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gridkeep
+      POSTGRES_PASSWORD: gridkeep
+      POSTGRES_DB: gridkeep
+    ports:
+      - "5432:5432"
+    volumes:
+      - gridkeep_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gridkeep -d gridkeep"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  object-storage:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: gridkeep
+      MINIO_ROOT_PASSWORD: gridkeep-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - gridkeep_object_storage:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mail-capture:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web UI
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
+      REDIS_URL: redis://redis:6379/0
+      CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+      OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
+      MAIL_CAPTURE_HOST: mail-capture
+      MAIL_CAPTURE_PORT: "1025"
+      VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m seed.bootstrap &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./apps/api:/app
+
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
+      REDIS_URL: redis://redis:6379/0
+      VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./apps/worker:/app/apps/worker
+
+  beat:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    command: ["celery", "-A", "worker.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
+      REDIS_URL: redis://redis:6379/0
+      VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./apps/worker:/app/apps/worker
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  gridkeep_postgres_data:
+  gridkeep_object_storage:
