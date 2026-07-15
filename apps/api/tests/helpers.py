@@ -45,3 +45,50 @@ async def onboard_verified_owner(
 
 async def login(client, email: str, password: str):
     return await client.post("/api/auth/login", json={"email": email, "password": password})
+
+
+async def invite_and_accept_member(
+    client,
+    db: AsyncSession,
+    *,
+    tenant_id: str,
+    inviter_csrf_token: str,
+    email: str,
+    full_name: str,
+    password: str,
+    role_name: str,
+) -> dict:
+    """Invites a second member with a specific tenant role and accepts on
+    their behalf — the invitation token is never returned over HTTP, so
+    this reaches into the service layer to re-issue a known raw token,
+    exactly as the (log-based, dev-only) email adapter would have
+    delivered it to a real inbox. Does not log the inviter out; the
+    caller decides when to switch sessions."""
+    import uuid
+
+    from core.security import generate_opaque_token, hash_token
+    from db.session import AsyncSessionLocal, set_tenant_context
+    from modules.permissions.models import Invitation
+
+    invite_resp = await client.post(
+        "/api/users/invitations",
+        json={"email": email, "role_name": role_name},
+        headers={"X-CSRF-Token": inviter_csrf_token},
+    )
+    assert invite_resp.status_code == 200, invite_resp.text
+
+    async with AsyncSessionLocal() as session:
+        await set_tenant_context(session, uuid.UUID(tenant_id))
+        invitation = (
+            await session.execute(select(Invitation).where(Invitation.email == email))
+        ).scalar_one()
+        raw_token = generate_opaque_token()
+        invitation.token_hash = hash_token(raw_token)
+        await session.commit()
+
+    accept_resp = await client.post(
+        "/api/auth/accept-invitation",
+        json={"token": raw_token, "full_name": full_name, "password": password},
+    )
+    assert accept_resp.status_code == 200, accept_resp.text
+    return accept_resp.json()
