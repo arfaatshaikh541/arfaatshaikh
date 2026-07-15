@@ -1,12 +1,12 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-15 (Milestone 2 implementation)
+Last updated: 2026-07-15 (Milestone 3 implementation)
 
 ## Current Milestone
 
-**Milestone 2: Integration SDK and Asset Graph** — implementation complete, pending your review and
-explicit approval to proceed to Milestone 3. Milestone 1 (Secure SaaS Core) is complete and merged; its
-section below is preserved as-is.
+**Milestone 3: Findings and Risk Engine** — implementation complete, pending your review and explicit
+approval to proceed to Milestone 4. Milestones 1 (Secure SaaS Core) and 2 (Integration SDK and Asset
+Graph) are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -359,7 +359,7 @@ performed:
   identifier_value)` matching exactly; cross-provider identity resolution (e.g. matching an identity
   provider's user to an EDR's device owner by email) is Milestone 3+ scope (the correlation engine).
 
-## Unresolved Risks
+## Milestone 2 — Unresolved Risks
 
 - Carried over from Milestone 1 (in-memory rate limiter, no second-approver support-access flow, no
   dependency/container/secret scanning in CI) — none of these were touched in Milestone 2 and remain
@@ -368,15 +368,193 @@ performed:
   single-shot testing of a worker task is not sufficient — any future worker task should be exercised
   at least twice in the same live process before being considered verified.
 
+---
+
+## Milestone 3 — Completed Work
+
+### Backend — `modules/findings` (correlation engine and finding lifecycle)
+- `rules.py`: seven fixed, code-defined correlation rules (a small registry, the same shape as the
+  connector SDK's `REGISTRY` — not a tenant-configurable rules UI, which is reasonable future scope) —
+  each a pure function over one asset's `attributes` dict:
+  - `admin_without_mfa` (identity, critical) — administrator account with `mfa_enabled: false`
+  - `dormant_user_account` (identity, medium) — no sign-in for 90+ days
+  - `unencrypted_endpoint` (endpoint, high) — device disk not encrypted
+  - `edr_agent_unresponsive` (endpoint, high) — EDR status not `healthy`
+  - `stale_device_checkin` (endpoint, medium) — no check-in for 3+ days
+  - `publicly_exposed_cloud_storage` (cloud, critical) — storage bucket with public access enabled
+  - `backup_job_failed` (backup, high) — most recent backup run failed
+  - These map directly onto the "demo scenario" data Milestone 2's mock connectors were already seeded
+    with (an admin without MFA, a dormant account, an unencrypted laptop, an unresponsive/stale device,
+    a public bucket, a failed backup) — the rules were designed to detect exactly that planted data, and
+    live verification (below) confirms they do.
+- `engine.py` (`run_correlation`): re-runs every rule against a tenant's current asset graph and
+  reconciles the result against existing `Finding` rows, keyed on a unique `dedup_key`
+  (`f"{rule_key}:{asset_id}"`) — idempotent and lifecycle-aware:
+  - no existing finding + rule matches -> create one, status `open`
+  - existing `open`/`assigned` finding still matches -> refresh evidence only
+  - existing `accepted_risk` finding still matches -> refresh evidence, unless
+    `accepted_risk_expires_at` has passed, in which case reopen it
+  - existing `remediated`/`resolved` finding matches again -> reopen it (the condition came back)
+  - existing `false_positive` finding matches again -> left alone permanently — the engine never
+    overrides a human's dismissal
+  - existing `open`/`assigned`/`accepted_risk` finding's rule no longer matches -> auto-resolve it
+    (`status="resolved"`, `closed_at` set)
+  - every transition writes an audit record (`findings.detected` / `.reopened` / `.auto_resolved` /
+    `.accept_risk_expired`) via the same `modules.audit.service.record()` Milestone 1 built, with
+    `actor_label="correlation_engine"` distinguishing engine-driven changes from human ones
+- `scoring.py`: two intentionally simple, explainable formulas (not a sophisticated actuarial risk
+  model) — `compute_finding_risk_score(severity, asset_criticality)` (0-100, per finding, used for
+  sorting/display) and `compute_tenant_security_score(open_finding_severities)` (100 minus a fixed
+  penalty per open finding's severity, floored at 0, used for the dashboard)
+- `service.py`/`routes.py`: list (filterable by severity/status/asset/search), detail, a summary
+  endpoint for the dashboard, and lifecycle actions — assign (validates the target is a real member of
+  the tenant), accept-risk (reason + optional expiry), remediate (note), dismiss as false positive
+  (reason), reopen, and a manual correlation trigger. All mutating routes are CSRF-protected,
+  permission-gated (`findings.view` / `.assign` / `.accept_risk` / `.remediate`), and audited.
+- `modules/audit/service.py` gained one new read helper, `list_for_target()`, so a finding's activity
+  timeline reuses the existing generic `audit_logs` table (`target_type="finding"`) rather than
+  Milestone 2's alternative of a dedicated append-only history table per module — avoids duplicating
+  that pattern for what's fundamentally the same data shape.
+
+### Worker (`apps/worker`) — correlation runs automatically after every sync
+- `run_correlation` Celery task on the `correlate` queue (already declared in Milestone 1's queue list,
+  never previously used for real work)
+- `_run_integration_sync_async` now calls `enqueue_run_correlation(tenant_id)` immediately after a
+  successful sync commits — findings stay current without a separate manual step. Enqueued via
+  `core/task_queue.py`'s one-directional Celery client (same pattern as the sync-trigger route), not a
+  direct function call, so a correlation failure can never roll back the sync that already committed.
+- A manual "run correlation now" trigger remains available (`POST /api/findings/correlate`) for
+  refreshing findings without waiting for a new sync — verified live via the UI.
+
+### Frontend (`apps/web`)
+- `/findings`: filterable table (severity, status, search), a manual "Run correlation now" button
+  (permission-gated on `findings.remediate`)
+- `/findings/[id]`: description, evidence (raw JSON from the triggering record), risk score, and
+  lifecycle actions gated per-permission — assign (a one-click "assign to me" plus a teammate dropdown
+  gated on `findings.assign` **and** `users.manage`, same `/api/users` constraint Milestone 2 hit for
+  asset ownership), remediate, accept risk (with optional expiry date), dismiss as false positive, and
+  reopen for any closed finding — plus a full activity timeline reusing the audit-log read helper above
+- Dashboard: replaced Milestone 1's placeholder text (which literally said "lands in Milestone 3... once
+  assets and findings exist to summarise") with a real security-score tile and open-findings-by-severity
+  breakdown, sourced from `GET /api/findings/summary`
+- Nav updated with a Findings link; active-state highlighting already covers nested detail routes from
+  Milestone 2's fix
+
+## Milestone 3 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Correlation rules detect real risk conditions | ✅ | `test_identity_rules_*`, `test_endpoint_rules_*`, `test_cloud_and_backup_rules` — 7 rules, each verified against the actual mock connector data; also verified live (see below) |
+| Correlation is idempotent | ✅ | `test_correlation_is_idempotent_on_rerun` — second run of unchanged state creates 0, updates existing; live verification showed no duplicate findings across a full connect→sync→correlate pass |
+| Findings auto-resolve when the underlying condition clears | ✅ | `test_finding_auto_resolves_when_condition_clears` — re-ingesting a fixed device flips its finding to `resolved` |
+| Remediated/resolved findings reopen if the condition regresses | ✅ | `test_remediated_finding_reopens_if_condition_still_present`; live-verified via the UI (remediate → reopen manually, and engine-driven reopening is exercised by the same test) |
+| False-positive dismissals are never overridden by the engine | ✅ | `test_false_positive_is_never_reopened_by_the_engine` |
+| Accepted-risk findings reopen after their expiry | ✅ | `test_accepted_risk_reopens_after_expiry`; findings accepted without an expiry persist indefinitely (`test_accepted_risk_without_expiry_persists_across_rerun`) |
+| Findings can be assigned, remediated, accepted, dismissed, reopened via the API | ✅ | `test_findings_api.py` — 12 tests covering every lifecycle route; live-verified end-to-end via a real browser session |
+| Every lifecycle transition is audited and visible as a timeline | ✅ | `test_finding_activity_records_lifecycle_events`; live-verified — the UI's Activity section showed `detected` → `assigned` → `remediated` in order for a real finding |
+| Correlation runs automatically after a sync | ✅ | `_run_integration_sync_async` enqueues `run_correlation`; live-verified — connecting 4 providers and syncing each produced all 7 expected findings without a manual trigger |
+| Manual correlation trigger works | ✅ | `test_trigger_correlation_enqueues_task`; live UI verification |
+| Findings are tenant-isolated | ✅ | `test_findings_scoped_to_own_tenant`; RLS policy (`findings_tenant_isolation`) verified via migration round-trip |
+| Assignment is restricted to actual tenant members | ✅ | `test_assign_finding_rejects_non_member` — a user_id from a different tenant is rejected with 422 |
+| Dashboard shows a real, live security score | ✅ | Live-verified — connecting/syncing 4 mock providers produced a security score of 12/100 with the correct per-severity breakdown (2 critical, 3 high, 2 medium open findings), matching the documented formula exactly |
+| Backend tests pass | ✅ | **81/81** passing (`pytest -q` in `apps/api`, up from 61 in Milestone 2 — 20 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 17/17 routes |
+
+## Milestone 3 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 81 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 17/17 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by a real
+headless-Chromium (Playwright) session as the demo tenant owner:
+- Connected all four data-producing mock providers (identity, endpoint, cloud, backup) via the UI,
+  triggered a sync on each, and confirmed the worker chained a correlation run after every sync with no
+  manual step — the Findings page showed all 7 expected findings (matching the rules above exactly)
+  within seconds of the last sync completing.
+- Verified the dashboard's security score updated live: 12/100, "At risk", with the exact per-severity
+  breakdown (2 critical, 3 high, 2 medium) the formula predicts for those 7 findings.
+- Drove a full finding lifecycle through the UI on real findings: assigned "Administrator account
+  without MFA" to self, remediated it with a note, confirmed status/activity timeline updated correctly,
+  reopened it, then separately accepted risk on "Dormant user account" with a reason and confirmed its
+  status, resolution note, and activity entry all appeared correctly.
+
+## Milestone 3 — Architecture Decisions (made or refined during implementation)
+
+- **Correlation is a fixed, code-defined rule registry, not a tenant-configurable rules engine.** Same
+  reasoning as the connector SDK's provider registry in Milestone 2 — a tenant-facing "write your own
+  detection rule" UI is real future scope (and was never part of this milestone's plan), not something
+  to half-build now. The registry pattern (`RULES`, `RULES_BY_ASSET_TYPE`) makes adding a rule later a
+  pure-function addition with no engine changes required.
+- **Two deliberately separate, simple scoring formulas, not one.** A per-finding "risk score" (how bad
+  is this one issue) and a tenant-wide "security score" (how healthy is the tenant overall) answer
+  different questions and were kept in distinct functions (`modules/findings/scoring.py`) with their own
+  linear formulas, documented as intentionally not sophisticated — refining them (time-decay, exposure
+  weighting, etc.) is reasonable future work, not a Milestone 3 requirement.
+- **A finding's activity timeline reuses `audit_logs` rather than a new append-only table.** Milestone 2
+  introduced `AssetChange` as a dedicated field-level diff ledger for a different reason (tracking
+  attribute-value changes over time, which `audit_logs`' free-form `context` isn't well-shaped for).
+  A finding's lifecycle timeline is a sequence of discrete named events (detected, assigned, remediated,
+  ...) — exactly what `audit_logs` already models — so the only backend addition was a small read helper
+  (`audit_service.list_for_target`) rather than a parallel table. Reuse over duplication where the
+  existing shape already fits.
+- **Correlation is chained after sync via the queue, not called directly from the sync task.** Keeps the
+  same "enqueue, don't call" boundary Milestone 2 established between the API and worker — a correlation
+  failure can never roll back or block the sync result that already committed, and the two concerns
+  (ingesting data vs. deriving findings from it) stay independently retryable and independently
+  observable in the Celery log.
+- **Assignment validates real tenant membership at the service layer**, not just that a UUID was
+  supplied — the same "don't trust client-supplied identifiers without a membership check" principle
+  Milestone 1 applied to tenant-switching, applied here to a new lifecycle action.
+
+## Milestone 3 — Known Limitations
+
+- **No real (non-simulator) detection source.** All correlation rules run against Milestone 2's mock
+  connector data. The rules themselves are real logic over real `attributes` dict shapes, not hardcoded
+  to specific mock values, so they should generalize to a real connector's data once one exists — but
+  that is unverified until a real connector is built.
+- **No cross-provider identity resolution feeds correlation.** As noted in Milestone 2's known
+  limitations, an asset is only ever what one connector reported; a rule cannot yet reason across
+  multiple providers' view of "the same" real-world entity. This remains explicitly out of scope until
+  the correlation/entity-resolution work referenced in the architecture module list.
+- **No frontend automated tests were added for the new Findings pages** — same gap and same rationale as
+  Milestone 2's Integrations/Assets pages: verified manually end-to-end via Playwright, passes
+  lint/typecheck/build, but no dedicated Vitest coverage.
+- **The security score and per-finding risk score are deliberately simple linear formulas**, documented
+  as such in code and in this document — not a substitute for a real actuarial or ML-based risk model.
+  Revisiting them with real customer feedback is reasonable future work.
+- **No notification/alerting on new findings.** A critical finding appearing after a sync is only visible
+  by looking at the Findings page or dashboard — no email/Slack/webhook notification exists yet. This is
+  reasonable scope for a later automation-focused milestone (`cyber_autopilot`/`automations.manage` are
+  already reserved permission/module keys for that work).
+- **Findings are not yet linked into an incident-response workflow** — `incidents.*` permissions exist in
+  the shared vocabulary but no incident model/routes exist yet; escalating a finding into an incident is
+  out of scope for this milestone.
+
+## Milestone 3 — Unresolved Risks
+
+- Carried over from Milestones 1 and 2 (in-memory rate limiter, no second-approver support-access flow,
+  no dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end) — none were
+  touched this milestone and remain open, tracked for Milestone 17 (Production Hardening).
+- The simplicity of the scoring formulas (see Known Limitations) is a genuine product-judgment risk, not
+  just a technical one — a tenant could see a low score driven by a handful of findings that don't
+  reflect their actual risk tolerance. Flagged here rather than presented as a finished risk model.
+
 ## Pending Approvals
 
-- This Milestone 2 implementation is ready for your review. Nothing further is pending my side — the
+- This Milestone 3 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
-- Recommend explicit review of the worker event-loop fix (`GRIDKEEP_WORKER_PROCESS` + `NullPool`) since
-  it touches shared infrastructure (`apps/api/db/session.py`) used by every module, not just this
-  milestone's new code.
+- Recommend explicit review of the two scoring formulas (`modules/findings/scoring.py`) specifically,
+  since they're new product logic (not just infrastructure) that customers will see directly on their
+  dashboard.
 
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 3`** to begin the Findings and
-Risk Engine milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 4`** to begin the next milestone.
