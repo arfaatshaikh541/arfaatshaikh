@@ -4,7 +4,7 @@ production, but never let them drift in *behavior*)."""
 
 from __future__ import annotations
 
-from gridkeep_connector_sdk.base import Connector, HealthCheckResult, NormalizedRecord
+from gridkeep_connector_sdk.base import ActionResult, Connector, HealthCheckResult, NormalizedRecord
 
 
 async def run_connector_contract_checks(connector: Connector) -> list[NormalizedRecord]:
@@ -45,4 +45,14 @@ async def run_connector_contract_checks(connector: Connector) -> list[Normalized
         records.append(record)
 
     await connector.disconnect()  # must not raise
+
+    for action in definition.supported_actions:
+        assert action.key, "ActionSpec.key must not be empty"
+        assert action.name, "ActionSpec.name must not be empty"
+        assert 0 <= action.safety_class <= 4, "ActionSpec.safety_class must be 0-4"
+        result = await connector.execute_action(
+            action.key, target_identifier_type="test_identifier", target_identifier_value="test-target-1"
+        )
+        assert isinstance(result, ActionResult), "execute_action() must return an ActionResult"
+
     return records

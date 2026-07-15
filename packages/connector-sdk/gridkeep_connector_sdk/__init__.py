@@ -1,6 +1,9 @@
 from gridkeep_connector_sdk.base import (
+    ActionNotSupportedError,
+    ActionResult,
     ActionSpec,
     Connector,
+    ConnectorAuthError,
     ConnectorDefinition,
     HealthCheckResult,
     NormalizedRecord,
@@ -8,8 +11,11 @@ from gridkeep_connector_sdk.base import (
 )
 
 __all__ = [
+    "ActionNotSupportedError",
+    "ActionResult",
     "ActionSpec",
     "Connector",
+    "ConnectorAuthError",
     "ConnectorDefinition",
     "HealthCheckResult",
     "NormalizedRecord",

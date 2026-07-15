@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 from gridkeep_connector_sdk.base import (
+    ActionNotSupportedError,
+    ActionResult,
     ActionSpec,
     Connector,
     ConnectorDefinition,
@@ -78,3 +80,17 @@ class MockBackupConnector(Connector):
                 raw=job,
                 observed_at=now,
             )
+
+    async def execute_action(
+        self,
+        action_key: str,
+        *,
+        target_identifier_type: str,
+        target_identifier_value: str,
+        params: dict | None = None,
+    ) -> ActionResult:
+        if action_key == "trigger_restore_test":
+            return ActionResult(
+                success=True, message=f"Restore test triggered for {target_identifier_value}."
+            )
+        raise ActionNotSupportedError(action_key)

@@ -90,6 +90,19 @@ class HealthCheckResult:
     checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
+@dataclass(frozen=True)
+class ActionResult:
+    """Outcome of one `Connector.execute_action()` call. `success=False`
+    is a normal, expected outcome (the provider rejected the action, the
+    target no longer exists, ...) — it is not the same as the call
+    raising, which the action-execution worker task treats as an
+    infrastructure failure (retryable) rather than a definitive result."""
+
+    success: bool
+    message: str
+    executed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
 class Connector(ABC):
     """Base class for every connector, real or simulated. Instantiated
     per-sync with the already-decrypted credential (never persisted by
@@ -119,6 +132,30 @@ class Connector(ABC):
         session teardown or token revocation on disconnect."""
         return None
 
+    async def execute_action(
+        self,
+        action_key: str,
+        *,
+        target_identifier_type: str,
+        target_identifier_value: str,
+        params: dict[str, Any] | None = None,
+    ) -> ActionResult:
+        """Executes one of this connector's `definition.supported_actions`
+        against a specific target (identified the same way asset
+        identifiers are — `identifier_type`/`identifier_value`, not an
+        internal GRIDKEEP id, since the connector only knows the
+        provider's own object model). Default raises — only connectors
+        that declare `supported_actions` need to override this; one that
+        declares none (e.g. a read-only threat-intel feed) never will."""
+        raise NotImplementedError(f"{type(self).__name__} does not support action execution.")
+
 
 class ConnectorAuthError(Exception):
     pass
+
+
+class ActionNotSupportedError(Exception):
+    """Raised by `execute_action` when `action_key` isn't one of this
+    connector's declared `supported_actions` — a caller should always
+    check `definition.supported_actions` first, so hitting this is a
+    bug in the caller, not an expected runtime outcome."""

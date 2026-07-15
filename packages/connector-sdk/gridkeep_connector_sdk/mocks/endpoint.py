@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 from gridkeep_connector_sdk.base import (
+    ActionNotSupportedError,
+    ActionResult,
     ActionSpec,
     Connector,
     ConnectorDefinition,
@@ -88,3 +90,17 @@ class MockEndpointConnector(Connector):
                 raw=device,
                 observed_at=now,
             )
+
+    async def execute_action(
+        self,
+        action_key: str,
+        *,
+        target_identifier_type: str,
+        target_identifier_value: str,
+        params: dict | None = None,
+    ) -> ActionResult:
+        if action_key == "isolate_endpoint":
+            return ActionResult(success=True, message=f"Isolated {target_identifier_value} from the network.")
+        if action_key == "request_scan":
+            return ActionResult(success=True, message=f"Requested a malware scan on {target_identifier_value}.")
+        raise ActionNotSupportedError(action_key)

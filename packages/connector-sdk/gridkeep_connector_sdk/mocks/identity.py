@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 from gridkeep_connector_sdk.base import (
+    ActionNotSupportedError,
+    ActionResult,
     ActionSpec,
     Connector,
     ConnectorDefinition,
@@ -89,3 +91,17 @@ class MockIdentityConnector(Connector):
                 raw=user,
                 observed_at=now,
             )
+
+    async def execute_action(
+        self,
+        action_key: str,
+        *,
+        target_identifier_type: str,
+        target_identifier_value: str,
+        params: dict | None = None,
+    ) -> ActionResult:
+        if action_key == "revoke_session":
+            return ActionResult(success=True, message=f"Revoked all active sessions for {target_identifier_value}.")
+        if action_key == "disable_user":
+            return ActionResult(success=True, message=f"Disabled account {target_identifier_value}.")
+        raise ActionNotSupportedError(action_key)
