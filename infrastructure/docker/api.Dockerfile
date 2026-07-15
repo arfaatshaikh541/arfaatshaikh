@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+COPY packages/connector-sdk/ ./connector-sdk/
+RUN pip install --no-cache-dir -e "./connector-sdk"
+
 COPY apps/api/ ./
 RUN pip install --no-cache-dir -e ".[dev]"
 

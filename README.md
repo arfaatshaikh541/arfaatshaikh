@@ -7,8 +7,9 @@ expertise — the control plane, orchestration layer, asset graph, risk engine, 
 incident-response centre, evidence platform, compliance system, and executive command centre sitting
 on top of your existing security tools.
 
-This is **Milestone 1: Secure SaaS Core** — see [`docs/project-status.md`](docs/project-status.md) for
-what's built, what's tested, and what's known-incomplete.
+This is **Milestone 2: Integration SDK and Asset Graph** — see
+[`docs/project-status.md`](docs/project-status.md) for what's built, what's tested, and what's
+known-incomplete.
 
 ## Repository layout
 
@@ -21,8 +22,8 @@ packages/
   ui/                    shared component library
   security-contracts/    shared permission/role/module vocabulary (TS + Python)
   config/                shared TS/Tailwind config
-  connector-sdk/         placeholder — Milestone 2
-  shared-types/          placeholder — Milestone 2+
+  connector-sdk/         provider-neutral connector SDK (Python) + 5 mock connectors
+  shared-types/          placeholder — Milestone 2+ housekeeping
 infrastructure/
   docker/     Dockerfiles
   scripts/    bootstrap/migrate/seed/wait-for helper scripts
@@ -57,15 +58,17 @@ seeds the platform catalogue on start), the worker, Celery Beat, and the web app
 # 1. Backend
 cd apps/api
 python3 -m venv .venv && source .venv/bin/activate
+pip install -e "../../packages/connector-sdk"   # connector SDK + mock connectors
 pip install -e ".[dev]"
 alembic upgrade head
-python -m seed.bootstrap   # platform catalogue — safe for every environment
+python -m seed.bootstrap   # platform catalogue (incl. integration/asset-type catalogues) — safe everywhere
 python -m seed.demo        # FICTIONAL demo tenant — local/dev only, refuses to run in production
 uvicorn main:app --reload
 
-# 2. Worker (separate shell, same venv)
-cd apps/worker
-celery -A worker.celery_app worker --loglevel=info
+# 2. Worker (separate shell, same venv — apps/worker reuses apps/api's dependencies)
+cd apps/api && source .venv/bin/activate
+cd ../  # apps/, so the `worker` package resolves
+celery -A worker.celery_app worker --loglevel=info -Q default,sync,ingest,correlate,actions,reports
 # and, for scheduled tasks:
 celery -A worker.celery_app beat --loglevel=info
 

@@ -7,6 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
+COPY packages/connector-sdk/ ./packages/connector-sdk/
+RUN pip install --no-cache-dir -e "./packages/connector-sdk"
+
 WORKDIR /app/apps
 
 COPY apps/api/ ./api/
@@ -20,4 +25,8 @@ USER gridkeep
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD celery -A worker.celery_app inspect ping -t 5 || exit 1
 
-CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info"]
+# Consumes every declared queue — see celery_app.ALL_QUEUE_NAMES. A
+# production deployment wanting queue-level isolation (e.g. a dedicated,
+# more tightly-limited pool for the `actions` queue per ADR-4) would
+# instead run separate worker services each with a narrower `-Q`.
+CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "-Q", "default,sync,ingest,correlate,actions,reports"]
