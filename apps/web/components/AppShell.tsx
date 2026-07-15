@@ -10,6 +10,8 @@ import { useAuth, useInvalidateAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/integrations", label: "Integrations" },
+  { href: "/assets", label: "Assets" },
   { href: "/settings/users", label: "Users" },
   { href: "/settings/subscription", label: "Subscription" },
 ];
@@ -34,21 +36,24 @@ export function AppShell({ children }: { children: ReactNode }) {
           GRIDKEEP
         </div>
         <nav className="flex flex-col gap-1" aria-label="Primary">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={pathname === item.href ? "page" : undefined}
-              className={[
-                "rounded px-3 py-2 text-sm",
-                pathname === item.href
-                  ? "bg-surface-700 text-ink-900"
-                  : "text-ink-500 hover:bg-surface-800 hover:text-ink-700",
-              ].join(" ")}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={[
+                  "rounded px-3 py-2 text-sm",
+                  isActive
+                    ? "bg-surface-700 text-ink-900"
+                    : "text-ink-500 hover:bg-surface-800 hover:text-ink-700",
+                ].join(" ")}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">
