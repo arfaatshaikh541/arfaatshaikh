@@ -15,7 +15,8 @@ MERGE_FIELD_HELP = (
     "Available merge fields: {{first_name}}, {{last_name}}, {{company}}, {{reference_number}}, "
     "{{tenant_name}}, {{stage_name}}, {{assigned_user_name}}, {{task_title}}, {{task_due_date}}, "
     "{{staff_name}}, {{appointment_type_name}}, {{appointment_date}}, {{appointment_time}}, {{location}}, "
-    "{{proposal_title}}, {{proposal_total}}, {{proposal_link}}"
+    "{{proposal_title}}, {{proposal_total}}, {{proposal_link}}, "
+    "{{document_title}}, {{document_link}}"
 )
 
 
@@ -125,6 +126,27 @@ def apply_engagement_operations_template(
         subject="Regarding your proposal: {{proposal_title}}",
         body_text="Hi {{first_name}},\n\nWe noted that '{{proposal_title}}' was declined. Please reach out if you'd like to discuss further.\n\n— {{tenant_name}}",
     )
+    template_repo.create(
+        tenant_id=tenant_id, name="Document Requested", trigger_event=EmailTriggerEvent.DOCUMENT_REQUESTED,
+        subject="Document needed: {{document_title}}",
+        body_text=(
+            "Hi {{first_name}},\n\nWe need the following from you: {{document_title}}. "
+            "Please upload it here: {{document_link}}\n\n— {{tenant_name}}"
+        ),
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Document Approved", trigger_event=EmailTriggerEvent.DOCUMENT_APPROVED,
+        subject="Received: {{document_title}}",
+        body_text="Hi {{first_name}},\n\nThank you — we've received and approved '{{document_title}}'.\n\n— {{tenant_name}}",
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Document Rejected", trigger_event=EmailTriggerEvent.DOCUMENT_REJECTED,
+        subject="Action needed: {{document_title}}",
+        body_text=(
+            "Hi {{first_name}},\n\nWe weren't able to accept the '{{document_title}}' you uploaded. "
+            "Please upload a new copy here: {{document_link}}\n\n— {{tenant_name}}"
+        ),
+    )
 
     from app.modules.booking import service as booking_service
 
@@ -166,5 +188,23 @@ def apply_engagement_operations_template(
         line_items=[
             {"description": "Initial consultation and needs assessment", "quantity": 1, "unit_price": 500},
             {"description": "Engagement setup and documentation", "quantity": 1, "unit_price": 1500},
+        ],
+    )
+
+    from app.modules.onboarding import service as onboarding_service
+    from app.modules.onboarding.models import OnboardingStepType
+
+    onboarding_service.create_template(
+        db, tenant_id=tenant_id, name="Standard Client Onboarding",
+        description="The default checklist for a newly engaged client.",
+        steps=[
+            {
+                "step_type": OnboardingStepType.DOCUMENT_REQUEST, "title": "Passport / Emirates ID copy",
+                "description": "A clear copy of the client's passport or Emirates ID.",
+            },
+            {
+                "step_type": OnboardingStepType.TASK, "title": "Welcome call",
+                "description": "Call the client to walk through next steps.", "due_in_days": 2,
+            },
         ],
     )

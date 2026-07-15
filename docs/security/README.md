@@ -1,6 +1,6 @@
-# Security — Milestones 1 through 6
+# Security — Milestones 1 through 7
 
-This documents what is actually implemented as of Milestone 6, what is
+This documents what is actually implemented as of Milestone 7, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
@@ -30,7 +30,7 @@ The only unauthenticated, write-capable endpoint in the platform is
 | Size limit | 20MB, enforced before any storage write |
 | Storage keys | Tenant- and entity-namespaced, UUID-randomised (`build_storage_key`) — never sequential or guessable |
 | Downloads | Short-lived (10-minute), single-purpose signed URLs — local dev via a random Redis-backed token redeemed at `GET /api/files/{token}`, production via real S3 presigned URLs (`S3Adapter.get_download_url`). The browser never learns the real storage key |
-| Malware scanning | **Not implemented** — reserved integration point per the architecture doc, expected before Milestone 7 (formal document collection) at the latest |
+| Malware scanning | **Partially implemented** as of Milestone 7 — see "Document collection malware scanning" below. CRM's own generic lead attachments (this table) do not yet call the scan hook; only the `documents` module's uploads do |
 
 ## Email template rendering (Milestone 3)
 
@@ -97,6 +97,28 @@ resource.
 | Deliberately NOT gated by the `proposals` module entitlement | Unlike every other public-facing flow in this codebase (public lead capture, public booking), the accept/reject routes skip the module-enabled check entirely — a considered exception, not an oversight: a client must never be blocked from responding to a proposal they already received just because the tenant's subscription state changed after it was sent. The authenticated `GET /tenant/proposals` management routes are still gated normally. Verified by automated test (`test_public_route_not_gated_by_proposals_module_entitlement`) and a live smoke test that disabled the module for a tenant and confirmed the tenant route returned 403 while the public accept route still returned 200 |
 | No sensitive data beyond the proposal itself | The public view returns only the proposal's own fields (title, line items, totals, terms, tenant name) — never the lead's contact details, internal id, or any other tenant data |
 
+## Public document upload surface & malware scanning (Milestone 7)
+
+`GET /public/documents/{token}` and `POST /public/documents/{token}/upload`
+are the fourth unauthenticated, write-capable surface. Unlike the public
+proposal accept/reject routes, the upload route **is** gated behind the
+`document_collection` module entitlement — a deliberate divergence from
+the Milestone 6 precedent, documented in `DocumentRequest`'s model
+docstring: accepting/rejecting a proposal just flips a status flag, but
+uploading a file consumes ongoing storage, so a lapsed subscription
+should stop new uploads rather than silently keep consuming a resource
+nobody's paying for. Verified by automated test and a live smoke test
+(module disabled → public view still 200, public upload 403).
+
+| Control | Implementation |
+|---|---|
+| Authorization | An unguessable, per-request token (`document_requests.public_token`, 32 random bytes), generated at request-creation time — the same raw-token/no-RLS pattern as `Proposal.public_token` |
+| MIME allow-list & size limit | `ALLOWED_DOCUMENT_CONTENT_TYPES`/`MAX_DOCUMENT_SIZE_BYTES` in `app/modules/documents/service.py` — duplicated from (not imported from) `crm.service`'s equivalent constants, since `documents` is meant to be the more foundational module going forward; 20MB limit, same as CRM attachments |
+| Malware scanning | `documents.service._scan_for_malware` checks uploaded content against the EICAR test signature — the industry-standard string every real antivirus engine (and this check) recognizes, so this is a genuine, functioning safety net, not a stub. It is **not** a substitute for real malware scanning in production: wiring a real engine (a ClamAV daemon via `clamd`, or a cloud AV API) into this exact function **requires external infrastructure this sandbox doesn't have**. Verified by automated test and a live smoke test using the real EICAR string |
+| Storage usage enforcement | Every accepted upload increments the `document_storage_mb` usage metric via `check_and_increment_usage`, sized to the file's rounded-up megabyte count; exceeding the plan's limit hard-fails the upload (403 `usage_limit_exceeded`) — unlike the soft-fail communications/workflow pattern, a storage cap must actually block the write |
+| Request status guards | The public upload route only accepts uploads while a request is `REQUESTED` or `REJECTED` (re-upload after a rejection) — an `APPROVED` or already-`UPLOADED`-and-pending-review request rejects further public uploads |
+| No sensitive data beyond the request itself | The public view returns only the request's own title/description/status — never the lead's contact details or any other tenant data |
+
 ## Authentication
 
 | Control | Status |
@@ -155,8 +177,11 @@ resource.
 
 - Webhook signature verification / replay protection (no webhooks exist
   yet — Milestone 5+ workflow actions and Milestone 11+ integrations).
-- Malware scanning integration point for uploads (Milestone 7, document
-  collection).
+- A real malware scanning engine for document uploads — Milestone 7 added
+  a genuine EICAR-signature check (see "Public document upload surface &
+  malware scanning" above), but wiring an actual AV engine (ClamAV or a
+  cloud API) requires external infrastructure. CRM's own generic lead
+  attachments (Milestone 2) still don't call any scan hook at all.
 - Automated dependency scanning in CI.
 - Formal penetration test / third-party security review.
 - CSRF token (double-submit) for state-changing requests.

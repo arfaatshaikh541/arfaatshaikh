@@ -8,7 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api-client";
-import type { ActivityItem, AppointmentItem, AttachmentItem, LeadDetail, NoteItem, ProposalItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
+import type {
+  ActivityItem,
+  AppointmentItem,
+  AttachmentItem,
+  DocumentRequestItem,
+  LeadDetail,
+  NoteItem,
+  OnboardingCaseItem,
+  ProposalItem,
+  ScoreBreakdown,
+  TagItem,
+  TaskItem,
+} from "@/lib/types";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = use(params);
@@ -28,6 +40,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
   const scoreQuery = useQuery({ queryKey: ["lead", leadId, "score"], queryFn: () => api.get<ScoreBreakdown>(`/tenant/scoring/leads/${leadId}/breakdown`) });
   const appointmentsQuery = useQuery({ queryKey: ["lead", leadId, "appointments"], queryFn: () => api.get<AppointmentItem[]>(`/tenant/appointments?lead_id=${leadId}`) });
   const proposalsQuery = useQuery({ queryKey: ["lead", leadId, "proposals"], queryFn: () => api.get<ProposalItem[]>(`/tenant/proposals?lead_id=${leadId}`) });
+  const onboardingCasesQuery = useQuery({ queryKey: ["lead", leadId, "onboarding-cases"], queryFn: () => api.get<OnboardingCaseItem[]>(`/tenant/onboarding-cases?lead_id=${leadId}`) });
+  const documentRequestsQuery = useQuery({ queryKey: ["lead", leadId, "document-requests"], queryFn: () => api.get<DocumentRequestItem[]>(`/tenant/document-requests?lead_id=${leadId}`) });
 
   const invalidateLead = () => {
     queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -226,6 +240,52 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
                 className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
               >
                 Create a proposal
+              </Link>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Onboarding" description="Checklists of tasks and document requests for this lead." />
+            <div className="space-y-3">
+              {onboardingCasesQuery.data?.map((onboardingCase) => (
+                <Link
+                  key={onboardingCase.id}
+                  href={`/onboarding-cases/${onboardingCase.id}`}
+                  className="flex items-center justify-between rounded-md border border-surface-border p-3 text-sm hover:border-ink-muted"
+                >
+                  <span className="text-ink">{onboardingCase.name}</span>
+                  <span className="text-xs capitalize text-ink-faint">{onboardingCase.status.replace("_", " ")}</span>
+                </Link>
+              ))}
+              {onboardingCasesQuery.data?.length === 0 && <p className="text-sm text-ink-muted">No onboarding cases yet.</p>}
+              <Link
+                href={`/onboarding-cases?leadId=${leadId}`}
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
+              >
+                Start onboarding
+              </Link>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Document requests" />
+            <div className="space-y-3">
+              {documentRequestsQuery.data?.map((request) => (
+                <Link
+                  key={request.id}
+                  href={`/document-requests/${request.id}`}
+                  className="flex items-center justify-between rounded-md border border-surface-border p-3 text-sm hover:border-ink-muted"
+                >
+                  <span className="text-ink">{request.title}</span>
+                  <span className="text-xs capitalize text-ink-faint">{request.status}</span>
+                </Link>
+              ))}
+              {documentRequestsQuery.data?.length === 0 && <p className="text-sm text-ink-muted">No document requests yet.</p>}
+              <Link
+                href={`/document-requests?leadId=${leadId}`}
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
+              >
+                Request a document
               </Link>
             </div>
           </Card>

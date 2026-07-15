@@ -174,6 +174,10 @@ def complete_task(db: Session, *, tenant_id: uuid.UUID, task_id: uuid.UUID, acto
     db.flush()
     if task.lead_id:
         record_activity(db, tenant_id=tenant_id, lead_id=task.lead_id, actor_id=actor_id, activity_type="task.completed", summary=f"Task completed: {task.title}")
+
+    from app.modules.onboarding.service import advance_case_step_for_task
+
+    advance_case_step_for_task(db, tenant_id=tenant_id, task_id=task_id)
     return task
 
 

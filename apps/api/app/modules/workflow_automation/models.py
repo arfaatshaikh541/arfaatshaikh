@@ -25,6 +25,7 @@ class WorkflowActionType(str, enum.Enum):
     CREATE_TASK = "create_task"
     CHANGE_STAGE = "change_stage"
     ADD_TAG = "add_tag"
+    START_ONBOARDING_CASE = "start_onboarding_case"
 
 
 class WorkflowRunStatus(str, enum.Enum):

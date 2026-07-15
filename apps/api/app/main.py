@@ -35,6 +35,12 @@ from app.modules.crm.routes import (
     tags_router,
     tasks_router,
 )
+from app.modules.documents.routes import (
+    public_router as public_documents_router,
+)
+from app.modules.documents.routes import (
+    router as document_requests_router,
+)
 from app.modules.entitlements.routes import router as entitlements_router
 from app.modules.identity.routes import router as auth_router
 from app.modules.identity.tenant_routes import router as tenant_users_router
@@ -49,6 +55,12 @@ from app.modules.leads.routes import (
 )
 from app.modules.leads.routes import (
     services_router as leads_services_router,
+)
+from app.modules.onboarding.routes import (
+    router as onboarding_cases_router,
+)
+from app.modules.onboarding.routes import (
+    templates_router as onboarding_templates_router,
 )
 from app.modules.permissions.routes import router as roles_router
 from app.modules.platform_admin.routes import router as platform_admin_router
@@ -150,6 +162,10 @@ def create_app() -> FastAPI:
         public_proposals_router,
         proposal_templates_router,
         proposals_router,
+        public_documents_router,
+        document_requests_router,
+        onboarding_templates_router,
+        onboarding_cases_router,
     ):
         api_router.include_router(router)
 

@@ -218,6 +218,15 @@ def _execute_step(db: Session, *, tenant_id: uuid.UUID, lead, step: WorkflowStep
         add_tag_to_lead(db, tenant_id=tenant_id, lead_id=lead.id, tag_name=tag_name, actor_id=None)
         return f"Tag added: {tag_name}."
 
+    if step.action_type == WorkflowActionType.START_ONBOARDING_CASE:
+        from app.modules.onboarding.service import start_case
+
+        template_id = step.action_config.get("template_id")
+        if not template_id:
+            return "Skipped: no onboarding template configured."
+        case = start_case(db, tenant_id=tenant_id, lead_id=lead.id, template_id=uuid.UUID(template_id), created_by=None)
+        return f"Onboarding case started: {case.name}"
+
     return f"Unknown action type: {step.action_type}"
 
 

@@ -617,6 +617,98 @@ why the `proposals` table itself is excluded from RLS while
 `proposal_templates`, `proposal_template_line_items`, and
 `proposal_line_items` are not.
 
+## Entity-relationship diagram — Milestone 7 additions (Document Collection & Client Onboarding)
+
+```mermaid
+erDiagram
+    DOCUMENT_REQUESTS ||--o{ DOCUMENTS : has
+    DOCUMENT_REQUESTS }o--|| LEADS : "for"
+    ONBOARDING_TEMPLATES ||--o{ ONBOARDING_TEMPLATE_STEPS : has
+    ONBOARDING_TEMPLATES ||--o{ ONBOARDING_CASES : "starts"
+    ONBOARDING_CASES }o--|| LEADS : "for"
+    ONBOARDING_CASES ||--o{ ONBOARDING_CASE_STEPS : has
+    ONBOARDING_CASE_STEPS }o--o| TASKS : spawns
+    ONBOARDING_CASE_STEPS }o--o| DOCUMENT_REQUESTS : spawns
+
+    DOCUMENT_REQUESTS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        string title
+        text description
+        enum status "REQUESTED|UPLOADED|APPROVED|REJECTED"
+        string public_token "unguessable, NOT row-level-secured"
+        uuid requested_by FK "nullable, SET NULL"
+        text review_notes
+        uuid reviewed_by FK "nullable, SET NULL"
+        timestamptz reviewed_at "nullable"
+    }
+    DOCUMENTS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid document_request_id FK
+        uuid lead_id FK
+        uuid uploaded_by FK "nullable — null means a public/client upload"
+        string file_name
+        string content_type
+        int size_bytes
+        string storage_key
+    }
+    ONBOARDING_TEMPLATES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        text description
+        bool is_active
+        int sort_order
+    }
+    ONBOARDING_TEMPLATE_STEPS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid template_id FK
+        int sort_order
+        enum step_type "TASK|DOCUMENT_REQUEST"
+        string title
+        text description
+        int due_in_days "nullable, TASK steps only"
+    }
+    ONBOARDING_CASES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        uuid template_id FK "nullable, SET NULL"
+        string name
+        enum status "NOT_STARTED|IN_PROGRESS|COMPLETED|CANCELLED"
+        timestamptz started_at "nullable"
+        timestamptz completed_at "nullable"
+        uuid created_by FK "nullable, SET NULL"
+    }
+    ONBOARDING_CASE_STEPS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid case_id FK
+        uuid template_step_id FK "nullable, SET NULL"
+        int sort_order
+        enum step_type "TASK|DOCUMENT_REQUEST"
+        string title
+        text description
+        enum status "PENDING|COMPLETED|SKIPPED"
+        uuid task_id FK "nullable, SET NULL"
+        uuid document_request_id FK "nullable, SET NULL"
+        timestamptz completed_at "nullable"
+    }
+```
+
+`onboarding_case_steps.task_id`/`document_request_id` point at the real
+`Task`/`DocumentRequest` row a step spawned when its case started —
+`crm.service.complete_task` and
+`documents.service.approve_document_request` each call back into
+`onboarding.service` (soft no-op if the task/request isn't tied to any
+case) to advance the matching step, and the case auto-completes once
+every step is done. `document_requests.public_token` is the client-facing
+upload page's authorization proof — raw, unguessable, generated at
+request-creation time, the same pattern as `Proposal.public_token`.
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -626,9 +718,10 @@ why the `proposals` table itself is excluded from RLS while
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs`, `proposal_templates`, `proposal_template_line_items`, `proposal_line_items` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs`, `proposal_templates`, `proposal_template_line_items`, `proposal_line_items`, `documents`, `onboarding_templates`, `onboarding_template_steps`, `onboarding_cases`, `onboarding_case_steps` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
 | `proposals` | **not** row-level-secured, for the same reason as `tenant_capture_tokens`: the public acceptance page (`GET /public/proposals/{token}`) must resolve the owning tenant from `proposals.public_token` before any tenant context exists — see `app.modules.proposals.service.get_proposal_by_token`, which calls `set_rls_context` immediately afterward. Unlike the token tables above, `proposals` also has an authenticated, tenant-scoped read path (`GET /tenant/proposals`); every method on `ProposalRepository` filters explicitly by `tenant_id` in the query itself, the same application-level boundary `tenant_capture_tokens` already relies on for its own authenticated read path. Its child tables (`proposal_line_items`) carry no public token and remain row-level-secured normally |
+| `document_requests` | **not** row-level-secured, the same reasoning as `proposals`: the public upload page (`GET`/`POST /public/documents/{token}...`) must resolve the owning tenant from `document_requests.public_token` before any tenant context exists — see `app.modules.documents.service.get_request_by_token`. Its child table `documents` (the uploaded files) carries no public token and remains row-level-secured normally |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
 ## Migrations
@@ -657,6 +750,10 @@ Milestone 5:
 Milestone 6:
 12. `e084e0d7c566_milestone_6_proposals_schema.py` — proposal templates, proposal template line items, proposals, proposal line items. No enum-column width migration needed: the two new `EmailTriggerEvent` values (`proposal_sent`, `proposal_accepted`, `proposal_rejected`) and two new `WorkflowTriggerEvent` values (`proposal_accepted`, `proposal_rejected`) fit within the `VARCHAR(30)` width both columns were already widened to in Milestone 4.
 13. `476edb3b5396_milestone_6_row_level_security_policies.py` — RLS for `proposal_templates`, `proposal_template_line_items`, and `proposal_line_items` only; `proposals` itself is deliberately excluded (see the row-level security summary above).
+
+Milestone 7:
+14. `d71e840aed0d_milestone_7_documents_and_onboarding_schema.py` — onboarding templates, onboarding template steps, document requests, onboarding cases, documents, onboarding case steps. No enum-column width migration needed: the three new `EmailTriggerEvent` values (`document_requested`, `document_approved`, `document_rejected`) and the new `WorkflowActionType` value (`start_onboarding_case`) all fit within the existing `VARCHAR(30)` widths.
+15. `940c9dc6be34_milestone_7_row_level_security_policies.py` — RLS for `documents`, `onboarding_templates`, `onboarding_template_steps`, `onboarding_cases`, and `onboarding_case_steps`; `document_requests` itself is deliberately excluded, the same reasoning as `proposals` in Milestone 6 (see the row-level security summary above).
 
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and

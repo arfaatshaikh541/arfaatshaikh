@@ -417,3 +417,77 @@ export interface PublicProposal {
   tax_amount: number;
   total: number;
 }
+
+export type DocumentRequestStatus = "requested" | "uploaded" | "approved" | "rejected";
+
+export interface DocumentRequestItem {
+  id: string;
+  lead_id: string;
+  title: string;
+  description: string;
+  status: DocumentRequestStatus;
+  public_token: string | null;
+  review_notes: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface PublicDocumentRequest {
+  title: string;
+  description: string;
+  status: DocumentRequestStatus;
+}
+
+export type OnboardingStepType = "task" | "document_request";
+export type OnboardingCaseStatus = "not_started" | "in_progress" | "completed" | "cancelled";
+export type OnboardingCaseStepStatus = "pending" | "completed" | "skipped";
+
+export interface OnboardingTemplateStepItem {
+  id: string;
+  step_type: OnboardingStepType;
+  title: string;
+  description: string;
+  due_in_days: number | null;
+  sort_order: number;
+}
+
+export interface OnboardingTemplateItem {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  steps: OnboardingTemplateStepItem[];
+}
+
+export interface OnboardingCaseStepInstance {
+  id: string;
+  step_type: OnboardingStepType;
+  title: string;
+  description: string;
+  status: OnboardingCaseStepStatus;
+  task_id: string | null;
+  document_request_id: string | null;
+  completed_at: string | null;
+  sort_order: number;
+}
+
+export interface OnboardingCaseItem {
+  id: string;
+  lead_id: string;
+  template_id: string | null;
+  name: string;
+  status: OnboardingCaseStatus;
+  started_at: string | null;
+  completed_at: string | null;
+  steps: OnboardingCaseStepInstance[];
+}
