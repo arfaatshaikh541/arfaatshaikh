@@ -16,11 +16,18 @@ post-M1 housekeeping item in docs/project-status.md, not hidden here.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 _API_ROOT = Path(__file__).resolve().parents[1] / "api"
 sys.path.insert(0, str(_API_ROOT))
+
+# Must be set before `core.config`/`db.session` are imported anywhere in
+# this process — db/session.py reads it at import time to pick a
+# NullPool-based engine (see the comment there for why a worker process
+# needs this, same root cause as the pytest suite's NullPool usage).
+os.environ["GRIDKEEP_WORKER_PROCESS"] = "1"
 
 from celery import Celery  # noqa: E402
 
@@ -32,6 +39,17 @@ QUEUE_CORRELATE = "correlate"
 QUEUE_ACTIONS = "actions"
 QUEUE_REPORTS = "reports"
 QUEUE_DEFAULT = "default"
+
+# A Celery worker only consumes from `task_default_queue` unless started
+# with `-Q <queues>` — declaring queues in config does NOT make a worker
+# consume them by default (that's intentional Celery behaviour, so
+# specialized workers can be dedicated to one queue — see ADR-4 on
+# isolating the actions queue). This list is what a single do-everything
+# development worker should pass: `celery -A worker.celery_app worker -Q
+# {",".join(ALL_QUEUE_NAMES)}`. Production deployments may instead run
+# one worker per queue (or a subset) for the isolation architecture calls
+# for.
+ALL_QUEUE_NAMES = (QUEUE_DEFAULT, QUEUE_SYNC, QUEUE_INGEST, QUEUE_CORRELATE, QUEUE_ACTIONS, QUEUE_REPORTS)
 
 celery_app = Celery("gridkeep", broker=settings.redis_url, backend=settings.redis_url)
 

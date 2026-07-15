@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -15,15 +16,19 @@ from sqlalchemy.pool import NullPool
 
 from core.config import settings
 
-if settings.environment == "test":
-    # Pytest-asyncio runs each test coroutine via its own top-level
-    # `loop.run_until_complete()` call, even on a shared event loop.
-    # asyncpg's connection objects carry internal Task/Future bookkeeping
-    # that doesn't survive being checked out again in a later
-    # `run_until_complete()` call — a pooled connection combined with
-    # `pool_pre_ping` then fails with "attached to a different loop" on the
-    # second test that touches the database. NullPool sidesteps this by
-    # opening a fresh connection per checkout; only used in tests.
+# Both pytest and the Celery worker call `asyncio.run()`/
+# `loop.run_until_complete()` once per test/task rather than running the
+# whole process inside a single top-level asyncio.run() the way uvicorn
+# does. asyncpg's connection objects carry internal Task/Future bookkeeping
+# that doesn't survive being checked out again in a *later* such call —
+# a pooled connection combined with `pool_pre_ping` then fails with
+# "attached to a different loop" on the second test/task that touches the
+# database in that process. NullPool sidesteps this by opening a fresh
+# connection per checkout. `apps/worker/celery_app.py` sets
+# GRIDKEEP_WORKER_PROCESS=1 before this module is ever imported.
+_NEEDS_NULLPOOL = settings.environment == "test" or os.environ.get("GRIDKEEP_WORKER_PROCESS") == "1"
+
+if _NEEDS_NULLPOOL:
     _engine: AsyncEngine = create_async_engine(settings.database_url, poolclass=NullPool, echo=False)
 else:
     _engine = create_async_engine(
