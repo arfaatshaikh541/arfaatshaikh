@@ -119,6 +119,32 @@ nobody's paying for. Verified by automated test and a live smoke test
 | Request status guards | The public upload route only accepts uploads while a request is `REQUESTED` or `REJECTED` (re-upload after a rejection) — an `APPROVED` or already-`UPLOADED`-and-pending-review request rejects further public uploads |
 | No sensitive data beyond the request itself | The public view returns only the request's own title/description/status — never the lead's contact details or any other tenant data |
 
+## Client portal authentication (Milestone 8)
+
+The client portal introduces a **second, fully separate authentication
+domain**: `PortalAccount` is not a `User` — it is scoped per-lead, not
+per-tenant-staff-member, and its email is unique only *within* a tenant
+(not globally), since the same person could be staff at one tenant and a
+client of another. It deliberately reuses every proven piece of the staff
+auth system rather than inventing a parallel design, and was one of two
+milestone decisions escalated to the user via `AskUserQuestion` rather
+than decided unilaterally, given how security-critical authentication is:
+password + explicit-staff-invitation, not magic links or auto-grant.
+
+| Control | Implementation |
+|---|---|
+| Password hashing | Same Argon2id parameters as staff (`app/core/security.py`) — no separate, unaudited implementation |
+| Session tokens | Same opaque 256-bit token / SHA-256-hash-at-rest pattern as staff sessions, but in a dedicated `portal_sessions` table and a **separate cookie** (`cops_portal_session`, distinct from staff's `cops_session`) so a staff member and a client can be signed in from the same browser without collision |
+| Tenant-slug-scoped login | Because portal email isn't globally unique, clients authenticate at `/portal/{tenantSlug}/login`. `tenancy.service.get_tenant_by_slug` resolves the slug under a transient platform-admin RLS bypass, then immediately re-scopes RLS to that tenant before any credential check runs |
+| RLS bootstrap for token/session tables | `portal_sessions` and `portal_password_reset_tokens` are excluded from RLS (an unauthenticated request has no tenant context yet) but each row still carries a denormalized `tenant_id` copy — mirroring the pre-existing `Invitation.tenant_id` precedent — so `get_portal_auth_context` and `reset_portal_password` can call `set_rls_context` using that copy *before* touching the RLS-protected `portal_accounts` table it points at. This gap was caught and fixed during implementation, before any test was run against it |
+| Per-request module gating | Every portal route, including `/portal/auth/me`, is gated behind the `client_portal` module via `get_portal_auth_context` — a third, deliberately different choice from Milestones 6 and 7: a proposal accept/reject is a one-time transaction (never gated), a document upload is an ongoing storage cost (gated only at upload time), but the portal itself is an ongoing feature grant, so access is re-checked on every single request. Verified live: disabling `client_portal` for a tenant returned 403 on every portal route including an already-authenticated session's `/me`; re-enabling immediately restored 200 |
+| Cross-lead authorization boundary | `_assert_belongs_to_lead` in `portal/routes.py` checks `resource.lead_id == ctx.lead_id` before returning or acting on any proposal, document request, onboarding case, appointment, or deadline — raising a 404 (not 403) on mismatch so a portal account can never learn that another lead's resource exists. Verified live: requesting another lead's proposal by ID returned 404 |
+| Access grant model | Staff explicitly invite a lead to the portal (`POST /tenant/portal-accounts/invite`, `portal.manage` permission) — no trigger or workflow action auto-grants access, keeping every grant auditable and intentional |
+| Session revocation | Revoking a portal account (`POST /tenant/portal-accounts/{id}/revoke`) immediately revokes all of that account's sessions; password reset does the same, exactly matching the staff pattern |
+| Login throttling | Same Redis-backed fixed-window limiter as staff login, keyed separately (`throttle:portal_login:...`), 8 attempts / 15 minutes |
+| Generic auth errors | Portal login returns the identical `invalid_credentials` error for an unknown tenant slug, unknown email, and a correct-email-wrong-password attempt — verified live and by automated test |
+| Tenant lifecycle interaction | A tenant that is `SUSPENDED` or `ARCHIVED` makes its entire portal unavailable (403), independent of any individual portal account's own active/inactive state |
+
 ## Authentication
 
 | Control | Status |

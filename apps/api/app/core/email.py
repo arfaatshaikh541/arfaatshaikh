@@ -102,6 +102,39 @@ def send_invitation_email(*, to: str, tenant_name: str, invite_url: str) -> None
     )
 
 
+def send_portal_invitation_email(*, to: str, tenant_name: str, invite_url: str) -> None:
+    get_email_provider().send(
+        to=to,
+        subject=f"You've been invited to your {tenant_name} client portal",
+        text_body=(
+            f"{tenant_name} has invited you to their client portal, where you can view proposals, "
+            f"upload requested documents, and track progress.\n\n"
+            f"Set up your account: {invite_url}\n\nThis link expires in 7 days."
+        ),
+        html_body=(
+            f"<p><strong>{tenant_name}</strong> has invited you to their client portal, where you can view "
+            "proposals, upload requested documents, and track progress.</p>"
+            f'<p><a href="{invite_url}">Set up your account</a></p><p>This link expires in 7 days.</p>'
+        ),
+    )
+
+
+def send_portal_password_reset_email(*, to: str, tenant_name: str, reset_url: str) -> None:
+    get_email_provider().send(
+        to=to,
+        subject=f"Reset your {tenant_name} client portal password",
+        text_body=(
+            f"We received a request to reset your {tenant_name} client portal password. Visit: {reset_url}\n\n"
+            "This link expires in 1 hour. If you did not request this, you can safely ignore this email."
+        ),
+        html_body=(
+            f"<p>We received a request to reset your {tenant_name} client portal password.</p>"
+            f'<p><a href="{reset_url}">{reset_url}</a></p>'
+            "<p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>"
+        ),
+    )
+
+
 def send_lead_acknowledgement_email(*, to: str, tenant_name: str, first_name: str, reference_number: str) -> None:
     get_email_provider().send(
         to=to,

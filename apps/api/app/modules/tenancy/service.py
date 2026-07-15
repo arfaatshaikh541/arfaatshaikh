@@ -89,6 +89,27 @@ def resolve_tenant_by_capture_token(db: Session, token: str) -> Tenant | None:
     return tenant
 
 
+def get_tenant_by_slug(db: Session, slug: str) -> Tenant | None:
+    """Public, unauthenticated lookup for the client portal login page,
+    which is reached at a tenant-slug-scoped URL rather than an
+    unguessable token — a tenant's slug is not a secret (it's meant to be
+    a shareable identifier, the same way a company's subdomain would be).
+    Bootstraps with a transient platform-admin RLS context purely to read
+    this one `tenants` row by slug (there is no tenant context to use yet
+    — that's exactly the chicken-and-egg problem this function exists to
+    solve), then immediately re-scopes to the resolved tenant before
+    returning, exactly as `resolve_tenant_by_capture_token` does after its
+    own bootstrap lookup. Returns None (never raises) for an unknown or
+    inactive tenant."""
+    set_rls_context(db, tenant_id=None, is_platform_admin=True)
+    tenant = TenantRepository(db).get_by_slug(slug)
+    if tenant is None or tenant.status in {TenantStatus.SUSPENDED, TenantStatus.ARCHIVED}:
+        set_rls_context(db, tenant_id=None, is_platform_admin=False)
+        return None
+    set_rls_context(db, tenant_id=tenant.id, is_platform_admin=False)
+    return tenant
+
+
 # Statuses under which write operations are rejected platform-wide,
 # independent of any module/feature entitlement.
 WRITE_BLOCKING_STATUSES = {TenantStatus.SUSPENDED, TenantStatus.READ_ONLY, TenantStatus.ARCHIVED}

@@ -5,6 +5,7 @@ from app.celery_app import celery_app
 from app.core.db import session_scope, set_rls_context
 from app.modules.entitlements.service import cleanup_expired_overrides
 from app.modules.identity.repository import InvitationRepository, SessionRepository
+from app.modules.portal.repository import PortalInvitationRepository, PortalSessionRepository
 
 logger = logging.getLogger("worker.cleanup")
 
@@ -52,4 +53,32 @@ def cleanup_expired_feature_overrides() -> int:
         set_rls_context(db, tenant_id=None, is_platform_admin=True)
         count = cleanup_expired_overrides(db)
     logger.info("Deleted %d expired feature overrides", count)
+    return count
+
+
+@celery_app.task(name="app.tasks.cleanup.cleanup_expired_portal_sessions", autoretry_for=(Exception,), max_retries=3, retry_backoff=True)
+def cleanup_expired_portal_sessions() -> int:
+    """Portal analogue of `cleanup_expired_sessions`."""
+    with session_scope() as db:
+        set_rls_context(db, tenant_id=None, is_platform_admin=True)
+        repo = PortalSessionRepository(db)
+        expired = repo.list_expired(before=_utcnow())
+        for session in expired:
+            repo.delete(session)
+        count = len(expired)
+    logger.info("Deleted %d expired portal sessions", count)
+    return count
+
+
+@celery_app.task(name="app.tasks.cleanup.cleanup_expired_portal_invitations", autoretry_for=(Exception,), max_retries=3, retry_backoff=True)
+def cleanup_expired_portal_invitations() -> int:
+    """Portal analogue of `cleanup_expired_invitations`."""
+    with session_scope() as db:
+        set_rls_context(db, tenant_id=None, is_platform_admin=True)
+        repo = PortalInvitationRepository(db)
+        expired = repo.list_expired_unaccepted(before=_utcnow())
+        for invitation in expired:
+            invitation.revoked_at = _utcnow()
+        count = len(expired)
+    logger.info("Revoked %d expired portal invitations", count)
     return count

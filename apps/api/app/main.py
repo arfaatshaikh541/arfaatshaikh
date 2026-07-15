@@ -35,6 +35,7 @@ from app.modules.crm.routes import (
     tags_router,
     tasks_router,
 )
+from app.modules.deadlines.routes import router as deadlines_router
 from app.modules.documents.routes import (
     public_router as public_documents_router,
 )
@@ -64,6 +65,15 @@ from app.modules.onboarding.routes import (
 )
 from app.modules.permissions.routes import router as roles_router
 from app.modules.platform_admin.routes import router as platform_admin_router
+from app.modules.portal.routes import (
+    auth_router as portal_auth_router,
+)
+from app.modules.portal.routes import (
+    router as portal_content_router,
+)
+from app.modules.portal.routes import (
+    staff_router as portal_accounts_router,
+)
 from app.modules.proposals.routes import (
     public_router as public_proposals_router,
 )
@@ -166,6 +176,10 @@ def create_app() -> FastAPI:
         document_requests_router,
         onboarding_templates_router,
         onboarding_cases_router,
+        deadlines_router,
+        portal_auth_router,
+        portal_content_router,
+        portal_accounts_router,
     ):
         api_router.include_router(router)
 

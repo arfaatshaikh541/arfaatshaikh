@@ -709,6 +709,90 @@ every step is done. `document_requests.public_token` is the client-facing
 upload page's authorization proof — raw, unguessable, generated at
 request-creation time, the same pattern as `Proposal.public_token`.
 
+## Entity-relationship diagram — Milestone 8 additions (Client Portal & Deadlines)
+
+```mermaid
+erDiagram
+    DEADLINES }o--|| LEADS : "for"
+    PORTAL_ACCOUNTS }o--|| LEADS : "represents"
+    PORTAL_INVITATIONS }o--|| LEADS : "for"
+    PORTAL_SESSIONS }o--|| PORTAL_ACCOUNTS : "authenticates"
+    PORTAL_PASSWORD_RESET_TOKENS }o--|| PORTAL_ACCOUNTS : "resets"
+
+    DEADLINES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        string title
+        text description
+        date due_date
+        enum status "OPEN|COMPLETED"
+        int recurrence_interval_days "nullable"
+        timestamptz completed_at "nullable"
+        uuid created_by FK "nullable, SET NULL"
+        timestamptz reminder_sent_at "nullable"
+    }
+    PORTAL_ACCOUNTS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK "one account per lead"
+        citext email "unique per tenant, not globally"
+        string password_hash
+        bool is_active
+    }
+    PORTAL_INVITATIONS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        citext email
+        string token_hash "unguessable, NOT row-level-secured"
+        uuid invited_by FK "nullable, SET NULL"
+        timestamptz expires_at
+        timestamptz accepted_at "nullable"
+        timestamptz revoked_at "nullable"
+    }
+    PORTAL_SESSIONS {
+        uuid id PK
+        uuid tenant_id FK "denormalized — see below"
+        uuid portal_account_id FK
+        string session_token_hash "unguessable, NOT row-level-secured"
+        timestamptz expires_at
+        timestamptz revoked_at "nullable"
+    }
+    PORTAL_PASSWORD_RESET_TOKENS {
+        uuid id PK
+        uuid tenant_id FK "denormalized — see below"
+        uuid portal_account_id FK
+        string token_hash "unguessable, NOT row-level-secured"
+        timestamptz expires_at
+        timestamptz used_at "nullable"
+    }
+```
+
+`PortalAccount` is a completely separate identity domain from
+`identity.User` (tenant staff) — a client's login to their own
+tenant-scoped portal, one account per lead. Unlike `User.email` (globally
+unique across the whole platform), `PortalAccount.email` is unique only
+*within* a tenant, since the same person could plausibly be a staff
+member at one tenant and a client of another (or a client of two
+different tenants) without any real-world collision.
+
+`PortalSession.tenant_id` and `PortalPasswordResetToken.tenant_id` are
+**denormalized** copies of the value on the owning `PortalAccount` (the
+same technique `Invitation.tenant_id` already used) — solving a genuine
+chicken-and-egg problem: these two tables are excluded from RLS (see
+below) so they can be looked up by an unguessable token before any tenant
+context exists, but the account they point at *is* row-level-secured, so
+the application needs the tenant id from the token row itself to
+establish RLS context before it can read that account row at all.
+
+Client login is reached at a tenant-slug-scoped URL
+(`/portal/{tenant.slug}/login`) rather than an unguessable token, since a
+client's email is only unique within a tenant. `tenancy.service.get_tenant_by_slug`
+resolves the slug with a transient platform-admin RLS bootstrap — a
+tenant's slug is not a secret, the same way a company's subdomain isn't —
+then re-scopes to the resolved tenant before returning.
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -718,10 +802,11 @@ request-creation time, the same pattern as `Proposal.public_token`.
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs`, `proposal_templates`, `proposal_template_line_items`, `proposal_line_items`, `documents`, `onboarding_templates`, `onboarding_template_steps`, `onboarding_cases`, `onboarding_case_steps` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs`, `proposal_templates`, `proposal_template_line_items`, `proposal_line_items`, `documents`, `onboarding_templates`, `onboarding_template_steps`, `onboarding_cases`, `onboarding_case_steps`, `deadlines`, `portal_accounts` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
 | `proposals` | **not** row-level-secured, for the same reason as `tenant_capture_tokens`: the public acceptance page (`GET /public/proposals/{token}`) must resolve the owning tenant from `proposals.public_token` before any tenant context exists — see `app.modules.proposals.service.get_proposal_by_token`, which calls `set_rls_context` immediately afterward. Unlike the token tables above, `proposals` also has an authenticated, tenant-scoped read path (`GET /tenant/proposals`); every method on `ProposalRepository` filters explicitly by `tenant_id` in the query itself, the same application-level boundary `tenant_capture_tokens` already relies on for its own authenticated read path. Its child tables (`proposal_line_items`) carry no public token and remain row-level-secured normally |
 | `document_requests` | **not** row-level-secured, the same reasoning as `proposals`: the public upload page (`GET`/`POST /public/documents/{token}...`) must resolve the owning tenant from `document_requests.public_token` before any tenant context exists — see `app.modules.documents.service.get_request_by_token`. Its child table `documents` (the uploaded files) carries no public token and remains row-level-secured normally |
+| `portal_invitations`, `portal_sessions`, `portal_password_reset_tokens` | **not** row-level-secured, the same reasoning as `invitations`/`sessions`/`password_reset_tokens`: each is looked up only by an unguessable token hash, before any tenant/portal context exists. `portal_sessions` and `portal_password_reset_tokens` each carry a denormalized `tenant_id` column (the same technique `Invitation.tenant_id` uses) so the application can establish RLS context before touching the row-level-secured `portal_accounts` table — see the Milestone 8 ER diagram above |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
 ## Migrations
@@ -754,6 +839,10 @@ Milestone 6:
 Milestone 7:
 14. `d71e840aed0d_milestone_7_documents_and_onboarding_schema.py` — onboarding templates, onboarding template steps, document requests, onboarding cases, documents, onboarding case steps. No enum-column width migration needed: the three new `EmailTriggerEvent` values (`document_requested`, `document_approved`, `document_rejected`) and the new `WorkflowActionType` value (`start_onboarding_case`) all fit within the existing `VARCHAR(30)` widths.
 15. `940c9dc6be34_milestone_7_row_level_security_policies.py` — RLS for `documents`, `onboarding_templates`, `onboarding_template_steps`, `onboarding_cases`, and `onboarding_case_steps`; `document_requests` itself is deliberately excluded, the same reasoning as `proposals` in Milestone 6 (see the row-level security summary above).
+
+Milestone 8:
+16. `a8d00229e9e1_milestone_8_deadlines_and_portal_schema.py` — deadlines, portal accounts, portal invitations, portal sessions, portal password reset tokens. No enum-column width migration needed: the new `EmailTriggerEvent` value (`deadline_upcoming`) fits within the existing `VARCHAR(30)` width.
+17. `e784654321ba_milestone_8_row_level_security_policies.py` — RLS for `deadlines` and `portal_accounts` only; `portal_invitations`, `portal_sessions`, and `portal_password_reset_tokens` are deliberately excluded, the same reasoning as `invitations`/`sessions`/`password_reset_tokens` (see the row-level security summary above).
 
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and

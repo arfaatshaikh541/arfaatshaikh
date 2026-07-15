@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     session_absolute_ttl_hours: int = Field(default=12)
     session_idle_ttl_minutes: int = Field(default=60)
 
+    portal_session_cookie_name: str = Field(default="cops_portal_session")
+    portal_session_absolute_ttl_hours: int = Field(default=12)
+    portal_session_idle_ttl_minutes: int = Field(default=60)
+
     database_url: str = Field(...)
     migration_database_url: str = Field(...)
 

@@ -10,12 +10,14 @@ from app.modules.audit import models as audit_models  # noqa: F401
 from app.modules.booking import models as booking_models  # noqa: F401
 from app.modules.communications import models as communications_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401
+from app.modules.deadlines import models as deadlines_models  # noqa: F401
 from app.modules.documents import models as documents_models  # noqa: F401
 from app.modules.entitlements import models as entitlements_models  # noqa: F401
 from app.modules.identity import models as identity_models  # noqa: F401
 from app.modules.leads import models as leads_models  # noqa: F401
 from app.modules.onboarding import models as onboarding_models  # noqa: F401
 from app.modules.permissions import models as permissions_models  # noqa: F401
+from app.modules.portal import models as portal_models  # noqa: F401
 from app.modules.proposals import models as proposals_models  # noqa: F401
 from app.modules.scoring import models as scoring_models  # noqa: F401
 from app.modules.subscriptions import models as subscriptions_models  # noqa: F401

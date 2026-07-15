@@ -491,3 +491,79 @@ export interface OnboardingCaseItem {
   completed_at: string | null;
   steps: OnboardingCaseStepInstance[];
 }
+
+export type DeadlineStatus = "open" | "completed";
+
+export interface DeadlineItem {
+  id: string;
+  lead_id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  status: DeadlineStatus;
+  recurrence_interval_days: number | null;
+  completed_at: string | null;
+}
+
+export interface PortalAccountItem {
+  id: string;
+  lead_id: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CurrentPortalAccount {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  lead_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+}
+
+export interface PortalProposal {
+  id: string;
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  terms: string;
+  valid_until: string | null;
+  line_items: { description: string; quantity: number; unit_price: number }[];
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+}
+
+export interface PortalDocumentRequest {
+  id: string;
+  title: string;
+  description: string;
+  status: DocumentRequestStatus;
+  review_notes: string;
+}
+
+export interface PortalOnboardingCase {
+  id: string;
+  name: string;
+  status: OnboardingCaseStatus;
+  steps: { title: string; step_type: OnboardingStepType; status: OnboardingCaseStepStatus }[];
+}
+
+export interface PortalAppointment {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  status: AppointmentStatus;
+  location: string;
+}
+
+export interface PortalDeadline {
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  status: DeadlineStatus;
+}

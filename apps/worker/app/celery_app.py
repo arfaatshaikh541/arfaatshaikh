@@ -9,7 +9,10 @@ celery_app = Celery(
     "cops_worker",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.cleanup", "app.tasks.communications", "app.tasks.booking", "app.tasks.workflow_automation"],
+    include=[
+        "app.tasks.cleanup", "app.tasks.communications", "app.tasks.booking", "app.tasks.workflow_automation",
+        "app.tasks.deadlines",
+    ],
 )
 
 celery_app.conf.update(
@@ -36,6 +39,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.cleanup.cleanup_expired_feature_overrides",
         "schedule": crontab(minute=30, hour="*/6"),
     },
+    "cleanup-expired-portal-sessions": {
+        "task": "app.tasks.cleanup.cleanup_expired_portal_sessions",
+        "schedule": crontab(minute="*/15"),
+    },
+    "cleanup-expired-portal-invitations": {
+        "task": "app.tasks.cleanup.cleanup_expired_portal_invitations",
+        "schedule": crontab(minute=0, hour="*/6"),
+    },
     "retry-failed-email-deliveries": {
         "task": "app.tasks.communications.retry_email_deliveries",
         "schedule": crontab(minute="*/15"),
@@ -51,5 +62,9 @@ celery_app.conf.beat_schedule = {
     "process-due-workflow-steps": {
         "task": "app.tasks.workflow_automation.process_due_steps",
         "schedule": crontab(minute="*/15"),
+    },
+    "send-deadline-reminders": {
+        "task": "app.tasks.deadlines.send_deadline_reminders",
+        "schedule": crontab(minute=0, hour=8),
     },
 }

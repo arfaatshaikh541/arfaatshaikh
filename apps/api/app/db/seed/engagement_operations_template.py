@@ -16,7 +16,8 @@ MERGE_FIELD_HELP = (
     "{{tenant_name}}, {{stage_name}}, {{assigned_user_name}}, {{task_title}}, {{task_due_date}}, "
     "{{staff_name}}, {{appointment_type_name}}, {{appointment_date}}, {{appointment_time}}, {{location}}, "
     "{{proposal_title}}, {{proposal_total}}, {{proposal_link}}, "
-    "{{document_title}}, {{document_link}}"
+    "{{document_title}}, {{document_link}}, "
+    "{{deadline_title}}, {{deadline_due_date}}"
 )
 
 
@@ -146,6 +147,11 @@ def apply_engagement_operations_template(
             "Hi {{first_name}},\n\nWe weren't able to accept the '{{document_title}}' you uploaded. "
             "Please upload a new copy here: {{document_link}}\n\n— {{tenant_name}}"
         ),
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Deadline Reminder", trigger_event=EmailTriggerEvent.DEADLINE_UPCOMING,
+        subject="Upcoming deadline: {{deadline_title}}",
+        body_text="Hi {{first_name}},\n\nA reminder that '{{deadline_title}}' is due on {{deadline_due_date}}.\n\n— {{tenant_name}}",
     )
 
     from app.modules.booking import service as booking_service

@@ -24,6 +24,7 @@ class EmailTriggerEvent(str, enum.Enum):
     DOCUMENT_REQUESTED = "document_requested"
     DOCUMENT_APPROVED = "document_approved"
     DOCUMENT_REJECTED = "document_rejected"
+    DEADLINE_UPCOMING = "deadline_upcoming"
 
 
 class EmailDeliveryStatus(str, enum.Enum):

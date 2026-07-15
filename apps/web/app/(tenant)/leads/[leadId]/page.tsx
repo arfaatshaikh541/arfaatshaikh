@@ -12,6 +12,7 @@ import type {
   ActivityItem,
   AppointmentItem,
   AttachmentItem,
+  DeadlineItem,
   DocumentRequestItem,
   LeadDetail,
   NoteItem,
@@ -42,6 +43,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
   const proposalsQuery = useQuery({ queryKey: ["lead", leadId, "proposals"], queryFn: () => api.get<ProposalItem[]>(`/tenant/proposals?lead_id=${leadId}`) });
   const onboardingCasesQuery = useQuery({ queryKey: ["lead", leadId, "onboarding-cases"], queryFn: () => api.get<OnboardingCaseItem[]>(`/tenant/onboarding-cases?lead_id=${leadId}`) });
   const documentRequestsQuery = useQuery({ queryKey: ["lead", leadId, "document-requests"], queryFn: () => api.get<DocumentRequestItem[]>(`/tenant/document-requests?lead_id=${leadId}`) });
+  const deadlinesQuery = useQuery({ queryKey: ["lead", leadId, "deadlines"], queryFn: () => api.get<DeadlineItem[]>(`/tenant/deadlines?lead_id=${leadId}`) });
 
   const invalidateLead = () => {
     queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -286,6 +288,25 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
                 className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
               >
                 Request a document
+              </Link>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Deadlines" />
+            <div className="space-y-3">
+              {deadlinesQuery.data?.map((deadline) => (
+                <div key={deadline.id} className="flex items-center justify-between rounded-md border border-surface-border p-3 text-sm">
+                  <span className={deadline.status === "completed" ? "text-ink-faint line-through" : "text-ink"}>{deadline.title}</span>
+                  <span className="text-xs text-ink-faint">Due {deadline.due_date}</span>
+                </div>
+              ))}
+              {deadlinesQuery.data?.length === 0 && <p className="text-sm text-ink-muted">No deadlines yet.</p>}
+              <Link
+                href={`/deadlines?leadId=${leadId}`}
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
+              >
+                Add a deadline
               </Link>
             </div>
           </Card>

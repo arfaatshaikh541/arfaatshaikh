@@ -26,6 +26,8 @@ const NAV_ITEMS: { href: string; label: string; permission?: string; module?: st
   { href: "/onboarding-cases", label: "Onboarding", permission: "onboarding.view", module: "client_onboarding" },
   { href: "/onboarding-templates", label: "Onboarding Templates", permission: "onboarding.manage", module: "client_onboarding" },
   { href: "/document-requests", label: "Document Requests", permission: "documents.view", module: "document_collection" },
+  { href: "/deadlines", label: "Deadlines", permission: "deadlines.manage", module: "deadline_tracking" },
+  { href: "/portal-accounts", label: "Client Portal", permission: "portal.manage", module: "client_portal" },
   { href: "/users", label: "Users", permission: "users.manage" },
   { href: "/roles", label: "Roles", permission: "roles.manage" },
   { href: "/subscription", label: "Subscription", permission: "subscriptions.view" },

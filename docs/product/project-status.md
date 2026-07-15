@@ -1,76 +1,78 @@
 # Project status
 
-**Current milestone:** Milestone 7 — Client Onboarding and Document Collection
-**Status:** Complete, verified against a real PostgreSQL + Redis stack. Awaiting your review before starting Milestone 8.
+**Current milestone:** Milestone 8 — Client Portal and Deadlines
+**Status:** Complete, verified against a real PostgreSQL + Redis stack. Awaiting your review before starting Milestone 9.
 **Last updated:** 2026-07-15
 
 ---
 
-## What was built (Milestone 7)
+## What was built (Milestone 8)
 
-This milestone combines the two modules the original architecture
-bundled together: **Document Collection** (structured, reviewable file
-requests, built first) and **Client Onboarding** (checklists that
-compose on top of it and on the existing `crm` task infrastructure).
+This milestone adds the first client-facing *authenticated* surface in
+the platform — a self-service login distinct from every prior public
+per-request token link — plus compliance/service **deadline** tracking,
+the natural next stage after a client has been onboarded (Milestone 7).
+
+Before writing any code, two decisions were escalated to you via
+`AskUserQuestion` rather than made unilaterally, given how
+security-critical authentication is: **password + explicit staff
+invitation** (over magic links) for the login mechanism, and **staff
+invites explicitly** (over auto-granting access on some trigger) for how
+a lead gets portal access in the first place. Both were confirmed as
+"Recommended" and implemented as chosen.
 
 ### Backend (`apps/api`)
-- **New `documents` module**: `DocumentRequest` (a request for a specific document — title, description, lifecycle status `REQUESTED → UPLOADED → APPROVED/REJECTED`, review notes, an unguessable `public_token`) and `Document` (the uploaded file itself, kept as its own row so a rejected request can be re-uploaded without losing history; `uploaded_by` is null for a public/client upload).
-- **New `onboarding` module**: `OnboardingTemplate` + `OnboardingTemplateStep` (ordered checklist steps, each either `TASK` or `DOCUMENT_REQUEST`) and `OnboardingCase` + `OnboardingCaseStep` (instantiated for a specific lead — each step spawns a *real* `Task` or `DocumentRequest` via a cross-module call, not a placeholder).
-- **Auto-advancing checklist**: `crm.service.complete_task` and `documents.service.approve_document_request` each gained a small soft-fail hook back into `onboarding.service` to mark the corresponding case step complete; a case auto-completes once every step is done. Verified live: completing a task step left the case `in_progress` (the document step was still pending), and approving the document step then completed both the step and the case in the same request.
-- **New `WorkflowActionType.START_ONBOARDING_CASE`** (config: `template_id`) — connects Milestone 5's automation engine to this milestone, e.g. "when a proposal is accepted, start onboarding." Verified live through a full trigger → sweep → case-created cycle.
-- **Public, unauthenticated document upload surface** (`/public/documents/{token}`, `.../upload`) reusing the raw-token/no-RLS pattern proven in Milestones 4 and 6, but with **a deliberate divergence from the Milestone 6 proposal precedent**: the upload route *is* gated behind the `document_collection` module entitlement, because (unlike flipping a proposal's status) uploading a file consumes ongoing storage — a lapsed subscription should stop new uploads, not silently keep absorbing a resource nobody's paying for. Verified live (module disabled → view still works, upload returns 403).
-- **A genuine malware-scan integration point**: uploads are checked against the EICAR test signature, the industry-standard string every real antivirus engine recognizes — a real, functioning safety net, not a stub, verified by both an automated test and a live upload of the actual EICAR string. It is explicitly **not** a substitute for a production AV engine (ClamAV/cloud API), which requires external infrastructure this sandbox doesn't have.
-- **Storage usage enforcement**: every accepted upload increments the `document_storage_mb` usage metric (rounded up to whole megabytes) via the existing `check_and_increment_usage`; exceeding the plan's limit hard-fails the upload — unlike the soft-fail communications/workflow convention, a storage cap must actually block the write. Verified by automated test.
-- **Three new `EmailTriggerEvent` values** (`document_requested`, `document_approved`, `document_rejected`) wired the same way Milestones 3, 4, and 6 wired theirs — no width migration needed, the column was already `VARCHAR(30)`.
-- **The one real permission-catalog gap since Milestone 1**: unlike every prior milestone, the M1 catalog did not pre-provision a permission for *creating* an onboarding case or a document request (only `documents.view/upload/approve` existed, which cover viewing, uploading, and approving a file — not requesting one). Added `onboarding.view`, `onboarding.manage`, and `documents.manage` to the catalog and to every default role. `Manager` (like with `proposals.manage`) was granted `onboarding.manage`/`documents.manage` directly — these are treated as routine business actions, not admin-only configuration, the same reasoning that kept `workflows.manage` Administrator-only but gave Manager `proposals.manage`. As with every prior new permission code, this only applies to *newly created* tenants — existing tenants' seeded roles are not retroactively updated (the same long-standing, unremarked-on limitation since Milestone 4's `availability.manage`).
-- **Two new Alembic migrations** (schema + RLS), exercised through a full upgrade → downgrade → re-upgrade cycle against both the dev and test databases. `document_requests` is deliberately excluded from RLS (same reasoning as `proposals` in Milestone 6); `documents` and all four `onboarding_*` tables are row-level-secured normally.
-- **Extended the Engagement Operations seed template** with the three new email templates and a "Standard Client Onboarding" template (a document-request step + a task step) — applied to every newly created tenant.
-- **20 new pytest tests** (129 total with Milestones 1–6's), covering: document request creation and notification, staff and public uploads, MIME/size validation, the EICAR malware check, the storage usage limit, approve/reject with notes, re-approval-after-rejection guards, the module-gated public upload (including the deliberate divergence from proposals), permission enforcement, cross-tenant isolation for both modules, template/case creation, step-to-resource spawning, cross-module auto-advancement (task completion and document approval each advancing their case step and triggering case auto-completion), manual completion for ad hoc steps (and its rejection for resource-backed steps), case cancellation, blank-case immediate completion, and the workflow-triggered case start.
+- **New `deadlines` module**: `Deadline` (title, description, due date, `OPEN`/`COMPLETED` status, optional `recurrence_interval_days`, `reminder_sent_at`). Completing a recurring deadline automatically creates the next occurrence (`due_date + recurrence_interval_days`); completing an already-completed deadline is rejected. A daily Celery beat sweep (`send_deadline_reminders`, 08:00, a deliberate deviation from the platform's usual 15-minute cadence since deadlines are date-granularity, not time-granularity) emails leads whose deadline falls within a 7-day lead window, and marks `reminder_sent_at` unconditionally — even for a lead with no email — so a sweep never reprocesses the same deadline. Verified live and by automated test that the reminder fires exactly once per occurrence.
+- **New `portal` module — a second, fully separate authentication domain**: `PortalAccount`, `PortalInvitation`, `PortalSession`, `PortalPasswordResetToken`, mirroring the `identity` module's `User`/`Membership`/`Invitation`/`Session`/`PasswordResetToken` pattern exactly, but scoped per-*lead* rather than per-staff-user. Reuses the same Argon2id password hashing and opaque/hashed session token design as staff auth — no separate, unaudited crypto.
+- **A genuine architectural bug caught and fixed before any test ran**: because `PortalAccount` lives in a row-level-secured table, a token/session row that must be looked up *before* any tenant context exists (an unauthenticated login or password-reset request) can't `SELECT` it — RLS fails closed. Fixed by giving `PortalSession` and `PortalPasswordResetToken` their own denormalized `tenant_id` column (extending the precedent `Invitation.tenant_id` already set), so RLS context can be established from the token row itself before it ever touches `portal_accounts`. Documented in both the model docstrings and `docs/database/README.md`.
+- **Tenant-slug-scoped client login** (`/portal/{tenantSlug}/login`): since a portal account's email is unique only *within* a tenant (unlike staff `User.email`, which is global), a new `tenancy.service.get_tenant_by_slug` bootstrap resolves the tenant from the URL under a transient platform-admin RLS bypass, then re-scopes to it before any credential check.
+- **A separate portal session cookie** (`cops_portal_session`), coexisting with staff's `cops_session` in the same browser without collision.
+- **Per-request module gating on every portal route** — a third, deliberately different entitlement-gating choice from Milestones 6 and 7: a proposal accept/reject is a one-time transaction (never gated); a document upload has an ongoing storage cost (gated only at upload time); the portal itself is an ongoing feature grant, so `client_portal` is checked on *every* request via the `get_portal_auth_context` dependency, including `/me`. Verified live: disabling the module 403'd every portal route, including an already-authenticated session's `/me`; re-enabling immediately restored 200.
+- **Cross-lead authorization boundary**: `_assert_belongs_to_lead` in `portal/routes.py` checks every proposal/document-request/onboarding-case/appointment/deadline against the caller's own `lead_id` before returning or acting on it, raising 404 (never 403) on a mismatch so a portal account can't learn another lead's resource even exists. Verified live.
+- **Portal content routes are thin composition, not new business logic** — they call the existing `proposals.service.accept_proposal`/`reject_proposal`, `documents.service.upload_document`, `onboarding.service.list_cases_for_lead`, `booking.service.list_appointments`, and `deadlines.service.list_deadlines_for_lead` directly, scoped to the caller's own lead.
+- **Staff-facing portal management** (`/tenant/portal-accounts`, `portal.manage` permission): list, invite (rejects a lead with no email, and a lead that already has an account), and revoke (which immediately revokes all of that account's sessions).
+- **Zero new permission codes needed** — unlike Milestone 7's one-off gap, Milestone 1's original permission catalog had already correctly pre-provisioned both `portal.manage` (Administrator + Support Agent, not Manager) and `deadlines.manage` (Administrator + Manager + Support Agent, not Sales Agent/Viewer) with the right role scoping.
+- **One new `EmailTriggerEvent`** (`deadline_upcoming`) wired the same way every prior milestone's trigger events were — the column was already wide enough, no migration needed.
+- **Two new Alembic migrations** (schema + RLS), exercised through a full upgrade → downgrade → re-upgrade cycle against both the dev and test databases. `deadlines` and `portal_accounts` are row-level-secured normally; `portal_invitations`, `portal_sessions`, and `portal_password_reset_tokens` are deliberately excluded (same reasoning as `invitations`/`sessions` in the staff auth system, extended with the denormalized-`tenant_id` bootstrap technique described above).
+- **Extended the Engagement Operations seed template** with a "Deadline Reminder" email template, applied to every newly created tenant.
+- **20 new pytest tests** (149 total with Milestones 1–7's): deadline creation/completion, recurrence spawning the next occurrence, rejecting completion of an already-completed deadline, the reminder sweep (sends once, never twice), permission enforcement, tenant isolation; and for the portal — invite/accept/login/logout/me, wrong-password and unknown-slug both returning the identical generic error, invite validation (no email, already has access), forgot/reset password (including that reset revokes all sessions), revoke blocking further login, the cross-lead 404 boundary on every resource type, viewing/acting on the caller's own proposals/documents/onboarding/deadlines/appointments, module-gating on every request, staff permission enforcement on portal management, and same-email-different-tenant portal accounts working independently of each other.
 
 ### Frontend (`apps/web`)
-- `/document-requests` — list (optionally filtered by `?leadId=`) and a create-request form.
-- `/document-requests/[requestId]` — detail: staff upload, uploaded-file list with download links, the client-facing link, and approve/reject actions with notes.
-- `/documents/upload/[token]` — the public, unauthenticated upload page.
-- `/onboarding-templates` — template + step editor (task vs. document-request steps, with a due-in-days field for tasks).
-- `/onboarding-cases` — list (optionally filtered by `?leadId=`) and a start-case form (lead + optional template picker).
-- `/onboarding-cases/[caseId]` — checklist view linking each step through to its underlying task or document request, plus a cancel action.
-- Lead detail page gained "Onboarding" and "Document requests" sections (mirroring the Milestone 4/6 pattern); sidebar nav updated.
+- `/deadlines` — list, create, and complete deadlines (optionally filtered by `?leadId=`); lead detail page gained a "Deadlines" section.
+- `/portal-accounts` — staff list/invite/revoke UI.
+- `/portal/{tenantSlug}/login`, `/accept-invitation`, `/forgot-password`, `/reset-password` — the client-facing auth flow, structurally mirroring the staff equivalents but hitting the `/portal/auth/*` endpoints and using the `cops_portal_session` cookie.
+- `/portal/{tenantSlug}/dashboard` — the authenticated client home: proposals (accept/decline inline), document requests (inline upload), onboarding checklist progress, upcoming deadlines, and appointments — all scoped automatically to the logged-in client's own lead.
+- New `PortalAuthProvider`/`usePortalAuth` (`lib/portal-auth-context.tsx`) — a completely separate auth context from staff's `AuthProvider`, with its own React Query cache key, coexisting cleanly because the underlying cookies never collide.
+- Sidebar nav updated with "Deadlines" and "Client Portal" entries.
 
 ### Tests & verification
-- `ruff check app` — 0 errors. `pytest -q` — 129 passed. `eslint` — 0 errors. `tsc --noEmit` — 0 errors. `next build` — succeeds, 40 routes. `vitest run` — 4 passed.
+- `ruff check app` — 0 errors. `pytest -q` — 149 passed. `eslint` — 0 errors. `tsc --noEmit` — 0 errors. `next build` — succeeds. `vitest run` — 4 passed.
 - Both new Alembic migrations exercised through a full upgrade → downgrade → re-upgrade cycle against real Postgres, against both the dev (`cops`) and test (`cops_test`) databases.
-- Manually smoke-tested over real HTTP against a freshly seeded demo tenant (upgraded to the Professional plan, which is where `client_onboarding`/`document_collection` first turn on) with the API server actually running: confirmed the seeded "Standard Client Onboarding" template via `GET`; started a case and confirmed a real `Task` and a real `DocumentRequest` were spawned; completed the task and confirmed its step advanced while the case correctly stayed `in_progress`; uploaded and approved the document and confirmed both the step and the case (with `completed_at`) flipped in the same request; uploaded the literal EICAR test string to a fresh request and confirmed a live `malware_detected` rejection; disabled the `document_collection` module for the tenant and confirmed the public upload route returned 403 while the public view route stayed 200; and configured a live workflow with a `start_onboarding_case` step, created a lead, ran the sweep, and confirmed a new case was created with both steps spawned — every major code path verified live, not just inside the test suite.
+- Manually smoke-tested over real HTTP against a freshly seeded demo tenant (Professional plan) with the API server actually running: invited a lead to the portal, extracted the real invitation email (via a temporary local SMTP listener — see Known limitations), accepted it, logged in at the tenant-slug-scoped URL, confirmed `/portal/auth/me` returned the account; confirmed a cross-lead proposal request returned 404; disabled `client_portal` and confirmed every portal route (including `/me` on an already-authenticated session) returned 403, then re-enabled and confirmed 200 again; confirmed login with an unknown tenant slug and login with a correct email/wrong password both returned the identical `invalid_credentials` response; ran the deadline reminder sweep twice in a row and confirmed the email was sent only on the first run.
 
 ## Acceptance criteria — verified
 
-| Criterion (from your Milestone 7 spec) | Verified how |
+| Criterion (from your Milestone 8 spec) | Verified how |
 |---|---|
-| Document requests with client upload | `DocumentRequest`/`Document` models, public token-based upload page, staff review (approve/reject) flow |
-| Onboarding checklists tied to real work | `OnboardingTemplate`/`OnboardingCase` models; each step spawns a genuine `Task` or `DocumentRequest`, never a placeholder row |
-| Progress tracks itself | `crm.service.complete_task` and `documents.service.approve_document_request` each advance the matching case step and, once every step is done, the case itself — verified live and by automated test |
-| Building on scoring/booking/proposals/workflow primitives | `START_ONBOARDING_CASE` workflow action connects Milestone 5's engine directly to this milestone; document/onboarding email notifications reuse Milestone 3's communications infrastructure end-to-end |
-| Secure document handling | MIME allow-list, size limit, storage-usage metering, and a genuine (if minimal) malware-scan integration point — all covered in `docs/security/README.md` |
-| Entitlement enforcement (with one considered exception) | Both `client_onboarding` and `document_collection` modules checked on every authenticated route; the public upload route is *also* gated (unlike Milestone 6's proposal precedent) because uploads consume ongoing storage, not just a status flag |
+| Authenticated, self-service client login, distinct from public token links | `PortalAccount`/`PortalSession`, tenant-slug-scoped login, separate `cops_portal_session` cookie coexisting with staff's `cops_session` |
+| Clients only ever see their own data | `_assert_belongs_to_lead` boundary on every portal content route, 404 (not 403) on mismatch — verified live |
+| Staff control who gets portal access | Explicit invite-only grant model (`portal.manage`), confirmed by design decision and by a test asserting no automatic grant occurs |
+| Compliance/service deadline tracking with reminders | `Deadline` model, recurrence support, daily reminder sweep respecting a 7-day lead window, `reminder_sent_at` idempotency |
+| Entitlement enforcement, portal-appropriate gating choice | `client_portal` checked on every portal request (not just at invite time) — deliberately stricter than Milestones 6/7's gating, documented and justified in `docs/security/README.md` |
+| Reuses existing business logic rather than duplicating it | Portal routes call the same `proposals`/`documents`/`onboarding`/`booking`/`deadlines` service functions staff routes use |
 
 ## Known limitations
 
-1. **No route to add an ad hoc step to an already-started case.** `OnboardingCaseStep.template_step_id` is nullable and `complete_step_manually` already supports completing a step with no underlying task/document request, but the only way to populate a case's steps today is from a template at start time. Adding "add a step to an in-progress case" is a natural, small follow-up.
-2. **No document request or task reminder sweep.** Unlike appointment/task reminders (Milestone 3/4), a stale, un-uploaded document request or an overdue onboarding task doesn't currently trigger any automated nudge — left out to keep this milestone bounded; the existing `TASK_REMINDER` sweep already covers onboarding-spawned tasks specifically (they're ordinary `Task` rows), so only the document-request side is genuinely uncovered.
-3. **Re-uploading after rejection replaces, rather than versions, the request's history.** Each upload is its own `Document` row (so nothing is destroyed), but there's no UI concept of "revision 1 vs revision 2" beyond the creation timestamp order.
-4. **Malware scanning is a genuine EICAR-signature check, not a production-grade AV engine.** See `docs/security/README.md` for what this does and does not cover, and what wiring a real engine would require.
-5. **New permission codes (`onboarding.view`, `onboarding.manage`, `documents.manage`) only apply to newly created tenants** — this is the same long-standing, previously-unremarked limitation that has applied to every new permission code since Milestone 4's `availability.manage`; existing tenants' seeded role-permission rows are never retroactively backfilled by a migration.
-6. **Same environment caveats as Milestones 1–6 carry forward**: Docker Compose itself was not run end-to-end in this sandbox; all verification used the same application code run directly against local PostgreSQL 16 + Redis 7, including a real running `uvicorn` instance for the live HTTP smoke test. No real SMTP server is configured, so email delivery genuinely reports `FAILED` in `email_delivery_logs` even though the merge-field rendering and dispatch logic themselves are verified correct. No browser was available to visually confirm the new UI.
+1. **The sandbox has no real SMTP server** — this was already true for every prior milestone's email-sending code paths, but Milestone 8 is the first time it was directly confirmed to also affect the *staff* invitation flow (not just portal invitations): both call the email provider directly rather than through the soft-failing `send_templated_email` path used by tenant-configurable communications. Worked around for live verification only (a temporary local SMTP listener, removed afterward); not a code change, since intentionally not soft-failing an auth email is correct behavior, not a bug.
+2. **New permission codes were unnecessary this milestone** (see above) but the general limitation from every prior milestone still applies to any *future* new permission code: it only applies to newly created tenants, never retroactively backfilled onto existing ones.
+3. **No client-initiated password change from within the dashboard** — only the forgot-password flow exists; a "change password while logged in" route was judged out of scope for this milestone and is a natural small follow-up.
+4. **No portal account self-deactivation or self-service email change** — both are staff-managed only (`revoke`), by design, since portal identity is tied to the underlying lead record.
+5. **Same environment caveats as Milestones 1–7 carry forward**: Docker Compose itself was not run end-to-end in this sandbox; all verification used the same application code run directly against local PostgreSQL 16 + Redis 7, including a real running `uvicorn` instance for the live HTTP smoke test. No browser was available to visually confirm the new UI.
 
 ## Pending decisions
 
-None new this milestone — Milestone 1's pending decisions (tenant-URL routing, production email/storage provider choice) remain open and don't block Milestone 8. The malware-scanning production integration (ClamAV vs. a cloud AV API) is a new open question worth deciding before a real launch, but doesn't block further feature milestones.
+None new this milestone — Milestone 1's pending decisions (tenant-URL routing, production email/storage provider choice) remain open and don't block Milestone 9. Milestone 7's malware-scanning production integration question (ClamAV vs. a cloud AV API) also remains open and doesn't block further feature milestones.
 
 ## Next action
 
-Awaiting your review of Milestone 7. To proceed, reply exactly: **APPROVE MILESTONE 8**
-
-Milestone 8 (per the approved architecture) is Client Portal and
-Deadlines — an authenticated, self-service client login (distinct from
-the per-request public token links this milestone used) and compliance/
-service deadline tracking, the next stage after a client has been
-onboarded.
+Awaiting your review of Milestone 8. To proceed, reply exactly: **APPROVE MILESTONE 9**
