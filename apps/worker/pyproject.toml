@@ -1,0 +1,17 @@
+[project]
+name = "gridkeep-worker"
+version = "0.1.0"
+description = "GRIDKEEP Cyber OS — Celery background worker"
+requires-python = ">=3.11"
+dependencies = [
+  "celery==5.4.0",
+  "redis==5.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.3.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
