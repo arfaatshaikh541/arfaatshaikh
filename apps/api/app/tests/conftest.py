@@ -79,7 +79,21 @@ def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+
+    def _sync_csrf_header(response) -> None:
+        """Mirrors what a real frontend does: read the (deliberately
+        non-httponly) CSRF cookie and echo it back as a header on every
+        subsequent request. Without this, every existing test that logs
+        in and then performs a mutating call would need to be rewritten
+        to attach `X-CSRF-Token` manually — this keeps the whole suite
+        working exactly like a real browser session would, with no
+        per-test changes needed."""
+        csrf_cookie = response.cookies.get(get_settings().csrf_cookie_name)
+        if csrf_cookie:
+            test_client.headers["X-CSRF-Token"] = csrf_cookie
+
     with TestClient(app) as test_client:
+        test_client.event_hooks["response"].append(_sync_csrf_header)
         yield test_client
     app.dependency_overrides.clear()
 

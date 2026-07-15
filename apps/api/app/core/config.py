@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     portal_session_absolute_ttl_hours: int = Field(default=12)
     portal_session_idle_ttl_minutes: int = Field(default=60)
 
+    csrf_cookie_name: str = Field(default="cops_csrf")
+
+    global_rate_limit_enabled: bool = Field(default=True)
+    global_rate_limit_max_attempts: int = Field(default=300)
+    global_rate_limit_window_seconds: int = Field(default=60)
+
     database_url: str = Field(...)
     migration_database_url: str = Field(...)
 

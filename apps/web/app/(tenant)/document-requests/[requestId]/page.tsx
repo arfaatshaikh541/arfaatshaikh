@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import { ApiError, api } from "@/lib/api-client";
+import { ApiError, api, getCsrfToken } from "@/lib/api-client";
 import type { DocumentItem, DocumentRequestItem, DocumentRequestStatus } from "@/lib/types";
 
 const STATUS_TONE: Record<DocumentRequestStatus, string> = {
@@ -53,9 +53,11 @@ export default function DocumentRequestDetailPage({ params }: { params: Promise<
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const csrfToken = getCsrfToken();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"}/tenant/document-requests/${requestId}/documents`, {
         method: "POST",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
         body: formData,
       });
       if (!response.ok) {

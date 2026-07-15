@@ -7,6 +7,7 @@ from app.core.db import get_db, set_current_user_context, set_rls_context
 from app.core.errors import RateLimitedError
 from app.core.rate_limit import is_rate_limited, login_throttle_key, reset_rate_limit
 from app.dependencies.auth import get_current_auth_context
+from app.dependencies.security import clear_csrf_cookie, set_csrf_cookie
 from app.modules.identity import service as identity_service
 from app.modules.identity.repository import UserRepository
 from app.modules.identity.schemas import (
@@ -41,10 +42,12 @@ def _set_session_cookie(response: Response, raw_token: str) -> None:
         max_age=settings.session_absolute_ttl_hours * 3600,
         path="/",
     )
+    set_csrf_cookie(response)
 
 
 def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(key=settings.session_cookie_name, path="/")
+    clear_csrf_cookie(response)
 
 
 @router.post("/login", response_model=CurrentUserResponse)

@@ -11,6 +11,7 @@ from app.core.rate_limit import is_rate_limited, reset_rate_limit
 from app.dependencies.entitlements import require_module
 from app.dependencies.permissions import require_permission
 from app.dependencies.portal_auth import get_portal_auth_context
+from app.dependencies.security import clear_csrf_cookie, set_csrf_cookie
 from app.modules.portal import service as portal_service
 from app.modules.portal.repository import PortalAccountRepository
 from app.modules.portal.schemas import (
@@ -46,10 +47,12 @@ def _set_portal_session_cookie(response: Response, raw_token: str) -> None:
         max_age=settings.portal_session_absolute_ttl_hours * 3600,
         path="/",
     )
+    set_csrf_cookie(response)
 
 
 def _clear_portal_session_cookie(response: Response) -> None:
     response.delete_cookie(key=settings.portal_session_cookie_name, path="/")
+    clear_csrf_cookie(response)
 
 
 def _current_account_response(db: Session, ctx: PortalContext) -> CurrentPortalAccountResponse:

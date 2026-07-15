@@ -165,6 +165,25 @@ introduced.
 | Auditing | Every mutation (create/update/activate/deactivate/grant/revoke) logs through the existing `audit_service.log_event` with `tenant_id=None`, since this catalog is platform-global rather than tenant-owned data — verified live that all ten catalog mutations in a smoke-test run appeared in `/platform/audit-logs` with the correct `catalog.*` action names |
 | Plan-feature grant shape | `set_plan_feature` builds the `PlanFeature.config` dict from the feature's own `feature_type` rather than trusting an arbitrary client-supplied shape — a boolean feature always gets `{"enabled": bool}`, a limit feature gets `{"limit": int}` (or `{"enabled": false}` if explicitly disabled) — preventing a caller from writing a config shape `resolve_entitlements` wouldn't know how to interpret |
 
+## Platform-wide request guards (Milestone 10)
+
+Two cross-cutting hardening measures, both implemented as router-level
+FastAPI dependencies in `app/dependencies/security.py` rather than
+middleware — deliberately so a raised error passes through the same
+`register_exception_handlers` machinery every other `AppError` does
+(FastAPI dependencies execute inside that protected zone; ad hoc
+Starlette middleware added via `add_middleware`/`@app.middleware("http")`
+sits outside it and would have produced a raw 500 instead of a proper
+JSON error body).
+
+| Control | Implementation |
+|---|---|
+| Global rate limiting | `enforce_global_rate_limit`, applied to every `/api/*` route (public and authenticated alike) via `api_router`'s own `dependencies=[]`. A generous, IP-keyed, Redis-backed fixed window (300 requests / 60 seconds by default, configurable) — a defense-in-depth backstop against basic flooding, deliberately layered on top of (not replacing) the tighter, action-specific login/portal-login throttles that already existed. Verified live: with the limit temporarily tightened, the 6th request in a 60-second window returned 429 `rate_limited` while the first 5 succeeded |
+| CSRF protection | `enforce_csrf_protection`, a double-submit check applied to every mutating (`POST`/`PUT`/`PATCH`/`DELETE`) route on the *protected* routers only (see below). A non-`httponly` `cops_csrf` cookie is issued alongside every staff/portal session cookie (login and accept-invitation, both auth domains, sharing one cookie name since double-submit correctness doesn't require per-domain separation); the frontend reads it and echoes it as an `X-CSRF-Token` header on every non-`GET` request. A cross-site attacker's script cannot read this cookie's value (blocked by the browser's same-origin policy even though the cookie itself is deliberately not `httpOnly`), so it cannot forge a matching header even for a request the browser does attach the cookie to |
+| CSRF scope: skip when no session | The check is skipped entirely for requests carrying no staff/portal session cookie at all — this naturally exempts login, forgot-password, reset-password, and accept-invitation (no session exists yet when those are called) without special-casing them, while still protecting every mutation that does ride on an existing session, including logout. Verified live: logout without the header returned 403 `csrf_token_invalid` and left the session intact; the identical request with the correct header returned 204 and actually revoked it |
+| CSRF scope: public routers unconditionally exempt | The four already-public routers (lead capture, booking, proposal accept/reject, document upload) are registered without the CSRF dependency at all, rather than relying on the "no session cookie" heuristic alone — a staff member testing a public page in the same browser where they also happen to be logged into the tenant admin would otherwise get a false-positive 403, since the browser attaches same-origin cookies regardless of which page initiated the request. Verified live and by automated test |
+| CORS header allow-list | `X-CSRF-Token` added to `CORSMiddleware`'s `allow_headers` so the browser's preflight `OPTIONS` request succeeds before the real mutating request is sent |
+
 ## Authentication
 
 | Control | Status |
@@ -202,9 +221,9 @@ introduced.
 | Request validation | Pydantic schemas on every route; malformed input returns a generic `validation_failed` error, never a stack trace |
 | SQL injection | SQLAlchemy parameterized queries exclusively; the one place raw SQL is used (`set_config` for RLS context) is bound-parameterized, never string-interpolated |
 | CORS | Explicit origin allow-list (`CORS_ALLOWED_ORIGINS`), `allow_credentials=True` scoped to those origins only |
-| CSRF | `SameSite=Lax` cookies mitigate the common case; a double-submit CSRF token for state-changing requests is **not yet implemented** — flagged for Milestone 10 hardening, since `SameSite=Lax` alone is a reasonable interim posture for a JSON API with no cross-site form auto-submission surface |
+| CSRF | `SameSite=Lax` cookies mitigate the common case; a double-submit CSRF token for every cookie-authenticated, state-changing request is implemented as of Milestone 10 (see "Platform-wide request guards" above) — defense in depth, not a replacement for `SameSite=Lax` |
 | Security headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, HSTS in production |
-| Rate limiting | Implemented for login; not yet applied platform-wide to every endpoint (Milestone 10) |
+| Rate limiting | A tight, action-specific throttle on login/portal login, plus (as of Milestone 10) a generous, IP-keyed backstop applied platform-wide to every `/api/*` route — see "Platform-wide request guards" above |
 | API docs exposure | `/docs`, `/redoc`, `/openapi.json` are disabled via `API_DOCS_DISABLED=true` in production |
 | Error responses | Global exception handler returns a generic `internal_error` body for any unhandled exception; the real exception is logged server-side only, never returned to the client |
 
@@ -215,9 +234,12 @@ introduced.
   schema in `app/modules/*/schemas.py` and the frontend bundle output.
 - `.env.example` marks every value that `REQUIRES EXTERNAL CREDENTIAL`
   in production.
-- Dependency vulnerability scanning: not yet wired into CI (flagged for
-  Milestone 10) — `npm audit` and `pip-audit` were run manually during
-  this milestone (see project status for what was found and fixed).
+- Dependency vulnerability scanning: `pip-audit` (API + worker, which
+  share one virtual environment) and `npm audit` (frontend) were run
+  manually during Milestone 10 and found and fixed one real issue — see
+  `docs/product/project-status.md` for the finding and fix. Not yet
+  wired into CI as an automated, blocking check (still an open gap,
+  tracked below).
 
 ## Not yet implemented (tracked for later milestones)
 
@@ -228,9 +250,10 @@ introduced.
   malware scanning" above), but wiring an actual AV engine (ClamAV or a
   cloud API) requires external infrastructure. CRM's own generic lead
   attachments (Milestone 2) still don't call any scan hook at all.
-- Automated dependency scanning in CI.
+- Automated dependency scanning in CI — `pip-audit`/`npm audit` are run
+  manually (Milestone 10); wiring them into the CI pipeline as a
+  blocking (or at least reporting) step is a natural, small follow-up.
 - Formal penetration test / third-party security review.
-- CSRF token (double-submit) for state-changing requests.
 
 ## Legal & compliance
 

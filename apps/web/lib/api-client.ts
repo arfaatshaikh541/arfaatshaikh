@@ -11,12 +11,29 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Reads the (deliberately non-httpOnly) CSRF cookie set alongside every
+ * staff/portal session cookie, so it can be echoed back as a header on
+ * every mutating request — the double-submit half of Milestone 10's CSRF
+ * protection. Absent for an anonymous visitor with no session, which is
+ * exactly when the backend doesn't require it either.
+ */
+export function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)cops_csrf=([^;]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const csrfToken = method !== "GET" ? getCsrfToken() : null;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       ...(init?.headers ?? {}),
     },
   });

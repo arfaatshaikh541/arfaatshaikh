@@ -1,6 +1,6 @@
 import time
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sqlalchemy import text
@@ -17,6 +17,7 @@ from app.core.logging import (
     user_id_var,
 )
 from app.core.storage import LocalDiskAdapter, get_storage_adapter
+from app.dependencies.security import enforce_csrf_protection, enforce_global_rate_limit
 from app.modules.assignment.routes import router as assignment_router
 from app.modules.booking.routes import (
     appointment_types_router,
@@ -128,7 +129,7 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
     )
     app.add_middleware(RequestContextMiddleware)
 
@@ -144,8 +145,31 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
-    api_router = APIRouter(prefix="/api")
-    for router in (
+    # A platform-wide request-rate backstop applies to every /api/* route,
+    # public or authenticated alike — the most exposed surfaces (public
+    # capture/booking/proposal/document routes) are exactly the ones most
+    # worth protecting from basic flooding. CSRF protection, by contrast,
+    # is deliberately NOT applied to the public routers below: those
+    # routes are meant to be callable by anyone with no session, and
+    # applying the check there risks a false-positive 403 for a staff
+    # member who happens to have an unrelated `cops_session` cookie set
+    # in the same browser while testing a public page (same-origin, so
+    # the browser attaches it regardless of which page initiated the
+    # request). Every other router sits behind a real staff/portal
+    # session, so `enforce_csrf_protection`'s own "skip if no session
+    # cookie present" rule already exempts their cookie-less endpoints
+    # (login, forgot-password, accept-invitation) while still protecting
+    # the ones that do ride on an existing session (logout, every
+    # tenant/platform/portal-content mutation).
+    api_router = APIRouter(prefix="/api", dependencies=[Depends(enforce_global_rate_limit)])
+
+    public_routers = (
+        public_capture_router,
+        public_booking_router,
+        public_proposals_router,
+        public_documents_router,
+    )
+    protected_routers = (
         auth_router,
         tenant_users_router,
         tenant_settings_router,
@@ -153,7 +177,6 @@ def create_app() -> FastAPI:
         subscriptions_router,
         entitlements_router,
         platform_admin_router,
-        public_capture_router,
         leads_router,
         leads_services_router,
         qualification_forms_router,
@@ -164,15 +187,12 @@ def create_app() -> FastAPI:
         scoring_router,
         assignment_router,
         communications_router,
-        public_booking_router,
         appointment_types_router,
         availability_router,
         appointments_router,
         workflows_router,
-        public_proposals_router,
         proposal_templates_router,
         proposals_router,
-        public_documents_router,
         document_requests_router,
         onboarding_templates_router,
         onboarding_cases_router,
@@ -180,8 +200,11 @@ def create_app() -> FastAPI:
         portal_auth_router,
         portal_content_router,
         portal_accounts_router,
-    ):
+    )
+    for router in public_routers:
         api_router.include_router(router)
+    for router in protected_routers:
+        api_router.include_router(router, dependencies=[Depends(enforce_csrf_protection)])
 
     @api_router.get("/files/{token}")
     def download_file(token: str) -> Response:

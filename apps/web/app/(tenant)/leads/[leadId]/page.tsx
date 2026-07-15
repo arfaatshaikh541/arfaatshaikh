@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ApiError, api } from "@/lib/api-client";
+import { ApiError, api, getCsrfToken } from "@/lib/api-client";
 import type {
   ActivityItem,
   AppointmentItem,
@@ -86,9 +86,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const csrfToken = getCsrfToken();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"}/tenant/leads/${leadId}/attachments`, {
         method: "POST",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
         body: formData,
       });
       if (!response.ok) {

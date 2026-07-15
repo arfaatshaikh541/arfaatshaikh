@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api-client";
+import { api, getCsrfToken } from "@/lib/api-client";
 import { useInvalidatePortalAuth, usePortalAuth } from "@/lib/portal-auth-context";
 import type {
   PortalAppointment,
@@ -85,9 +85,11 @@ function DocumentRequestCard({ request }: { request: PortalDocumentRequest }) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const csrfToken = getCsrfToken();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"}/portal/documents/${request.id}/upload`, {
         method: "POST",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
         body: formData,
       });
       if (!response.ok) {

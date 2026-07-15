@@ -40,5 +40,9 @@ def login_throttle_key(email: str, ip_address: str) -> str:
     return f"throttle:login:{email.lower()}:{ip_address}"
 
 
+def global_rate_limit_key(ip_address: str) -> str:
+    return f"throttle:global:{ip_address}"
+
+
 def record_attempt_timestamp(key: str) -> None:
     get_redis().set(f"{key}:last", int(time.time()), ex=3600)
