@@ -1,0 +1,21 @@
+{
+  "name": "gridkeep-cyber-os",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GRIDKEEP Cyber OS — multi-tenant cybersecurity operating system",
+  "packageManager": "pnpm@10.33.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "pnpm --filter @gridkeep/web dev",
+    "build:web": "pnpm --filter @gridkeep/web build",
+    "lint:web": "pnpm --filter @gridkeep/web lint",
+    "typecheck:web": "pnpm --filter @gridkeep/web typecheck",
+    "test:web": "pnpm --filter @gridkeep/web test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

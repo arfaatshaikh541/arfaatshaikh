@@ -1,0 +1,48 @@
+# Node
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local data
+infrastructure/docker/volumes/
+*.sqlite3
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+coverage/
+test-results/
+playwright-report/
+*.rdb
