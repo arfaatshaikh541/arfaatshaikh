@@ -1,11 +1,20 @@
 "use client";
 
-import { Card, CardHeader, StatusBadge } from "@gridkeep/ui";
+import { Card, CardHeader, SeverityBadge, StatusBadge } from "@gridkeep/ui";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { EntitlementsRead, SubscriptionRead, TenantRead } from "@/lib/types";
+import type { EntitlementsRead, RiskSummaryRead, SubscriptionRead, TenantRead } from "@/lib/types";
+
+const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
+
+function scoreTone(score: number): "positive" | "warning" | "neutral" {
+  if (score >= 80) return "positive";
+  if (score >= 50) return "warning";
+  return "neutral";
+}
 
 export default function DashboardPage() {
   const { activeMembership, hasPermission } = useAuth();
@@ -27,17 +36,70 @@ export default function DashboardPage() {
     enabled: hasPermission("subscriptions.view"),
   });
 
+  const riskSummaryQuery = useQuery({
+    queryKey: ["findings", "summary"],
+    queryFn: () => apiClient.get<RiskSummaryRead>("/api/findings/summary"),
+    enabled: hasPermission("findings.view"),
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-ink-900">
           {activeMembership?.tenant_name ?? "Dashboard"}
         </h1>
-        <p className="text-sm text-ink-500">
-          Executive overview — plain-language security posture lands in Milestone 3 (Findings and Risk
-          Engine) once assets and findings exist to summarise.
-        </p>
+        <p className="text-sm text-ink-500">Executive overview of your current security posture.</p>
       </div>
+
+      {hasPermission("findings.view") ? (
+        <Card>
+          <CardHeader
+            title="Security score"
+            description="100 minus a fixed penalty per open finding, weighted by severity — a simple, explainable
+              signal, not a full actuarial risk model."
+          />
+          {riskSummaryQuery.data ? (
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-semibold text-ink-900">
+                  {riskSummaryQuery.data.security_score}
+                </span>
+                <span className="text-sm text-ink-500">/ 100</span>
+                <StatusBadge
+                  label={
+                    riskSummaryQuery.data.security_score >= 80
+                      ? "Healthy"
+                      : riskSummaryQuery.data.security_score >= 50
+                        ? "Needs attention"
+                        : "At risk"
+                  }
+                  tone={scoreTone(riskSummaryQuery.data.security_score)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {SEVERITY_ORDER.map((severity) => {
+                  const count = riskSummaryQuery.data!.open_findings_by_severity[severity] ?? 0;
+                  if (count === 0) return null;
+                  return (
+                    <div key={severity} className="flex items-center gap-1.5 text-sm">
+                      <SeverityBadge severity={severity} />
+                      <span className="text-ink-700">{count} open</span>
+                    </div>
+                  );
+                })}
+                {riskSummaryQuery.data.open_findings_total === 0 ? (
+                  <p className="text-sm text-ink-500">No open findings.</p>
+                ) : null}
+              </div>
+              <Link href="/findings" className="text-sm text-accent hover:underline">
+                View all findings &rarr;
+              </Link>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-500">Loading…</p>
+          )}
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>

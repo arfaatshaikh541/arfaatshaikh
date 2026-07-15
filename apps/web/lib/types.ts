@@ -181,3 +181,42 @@ export interface AssetDetail {
   owners: AssetOwnerRead[];
   tags: Record<string, string>;
 }
+
+// --- Milestone 3: findings and risk engine ---
+
+export interface FindingListItem {
+  id: string;
+  rule_key: string;
+  title: string;
+  category: string;
+  severity: string;
+  status: string;
+  risk_score: number;
+  asset_id: string;
+  asset_display_name: string;
+  asset_criticality: string;
+  assigned_to_user_id: string | null;
+  first_observed_at: string;
+  last_observed_at: string;
+}
+
+export interface FindingDetail extends FindingListItem {
+  description: string;
+  evidence: Record<string, unknown>;
+  resolution_note: string | null;
+  accepted_risk_expires_at: string | null;
+  closed_at: string | null;
+}
+
+export interface FindingActivityRead {
+  actor_label: string;
+  action: string;
+  context: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface RiskSummaryRead {
+  security_score: number;
+  open_findings_total: number;
+  open_findings_by_severity: Record<string, number>;
+}
