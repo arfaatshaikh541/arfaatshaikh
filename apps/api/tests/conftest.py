@@ -86,6 +86,7 @@ async def _clean_tables(_bootstrap_catalog):
         "tenant_add_ons",
         "usage_records",
         "tenant_subscriptions",
+        "findings",
         "asset_changes",
         "asset_tags",
         "asset_owners",

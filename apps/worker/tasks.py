@@ -13,9 +13,11 @@ import structlog
 from gridkeep_connector_sdk.registry import get_connector_class
 from sqlalchemy import select, update
 
+from core.task_queue import enqueue_run_correlation
 from db.session import AsyncSessionLocal, set_tenant_context
 from modules.assets.ingestion import ingest_sync_records
 from modules.credential_vault import service as vault_service
+from modules.findings.engine import run_correlation
 from modules.identity.models import Session as SessionModel
 from modules.integrations.models import IntegrationCatalogEntry, IntegrationHealth, IntegrationSyncRun, TenantIntegration
 from modules.platform_admin.models import SupportAccessGrant
@@ -149,6 +151,13 @@ async def _run_integration_sync_async(
                 )
             )
             await session.commit()
+            # Chain correlation after a successful sync so findings stay
+            # current without a separate manual step — the same
+            # one-directional enqueue pattern used to kick off this sync
+            # task in the first place (core/task_queue.py), not a direct
+            # function call, so a correlation failure can't roll back the
+            # sync that already committed.
+            enqueue_run_correlation(tenant_id)
             return {
                 "status": "success",
                 "processed": summary.processed,
@@ -187,12 +196,35 @@ async def _record_sync_failure(
         await session.commit()
 
 
+async def _run_correlation_async(tenant_id: str) -> dict:
+    tenant_uuid = uuid.UUID(tenant_id)
+    async with AsyncSessionLocal() as session:
+        await set_tenant_context(session, tenant_uuid)
+        summary = await run_correlation(session, tenant_id=tenant_uuid)
+        await session.commit()
+        return {
+            "evaluated_assets": summary.evaluated_assets,
+            "created": summary.created,
+            "updated": summary.updated,
+            "reopened": summary.reopened,
+            "auto_resolved": summary.auto_resolved,
+            "accepted_risk_expired": summary.accepted_risk_expired,
+        }
+
+
 @celery_app.task(name="worker.tasks.run_integration_sync")
 def run_integration_sync(tenant_id: str, tenant_integration_id: str, sync_run_id: str) -> dict:
     result = asyncio.run(
         _run_integration_sync_async(tenant_id, tenant_integration_id, sync_run_id)
     )
     logger.info("integration_sync_complete", tenant_integration_id=tenant_integration_id, **result)
+    return result
+
+
+@celery_app.task(name="worker.tasks.run_correlation")
+def run_correlation_task(tenant_id: str) -> dict:
+    result = asyncio.run(_run_correlation_async(tenant_id))
+    logger.info("correlation_complete", tenant_id=tenant_id, **result)
     return result
 
 
