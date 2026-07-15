@@ -10,6 +10,7 @@ from core.middleware import install_middleware
 from db.session import get_engine
 from modules.assets.routes import router as assets_router
 from modules.credential_vault.routes import router as credential_vault_router
+from modules.findings.routes import router as findings_router
 from modules.identity.routes import router as identity_router
 from modules.integrations.routes import router as integrations_router
 from modules.permissions.routes import router as permissions_router
@@ -46,6 +47,7 @@ app.include_router(platform_admin_router)
 app.include_router(support_access_tenant_router)
 app.include_router(integrations_router)
 app.include_router(assets_router)
+app.include_router(findings_router)
 
 
 @app.get("/healthz")

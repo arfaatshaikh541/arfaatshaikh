@@ -22,3 +22,8 @@ def enqueue_integration_sync(tenant_id: str, tenant_integration_id: str, sync_ru
         queue="sync",
     )
     return result.id
+
+
+def enqueue_run_correlation(tenant_id: str) -> str:
+    result = _client.send_task("worker.tasks.run_correlation", args=[tenant_id], queue="correlate")
+    return result.id
