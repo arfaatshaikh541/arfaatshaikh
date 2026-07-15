@@ -1,12 +1,13 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-15 (Milestone 3 implementation)
+Last updated: 2026-07-15 (Milestone 4 implementation)
 
 ## Current Milestone
 
-**Milestone 3: Findings and Risk Engine** — implementation complete, pending your review and explicit
-approval to proceed to Milestone 4. Milestones 1 (Secure SaaS Core) and 2 (Integration SDK and Asset
-Graph) are complete and merged; their sections below are preserved as-is.
+**Milestone 4: Cyber Autopilot (Automation and Action Execution)** — implementation complete, pending
+your review and explicit approval to proceed to Milestone 5. Milestones 1 (Secure SaaS Core), 2
+(Integration SDK and Asset Graph), and 3 (Findings and Risk Engine) are complete and merged; their
+sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -547,14 +548,189 @@ headless-Chromium (Playwright) session as the demo tenant owner:
   just a technical one — a tenant could see a low score driven by a handful of findings that don't
   reflect their actual risk tolerance. Flagged here rather than presented as a finished risk model.
 
+---
+
+## Milestone 4 — Completed Work
+
+### Connector SDK — action execution
+- `Connector.execute_action()` added to the base class (default raises `NotImplementedError`, so a
+  connector with no declared `supported_actions` never needs to implement it) plus a new `ActionResult`
+  dataclass (`success`, `message`, `executed_at`).
+- Implemented in every mock connector for its own declared actions: identity's `revoke_session` /
+  `disable_user`, endpoint's `isolate_endpoint` / `request_scan`, cloud's `disable_public_sharing`,
+  backup's `trigger_restore_test`. `threat_intel` declares no actions and needs no override.
+- The shared contract-check suite (`testing/contract.py`) now calls `execute_action()` for every
+  declared `ActionSpec` and asserts it returns an `ActionResult` — a connector can no longer declare an
+  action it doesn't actually implement without failing its own contract test.
+
+### Backend — `modules/actions` (action runs, playbooks, automation policy)
+- **Models**: `ActionRun` (one attempt to execute a connector action against one asset — manual or
+  playbook-triggered, with full lifecycle timestamps and an actor/approver trail), `Playbook` (maps a
+  finding's `rule_key` to an `action_key`), `TenantAutomationSetting` (one row per tenant; absence means
+  `observe`, the safest default).
+- **`policy.py`**: a fixed, documented table (`AUTO_EXECUTE_MAX_SAFETY_CLASS`) mapping each of the five
+  `AUTOMATION_MODES` (`observe` → `guided` → `balanced` → `autopilot` → `lockdown`, least to most
+  autonomous) to a maximum safety class that auto-approves — the same "deliberately simple, explainable"
+  approach Milestone 3 used for scoring, not a configurable rules engine.
+- **`service.py`**: two distinct decision paths that were kept deliberately separate rather than
+  unified, because they answer different questions:
+  - `request_manual_action()` — a human explicitly asked for this action. Gated purely by *the actor's
+    own permission*: `actions.execute_safe` lets anyone request any action, but it only executes
+    immediately if the actor also holds `actions.approve_disruptive` or the action's safety class is
+    0-1. The tenant's automation `mode` plays no part in a human-initiated request.
+  - `evaluate_playbooks_for_findings()` — called after correlation for every finding newly created or
+    reopened this run (not ones merely re-matched with unchanged status, so a playbook's action never
+    re-fires on every correlation pass). Gated purely by the tenant's automation `mode` against the
+    matched action's safety class. Never raises on a misconfigured playbook (e.g. an `action_key` the
+    asset's current provider doesn't support) — a bad playbook is skipped for that finding, not a
+    correlation-breaking error.
+  - Both paths converge on the same `ActionRun` row shape and the same downstream execution task.
+- **Routes**: `/api/actions/catalog` (available actions for an asset's connected provider),
+  `/api/actions` (list/detail, filterable by status/asset/finding), `/api/actions/execute` (manual
+  trigger), `/api/actions/{id}/approve` and `/reject`, `/api/playbooks` (CRUD, validates `rule_key`
+  against the real correlation-rule registry), `/api/automation/settings` (get/set mode). All mutating
+  routes CSRF-protected, permission-gated, and audited.
+- `modules/audit/service.py`'s `list_for_target()` helper (added in Milestone 3) is reused as-is for
+  nothing new here — Milestone 4 intentionally didn't add another parallel timeline table.
+
+### Worker (`apps/worker`) — action execution and the automation chain
+- `run_action` Celery task on the `actions` queue (declared since Milestone 1, unused until now):
+  decrypts the credential, authenticates, calls `connector.execute_action()` against the asset's own
+  identifier, records the result, and — if the run succeeded and is linked to a finding — automatically
+  calls `findings_service.remediate_finding()` with an `automation_engine`-attributed note, closing the
+  loop from detection through to a marked-fixed finding without a human touching it.
+- `CorrelationSummary` gained `actionable_finding_ids` (findings created or reopened this run).
+  `_run_correlation_async` evaluates playbooks against that list in the *same transaction* as
+  correlation itself (both are cheap DB reads/writes on rows the transaction already touched), then
+  enqueues `run_action` for every auto-approved run *after* that transaction commits — the same
+  "enqueue, don't call directly" boundary Milestones 2 and 3 established, so a slow or failing action
+  execution can never roll back correlation's own result.
+
+### Frontend (`apps/web`)
+- `/automation`: automation-mode picker (five radio options with the plain-language description from
+  `policy.py`'s docstring, permission-gated on `automations.manage`), playbook CRUD (`playbooks.view` /
+  `.manage`), and an action-run history table with approve/reject actions for anything
+  `pending_approval` (`actions.view` / `actions.approve_disruptive`).
+- Finding detail page gained a "Remediation actions" card: fetches the action catalog for the finding's
+  asset, lets a permitted user run one directly, and shows the resulting run's status inline — the
+  natural place a security analyst looking at a finding would want to fix it from.
+
+## Milestone 4 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Connectors can execute defensive actions, not just sync | ✅ | `execute_action()` on all 4 data-producing mocks; connector-sdk contract suite exercises every declared action — **12/12** passing |
+| Automation mode governs auto-approval per safety class | ✅ | `test_evaluate_playbooks_*_mode_*` — observe creates nothing, guided never auto-approves, balanced auto-approves class ≤1, autopilot ≤3, lockdown everything; live-verified (see below) |
+| Manual action execution is gated by actor permission, not tenant mode | ✅ | `test_manual_action_safety_class_*`, `test_execute_action_*` (API); a human with `actions.approve_disruptive` gets immediate execution of a disruptive action regardless of the tenant being in `observe` mode — live-verified |
+| Playbooks map a finding rule to a remediation action | ✅ | `test_playbooks_crud`, `test_playbook_rejects_unknown_rule_key`; live-verified — created a real playbook, connected+synced a fresh tenant, watched it auto-trigger `trigger_restore_test` with no manual step |
+| A successful automated action closes its finding | ✅ | Worker calls `remediate_finding` on `ActionRun` success; live-verified — the `backup_job_failed` finding flipped to `remediated` immediately after its auto-run `succeeded` |
+| Action execution requires real approval for disruptive actions | ✅ | `test_execute_disruptive_action_without_approve_permission_is_pending`; live-verified with a `security_analyst` account (no `actions.approve_disruptive`) getting `pending_approval`, then a `tenant_owner` approving it |
+| Playbooks never re-fire on an unchanged finding | ✅ | `actionable_finding_ids` only includes newly-created/reopened findings — verified via the idempotent-correlation tests carrying over from Milestone 3 plus manual inspection of `evaluate_playbooks_for_findings`'s call site |
+| A misconfigured playbook doesn't break correlation | ✅ | `evaluate_playbooks_for_findings` catches `NotFoundError`/`ValidationAppError` per playbook match and continues; `test_evaluate_playbooks_no_matching_rule_key_creates_nothing` |
+| Action runs and playbooks are tenant-isolated | ✅ | `test_actions_scoped_to_own_tenant`; RLS policies (`action_runs_tenant_isolation`, `playbooks_tenant_isolation`, `tenant_automation_settings_tenant_isolation`) verified via migration round-trip |
+| Frontend: automation mode, playbooks, action-run approval, manual remediation | ✅ | `/automation`, Finding detail page's remediation card — built and live-verified end-to-end via headless Chromium |
+| Backend tests pass | ✅ | **103/103** passing (`pytest -q` in `apps/api`, up from 81 in Milestone 3 — 22 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 18/18 routes |
+
+## Milestone 4 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 103 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 18/18 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium:
+- Set a tenant's automation mode to `balanced` and created a real playbook
+  (`backup_job_failed` → `trigger_restore_test`) via the `/automation` UI *before* any sync, then
+  connected and synced the backup provider on a **fresh** tenant. The chain ran with zero manual steps:
+  sync → correlation created the `backup_job_failed` finding → the playbook matched → `balanced` mode
+  auto-approved the class-1 action → the worker executed it → the finding flipped to `remediated`. Both
+  the Automation page's action-run history and the Findings page reflected this correctly.
+- Verified manual execution's permission model with two real accounts: a `tenant_owner` running a
+  safety-class-2 action (`disable_public_sharing`) against the "publicly exposed cloud storage" finding
+  got `approved` immediately (the actor holds `actions.approve_disruptive`); a `security_analyst`
+  account (invited via the real invitation flow, no `approve_disruptive`) requesting the same action got
+  `pending_approval`, which the owner then approved from the Automation page.
+- Investigated an apparent duplicate-playbook/duplicate-action-run anomaly seen during exploratory
+  testing; traced it to repeated manual test-script runs colliding on the same tenant, not a product
+  bug — confirmed with a clean, isolated run (network-request logging showed exactly one
+  `POST /api/playbooks` call producing exactly one row) before concluding the feature is correct.
+
+## Milestone 4 — Architecture Decisions (made or refined during implementation)
+
+- **Manual execution and playbook execution are gated by two different things on purpose.** A human
+  explicitly clicking "run this action" has already made the risk judgment themselves — gating that on
+  the tenant's ambient automation mode would be surprising (a `security_administrator` in an `observe`
+  tenant should still be able to manually fix something). Gating *unattended* playbook-triggered
+  execution on mode, and *attended* manual execution on the actor's own permission, are two independent
+  axes that happen to share the same `ActionRun` model and execution path.
+- **`observe` mode doesn't create `ActionRun` rows at all for playbook matches**, rather than creating
+  them and leaving them permanently `pending_approval`. A tenant that hasn't opted into any automation
+  shouldn't accumulate a growing backlog of actions nobody asked for; the finding itself is already the
+  visible signal.
+- **Playbook evaluation runs inside the same DB transaction as correlation, but action *execution* is a
+  separate enqueued step.** The former is cheap in-transaction reads/writes; the latter calls out to a
+  connector and can be slow or fail. Splitting them means a stuck or failing action execution can never
+  roll back or block the correlation result that already committed — the same boundary Milestone 2 drew
+  between ingesting a sync and Milestone 3 drew between correlating and running playbooks.
+- **A successful action run auto-remediates its linked finding** rather than leaving the human to notice
+  the action succeeded and manually mark it fixed. This is the payoff of the whole milestone — "detect →
+  decide → act → confirm" with no required human step in the `balanced`/`autopilot`/`lockdown` path —
+  and was verified live, not just asserted in a unit test.
+- **`ActionRun`/`TenantAutomationSetting`/`Playbook` actor columns are real foreign keys to `users.id`**,
+  a step stricter than Milestone 2's `TenantIntegration.created_by_user_id` (which is a bare UUID column
+  with no FK). Worth noting as a small inconsistency in the codebase's history, not something retrofitted
+  onto the earlier table — Milestone 4's actor trail (who requested, who approved) is load-bearing for
+  the approval workflow in a way Milestone 2's was not.
+
+## Milestone 4 — Known Limitations
+
+- **No real (non-simulator) action execution has been implemented** — same caveat as every other
+  milestone's mock-only connectors. The `execute_action()` contract is real and enforced by the
+  connector-sdk test suite, but unverified against an actual third-party API.
+- **No default/starter playbooks are seeded for any tenant**, including the demo tenant — a tenant (or
+  this session's manual testing) must create its own. This matches the "tenant owns their automation
+  policy" principle used elsewhere (nothing disruptive happens without explicit tenant configuration),
+  but means the demo experience requires a manual playbook-creation step to show automation in action.
+- **No retry/backoff on a failed `ActionRun`.** A failed action (provider rejected it, or an
+  infrastructure error) is recorded as `failed` with a result message but nothing automatically retries
+  it — a human must notice and re-trigger manually. Reasonable v1 scope; a retry policy is a natural
+  follow-up once real provider failure modes are observed.
+- **Playbooks match on `rule_key` alone, not on asset attributes beyond what the rule itself already
+  encodes.** A tenant cannot yet say "auto-remediate `backup_job_failed` only for backups tagged
+  critical" — that's a reasonable filtering enhancement for a future milestone, not required here.
+- **No notification when an action is `pending_approval`.** Same gap noted in Milestone 3 for new
+  findings — an approver only sees a pending action by visiting the Automation page. Real
+  notification/alerting is out of scope until a dedicated automation-focused milestone.
+
+## Milestone 4 — Unresolved Risks
+
+- Carried over from Milestones 1-3 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity) — none were touched this milestone and remain open.
+- **Automated action execution is inherently higher-stakes than anything shipped in Milestones 1-3** —
+  this is the first milestone where GRIDKEEP can take a real, provider-facing action without a human in
+  the loop (in `balanced` mode and above). The safety-class/automation-mode policy is deliberately
+  conservative and documented, and every path was live-verified, but this is the kind of feature that
+  most rewards a careful second look before any tenant is allowed to enable `autopilot` or `lockdown` in
+  production.
+
 ## Pending Approvals
 
-- This Milestone 3 implementation is ready for your review. Nothing further is pending my side — the
+- This Milestone 4 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
-- Recommend explicit review of the two scoring formulas (`modules/findings/scoring.py`) specifically,
-  since they're new product logic (not just infrastructure) that customers will see directly on their
-  dashboard.
+- Recommend explicit review of `modules/actions/policy.py` (the automation-mode safety-class table) and
+  the manual-vs-playbook gating split in `modules/actions/service.py` specifically — this milestone is
+  the first to let the platform act on a tenant's behalf without a human clicking a button, and both of
+  those are where that boundary is actually enforced.
 
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 4`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 5`** to begin the next milestone.
