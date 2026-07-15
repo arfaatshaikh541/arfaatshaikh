@@ -54,12 +54,24 @@ class UsageMetricRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get(self, metric_id: uuid.UUID) -> UsageMetric | None:
+        return self.db.get(UsageMetric, metric_id)
+
     def get_by_code(self, code: str) -> UsageMetric | None:
         return self.db.execute(select(UsageMetric).where(UsageMetric.code == code)).scalar_one_or_none()
+
+    def list_all(self) -> list[UsageMetric]:
+        return list(self.db.execute(select(UsageMetric).order_by(UsageMetric.name)).scalars().all())
 
     def create(self, *, code: str, name: str, unit: str = "count") -> UsageMetric:
         metric = UsageMetric(code=code, name=name, unit=unit)
         self.db.add(metric)
+        self.db.flush()
+        return metric
+
+    def update(self, metric: UsageMetric, *, name: str, unit: str) -> UsageMetric:
+        metric.name = name
+        metric.unit = unit
         self.db.flush()
         return metric
 

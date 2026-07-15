@@ -145,6 +145,26 @@ password + explicit-staff-invitation, not magic links or auto-grant.
 | Generic auth errors | Portal login returns the identical `invalid_credentials` error for an unknown tenant slug, unknown email, and a correct-email-wrong-password attempt — verified live and by automated test |
 | Tenant lifecycle interaction | A tenant that is `SUSPENDED` or `ARCHIVED` makes its entire portal unavailable (403), independent of any individual portal account's own active/inactive state |
 
+## Platform catalog management (Milestone 9)
+
+`/platform/modules`, `/platform/features`, `/platform/plans`,
+`/platform/plans/{id}/features`, `/platform/add-ons`, and
+`/platform/usage-metrics` let the platform team edit the commercial
+model — what a tenant can buy — at runtime, replacing the previous
+edit-`catalog.py`-and-redeploy workflow. Every route in this milestone
+sits under the same `require_platform_admin` dependency the rest of
+`/platform/*` already used; no new authorization primitive was
+introduced.
+
+| Control | Implementation |
+|---|---|
+| Access control | `require_platform_admin` on every route, unchanged from Milestones 1–8 — the platform team is a single `User.is_platform_admin` boolean, not a separate RBAC system, since nothing in this codebase currently needs finer granularity than that. Verified live: a tenant owner (not a platform admin) received 403 `platform_admin_required` on every new route |
+| Code immutability | `Module.code` and `Feature.code` are creatable but never editable or deletable through this API — both are referenced directly in Python (`require_module("...")`, `require_feature("...")` across nine modules), so removing or renaming one out from under running code would silently break those checks. `Feature.feature_type` is likewise immutable after creation, since existing `plan_features`/`tenant_feature_overrides`/`add_ons.grants` rows already store a config dict shaped for that type. Only name/description are editable |
+| No hard delete on plans or add-ons | `SubscriptionPlan` is `RESTRICT`-referenced by `TenantSubscription.plan_id`; rather than expose a delete that could be blocked by an FK conflict (or worse, silently orphan a tenant), plans are deactivated (`is_active=false`) instead — the same "stop offering this, don't destroy history" pattern used for `document_requests`/`proposal_templates` elsewhere in the codebase |
+| Duplicate-code protection | Creating a module, feature (scoped to its module), plan, add-on, or usage metric with an already-used code returns 409 with a specific `*_code_taken` error code rather than a generic 400 or a silent overwrite — verified by automated test and live (`compliance_live` created twice returned 409 on the second attempt) |
+| Auditing | Every mutation (create/update/activate/deactivate/grant/revoke) logs through the existing `audit_service.log_event` with `tenant_id=None`, since this catalog is platform-global rather than tenant-owned data — verified live that all ten catalog mutations in a smoke-test run appeared in `/platform/audit-logs` with the correct `catalog.*` action names |
+| Plan-feature grant shape | `set_plan_feature` builds the `PlanFeature.config` dict from the feature's own `feature_type` rather than trusting an arbitrary client-supplied shape — a boolean feature always gets `{"enabled": bool}`, a limit feature gets `{"limit": int}` (or `{"enabled": false}` if explicitly disabled) — preventing a caller from writing a config shape `resolve_entitlements` wouldn't know how to interpret |
+
 ## Authentication
 
 | Control | Status |

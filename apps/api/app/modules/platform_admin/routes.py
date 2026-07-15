@@ -5,22 +5,42 @@ from sqlalchemy.orm import Session
 
 from app.core.context import AuthContext
 from app.core.db import get_db
+from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
 from app.dependencies.tenant import require_platform_admin
 from app.modules.audit import service as audit_service
 from app.modules.entitlements import service as entitlements_service
 from app.modules.platform_admin import service as platform_admin_service
 from app.modules.platform_admin.schemas import (
+    AddOnDetail,
     AssignPlanRequest,
+    CreateAddOnRequest,
+    CreateFeatureRequest,
+    CreateModuleRequest,
+    CreatePlanRequest,
     CreateTenantRequest,
+    CreateUsageMetricRequest,
+    FeatureDetail,
     GrantAddOnRequest,
     GrantFeatureOverrideRequest,
+    ModuleDetail,
+    PlanDetail,
+    PlanFeatureDetail,
+    SetPlanActiveRequest,
+    SetPlanFeatureRequest,
     SetTenantStatusRequest,
     SupportAccessRequest,
     TenantSummary,
+    UpdateAddOnRequest,
+    UpdateFeatureRequest,
+    UpdateModuleRequest,
+    UpdatePlanRequest,
+    UpdateUsageMetricRequest,
+    UsageMetricDetail,
     UsageSummaryItem,
 )
 from app.modules.subscriptions import service as subscriptions_service
+from app.modules.subscriptions.repository import FeatureRepository, PlanRepository
 from app.modules.tenancy import service as tenancy_service
 
 router = APIRouter(prefix="/platform", tags=["platform-admin"], dependencies=[Depends(require_platform_admin)])
@@ -131,14 +151,198 @@ def record_support_access(
     return {"status": "ok"}
 
 
-@router.get("/modules")
-def list_modules(db: Session = Depends(get_db)) -> list[dict]:
-    return [{"id": str(m.id), "code": m.code, "name": m.name} for m in subscriptions_service.list_modules(db)]
+@router.get("/modules", response_model=list[ModuleDetail])
+def list_modules(db: Session = Depends(get_db)) -> list[ModuleDetail]:
+    return [ModuleDetail.model_validate(m) for m in subscriptions_service.list_modules(db)]
 
 
-@router.get("/plans")
-def list_plans(db: Session = Depends(get_db)) -> list[dict]:
-    return [{"id": str(p.id), "code": p.code, "name": p.name, "is_custom": p.is_custom} for p in subscriptions_service.list_active_plans(db)]
+@router.post("/modules", response_model=ModuleDetail, status_code=201)
+def create_module(
+    payload: CreateModuleRequest, auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db)
+) -> ModuleDetail:
+    module = subscriptions_service.create_module(
+        db, code=payload.code, name=payload.name, description=payload.description, created_by=auth.user_id
+    )
+    return ModuleDetail.model_validate(module)
+
+
+@router.put("/modules/{module_id}", response_model=ModuleDetail)
+def update_module(
+    module_id: uuid.UUID, payload: UpdateModuleRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> ModuleDetail:
+    module = subscriptions_service.update_module(
+        db, module_id=module_id, name=payload.name, description=payload.description, updated_by=auth.user_id
+    )
+    return ModuleDetail.model_validate(module)
+
+
+@router.get("/features", response_model=list[FeatureDetail])
+def list_features(db: Session = Depends(get_db)) -> list[FeatureDetail]:
+    return [
+        FeatureDetail(
+            id=f.id, module_id=f.module_id, module_code=f.module.code, code=f.code, name=f.name, feature_type=f.feature_type
+        )
+        for f in subscriptions_service.list_all_features(db)
+    ]
+
+
+@router.post("/features", response_model=FeatureDetail, status_code=201)
+def create_feature(
+    payload: CreateFeatureRequest, auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db)
+) -> FeatureDetail:
+    feature = subscriptions_service.create_feature(
+        db, module_id=payload.module_id, code=payload.code, name=payload.name,
+        feature_type=payload.feature_type, created_by=auth.user_id,
+    )
+    return FeatureDetail(
+        id=feature.id, module_id=feature.module_id, module_code=feature.module.code,
+        code=feature.code, name=feature.name, feature_type=feature.feature_type,
+    )
+
+
+@router.put("/features/{feature_id}", response_model=FeatureDetail)
+def update_feature(
+    feature_id: uuid.UUID, payload: UpdateFeatureRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> FeatureDetail:
+    feature = subscriptions_service.update_feature(db, feature_id=feature_id, name=payload.name, updated_by=auth.user_id)
+    return FeatureDetail(
+        id=feature.id, module_id=feature.module_id, module_code=feature.module.code,
+        code=feature.code, name=feature.name, feature_type=feature.feature_type,
+    )
+
+
+@router.get("/plans", response_model=list[PlanDetail])
+def list_plans(all_plans: bool = False, db: Session = Depends(get_db)) -> list[PlanDetail]:
+    plans = subscriptions_service.list_all_plans(db) if all_plans else subscriptions_service.list_active_plans(db)
+    return [PlanDetail.model_validate(p) for p in plans]
+
+
+@router.post("/plans", response_model=PlanDetail, status_code=201)
+def create_plan(
+    payload: CreatePlanRequest, auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db)
+) -> PlanDetail:
+    plan = subscriptions_service.create_plan(
+        db, code=payload.code, name=payload.name, description=payload.description,
+        is_custom=payload.is_custom, created_by=auth.user_id,
+    )
+    return PlanDetail.model_validate(plan)
+
+
+@router.put("/plans/{plan_id}", response_model=PlanDetail)
+def update_plan(
+    plan_id: uuid.UUID, payload: UpdatePlanRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> PlanDetail:
+    plan = subscriptions_service.update_plan(
+        db, plan_id=plan_id, name=payload.name, description=payload.description, updated_by=auth.user_id
+    )
+    return PlanDetail.model_validate(plan)
+
+
+@router.post("/plans/{plan_id}/active", response_model=PlanDetail)
+def set_plan_active(
+    plan_id: uuid.UUID, payload: SetPlanActiveRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> PlanDetail:
+    plan = subscriptions_service.set_plan_active(db, plan_id=plan_id, is_active=payload.is_active, updated_by=auth.user_id)
+    return PlanDetail.model_validate(plan)
+
+
+@router.get("/plans/{plan_id}/features", response_model=list[PlanFeatureDetail])
+def list_plan_features(plan_id: uuid.UUID, db: Session = Depends(get_db)) -> list[PlanFeatureDetail]:
+    plan_repo = PlanRepository(db)
+    if plan_repo.get(plan_id) is None:
+        raise NotFoundError("Plan not found.")
+    feature_repo = FeatureRepository(db)
+    result = []
+    for pf in plan_repo.list_plan_features(plan_id):
+        feature = feature_repo.get(pf.feature_id)
+        if feature is None:
+            continue
+        result.append(
+            PlanFeatureDetail(
+                feature_code=feature.code, feature_name=feature.name,
+                module_code=feature.module.code, feature_type=feature.feature_type, config=pf.config,
+            )
+        )
+    return result
+
+
+@router.put("/plans/{plan_id}/features")
+def set_plan_feature(
+    plan_id: uuid.UUID, payload: SetPlanFeatureRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> dict:
+    subscriptions_service.set_plan_feature(
+        db, plan_id=plan_id, feature_code=payload.feature_code, enabled=payload.enabled,
+        limit=payload.limit, updated_by=auth.user_id,
+    )
+    return {"status": "ok"}
+
+
+@router.delete("/plans/{plan_id}/features")
+def remove_plan_feature(
+    plan_id: uuid.UUID, feature_code: str,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> dict:
+    subscriptions_service.remove_plan_feature(
+        db, plan_id=plan_id, feature_code=feature_code, updated_by=auth.user_id
+    )
+    return {"status": "ok"}
+
+
+@router.get("/add-ons", response_model=list[AddOnDetail])
+def list_add_ons(db: Session = Depends(get_db)) -> list[AddOnDetail]:
+    return [AddOnDetail.model_validate(a) for a in subscriptions_service.list_all_add_ons(db)]
+
+
+@router.post("/add-ons", response_model=AddOnDetail, status_code=201)
+def create_add_on(
+    payload: CreateAddOnRequest, auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db)
+) -> AddOnDetail:
+    add_on = subscriptions_service.create_add_on(
+        db, code=payload.code, name=payload.name, grants=payload.grants, created_by=auth.user_id
+    )
+    return AddOnDetail.model_validate(add_on)
+
+
+@router.put("/add-ons/{add_on_id}", response_model=AddOnDetail)
+def update_add_on(
+    add_on_id: uuid.UUID, payload: UpdateAddOnRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> AddOnDetail:
+    add_on = subscriptions_service.update_add_on(
+        db, add_on_id=add_on_id, name=payload.name, grants=payload.grants, updated_by=auth.user_id
+    )
+    return AddOnDetail.model_validate(add_on)
+
+
+@router.get("/usage-metrics", response_model=list[UsageMetricDetail])
+def list_usage_metrics(db: Session = Depends(get_db)) -> list[UsageMetricDetail]:
+    return [UsageMetricDetail.model_validate(m) for m in entitlements_service.list_usage_metrics(db)]
+
+
+@router.post("/usage-metrics", response_model=UsageMetricDetail, status_code=201)
+def create_usage_metric(
+    payload: CreateUsageMetricRequest, auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db)
+) -> UsageMetricDetail:
+    metric = entitlements_service.create_usage_metric(
+        db, code=payload.code, name=payload.name, unit=payload.unit, created_by=auth.user_id
+    )
+    return UsageMetricDetail.model_validate(metric)
+
+
+@router.put("/usage-metrics/{metric_id}", response_model=UsageMetricDetail)
+def update_usage_metric(
+    metric_id: uuid.UUID, payload: UpdateUsageMetricRequest,
+    auth: AuthContext = Depends(require_platform_admin), db: Session = Depends(get_db),
+) -> UsageMetricDetail:
+    metric = entitlements_service.update_usage_metric(
+        db, metric_id=metric_id, name=payload.name, unit=payload.unit, updated_by=auth.user_id
+    )
+    return UsageMetricDetail.model_validate(metric)
 
 
 @router.get("/audit-logs")

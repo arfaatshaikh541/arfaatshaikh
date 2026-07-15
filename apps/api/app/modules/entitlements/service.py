@@ -6,13 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import (
+    ConflictError,
     FeatureNotEnabledError,
     ModuleNotEnabledError,
     NotFoundError,
     UsageLimitExceededError,
 )
 from app.modules.audit.service import log_event, log_feature_change
-from app.modules.entitlements.models import TenantFeatureOverride
+from app.modules.entitlements.models import TenantFeatureOverride, UsageMetric
 from app.modules.entitlements.repository import (
     FeatureOverrideRepository,
     UsageMetricRepository,
@@ -213,6 +214,36 @@ def increment_usage_unchecked(db: Session, tenant_id: uuid.UUID, *, metric_code:
     record = record_repo.get_or_create_for_update(tenant_id, metric.id, current_month_period())
     record.value += amount
     return record.value
+
+
+def list_usage_metrics(db: Session) -> list[UsageMetric]:
+    return UsageMetricRepository(db).list_all()
+
+
+def create_usage_metric(db: Session, *, code: str, name: str, unit: str, created_by: uuid.UUID | None) -> UsageMetric:
+    repo = UsageMetricRepository(db)
+    if repo.get_by_code(code) is not None:
+        raise ConflictError(f"A usage metric with code '{code}' already exists.", code="usage_metric_code_taken")
+    metric = repo.create(code=code, name=name, unit=unit)
+    log_event(
+        db, tenant_id=None, actor_user_id=created_by, action="catalog.usage_metric_created",
+        entity_type="usage_metric", entity_id=metric.id, after={"code": code, "name": name, "unit": unit},
+    )
+    return metric
+
+
+def update_usage_metric(db: Session, *, metric_id: uuid.UUID, name: str, unit: str, updated_by: uuid.UUID | None) -> UsageMetric:
+    repo = UsageMetricRepository(db)
+    metric = repo.get(metric_id)
+    if metric is None:
+        raise NotFoundError("Usage metric not found.")
+    before = {"name": metric.name, "unit": metric.unit}
+    metric = repo.update(metric, name=name, unit=unit)
+    log_event(
+        db, tenant_id=None, actor_user_id=updated_by, action="catalog.usage_metric_updated",
+        entity_type="usage_metric", entity_id=metric.id, before=before, after={"name": name, "unit": unit},
+    )
+    return metric
 
 
 def cleanup_expired_overrides(db: Session) -> int:

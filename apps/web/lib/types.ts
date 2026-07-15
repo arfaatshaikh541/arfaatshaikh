@@ -567,3 +567,54 @@ export interface PortalDeadline {
   due_date: string;
   status: DeadlineStatus;
 }
+
+// --- Milestone 9: Platform Super Admin catalog management ---------------
+
+export interface PlatformModule {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+}
+
+export type FeatureType = "boolean" | "limit";
+
+export interface PlatformFeature {
+  id: string;
+  module_id: string;
+  module_code: string;
+  code: string;
+  name: string;
+  feature_type: FeatureType;
+}
+
+export interface PlatformPlan {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  is_custom: boolean;
+  is_active: boolean;
+}
+
+export interface PlanFeatureGrant {
+  feature_code: string;
+  feature_name: string;
+  module_code: string;
+  feature_type: FeatureType;
+  config: { enabled?: boolean; limit?: number | null };
+}
+
+export interface PlatformAddOn {
+  id: string;
+  code: string;
+  name: string;
+  grants: { features: { feature_code: string; config: Record<string, unknown> }[] };
+}
+
+export interface PlatformUsageMetric {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+}
