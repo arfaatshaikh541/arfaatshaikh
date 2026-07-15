@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api-client";
-import type { ActivityItem, AppointmentItem, AttachmentItem, LeadDetail, NoteItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
+import type { ActivityItem, AppointmentItem, AttachmentItem, LeadDetail, NoteItem, ProposalItem, ScoreBreakdown, TagItem, TaskItem } from "@/lib/types";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = use(params);
@@ -27,6 +27,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
   const attachmentsQuery = useQuery({ queryKey: ["lead", leadId, "attachments"], queryFn: () => api.get<AttachmentItem[]>(`/tenant/leads/${leadId}/attachments`) });
   const scoreQuery = useQuery({ queryKey: ["lead", leadId, "score"], queryFn: () => api.get<ScoreBreakdown>(`/tenant/scoring/leads/${leadId}/breakdown`) });
   const appointmentsQuery = useQuery({ queryKey: ["lead", leadId, "appointments"], queryFn: () => api.get<AppointmentItem[]>(`/tenant/appointments?lead_id=${leadId}`) });
+  const proposalsQuery = useQuery({ queryKey: ["lead", leadId, "proposals"], queryFn: () => api.get<ProposalItem[]>(`/tenant/proposals?lead_id=${leadId}`) });
 
   const invalidateLead = () => {
     queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -202,6 +203,29 @@ export default function LeadDetailPage({ params }: { params: Promise<{ leadId: s
                 className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
               >
                 Book an appointment
+              </Link>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Proposals" description="Quotes and engagement proposals sent to this lead." />
+            <div className="space-y-3">
+              {proposalsQuery.data?.map((proposal) => (
+                <Link
+                  key={proposal.id}
+                  href={`/proposals/${proposal.id}`}
+                  className="flex items-center justify-between rounded-md border border-surface-border p-3 text-sm hover:border-ink-muted"
+                >
+                  <span className="text-ink">{proposal.title}</span>
+                  <span className="text-xs capitalize text-ink-faint">{proposal.status}</span>
+                </Link>
+              ))}
+              {proposalsQuery.data?.length === 0 && <p className="text-sm text-ink-muted">No proposals yet.</p>}
+              <Link
+                href={`/proposals?leadId=${leadId}`}
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-ink-muted"
+              >
+                Create a proposal
               </Link>
             </div>
           </Card>

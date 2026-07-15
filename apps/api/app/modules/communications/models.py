@@ -18,6 +18,9 @@ class EmailTriggerEvent(str, enum.Enum):
     APPOINTMENT_BOOKED = "appointment_booked"
     APPOINTMENT_REMINDER = "appointment_reminder"
     APPOINTMENT_CANCELLED = "appointment_cancelled"
+    PROPOSAL_SENT = "proposal_sent"
+    PROPOSAL_ACCEPTED = "proposal_accepted"
+    PROPOSAL_REJECTED = "proposal_rejected"
 
 
 class EmailDeliveryStatus(str, enum.Enum):

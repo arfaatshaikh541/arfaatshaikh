@@ -543,6 +543,80 @@ is logged as `FAILED` in `workflow_step_logs` but the run still advances
 to the next step rather than getting permanently stuck — the same
 best-effort philosophy already applied to email delivery.
 
+## Entity-relationship diagram — Milestone 6 additions (Proposals)
+
+```mermaid
+erDiagram
+    PROPOSAL_TEMPLATES ||--o{ PROPOSAL_TEMPLATE_LINE_ITEMS : has
+    PROPOSAL_TEMPLATES ||--o{ PROPOSALS : "starts"
+    PROPOSALS }o--|| LEADS : "for"
+    PROPOSALS ||--o{ PROPOSAL_LINE_ITEMS : has
+
+    PROPOSAL_TEMPLATES {
+        uuid id PK
+        uuid tenant_id FK
+        string name
+        text description
+        text terms
+        bool is_active
+        int sort_order
+    }
+    PROPOSAL_TEMPLATE_LINE_ITEMS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid template_id FK
+        string description
+        numeric quantity
+        numeric unit_price
+        int sort_order
+    }
+    PROPOSALS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid lead_id FK
+        uuid template_id FK "nullable, SET NULL on template delete"
+        string title
+        enum status "DRAFT|SENT|VIEWED|ACCEPTED|REJECTED|EXPIRED"
+        string currency
+        numeric tax_rate
+        text terms
+        date valid_until "nullable"
+        string public_token "nullable until sent; unguessable, NOT row-level-secured"
+        uuid created_by FK "nullable, SET NULL on user delete"
+        timestamptz sent_at "nullable"
+        timestamptz viewed_at "nullable"
+        timestamptz accepted_at "nullable"
+        string accepted_by_name "nullable"
+        timestamptz rejected_at "nullable"
+        string rejection_reason "nullable"
+    }
+    PROPOSAL_LINE_ITEMS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid proposal_id FK
+        string description
+        numeric quantity
+        numeric unit_price
+        int sort_order
+    }
+```
+
+Subtotal/tax/total are deliberately **not** stored columns — they're
+computed on-the-fly from line items in `proposals.service.compute_totals`
+every time a proposal is read, so a stored total can never drift out of
+sync with the line items it's derived from (the same reasoning this
+codebase already applies elsewhere to avoid denormalized/cached derived
+state).
+
+`proposals.public_token` is the client-facing acceptance page's
+authorization proof — raw (unhashed), unguessable, generated only when a
+proposal is sent (`send_proposal`), and looked up directly by
+`ProposalRepository.get_by_public_token`, the same pattern already used
+for `tenant_capture_tokens`. See the row-level security summary below for
+why the `proposals` table itself is excluded from RLS while
+`proposal_templates`, `proposal_template_line_items`, and
+`proposal_line_items` are not.
+
 ## Row-level security summary
 
 | Table | Policy |
@@ -552,8 +626,9 @@ best-effort philosophy already applied to email delivery.
 | `tenants` | current tenant, platform admin, or caller has an active membership in it |
 | `roles` | current tenant, `NULL` tenant (system templates), platform admin, or caller holds that role |
 | `audit_logs` | reads tenant-restricted; **inserts unrestricted** (see migration docstring — audit writes must never be blocked by the very policy meant to protect reads of them) |
-| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
+| `service_categories`, `services`, `qualification_forms`, `qualification_questions`, `qualification_options`, `qualification_answers`, `custom_field_definitions`, `custom_field_options`, `lead_sources`, `leads`, `pipelines`, `pipeline_stages`, `lead_stage_history`, `tags`, `lead_tags`, `notes`, `tasks`, `task_comments`, `activities`, `attachments`, `scoring_rules`, `scoring_settings`, `lead_score_logs`, `assignment_rules`, `assignment_rule_round_robin_state`, `email_templates`, `email_delivery_logs`, `appointment_types`, `staff_availability`, `availability_exceptions`, `appointments`, `workflows`, `workflow_steps`, `workflow_runs`, `workflow_step_logs`, `proposal_templates`, `proposal_template_line_items`, `proposal_line_items` | `tenant_id` matches session context, or platform admin — plain policy, since every route reaching these tables already has a selected tenant (public lead capture and public booking both explicitly set that context from their capture token before touching any of them; the Celery beat sweeps in `apps/worker/app/tasks/communications.py`, `apps/worker/app/tasks/booking.py`, and `apps/worker/app/tasks/workflow_automation.py` set `is_platform_admin=true` for their whole run and scope every query by an explicit `tenant_id` parameter instead) |
 | `invitations`, `sessions`, `email_verification_tokens`, `password_reset_tokens`, `login_attempts`, `tenant_capture_tokens` | **not** row-level-secured — looked up only by unguessable secret token hash, the token itself is the authorization proof |
+| `proposals` | **not** row-level-secured, for the same reason as `tenant_capture_tokens`: the public acceptance page (`GET /public/proposals/{token}`) must resolve the owning tenant from `proposals.public_token` before any tenant context exists — see `app.modules.proposals.service.get_proposal_by_token`, which calls `set_rls_context` immediately afterward. Unlike the token tables above, `proposals` also has an authenticated, tenant-scoped read path (`GET /tenant/proposals`); every method on `ProposalRepository` filters explicitly by `tenant_id` in the query itself, the same application-level boundary `tenant_capture_tokens` already relies on for its own authenticated read path. Its child tables (`proposal_line_items`) carry no public token and remain row-level-secured normally |
 | `users`, `modules`, `features`, `subscription_plans`, `plan_features`, `add_ons`, `permissions`, `role_permissions`, `usage_metrics` | global catalog/account data, no tenant_id column, no RLS |
 
 ## Migrations
@@ -578,6 +653,10 @@ Milestone 4:
 Milestone 5:
 10. `4f265a2eb695_milestone_5_workflow_automation_schema.py` — workflows, workflow steps, workflow runs, workflow step logs.
 11. `11bc088dd65b_milestone_5_row_level_security_policies.py` — RLS for all of the above.
+
+Milestone 6:
+12. `e084e0d7c566_milestone_6_proposals_schema.py` — proposal templates, proposal template line items, proposals, proposal line items. No enum-column width migration needed: the two new `EmailTriggerEvent` values (`proposal_sent`, `proposal_accepted`, `proposal_rejected`) and two new `WorkflowTriggerEvent` values (`proposal_accepted`, `proposal_rejected`) fit within the `VARCHAR(30)` width both columns were already widened to in Milestone 4.
+13. `476edb3b5396_milestone_6_row_level_security_policies.py` — RLS for `proposal_templates`, `proposal_template_line_items`, and `proposal_line_items` only; `proposals` itself is deliberately excluded (see the row-level security summary above).
 
 See `infrastructure/deployment/README.md` for how to run, roll back, and
 operate migrations in production, plus connection pooling, backup, and

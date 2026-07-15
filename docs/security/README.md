@@ -1,6 +1,6 @@
-# Security — Milestones 1 through 5
+# Security — Milestones 1 through 6
 
-This documents what is actually implemented as of Milestone 5, what is
+This documents what is actually implemented as of Milestone 6, what is
 verified, and what remains for later milestones or a pre-launch security
 review. It is not a substitute for a professional security audit or
 legal review before a real production launch (see "Legal & compliance"
@@ -79,6 +79,23 @@ but not the Tenant Owner's).
 | A failing step can't strand a run | Exceptions raised inside `_execute_step` (e.g. a workflow referencing a since-deleted template) are caught, logged as `FAILED` in `workflow_step_logs`, and the run still advances — a single bad step configuration can't leave a `WorkflowRun` permanently stuck consuming the sweep's attention every cycle |
 | Soft-fail by design | A disabled `workflow_automation` module or an exhausted `automation_runs` usage limit causes `evaluate_triggers_for_lead` to return without creating a run — the lead-creation/stage-change/tag/appointment action that fired the trigger is never blocked. Verified by automated tests |
 | Cross-tenant isolation | Every workflow/step/run/log table is `tenant_id`-scoped with RLS `FORCE`d, same as every other module; verified by automated test |
+
+## Public proposal acceptance surface (Milestone 6)
+
+`GET /public/proposals/{token}`, `POST /public/proposals/{token}/accept`,
+and `POST /public/proposals/{token}/reject` are the third unauthenticated,
+write-capable surface (after public lead capture and public booking) —
+though the actual write here (accept/reject) can only ever affect the one
+proposal the caller already holds a link to, never an arbitrary tenant
+resource.
+
+| Control | Implementation |
+|---|---|
+| Authorization | An unguessable, per-proposal token (`proposals.public_token`, 32 random bytes, `secrets.token_urlsafe` via `generate_opaque_token`) generated only when a proposal is sent — never derivable from the proposal's id, the lead's id, or the tenant's slug |
+| No cross-tenant leakage before authorization | `ProposalRepository.get_by_public_token` looks up the row directly by token with no tenant filter (the table is deliberately excluded from RLS — see `docs/database/README.md`); `get_proposal_by_token` calls `set_rls_context` immediately after resolving the tenant, before touching any other RLS-protected table (line items, tenant name) |
+| State-machine guards | `accept_proposal`/`reject_proposal` only transition out of `SENT`/`VIEWED` — a proposal already accepted, rejected, or expired cannot be re-accepted or re-rejected by replaying the link; an expired `valid_until` is checked and flips the proposal to `EXPIRED` before the accept can proceed |
+| Deliberately NOT gated by the `proposals` module entitlement | Unlike every other public-facing flow in this codebase (public lead capture, public booking), the accept/reject routes skip the module-enabled check entirely — a considered exception, not an oversight: a client must never be blocked from responding to a proposal they already received just because the tenant's subscription state changed after it was sent. The authenticated `GET /tenant/proposals` management routes are still gated normally. Verified by automated test (`test_public_route_not_gated_by_proposals_module_entitlement`) and a live smoke test that disabled the module for a tenant and confirmed the tenant route returned 403 while the public accept route still returned 200 |
+| No sensitive data beyond the proposal itself | The public view returns only the proposal's own fields (title, line items, totals, terms, tenant name) — never the lead's contact details, internal id, or any other tenant data |
 
 ## Authentication
 

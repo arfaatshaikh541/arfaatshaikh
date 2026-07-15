@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 MERGE_FIELD_HELP = (
     "Available merge fields: {{first_name}}, {{last_name}}, {{company}}, {{reference_number}}, "
     "{{tenant_name}}, {{stage_name}}, {{assigned_user_name}}, {{task_title}}, {{task_due_date}}, "
-    "{{staff_name}}, {{appointment_type_name}}, {{appointment_date}}, {{appointment_time}}, {{location}}"
+    "{{staff_name}}, {{appointment_type_name}}, {{appointment_date}}, {{appointment_time}}, {{location}}, "
+    "{{proposal_title}}, {{proposal_total}}, {{proposal_link}}"
 )
 
 
@@ -106,6 +107,24 @@ def apply_engagement_operations_template(
         subject="Your appointment on {{appointment_date}} has been cancelled",
         body_text="Hi {{first_name}},\n\nYour {{appointment_type_name}} on {{appointment_date}} has been cancelled.\n\n— {{tenant_name}}",
     )
+    template_repo.create(
+        tenant_id=tenant_id, name="Proposal Sent", trigger_event=EmailTriggerEvent.PROPOSAL_SENT,
+        subject="Your proposal from {{tenant_name}}: {{proposal_title}}",
+        body_text=(
+            "Hi {{first_name}},\n\nPlease find your proposal '{{proposal_title}}' ({{proposal_total}}) attached. "
+            "Review and respond here: {{proposal_link}}\n\n— {{tenant_name}}"
+        ),
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Proposal Accepted", trigger_event=EmailTriggerEvent.PROPOSAL_ACCEPTED,
+        subject="Thank you for accepting: {{proposal_title}}",
+        body_text="Hi {{first_name}},\n\nThank you for accepting our proposal '{{proposal_title}}'. We'll be in touch shortly.\n\n— {{tenant_name}}",
+    )
+    template_repo.create(
+        tenant_id=tenant_id, name="Proposal Rejected", trigger_event=EmailTriggerEvent.PROPOSAL_REJECTED,
+        subject="Regarding your proposal: {{proposal_title}}",
+        body_text="Hi {{first_name}},\n\nWe noted that '{{proposal_title}}' was declined. Please reach out if you'd like to discuss further.\n\n— {{tenant_name}}",
+    )
 
     from app.modules.booking import service as booking_service
 
@@ -136,4 +155,16 @@ def apply_engagement_operations_template(
         db, tenant_id=tenant_id, workflow_id=welcome_workflow.id, delay_minutes=24 * 60,
         action_type=WorkflowActionType.CREATE_TASK,
         action_config={"title": "Follow up if no contact made", "description": "Auto-created by the New Lead Welcome Sequence workflow.", "due_in_hours": 4},
+    )
+
+    from app.modules.proposals import service as proposals_service
+
+    proposals_service.create_template(
+        db, tenant_id=tenant_id, name="Standard Engagement Proposal",
+        description="Default line items for a typical professional-services engagement.",
+        terms="This proposal is valid for 30 days from the date of issue. Fees are quoted in AED and exclude any government filing fees unless stated otherwise.",
+        line_items=[
+            {"description": "Initial consultation and needs assessment", "quantity": 1, "unit_price": 500},
+            {"description": "Engagement setup and documentation", "quantity": 1, "unit_price": 1500},
+        ],
     )

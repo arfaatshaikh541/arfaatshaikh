@@ -16,6 +16,8 @@ class WorkflowTriggerEvent(str, enum.Enum):
     TAG_ADDED = "tag_added"
     APPOINTMENT_BOOKED = "appointment_booked"
     APPOINTMENT_COMPLETED = "appointment_completed"
+    PROPOSAL_ACCEPTED = "proposal_accepted"
+    PROPOSAL_REJECTED = "proposal_rejected"
 
 
 class WorkflowActionType(str, enum.Enum):

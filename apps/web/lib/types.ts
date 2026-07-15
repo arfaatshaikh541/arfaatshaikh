@@ -355,3 +355,65 @@ export interface WorkflowStepLogItem {
   result_summary: string;
   executed_at: string;
 }
+
+export interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  sort_order: number;
+}
+
+export interface LineItemInput {
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface ProposalTemplate {
+  id: string;
+  name: string;
+  description: string;
+  terms: string;
+  is_active: boolean;
+  line_items: LineItem[];
+}
+
+export type ProposalStatus = "draft" | "sent" | "viewed" | "accepted" | "rejected" | "expired";
+
+export interface ProposalItem {
+  id: string;
+  lead_id: string;
+  template_id: string | null;
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  tax_rate: number;
+  terms: string;
+  valid_until: string | null;
+  public_token: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  accepted_by_name: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  line_items: LineItem[];
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+}
+
+export interface PublicProposal {
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  tax_rate: number;
+  terms: string;
+  valid_until: string | null;
+  tenant_name: string;
+  line_items: { description: string; quantity: number; unit_price: number }[];
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+}
