@@ -8,7 +8,7 @@ finding in each possible state.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -34,6 +34,13 @@ class CorrelationSummary:
     reopened: int = 0
     auto_resolved: int = 0
     accepted_risk_expired: int = 0
+    # Findings newly created or reopened this run — the set worth
+    # evaluating against playbooks (modules.actions.service
+    # .evaluate_playbooks_for_findings). Findings that were already open
+    # and merely got a refreshed evidence snapshot are deliberately
+    # excluded, so a playbook's action doesn't re-fire on every
+    # correlation pass for a finding it already acted on.
+    actionable_finding_ids: list[uuid.UUID] = field(default_factory=list)
 
 
 async def run_correlation(session: AsyncSession, *, tenant_id: uuid.UUID) -> CorrelationSummary:
@@ -106,6 +113,7 @@ async def run_correlation(session: AsyncSession, *, tenant_id: uuid.UUID) -> Cor
                 session.add(finding)
                 await session.flush()
                 summary.created += 1
+                summary.actionable_finding_ids.append(finding.id)
                 await audit_service.record(
                     session,
                     tenant_id=tenant_id,
@@ -130,6 +138,7 @@ async def run_correlation(session: AsyncSession, *, tenant_id: uuid.UUID) -> Cor
                     existing.accepted_risk_expires_at = None
                     existing.closed_at = None
                     summary.accepted_risk_expired += 1
+                    summary.actionable_finding_ids.append(existing.id)
                     await audit_service.record(
                         session,
                         tenant_id=tenant_id,
@@ -147,6 +156,7 @@ async def run_correlation(session: AsyncSession, *, tenant_id: uuid.UUID) -> Cor
                 existing.status = "open"
                 existing.closed_at = None
                 summary.reopened += 1
+                summary.actionable_finding_ids.append(existing.id)
                 await audit_service.record(
                     session,
                     tenant_id=tenant_id,

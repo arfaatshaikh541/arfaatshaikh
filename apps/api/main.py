@@ -8,6 +8,7 @@ from core.config import settings
 from core.errors import register_exception_handlers
 from core.middleware import install_middleware
 from db.session import get_engine
+from modules.actions.routes import actions_router, automation_router, playbooks_router
 from modules.assets.routes import router as assets_router
 from modules.credential_vault.routes import router as credential_vault_router
 from modules.findings.routes import router as findings_router
@@ -48,6 +49,9 @@ app.include_router(support_access_tenant_router)
 app.include_router(integrations_router)
 app.include_router(assets_router)
 app.include_router(findings_router)
+app.include_router(actions_router)
+app.include_router(playbooks_router)
+app.include_router(automation_router)
 
 
 @app.get("/healthz")

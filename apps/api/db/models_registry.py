@@ -4,6 +4,7 @@ wherever cross-module foreign keys must resolve (Alembic env.py, seed
 scripts, tests). Application routes never need this directly since
 main.py's router imports transitively pull in every module already."""
 
+from modules.actions import models as _actions_models  # noqa: F401
 from modules.assets import models as _assets_models  # noqa: F401
 from modules.audit import models as _audit_models  # noqa: F401
 from modules.credential_vault import models as _credential_vault_models  # noqa: F401
