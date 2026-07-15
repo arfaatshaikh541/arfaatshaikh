@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 
 import structlog
+from gridkeep_connector_sdk.registry import REGISTRY as CONNECTOR_REGISTRY
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,9 @@ from core.security_contracts import (
 )
 from db import models_registry  # noqa: F401
 from db.session import AsyncSessionLocal
+from modules.assets.ingestion import RECORD_TYPE_TO_ASSET_TYPE_KEY
+from modules.assets.models import AssetType
+from modules.integrations.models import IntegrationCatalogEntry
 from modules.permissions.models import Permission, Role, RolePermission
 from modules.subscriptions.models import Feature, Module, PlanFeature, SubscriptionPlan
 
@@ -83,6 +87,15 @@ _MODULE_NAMES = {
     "trust_passport": "Trust Passport",
     "executive_reporting": "Executive Reporting",
     "managed_soc": "Managed SOC",
+}
+
+
+_ASSET_TYPE_METADATA: dict[str, tuple[str, str]] = {
+    "identity_user": ("User", "identity"),
+    "endpoint_device": ("Endpoint", "endpoint"),
+    "cloud_account": ("Cloud Account", "cloud"),
+    "cloud_resource": ("Cloud Resource", "cloud"),
+    "backup_job": ("Backup Job", "backup"),
 }
 
 
@@ -191,6 +204,58 @@ async def _upsert_starter_plan(session: AsyncSession, features_by_module: dict[s
     await session.flush()
 
 
+async def _upsert_asset_types(session: AsyncSession) -> None:
+    existing = {a.key for a in (await session.execute(select(AssetType))).scalars().all()}
+    for key in set(RECORD_TYPE_TO_ASSET_TYPE_KEY.values()):
+        if key not in existing:
+            name, category = _ASSET_TYPE_METADATA.get(key, (key, "other"))
+            session.add(AssetType(key=key, name=name, category=category))
+    await session.flush()
+
+
+async def _upsert_integration_catalog(session: AsyncSession) -> None:
+    """Seeds the integration catalogue from the connector SDK's registry —
+    the catalogue is data derived from code-declared connector
+    capabilities, never hand-duplicated (architecture ADR-6)."""
+    existing = {
+        c.provider_id: c
+        for c in (await session.execute(select(IntegrationCatalogEntry))).scalars().all()
+    }
+    for provider_id, connector_class in CONNECTOR_REGISTRY.items():
+        definition = connector_class.definition
+        entry = existing.get(provider_id)
+        if entry is None:
+            session.add(
+                IntegrationCatalogEntry(
+                    provider_id=definition.provider_id,
+                    name=definition.name,
+                    category=definition.category,
+                    auth_method=definition.auth_method,
+                    required_scopes=list(definition.required_scopes),
+                    permission_risk=definition.permission_risk,
+                    supported_data_types=list(definition.supported_data_types),
+                    sync_modes=list(definition.sync_modes),
+                    webhook_support=definition.webhook_support,
+                    is_simulator=definition.is_simulator,
+                    description=definition.description,
+                )
+            )
+        else:
+            # Keep the catalogue in sync if a connector's declared
+            # capabilities change between deploys.
+            entry.name = definition.name
+            entry.category = definition.category
+            entry.auth_method = definition.auth_method
+            entry.required_scopes = list(definition.required_scopes)
+            entry.permission_risk = definition.permission_risk
+            entry.supported_data_types = list(definition.supported_data_types)
+            entry.sync_modes = list(definition.sync_modes)
+            entry.webhook_support = definition.webhook_support
+            entry.is_simulator = definition.is_simulator
+            entry.description = definition.description
+    await session.flush()
+
+
 async def run_bootstrap() -> None:
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -198,6 +263,8 @@ async def run_bootstrap() -> None:
             await _upsert_roles(session, permissions_by_key)
             features_by_module = await _upsert_modules_and_features(session)
             await _upsert_starter_plan(session, features_by_module)
+            await _upsert_asset_types(session)
+            await _upsert_integration_catalog(session)
     logger.info("bootstrap_seed_complete")
 
 

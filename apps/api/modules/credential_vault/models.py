@@ -18,9 +18,12 @@ class IntegrationCredential(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, Timest
     ever returns these fields (see schemas.py — response models omit them
     entirely, not just mask them).
 
-    Milestone 1 foundation: this table stands alone (no FK to a tenant
-    integration catalogue yet — that lands with the connector SDK in
-    Milestone 2, which will add `tenant_integration_id`)."""
+    Deliberately has no FK back to `tenant_integrations` — the credential
+    vault stays a general-purpose secret store that knows nothing about
+    integrations. The reference is one-directional:
+    `TenantIntegration.credential_id -> IntegrationCredential.id`
+    (modules/integrations/models.py), so the vault is reusable for any
+    future credential need without schema churn here."""
 
     __tablename__ = "integration_credentials"
 

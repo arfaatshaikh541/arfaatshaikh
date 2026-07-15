@@ -23,6 +23,11 @@ dependencies = [
   "itsdangerous==2.2.0",
   "email-validator==2.2.0",
   "structlog==24.4.0",
+  # Not on an index — installed separately via
+  # `pip install -e ../../packages/connector-sdk` (see README) before this
+  # package. Declared here so the dependency is documented, not resolved
+  # by this line alone.
+  "gridkeep-connector-sdk",
 ]
 
 [project.optional-dependencies]
