@@ -23,6 +23,8 @@ from modules.reporting.routes import router as reporting_router
 from modules.resilience.routes import router as resilience_router
 from modules.subscriptions.routes import router as subscriptions_router
 from modules.tenancy.routes import router as tenancy_router
+from modules.trust_passport.routes import public_router as trust_passport_public_router
+from modules.trust_passport.routes import router as trust_passport_router
 
 structlog.configure(
     processors=[
@@ -61,6 +63,8 @@ app.include_router(resilience_router)
 app.include_router(compliance_router)
 app.include_router(evidence_router)
 app.include_router(reporting_router)
+app.include_router(trust_passport_router)
+app.include_router(trust_passport_public_router)
 
 
 @app.get("/healthz")

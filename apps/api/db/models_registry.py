@@ -18,3 +18,4 @@ from modules.permissions import models as _permissions_models  # noqa: F401
 from modules.platform_admin import models as _platform_admin_models  # noqa: F401
 from modules.subscriptions import models as _subscriptions_models  # noqa: F401
 from modules.tenancy import models as _tenancy_models  # noqa: F401
+from modules.trust_passport import models as _trust_passport_models  # noqa: F401
