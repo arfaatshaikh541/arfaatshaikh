@@ -388,3 +388,26 @@ export interface EvidenceRead {
   created_by_user_id: string | null;
   created_at: string;
 }
+
+// --- Milestone 8: executive reporting ---
+
+export interface ComplianceFrameworkSummary {
+  id: string;
+  key: string;
+  name: string;
+  score: number;
+}
+
+export interface ExecutiveSummaryRead {
+  generated_at: string;
+  asset_total: number;
+  security_score: number;
+  open_findings_total: number;
+  open_findings_by_severity: Record<string, number>;
+  open_incidents_total: number;
+  open_incidents_by_severity: Record<string, number>;
+  recovery_confidence_score: number | null;
+  backup_job_total: number;
+  compliance_overall_score: number | null;
+  compliance_frameworks: ComplianceFrameworkSummary[];
+}

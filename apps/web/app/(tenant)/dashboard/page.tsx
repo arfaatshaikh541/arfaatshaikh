@@ -70,11 +70,18 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink-900">
-          {activeMembership?.tenant_name ?? "Dashboard"}
-        </h1>
-        <p className="text-sm text-ink-500">Executive overview of your current security posture.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-ink-900">
+            {activeMembership?.tenant_name ?? "Dashboard"}
+          </h1>
+          <p className="text-sm text-ink-500">Executive overview of your current security posture.</p>
+        </div>
+        {hasPermission("reports.view") ? (
+          <Link href="/reports" className="shrink-0 text-sm text-accent hover:underline">
+            View executive report &rarr;
+          </Link>
+        ) : null}
       </div>
 
       {hasPermission("findings.view") ? (
