@@ -13,6 +13,7 @@ from modules.assets.routes import router as assets_router
 from modules.credential_vault.routes import router as credential_vault_router
 from modules.findings.routes import router as findings_router
 from modules.identity.routes import router as identity_router
+from modules.incidents.routes import router as incidents_router
 from modules.integrations.routes import router as integrations_router
 from modules.permissions.routes import router as permissions_router
 from modules.platform_admin.routes import router as platform_admin_router
@@ -52,6 +53,7 @@ app.include_router(findings_router)
 app.include_router(actions_router)
 app.include_router(playbooks_router)
 app.include_router(automation_router)
+app.include_router(incidents_router)
 
 
 @app.get("/healthz")

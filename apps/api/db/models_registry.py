@@ -11,6 +11,7 @@ from modules.credential_vault import models as _credential_vault_models  # noqa:
 from modules.entitlements import models as _entitlements_models  # noqa: F401
 from modules.findings import models as _findings_models  # noqa: F401
 from modules.identity import models as _identity_models  # noqa: F401
+from modules.incidents import models as _incidents_models  # noqa: F401
 from modules.integrations import models as _integrations_models  # noqa: F401
 from modules.permissions import models as _permissions_models  # noqa: F401
 from modules.platform_admin import models as _platform_admin_models  # noqa: F401
