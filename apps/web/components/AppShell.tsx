@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/reports", label: "Reports" },
   { href: "/settings/trust-passport", label: "Trust Passport" },
   { href: "/settings/users", label: "Users" },
+  { href: "/settings/security", label: "Security" },
   { href: "/settings/subscription", label: "Subscription" },
 ];
 

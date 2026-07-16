@@ -50,6 +50,8 @@ export default function AutomationPage() {
   const [playbookError, setPlaybookError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [decidingRunId, setDecidingRunId] = useState<string | null>(null);
+  const [stepUpRunId, setStepUpRunId] = useState<string | null>(null);
+  const [stepUpCode, setStepUpCode] = useState("");
 
   const settingsQuery = useQuery({
     queryKey: ["automation", "settings"],
@@ -130,6 +132,27 @@ export default function AutomationPage() {
         await apiClient.post(`/api/actions/${runId}/reject`, { reason: "Rejected from the Automation page." });
       }
       queryClient.invalidateQueries({ queryKey: ["actions"] });
+    } catch (err) {
+      if (err instanceof ApiError && err.details.step_up_required) {
+        setStepUpRunId(runId);
+      } else {
+        setActionError(err instanceof ApiError ? err.message : "Something went wrong.");
+      }
+    } finally {
+      setDecidingRunId(null);
+    }
+  };
+
+  const submitStepUp = async () => {
+    if (!stepUpRunId) return;
+    setActionError(null);
+    setDecidingRunId(stepUpRunId);
+    try {
+      await apiClient.post("/api/auth/step-up", { code: stepUpCode });
+      await apiClient.post(`/api/actions/${stepUpRunId}/approve`);
+      queryClient.invalidateQueries({ queryKey: ["actions"] });
+      setStepUpRunId(null);
+      setStepUpCode("");
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
@@ -259,6 +282,29 @@ export default function AutomationPage() {
         <Card>
           <CardHeader title="Action runs" />
           {actionError ? <Alert tone="error">{actionError}</Alert> : null}
+          {stepUpRunId ? (
+            <div className="mb-4 flex flex-col gap-2 rounded border border-surface-border p-3">
+              <p className="text-sm text-ink-700">
+                Approving a disruptive action requires a fresh verification code.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="6-digit code"
+                value={stepUpCode}
+                onChange={(e) => setStepUpCode(e.target.value)}
+                className="h-9 w-40 rounded border border-surface-border bg-surface-800 px-3 text-sm text-ink-900"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" isLoading={decidingRunId === stepUpRunId} onClick={submitStepUp}>
+                  Verify and approve
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setStepUpRunId(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {actionRunsQuery.data && actionRunsQuery.data.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

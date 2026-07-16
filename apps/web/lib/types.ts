@@ -500,3 +500,26 @@ export interface PlatformAuditLogRead {
   context: Record<string, unknown>;
   created_at: string;
 }
+
+// --- Milestone 13: MFA enrollment and step-up authentication ---
+
+export interface MfaRequiredResponse {
+  mfa_required: true;
+  mfa_challenge_token: string;
+}
+
+export interface MfaEnrollResponse {
+  secret: string;
+  provisioning_uri: string;
+}
+
+export interface StepUpResponse {
+  status: string;
+  step_up_expires_at: string;
+}
+
+export interface TenantSecurityProfileRead {
+  require_mfa_for_admins: boolean;
+  require_step_up_for_disruptive_actions: boolean;
+  session_ttl_seconds: number;
+}
