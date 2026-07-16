@@ -2748,10 +2748,19 @@ documented lesson about this).
   backup/recovery codes, the workspace snapshot being the only grant-gated read, the
   RLS-silently-no-ops-without-tenant-context hazard, an active grant still gating no real platform
   capability) — none were touched this milestone and remain open.
+  **[Corrected in Milestone 18: the last item in this list — "an active grant still gating no real
+  platform capability" — was itself stale by the time this was written. Milestone 16 had already built a
+  real grant-gated read (the workspace snapshot); this Unresolved Risks list reasserted the pre-Milestone-16
+  claim without re-checking it, contradicting Milestone 16's own, more careful phrasing two sections earlier
+  in this same document ("the workspace snapshot is currently the only grant-gated read" — which correctly
+  acknowledged partial closure). See Milestone 18's own notes.]**
 - **Other carried-over Known Limitations/Unresolved Risks have not been re-verified against current code**
   the way this milestone's "no expiry sweep" claim was — flagged explicitly, since this milestone
   demonstrated concretely that at least one such claim had been wrong for two milestones running. A future
   milestone (or an explicit ask) doing a systematic re-verification pass would have real value.
+  **[Partially addressed in Milestone 18: that same re-verification instinct caught a second stale claim —
+  see the correction directly above — in the very next milestone, before any systematic audit was
+  attempted. Still no full audit has been done; see Milestone 18's own Known Limitations.]**
 
 ## Milestone 17 — Pending Approvals
 
@@ -2761,8 +2770,137 @@ documented lesson about this).
   place in Milestones 15/16 rather than silently editing them) — flagging in case a different convention
   is preferred for future corrections of this kind.
 
-## Next Action
+## Milestone 17 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 18`** to begin the next milestone.
+
+## Milestone 18 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 16's own Known Limitations named this directly: "the snapshot is read-only and narrow by
+  design — members and three summary counts, not full findings/incidents/asset detail... Expanding it to
+  deeper drill-down views is a natural next increment."
+- Separately, before implementing, research surfaced a second stale documentation claim (beyond the
+  expiry-sweep one Milestone 17 corrected): Milestone 17's own Unresolved Risks reasserted "an active grant
+  still gating no real platform capability" verbatim from Milestone 15, despite Milestone 16 having already
+  built a real grant-gated read in between. Corrected in place (see above) rather than silently rewritten.
+
+### Backend
+- **`findings.routes`'s route-private `_to_list_item` mapping (finding + asset → `FindingListItem`,
+  including risk-score computation) promoted to `findings_service.to_finding_list_item`** — a public,
+  reusable function. The tenant-facing `GET /api/findings` now calls it too, so there is exactly one place
+  that maps a finding to its list representation, not two.
+- **New `GET /api/platform/tenants/{tenant_id}/findings`**, gated by the same `require_support_access_grant`
+  dependency as the workspace snapshot, supporting the same `severity`/`status` filters as the tenant-facing
+  endpoint. Reuses `findings_service.list_findings` and the newly-promoted `to_finding_list_item` verbatim —
+  no new query logic, no new risk-scoring logic.
+- **Both grant-gated reads now record which view was used**, via `context={"view": "workspace_snapshot"}` /
+  `context={"view": "findings", ...}` on the shared `platform.support_access_used` audit action — previously
+  there was no way to tell from the audit log which of two (now more) grant-gated views a platform admin had
+  actually looked at.
+
+### Frontend (`apps/web`)
+- The workspace snapshot page gained an "All findings" section listing title, severity, status, and asset
+  for every finding regardless of status — the drill-down the `open_findings_total` tile alone couldn't
+  provide. Deliberately shows every finding (not just open ones) for fuller support context, with an
+  explanatory description so its count doesn't read as contradicting the "Open findings" tile above it (a
+  wording issue caught during this milestone's own live E2E review, not by an automated check).
+
+## Milestone 18 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| The findings drill-down requires the same active grant as the workspace snapshot | ✅ | `test_grant_gated_findings_drilldown_requires_an_active_grant` (403, `support_access_grant_required`) |
+| The drill-down returns real finding data (risk score, asset name) matching the tenant-facing endpoint's shape | ✅ | `test_grant_gated_findings_drilldown_returns_real_findings`; live-verified against the demo tenant's 7 real findings |
+| Severity/status filters work the same way as the tenant-facing endpoint | ✅ | Same test — filtering by the first result's severity returns only matching findings |
+| Each grant-gated view is now distinguishable in the audit log | ✅ | `test_grant_gated_findings_drilldown_is_audited_with_view_context`; live-verified — `context.view` is `"workspace_snapshot"` or `"findings"` on each recorded event |
+| The tenant-facing `GET /api/findings` behaves identically after the refactor | ✅ | Full `test_findings_api.py` suite (20 tests) still passes unchanged |
+| Backend tests pass | ✅ | **220/220** passing (`pytest -q` in `apps/api`, up from 217 — 3 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 18 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 220 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium, against the
+demo tenant's 7 real seeded findings: confirmed the findings section was inaccessible before any grant
+existed (same block as the workspace snapshot), requested and approved a grant through two different
+platform admins as always, then confirmed the workspace page showed all 7 real finding titles (including
+"Administrator account without MFA" at `critical` severity) with correct severity badges. Queried the live
+platform audit log directly afterward and confirmed `context.view` correctly distinguished
+`workspace_snapshot` fetches from `findings` fetches across multiple recorded events. Removed the test grant
+afterward with tenant context set first, per Milestone 16's own documented lesson about that.
+
+## Milestone 18 — Architecture Decisions (made or refined during implementation)
+
+- **Promoted the mapping function rather than duplicating it.** `findings.routes`'s `_to_list_item` was
+  route-private with no reuse story; moving it to `findings_service.to_finding_list_item` means the
+  tenant-facing and platform-admin-facing findings lists can never silently drift in how they compute
+  `risk_score` or shape the response, since they now call the exact same function.
+- **Reused the existing `platform.support_access_used` audit action with a distinguishing `context` field**
+  rather than inventing a new action name per grant-gated view. Every grant-gated read is still fundamentally
+  "the grant was used" — `context.view` answers "used for what," which scales to future grant-gated views
+  without growing the audit action vocabulary.
+- **The findings drill-down deliberately shows every finding, not just open ones.** A support engineer
+  investigating a reported issue benefits from seeing recently-remediated or accepted-risk findings too,
+  not only what's currently open — the snapshot's `open_findings_total` tile already covers the "how many
+  are open" question on its own.
+- **Corrected the stale "gates nothing" Unresolved Risk in place rather than silently editing it**, following
+  the exact convention Milestone 17 established for its own correction — consistency in how mistakes get
+  documented matters as much as catching them.
+
+## Milestone 18 — Known Limitations
+
+- **Only findings have a drill-down; incidents and connected integrations still only have summary counts**
+  on the workspace snapshot. Extending the same pattern to incidents is a natural next increment, not
+  attempted here to keep this milestone scoped to the one drill-down Milestone 16 explicitly named.
+- **No pagination on the findings drill-down** — for a tenant with a very large findings table, this
+  returns everything in one response. The demo tenant (7 findings) and realistic small-to-mid tenant sizes
+  don't currently exercise this, but it would need addressing before this view scales to a busy production
+  tenant.
+- **No systematic audit of the remaining carried-over Known Limitations/Unresolved Risks was performed** —
+  this milestone corrected one specific stale claim it happened to encounter during its own scoping research,
+  the same way Milestone 17 did, but a full pass over the entire carried-over list still hasn't been done.
+- **No frontend automated tests were added for the findings section** — same gap and rationale as every
+  prior milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
+  dedicated Vitest coverage.
+
+## Milestone 18 — Unresolved Risks
+
+- Carried over from Milestones 1-17 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes, the RLS-silently-no-ops-without-tenant-context hazard, no pagination on findings
+  reads, incidents/integrations still lacking a drill-down) — none were touched this milestone and remain
+  open. (The "active grant gating no real platform capability" item has been removed from this carried-over
+  list — see the correction above; two grant-gated reads exist now.)
+- **A full, systematic re-verification pass over every carried-over Known Limitation/Unresolved Risk has
+  still not been done** — two consecutive milestones (17 and 18) each independently caught one stale claim
+  as a side effect of their own scoping research, not through a deliberate audit. The remaining list should
+  not be assumed accurate without similar scrutiny.
+- **No pagination on the findings drill-down** is a real scalability risk if this pattern is later applied
+  to a tenant with a large findings table, flagged explicitly since it wasn't addressed this milestone.
+
+## Milestone 18 — Pending Approvals
+
+- This Milestone 18 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the decision to defer pagination and the incidents/integrations drill-down
+  to a future milestone rather than building all three grant-gated drill-downs at once.
+
+## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 19`** to begin the next milestone.
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 17`** to begin the next milestone.
