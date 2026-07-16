@@ -1,13 +1,14 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 7 implementation)
+Last updated: 2026-07-16 (Milestone 8 implementation)
 
 ## Current Milestone
 
-**Milestone 7: Compliance and Evidence** — implementation complete, pending your review and explicit
-approval to proceed to Milestone 8. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
-Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), and 6 (Backup and
-Ransomware Resilience) are complete and merged; their sections below are preserved as-is.
+**Milestone 8: Executive Reporting** — implementation complete, pending your review and explicit
+approval to proceed to Milestone 9. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
+Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
+Ransomware Resilience), and 7 (Compliance and Evidence) are complete and merged; their sections below
+are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1202,7 +1203,7 @@ documented in the README's setup instructions, not a code defect.
   call, not derived from any stated specification — same category of flag as Milestone 6's per-job
   scoring weights.
 
-## Pending Approvals
+## Milestone 7 — Pending Approvals
 
 - This Milestone 7 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1210,6 +1211,126 @@ documented in the README's setup instructions, not a code defect.
   (see Architecture Decisions) — both are interpretations made in the absence of an explicit
   specification for this milestone.
 
+---
+
+## Milestone 8 — Completed Work
+
+### Backend — `modules/reporting` (new, no models, no migration)
+- **A pure composition module** — the smallest of any milestone so far. `get_executive_summary()` calls
+  straight into the four summary functions every other module already built for its own dashboard tile
+  (`findings.get_risk_summary`, `incidents.get_incident_summary`, `resilience.get_resilience_summary`,
+  `compliance.get_compliance_summary`), plus one small `SELECT count(*)` over `assets`, and returns one
+  combined bundle. No new table, no migration — like `modules.resilience`, there is nothing here for the
+  module to own; it only synthesizes facts that already exist.
+- **Route**: `GET /api/reports/executive-summary`, gated on `reports.view` alone — deliberately not
+  re-checking `findings.view`/`incidents.view`/`compliance.view`/`assets.view` for each section it
+  aggregates. `reports.view` is already granted to every one of the eight tenant roles in the permission
+  matrix, including `executive_viewer`, who explicitly lacks `compliance.view` and `evidence.view`
+  entirely — the only reading consistent with that is that `reports.view` is intentionally a
+  cross-cutting synthesis permission for someone who needs the overall picture without day-to-day
+  operational access to every module underneath it, not a permission that inherits each source's own
+  gate. Every existing tenant role already holds it, so there was no role available to exercise a 403
+  case for this endpoint — noted honestly in the test file rather than manufactured with a role that
+  doesn't reflect the real matrix.
+
+### Frontend (`apps/web`)
+- New `/reports` page: one consolidated "Overall posture" card (security score, recovery confidence,
+  compliance score), a 3-up row (assets, open findings by severity, open incidents by severity), and a
+  compliance-frameworks breakdown — everything a viewer would otherwise have to visit four separate
+  pages to piece together.
+- **"Download JSON"** button: a client-side `Blob`/`URL.createObjectURL` download of the already-fetched
+  summary, named `gridkeep-executive-summary-<date>.json`. No new backend export endpoint was needed —
+  the data was already on the page.
+- Dashboard gained a "View executive report →" link next to its header, gated on `reports.view`.
+- Nav gained a "Reports" item, after Compliance.
+
+## Milestone 8 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Executive summary aggregates security score, incidents, resilience, and compliance correctly | ✅ | `test_executive_summary_aggregates_across_all_modules`; live-verified — after connecting a backup integration, setting a control to "met", and declaring a critical incident, the report showed security 70, recovery confidence 50, compliance 10, exactly matching the individual dashboard tiles |
+| A tenant with no data gets sensible defaults, not errors | ✅ | `test_executive_summary_empty_tenant_has_sensible_defaults` — security 100, compliance 0 (frameworks are always seeded and scoreable), resilience `None` |
+| The report is tenant-isolated | ✅ | `test_executive_summary_scoped_to_own_tenant` |
+| `reports.view` is a genuine cross-cutting permission, not silently requiring each section's own view permission | ✅ | Verified by inspection of `DEFAULT_ROLE_PERMISSIONS` — every one of the 8 tenant roles holds `reports.view`, including `executive_viewer`, which lacks `compliance.view`/`evidence.view` outright |
+| Downloading the report produces a well-formed, correctly-named JSON file | ✅ | Live-verified via a real Playwright download — `gridkeep-executive-summary-2026-07-16.json` containing the exact same figures shown on the page |
+| No new migration was required | ✅ | `alembic current` unchanged — `modules/reporting` has no models |
+| Backend tests pass | ✅ | **148/148** passing (`pytest -q` in `apps/api`, up from 144 — 4 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 22/22 routes |
+
+## Milestone 8 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 148 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 22/22 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium, on a fresh tenant: opened `/reports` on an untouched tenant and confirmed the defaults (security
+100, compliance 0/100 across both seeded frameworks, no assets/findings/incidents); connected the
+`mock_backup` integration and synced it; set one SOC 2 control to "met"; declared a critical incident;
+reopened `/reports` and confirmed every figure updated correctly and in agreement with the dashboard's
+individual tiles (security 70, recovery confidence 50, compliance 10, 2 assets, 3 open findings — 2 High
++ 1 Medium, 1 open critical incident); clicked "Download JSON" and confirmed a real file downloaded with
+the correct filename and matching data.
+
+## Milestone 8 — Architecture Decisions (made or refined during implementation)
+
+- **`reports.view` is deliberately treated as a standalone, cross-cutting permission**, not a proxy for
+  "has view access to everything being summarized." This was the central judgment call of the milestone:
+  the alternative (checking `findings.view` AND `incidents.view` AND `compliance.view` AND `assets.view`
+  before including each section) would have silently hidden sections from `executive_viewer` — the one
+  role whose entire purpose is consuming this exact report — since that role never held `compliance.view`
+  or `evidence.view` to begin with. Treating `reports.view` as sufficient on its own is the only reading
+  that makes the permission matrix's existing role design coherent.
+- **No new export endpoint for the report** — unlike `evidence.export` (Milestone 7), which needed a
+  dedicated route because the API is the only place with the target-scoped evidence query, the executive
+  summary is a single already-fetched object; building a server-side export endpoint for data the client
+  already has in memory would have been unjustified duplication. The download is a client-side `Blob`.
+- **The module has zero models, deliberately** — this is the second milestone in a row (after
+  Milestone 6's resilience module) to add real, tested functionality without touching the schema at all,
+  by composing existing service functions rather than introducing a new table to cache or duplicate data
+  that's already computable on demand.
+
+## Milestone 8 — Known Limitations
+
+- **No historical trend** — the executive summary is a point-in-time snapshot; there's no way to see how
+  the security score, compliance score, or recovery confidence has moved over time. Same gap already
+  noted for the individual security/compliance/resilience scores in Milestones 3, 6, and 7.
+- **No PDF or formatted-document export** — only the client-side JSON download. A board-ready formatted
+  document (with the company's branding, charts, etc.) is reasonable future work but would need a real
+  document-generation dependency this codebase doesn't have yet.
+- **No scheduled/emailed reports** — the summary is only available on-demand when a user visits the page;
+  there's no periodic snapshot, subscription, or email digest.
+- **No frontend automated tests were added for the new Reports page** — same gap and rationale as every
+  prior milestone's new pages: verified manually end-to-end via Playwright, passes lint/typecheck/build,
+  but no dedicated Vitest coverage.
+
+## Milestone 8 — Unresolved Risks
+
+- Carried over from Milestones 1-7 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence permission-per-
+  target design, the control-scoring weights) — none were touched this milestone and remain open.
+- The decision to gate the entire executive summary on `reports.view` alone, without per-section
+  permission checks, is a judgment call flagged for your explicit review — it is the correct reading of
+  the current permission matrix, but if a future role is added that holds `reports.view` without, say,
+  `compliance.view`, that role would still see compliance data in this report. Worth confirming this is
+  the intended semantics of `reports.view` going forward.
+
+## Pending Approvals
+
+- This Milestone 8 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the `reports.view` cross-cutting-permission decision (see Architecture
+  Decisions and Unresolved Risks) — it's the interpretive core of this milestone and shapes how any
+  future report-like surface should be gated.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 8`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 9`** to begin the next milestone.
