@@ -411,3 +411,26 @@ export interface ExecutiveSummaryRead {
   compliance_overall_score: number | null;
   compliance_frameworks: ComplianceFrameworkSummary[];
 }
+
+// --- Milestone 9: trust passport ---
+
+export interface TrustPassportSettingsRead {
+  is_published: boolean;
+  public_slug: string | null;
+  headline: string;
+  description: string;
+  show_compliance_frameworks: boolean;
+  updated_at: string | null;
+}
+
+export interface PublicFrameworkStatus {
+  name: string;
+  status_label: string;
+}
+
+export interface PublicTrustPassportRead {
+  headline: string;
+  description: string;
+  generated_at: string;
+  compliance_frameworks: PublicFrameworkStatus[] | null;
+}

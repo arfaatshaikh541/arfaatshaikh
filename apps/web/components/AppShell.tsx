@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/resilience", label: "Resilience" },
   { href: "/compliance", label: "Compliance" },
   { href: "/reports", label: "Reports" },
+  { href: "/settings/trust-passport", label: "Trust Passport" },
   { href: "/settings/users", label: "Users" },
   { href: "/settings/subscription", label: "Subscription" },
 ];
