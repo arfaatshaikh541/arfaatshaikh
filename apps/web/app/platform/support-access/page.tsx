@@ -2,6 +2,7 @@
 
 import { Alert, Button, Card, CardHeader, StatusBadge } from "@gridkeep/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -18,6 +19,7 @@ export default function PlatformSupportAccessPage() {
   const { me, hasPlatformPermission } = useAuth();
   const canRequest = hasPlatformPermission("platform.support_access");
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -208,6 +210,15 @@ export default function PlatformSupportAccessPage() {
                       <StatusBadge label={grant.status} tone={statusTone(grant.status)} />
                     </div>
                     <div className="flex gap-2">
+                      {grant.status === "active" && grant.platform_user_id === me?.user.id ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => router.push(`/platform/tenants/${grant.tenant_id}/workspace`)}
+                        >
+                          View workspace
+                        </Button>
+                      ) : null}
                       {grant.status === "pending" ? (
                         <Button
                           size="sm"

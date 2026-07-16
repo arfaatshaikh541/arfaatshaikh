@@ -545,3 +545,23 @@ export interface SupportAccessGrantRead {
   revoked_at: string | null;
   revoked_reason: string | null;
 }
+
+// --- Milestone 16: grant-gated tenant workspace snapshot ---
+
+export interface TenantWorkspaceMemberRead {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role_name: string;
+  status: string;
+}
+
+export interface TenantWorkspaceSnapshotRead {
+  tenant_id: string;
+  tenant_name: string;
+  tenant_status: string;
+  members: TenantWorkspaceMemberRead[];
+  open_findings_total: number;
+  open_incidents_total: number;
+  connected_integrations_count: number;
+}
