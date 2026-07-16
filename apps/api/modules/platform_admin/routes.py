@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import (
     PlatformContext,
     TenantContext,
+    get_platform_admin_db,
     get_tenant_db,
     require_csrf,
     require_permission,
@@ -16,7 +17,13 @@ from core.deps import (
 from db.session import get_db
 from modules.audit import service as audit_service
 from modules.platform_admin import service as platform_service
-from modules.platform_admin.schemas import SupportAccessGrantCreateRequest, SupportAccessGrantRead
+from modules.platform_admin.schemas import (
+    PlatformAuditLogRead,
+    SupportAccessGrantCreateRequest,
+    SupportAccessGrantRead,
+    TenantSummaryRead,
+    UpdateTenantStatusRequest,
+)
 
 router = APIRouter(prefix="/api/platform", tags=["platform_admin"])
 tenant_router = APIRouter(prefix="/api", tags=["support_access"])
@@ -78,6 +85,65 @@ async def revoke_support_access_grant(
     )
     await db.commit()
     return SupportAccessGrantRead.model_validate(grant)
+
+
+@router.get("/tenants", response_model=list[TenantSummaryRead])
+async def list_tenants(
+    ctx: PlatformContext = Depends(require_platform_permission("platform.tenants.manage")),
+    db: AsyncSession = Depends(get_db),
+) -> list[TenantSummaryRead]:
+    tenants = await platform_service.list_tenants(db)
+    return [TenantSummaryRead.model_validate(t) for t in tenants]
+
+
+@router.get("/tenants/{tenant_id}", response_model=TenantSummaryRead)
+async def get_tenant(
+    tenant_id: uuid.UUID,
+    ctx: PlatformContext = Depends(require_platform_permission("platform.tenants.manage")),
+    db: AsyncSession = Depends(get_db),
+) -> TenantSummaryRead:
+    tenant = await platform_service.get_tenant_or_404(db, tenant_id=tenant_id)
+    return TenantSummaryRead.model_validate(tenant)
+
+
+@router.post(
+    "/tenants/{tenant_id}/status", response_model=TenantSummaryRead, dependencies=[Depends(require_csrf)]
+)
+async def update_tenant_status(
+    tenant_id: uuid.UUID,
+    payload: UpdateTenantStatusRequest,
+    ctx: PlatformContext = Depends(require_platform_permission("platform.tenants.manage")),
+    db: AsyncSession = Depends(get_db),
+) -> TenantSummaryRead:
+    tenant = await platform_service.update_tenant_status(
+        db,
+        tenant_id=tenant_id,
+        new_status=payload.status,
+        reason=payload.reason,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+    )
+    await db.commit()
+    return TenantSummaryRead.model_validate(tenant)
+
+
+@router.get("/audit-logs", response_model=list[PlatformAuditLogRead])
+async def list_platform_audit_logs(
+    tenant_id: uuid.UUID | None = Query(default=None),
+    action: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    ctx: PlatformContext = Depends(require_platform_permission("platform.audit.view")),
+    db: AsyncSession = Depends(get_platform_admin_db),
+) -> list[PlatformAuditLogRead]:
+    """The platform-wide audit trail — every tenant's history in one
+    view. Only reachable through `get_platform_admin_db`, the one session
+    flavour the widened `audit_logs_select` RLS policy actually grants
+    cross-tenant visibility to."""
+    logs = await audit_service.list_platform_wide(
+        db, tenant_id=tenant_id, action=action, limit=limit, offset=offset
+    )
+    return [PlatformAuditLogRead.model_validate(log) for log in logs]
 
 
 @tenant_router.get("/support-access-grants", response_model=list[SupportAccessGrantRead])

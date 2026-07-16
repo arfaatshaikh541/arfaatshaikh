@@ -101,3 +101,21 @@ async def tenant_scoped_session(
                 {"flag": "true" if is_platform_admin else "false"},
             )
             yield session
+
+
+@asynccontextmanager
+async def platform_admin_scoped_session() -> AsyncGenerator[AsyncSession, None]:
+    """Opens a transaction with `app.is_platform_admin` set and no single
+    tenant selected (`app.current_tenant_id` stays NULL). Milestone 12's
+    widened `audit_logs_select` policy (`tenant_id = app_current_tenant_id()
+    OR app_is_platform_admin()`) then evaluates true for every row
+    regardless of its `tenant_id` — this is the ONLY session flavour that
+    should ever see audit history across more than one tenant at once.
+    Callers must already have verified `platform.audit.view` before
+    reaching here; this function itself does no permission check."""
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config('app.is_platform_admin', 'true', true)")
+            )
+            yield session

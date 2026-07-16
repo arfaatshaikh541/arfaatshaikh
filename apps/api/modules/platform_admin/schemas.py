@@ -23,3 +23,35 @@ class SupportAccessGrantRead(BaseModel):
     starts_at: datetime | None
     expires_at: datetime | None
     revoked_at: datetime | None
+
+
+class TenantSummaryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    slug: str
+    status: str
+    industry: str | None
+    country_code: str | None
+    is_demo: bool
+    created_at: datetime
+
+
+class UpdateTenantStatusRequest(BaseModel):
+    status: str
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class PlatformAuditLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID | None
+    actor_user_id: uuid.UUID | None
+    actor_label: str
+    action: str
+    target_type: str | None
+    target_id: str | None
+    context: dict
+    created_at: datetime

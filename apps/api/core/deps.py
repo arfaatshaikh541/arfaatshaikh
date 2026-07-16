@@ -17,7 +17,7 @@ from core.errors import (
     TenantStatusError,
 )
 from core.security import constant_time_equals, hash_token
-from db.session import get_db, set_user_context, tenant_scoped_session
+from db.session import get_db, platform_admin_scoped_session, set_user_context, tenant_scoped_session
 from modules.entitlements.service import resolve_entitlements
 from modules.identity.models import Session as SessionModel
 from modules.identity.models import User
@@ -259,6 +259,19 @@ def require_platform_permission(permission: str):
         return ctx
 
     return _checker
+
+
+async def get_platform_admin_db(
+    _ctx: PlatformContext = Depends(get_platform_context),
+) -> AsyncGenerator[AsyncSession, None]:
+    """Cross-tenant-visible DB session for platform routes that read data
+    spanning more than one tenant (e.g. the platform-wide audit log).
+    Depends on `get_platform_context` only to confirm the caller IS a
+    platform user at all — routes still separately apply
+    `require_platform_permission` for the specific capability, exactly as
+    `get_tenant_db` composes with `require_permission`."""
+    async with platform_admin_scoped_session() as session:
+        yield session
 
 
 async def require_csrf(

@@ -57,3 +57,27 @@ async def list_for_target(
         .order_by(AuditLog.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_platform_wide(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID | None = None,
+    action: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[AuditLog]:
+    """Milestone 12: the platform-wide audit trail view. Only visible
+    through a `platform_admin_scoped_session` (see db/session.py) — the
+    widened `audit_logs_select` policy is what actually makes rows from
+    every tenant visible here; the `tenant_id`/`action` params below are
+    ordinary WHERE-clause filters on top of that, not the access-control
+    boundary itself."""
+    query = select(AuditLog)
+    if tenant_id is not None:
+        query = query.where(AuditLog.tenant_id == tenant_id)
+    if action is not None:
+        query = query.where(AuditLog.action == action)
+    query = query.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
+    result = await session.execute(query)
+    return list(result.scalars().all())
