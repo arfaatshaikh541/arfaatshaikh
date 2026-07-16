@@ -7,6 +7,7 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import type {
+  ComplianceSummaryRead,
   EntitlementsRead,
   IncidentSummaryRead,
   ResilienceSummaryRead,
@@ -59,6 +60,12 @@ export default function DashboardPage() {
     queryKey: ["resilience", "summary"],
     queryFn: () => apiClient.get<ResilienceSummaryRead>("/api/resilience/summary"),
     enabled: hasPermission("assets.view"),
+  });
+
+  const complianceSummaryQuery = useQuery({
+    queryKey: ["compliance", "summary"],
+    queryFn: () => apiClient.get<ComplianceSummaryRead>("/api/compliance/summary"),
+    enabled: hasPermission("compliance.view"),
   });
 
   return (
@@ -182,6 +189,44 @@ export default function DashboardPage() {
                 </span>
                 <Link href="/resilience" className="text-sm text-accent hover:underline">
                   View resilience &rarr;
+                </Link>
+              </div>
+            )
+          ) : (
+            <p className="text-sm text-ink-500">Loading…</p>
+          )}
+        </Card>
+      ) : null}
+
+      {hasPermission("compliance.view") ? (
+        <Card>
+          <CardHeader title="Compliance" />
+          {complianceSummaryQuery.data ? (
+            complianceSummaryQuery.data.overall_score === null ? (
+              <p className="text-sm text-ink-500">No frameworks scored yet.</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-semibold text-ink-900">
+                    {complianceSummaryQuery.data.overall_score}
+                  </span>
+                  <span className="text-sm text-ink-500">/ 100</span>
+                  <StatusBadge
+                    label={
+                      complianceSummaryQuery.data.overall_score >= 80
+                        ? "Strong"
+                        : complianceSummaryQuery.data.overall_score >= 50
+                          ? "Needs attention"
+                          : "At risk"
+                    }
+                    tone={scoreTone(complianceSummaryQuery.data.overall_score)}
+                  />
+                </div>
+                <span className="text-sm text-ink-700">
+                  {complianceSummaryQuery.data.frameworks.length} frameworks tracked
+                </span>
+                <Link href="/compliance" className="text-sm text-accent hover:underline">
+                  View compliance &rarr;
                 </Link>
               </div>
             )

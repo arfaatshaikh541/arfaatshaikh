@@ -339,3 +339,52 @@ export interface ResilienceSummaryRead {
   backup_jobs_failed: number;
   jobs: BackupJobSummary[];
 }
+
+// --- Milestone 7: compliance and evidence ---
+
+export interface ControlRead {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  status: string;
+  note: string | null;
+  updated_by_user_id: string | null;
+  updated_at: string | null;
+}
+
+export interface FrameworkRead {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  score: number;
+  controls: ControlRead[];
+}
+
+export interface FrameworkScoreRead {
+  id: string;
+  key: string;
+  name: string;
+  score: number;
+  met_count: number;
+  total_count: number;
+}
+
+export interface ComplianceSummaryRead {
+  overall_score: number | null;
+  frameworks: FrameworkScoreRead[];
+}
+
+export interface EvidenceRead {
+  id: string;
+  title: string;
+  description: string;
+  evidence_type: string;
+  source_url: string | null;
+  target_type: string;
+  target_id: string;
+  collected_at: string;
+  created_by_user_id: string | null;
+  created_at: string;
+}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { EvidenceList } from "@/components/EvidenceList";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import type {
@@ -30,6 +31,7 @@ export default function IncidentDetailPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission("incidents.manage");
   const canClose = hasPermission("incidents.close");
+  const canViewEvidence = hasPermission("evidence.view");
   const canAssignUsers = canManage && hasPermission("users.manage");
   const queryClient = useQueryClient();
 
@@ -338,6 +340,13 @@ export default function IncidentDetailPage() {
           <Button size="sm" variant="secondary" isLoading={isActing} onClick={reopen}>
             Reopen
           </Button>
+        </Card>
+      ) : null}
+
+      {canViewEvidence ? (
+        <Card>
+          <CardHeader title="Evidence" description="Attach documentation, URLs or notes for an audit trail." />
+          <EvidenceList targetType="incident" targetId={incidentId} canManage={canManage} />
         </Card>
       ) : null}
 
