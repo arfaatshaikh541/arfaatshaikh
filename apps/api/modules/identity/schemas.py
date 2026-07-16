@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -38,6 +39,15 @@ class LoginResponse(BaseModel):
     csrf_token: str
 
 
+class MfaRequiredResponse(BaseModel):
+    """Returned by `/api/auth/login` in place of `LoginResponse` when the
+    password check succeeded but the account has MFA enabled — no
+    session exists yet, only this short-lived challenge token."""
+
+    mfa_required: bool = True
+    mfa_challenge_token: str
+
+
 class MeResponse(BaseModel):
     user: UserRead
     memberships: list[MembershipSummary]
@@ -70,3 +80,30 @@ class TenantSwitchRequest(BaseModel):
 class InviteMemberRequest(BaseModel):
     email: EmailStr
     role_name: str
+
+
+class MfaEnrollResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+
+
+class MfaConfirmRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+
+
+class MfaDisableRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+
+
+class MfaVerifyLoginRequest(BaseModel):
+    mfa_challenge_token: str
+    code: str = Field(min_length=6, max_length=6)
+
+
+class StepUpRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+
+
+class StepUpResponse(BaseModel):
+    status: str
+    step_up_expires_at: datetime

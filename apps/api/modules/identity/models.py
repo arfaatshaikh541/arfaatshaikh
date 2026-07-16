@@ -79,3 +79,22 @@ class EmailVerificationToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MfaChallengeToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Milestone 13: a short-lived, single-use proof that a user already
+    passed the password check, issued by `login()` in place of a real
+    session when `User.mfa_enabled` is true — the same
+    generate-hash-store-consume shape as `PasswordResetToken`/
+    `EmailVerificationToken`, not a new pattern. Deliberately its own
+    table rather than a flag on `Session`: the whole point is that no
+    session exists yet until the TOTP code is also verified."""
+
+    __tablename__ = "mfa_challenge_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

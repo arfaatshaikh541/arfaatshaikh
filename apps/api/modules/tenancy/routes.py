@@ -16,6 +16,8 @@ from modules.tenancy.schemas import (
     OnboardingRequest,
     OnboardingResponse,
     TenantRead,
+    TenantSecurityProfileRead,
+    TenantSecurityProfileUpdate,
     TenantSettingsRead,
     TenantSettingsUpdate,
 )
@@ -70,3 +72,40 @@ async def update_settings(
     )
     await db.commit()
     return TenantSettingsRead.model_validate(settings_row)
+
+
+@router.get("/security-profile", response_model=TenantSecurityProfileRead)
+async def get_security_profile(
+    ctx: TenantContext = Depends(require_permission("settings.manage")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> TenantSecurityProfileRead:
+    from modules.tenancy.repository import get_security_profile as get_security_profile_row
+
+    profile = await get_security_profile_row(db, ctx.tenant_id)
+    if profile is None:
+        from core.errors import NotFoundError
+
+        raise NotFoundError("Tenant security profile not found.")
+    return TenantSecurityProfileRead.model_validate(profile)
+
+
+@router.patch(
+    "/security-profile", response_model=TenantSecurityProfileRead, dependencies=[Depends(require_csrf)]
+)
+async def update_security_profile(
+    payload: TenantSecurityProfileUpdate,
+    ctx: TenantContext = Depends(require_permission("settings.manage")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> TenantSecurityProfileRead:
+    require_tenant_write(ctx)
+    profile = await tenancy_service.update_security_profile(db, ctx.tenant_id, payload)
+    await audit_service.record(
+        db,
+        tenant_id=ctx.tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+        action="tenancy.security_profile_updated",
+        context=payload.model_dump(exclude_none=True),
+    )
+    await db.commit()
+    return TenantSecurityProfileRead.model_validate(profile)

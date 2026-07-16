@@ -44,3 +44,17 @@ class TenantSettingsUpdate(BaseModel):
     default_automation_mode: str | None = Field(
         default=None, pattern="^(observe|guided|balanced|autopilot|lockdown)$"
     )
+
+
+class TenantSecurityProfileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    require_mfa_for_admins: bool
+    require_step_up_for_disruptive_actions: bool
+    session_ttl_seconds: int
+
+
+class TenantSecurityProfileUpdate(BaseModel):
+    require_mfa_for_admins: bool | None = None
+    require_step_up_for_disruptive_actions: bool | None = None
+    session_ttl_seconds: int | None = Field(default=None, ge=300, le=604800)

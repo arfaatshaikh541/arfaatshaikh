@@ -111,6 +111,7 @@ async def _clean_tables(_bootstrap_catalog):
         "memberships",
         "email_verification_tokens",
         "password_reset_tokens",
+        "mfa_challenge_tokens",
         "sessions",
         "users",
         "tenant_domains",

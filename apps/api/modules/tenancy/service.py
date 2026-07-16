@@ -16,8 +16,13 @@ from modules.identity.models import User
 from modules.identity.service import issue_email_verification_token
 from modules.permissions.models import Membership, Role
 from modules.tenancy.models import Tenant, TenantSecurityProfile, TenantSettings
-from modules.tenancy.repository import get_settings, get_tenant_by_id, slug_exists
-from modules.tenancy.schemas import OnboardingRequest, OnboardingResponse, TenantSettingsUpdate
+from modules.tenancy.repository import get_security_profile, get_settings, get_tenant_by_id, slug_exists
+from modules.tenancy.schemas import (
+    OnboardingRequest,
+    OnboardingResponse,
+    TenantSecurityProfileUpdate,
+    TenantSettingsUpdate,
+)
 
 logger = structlog.get_logger("gridkeep.tenancy")
 
@@ -128,3 +133,26 @@ async def get_tenant_or_404(session: AsyncSession, tenant_id: uuid.UUID) -> Tena
     if tenant is None:
         raise NotFoundError("Workspace not found.")
     return tenant
+
+
+async def update_security_profile(
+    session: AsyncSession, tenant_id: uuid.UUID, payload: TenantSecurityProfileUpdate
+) -> TenantSecurityProfile:
+    """Milestone 13: `TenantSecurityProfile` has existed since Milestone 1
+    with `repository.get_security_profile` reachable but never called by
+    any route — these toggles were pure dead weight. This is the first
+    write path. Note: `require_step_up_for_disruptive_actions` is now
+    stored and readable, but `approve_action_run` doesn't yet read it back
+    (see Milestone 13's Known Limitations) — it always enforces step-up
+    for MFA-enabled users regardless of this toggle's value."""
+    profile = await get_security_profile(session, tenant_id)
+    if profile is None:
+        raise NotFoundError("Tenant security profile not found.")
+    if payload.require_mfa_for_admins is not None:
+        profile.require_mfa_for_admins = payload.require_mfa_for_admins
+    if payload.require_step_up_for_disruptive_actions is not None:
+        profile.require_step_up_for_disruptive_actions = payload.require_step_up_for_disruptive_actions
+    if payload.session_ttl_seconds is not None:
+        profile.session_ttl_seconds = payload.session_ttl_seconds
+    await session.flush()
+    return profile

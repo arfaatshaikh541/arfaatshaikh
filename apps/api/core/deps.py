@@ -290,9 +290,16 @@ async def require_csrf(
 
 def require_step_up(max_age_seconds: int = 300):
     """Step-up auth gate for sensitive operations (credential vault access,
-    role changes, disruptive-action approval — architecture §8). Not wired
-    to any Milestone 1 route yet since disruptive actions arrive in
-    Milestone 7, but the primitive is real and tested."""
+    role changes, disruptive-action approval — architecture §8). Wired to
+    `actions.approve_action_run` in Milestone 13.
+
+    Only enforced for users who have MFA enabled: `mfa_enabled` defaults
+    to false and enrollment is self-service (Milestone 13), so requiring
+    step-up unconditionally would lock every user who hasn't opted in out
+    of disruptive-action approval entirely, with no way to ever satisfy
+    the gate. A user without MFA gets the pre-Milestone-13 behaviour
+    (permission check only); a user with MFA enabled must have recently
+    re-proven it."""
 
     async def _checker(
         token: str | None = Depends(_get_session_token),
@@ -301,15 +308,20 @@ def require_step_up(max_age_seconds: int = 300):
         if not token:
             raise AuthenticationError("Sign in to continue.")
         result = await db.execute(
-            select(SessionModel).where(SessionModel.token_hash == hash_token(token))
+            select(SessionModel, User)
+            .join(User, User.id == SessionModel.user_id)
+            .where(SessionModel.token_hash == hash_token(token))
         )
-        session_row = result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            raise AuthenticationError("Sign in to continue.")
+        session_row, user = row
+
+        if not user.mfa_enabled:
+            return True
+
         now = datetime.now(UTC)
-        if (
-            session_row is None
-            or session_row.step_up_expires_at is None
-            or session_row.step_up_expires_at <= now
-        ):
+        if session_row.step_up_expires_at is None or session_row.step_up_expires_at <= now:
             raise AuthorizationError(
                 "Please re-confirm your identity to continue.",
                 details={"step_up_required": True},

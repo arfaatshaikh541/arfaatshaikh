@@ -18,7 +18,14 @@ from modules.identity.schemas import (
     LoginRequest,
     LoginResponse,
     MeResponse,
+    MfaConfirmRequest,
+    MfaDisableRequest,
+    MfaEnrollResponse,
+    MfaRequiredResponse,
+    MfaVerifyLoginRequest,
     ResetPasswordRequest,
+    StepUpRequest,
+    StepUpResponse,
     TenantSwitchRequest,
     UserRead,
     VerifyEmailRequest,
@@ -44,29 +51,17 @@ def _cookie_secure_kwargs(base: dict) -> dict:
     return kw
 
 
-@router.post("/login", response_model=LoginResponse)
-async def login(
-    payload: LoginRequest,
-    request: Request,
-    response: Response,
-    db: AsyncSession = Depends(get_db),
+async def _complete_login(
+    db: AsyncSession, user: User, request: Request, response: Response
 ) -> LoginResponse:
-    login_rate_limiter.check(
-        f"login-ip:{request.client.host if request.client else 'unknown'}",
-        limit=settings.rate_limit_login_per_minute,
-        window_seconds=60,
-    )
-    login_rate_limiter.check(
-        f"login-account:{payload.email.lower()}",
-        limit=settings.rate_limit_login_per_hour_per_account,
-        window_seconds=3600,
-    )
-
-    user = await identity_service.authenticate_user(db, payload.email, payload.password)
+    """The part of signing in that only ever happens once a session should
+    actually be created — shared between a normal (no-MFA) login and
+    `/mfa/verify-login` completing a challenge, so there is exactly one
+    place that creates a session, sets cookies, and records `auth.login`."""
     memberships = await identity_service.list_memberships_for_user(db, user.id)
     active_membership_id = memberships[0].membership_id if len(memberships) == 1 else None
 
-    raw_token, session_row = await identity_service.create_session(
+    raw_token, _session_row = await identity_service.create_session(
         db,
         user,
         active_membership_id=active_membership_id,
@@ -100,6 +95,55 @@ async def login(
         active_membership_id=active_membership_id,
         csrf_token=csrf_token,
     )
+
+
+@router.post("/login", response_model=LoginResponse | MfaRequiredResponse)
+async def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse | MfaRequiredResponse:
+    login_rate_limiter.check(
+        f"login-ip:{request.client.host if request.client else 'unknown'}",
+        limit=settings.rate_limit_login_per_minute,
+        window_seconds=60,
+    )
+    login_rate_limiter.check(
+        f"login-account:{payload.email.lower()}",
+        limit=settings.rate_limit_login_per_hour_per_account,
+        window_seconds=3600,
+    )
+
+    user = await identity_service.authenticate_user(db, payload.email, payload.password)
+
+    if user.mfa_enabled:
+        challenge_token = await identity_service.issue_mfa_challenge_token(db, user)
+        await audit_service.record(
+            db,
+            tenant_id=None,
+            actor_user_id=user.id,
+            actor_label=user.email,
+            action="auth.mfa_challenge_issued",
+            ip_address=request.client.host if request.client else None,
+        )
+        await db.commit()
+        return MfaRequiredResponse(mfa_challenge_token=challenge_token)
+
+    return await _complete_login(db, user, request, response)
+
+
+@router.post("/mfa/verify-login", response_model=LoginResponse)
+async def verify_login_mfa(
+    payload: MfaVerifyLoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    user = await identity_service.consume_mfa_challenge_token(
+        db, payload.mfa_challenge_token, payload.code
+    )
+    return await _complete_login(db, user, request, response)
 
 
 @router.post("/logout", dependencies=[Depends(require_csrf)])
@@ -172,6 +216,59 @@ async def tenant_switch(
     )
     await db.commit()
     return {"status": "ok", "active_membership_id": str(membership.id)}
+
+
+@router.post("/mfa/enroll", response_model=MfaEnrollResponse, dependencies=[Depends(require_csrf)])
+async def enroll_mfa(
+    ctx: AuthContext = Depends(get_auth_context), db: AsyncSession = Depends(get_db)
+) -> MfaEnrollResponse:
+    secret, provisioning_uri = await identity_service.enroll_mfa(db, ctx.user)
+    await db.commit()
+    return MfaEnrollResponse(secret=secret, provisioning_uri=provisioning_uri)
+
+
+@router.post("/mfa/confirm", dependencies=[Depends(require_csrf)])
+async def confirm_mfa(
+    payload: MfaConfirmRequest,
+    ctx: AuthContext = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    await identity_service.confirm_mfa_enrollment(db, ctx.user, payload.code)
+    await audit_service.record(
+        db, tenant_id=None, actor_user_id=ctx.user.id, actor_label=ctx.user.email, action="auth.mfa_enabled"
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/mfa/disable", dependencies=[Depends(require_csrf)])
+async def disable_mfa(
+    payload: MfaDisableRequest,
+    ctx: AuthContext = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    await identity_service.disable_mfa(db, ctx.user, payload.code)
+    await audit_service.record(
+        db, tenant_id=None, actor_user_id=ctx.user.id, actor_label=ctx.user.email, action="auth.mfa_disabled"
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/step-up", response_model=StepUpResponse, dependencies=[Depends(require_csrf)])
+async def step_up(
+    payload: StepUpRequest,
+    ctx: AuthContext = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
+) -> StepUpResponse:
+    session_row = await identity_service.step_up_session(
+        db, ctx.user, session_id=ctx.session_id, code=payload.code
+    )
+    await audit_service.record(
+        db, tenant_id=None, actor_user_id=ctx.user.id, actor_label=ctx.user.email, action="auth.step_up"
+    )
+    await db.commit()
+    return StepUpResponse(status="ok", step_up_expires_at=session_row.step_up_expires_at)
 
 
 @router.post("/verify-email")

@@ -5,7 +5,14 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.deps import TenantContext, get_tenant_db, require_csrf, require_permission, require_tenant_write
+from core.deps import (
+    TenantContext,
+    get_tenant_db,
+    require_csrf,
+    require_permission,
+    require_step_up,
+    require_tenant_write,
+)
 from core.task_queue import enqueue_run_action
 from modules.actions import service as actions_service
 from modules.actions.models import ActionRun
@@ -131,13 +138,22 @@ async def execute_action(
 
 
 @actions_router.post(
-    "/{action_run_id}/approve", response_model=RunActionResponse, dependencies=[Depends(require_csrf)]
+    "/{action_run_id}/approve",
+    response_model=RunActionResponse,
+    dependencies=[Depends(require_csrf), Depends(require_step_up())],
 )
 async def approve_action_run(
     action_run_id: uuid.UUID,
     ctx: TenantContext = Depends(require_permission("actions.approve_disruptive")),
     db: AsyncSession = Depends(get_tenant_db),
 ) -> RunActionResponse:
+    """Step-up (a recent, separately-verified MFA code) is required here
+    for any user who has MFA enabled — the exact use case
+    `core.deps.require_step_up`'s docstring has named since Milestone 1
+    ("disruptive-action approval"). See Milestone 13's Known Limitations
+    for why this doesn't yet also read
+    `TenantSecurityProfile.require_step_up_for_disruptive_actions` to make
+    MFA itself mandatory for admins tenant-wide."""
     require_tenant_write(ctx)
     run, asset = await actions_service.approve_action_run(
         db, tenant_id=ctx.tenant_id, action_run_id=action_run_id, actor_user_id=ctx.user.id
