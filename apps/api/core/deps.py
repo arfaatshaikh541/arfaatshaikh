@@ -14,15 +14,24 @@ from core.config import settings
 from core.errors import (
     AuthenticationError,
     AuthorizationError,
+    MfaEnrollmentRequiredError,
     TenantStatusError,
 )
 from core.security import constant_time_equals, hash_token
-from db.session import get_db, platform_admin_scoped_session, set_user_context, tenant_scoped_session
+from db.session import (
+    get_db,
+    platform_admin_scoped_session,
+    set_tenant_context,
+    set_user_context,
+    tenant_scoped_session,
+)
 from modules.entitlements.service import resolve_entitlements
 from modules.identity.models import Session as SessionModel
 from modules.identity.models import User
 from modules.permissions.models import Membership, Role, RolePermission
 from modules.tenancy.models import Tenant
+from modules.tenancy.repository import get_security_profile
+from modules.tenancy.service import is_mfa_enrollment_required
 
 WRITE_BLOCKED_STATUSES = {"suspended", "archived", "read_only"}
 
@@ -144,6 +153,14 @@ async def get_tenant_context(
     tenant = tenant_result.scalar_one_or_none()
     if tenant is None:
         raise AuthenticationError("Workspace not found.")
+
+    if await is_mfa_enrollment_required(
+        db, tenant_id=tenant.id, role_name=membership.role.name, user=user
+    ):
+        raise MfaEnrollmentRequiredError(
+            "This workspace requires administrators to enable multi-factor authentication.",
+            details={"mfa_enrollment_required": True},
+        )
 
     permissions = frozenset(rp.permission.key for rp in membership.role.permissions)
 
@@ -291,7 +308,9 @@ async def require_csrf(
 def require_step_up(max_age_seconds: int = 300):
     """Step-up auth gate for sensitive operations (credential vault access,
     role changes, disruptive-action approval — architecture §8). Wired to
-    `actions.approve_action_run` in Milestone 13.
+    `actions.approve_action_run` in Milestone 13; Milestone 14 made the
+    tenant's own `require_step_up_for_disruptive_actions` toggle actually
+    govern it (previously stored but ignored).
 
     Only enforced for users who have MFA enabled: `mfa_enabled` defaults
     to false and enrollment is self-service (Milestone 13), so requiring
@@ -299,11 +318,18 @@ def require_step_up(max_age_seconds: int = 300):
     of disruptive-action approval entirely, with no way to ever satisfy
     the gate. A user without MFA gets the pre-Milestone-13 behaviour
     (permission check only); a user with MFA enabled must have recently
-    re-proven it."""
+    re-proven it, unless their tenant has explicitly opted out via
+    `require_step_up_for_disruptive_actions=False`.
+
+    Requires a resolved `TenantContext` — this couples the dependency to
+    tenant-scoped routes, which matches its one real caller today
+    (`approve_action_run`); a future non-tenant use (e.g. credential vault
+    access) would need its own variant."""
 
     async def _checker(
         token: str | None = Depends(_get_session_token),
         db: AsyncSession = Depends(get_db),
+        ctx: TenantContext = Depends(get_tenant_context),
     ) -> bool:
         if not token:
             raise AuthenticationError("Sign in to continue.")
@@ -318,6 +344,11 @@ def require_step_up(max_age_seconds: int = 300):
         session_row, user = row
 
         if not user.mfa_enabled:
+            return True
+
+        await set_tenant_context(db, ctx.tenant_id)
+        profile = await get_security_profile(db, ctx.tenant_id)
+        if profile is not None and not profile.require_step_up_for_disruptive_actions:
             return True
 
         now = datetime.now(UTC)

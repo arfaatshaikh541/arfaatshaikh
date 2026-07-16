@@ -244,7 +244,7 @@ async def test_security_profile_get_update_round_trip_and_permission_gating(clie
     get_resp = await client.get("/api/tenancy/security-profile")
     assert get_resp.status_code == 200
     body = get_resp.json()
-    assert body["require_mfa_for_admins"] is True
+    assert body["require_mfa_for_admins"] is False
     assert body["require_step_up_for_disruptive_actions"] is True
 
     patch_resp = await client.patch(
@@ -254,7 +254,7 @@ async def test_security_profile_get_update_round_trip_and_permission_gating(clie
     )
     assert patch_resp.status_code == 200
     assert patch_resp.json()["require_step_up_for_disruptive_actions"] is False
-    assert patch_resp.json()["require_mfa_for_admins"] is True  # untouched field preserved
+    assert patch_resp.json()["require_mfa_for_admins"] is False  # untouched field preserved
 
     await invite_and_accept_member(
         client, db,

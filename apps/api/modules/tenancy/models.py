@@ -54,7 +54,20 @@ class TenantSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class TenantSecurityProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Security posture toggles that gate sensitive tenant-level behaviour
-    — e.g. whether step-up auth is mandatory for disruptive approvals."""
+    — e.g. whether step-up auth is mandatory for disruptive approvals.
+
+    `require_mfa_for_admins` defaults to `False` (Milestone 14): it is
+    genuinely enforced now (blocks all tenant-scoped access for an
+    unenrolled admin — see `core.deps.get_tenant_context`), so defaulting
+    it on would mean every freshly-onboarded tenant's own owner is locked
+    out of their own workspace immediately after signup, with no way to
+    ever satisfy the gate from inside a blocked session. `mfa_enabled`
+    itself defaults to false and enrollment is self-service, so this
+    toggle has to be an opt-in hardening step a tenant deliberately turns
+    on, not an accidental default lockout. `require_step_up_for_disruptive_actions`
+    can safely default to `True`, since `require_step_up` only ever checks
+    it for users who already have MFA enabled — an unenrolled user is
+    unaffected either way."""
 
     __tablename__ = "tenant_security_profiles"
     __table_args__ = (UniqueConstraint("tenant_id", name="uq_tenant_security_profile_tenant"),)
@@ -62,7 +75,7 @@ class TenantSecurityProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    require_mfa_for_admins: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    require_mfa_for_admins: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     require_step_up_for_disruptive_actions: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True
     )

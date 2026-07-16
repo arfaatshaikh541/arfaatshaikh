@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 import structlog
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +19,7 @@ from modules.identity.schemas import (
     ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    MembershipSummary,
     MeResponse,
     MfaConfirmRequest,
     MfaDisableRequest,
@@ -31,6 +34,7 @@ from modules.identity.schemas import (
     VerifyEmailRequest,
 )
 from modules.permissions.service import accept_invitation as accept_invitation_service
+from modules.tenancy.service import is_mfa_enrollment_required
 
 logger = structlog.get_logger("gridkeep.identity.routes")
 
@@ -40,6 +44,28 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 async def _build_user_read(db: AsyncSession, user: User) -> UserRead:
     platform_role_name = await identity_service.get_platform_role_name(db, user)
     return UserRead.model_validate(user).model_copy(update={"platform_role_name": platform_role_name})
+
+
+async def _compute_mfa_enrollment_required(
+    db: AsyncSession,
+    user: User,
+    memberships: list[MembershipSummary],
+    active_membership_id: uuid.UUID | None,
+) -> bool:
+    """Informational-only mirror of the real gate in
+    `core.deps.get_tenant_context` — lets the frontend redirect to MFA
+    enrollment proactively (Milestone 14) instead of only discovering the
+    block from a failed tenant API call. Nothing tenant-scoped is ever
+    actually served based on this flag; `get_tenant_context` is what
+    enforces it."""
+    if active_membership_id is None:
+        return False
+    active = next((m for m in memberships if m.membership_id == active_membership_id), None)
+    if active is None:
+        return False
+    return await is_mfa_enrollment_required(
+        db, tenant_id=active.tenant_id, role_name=active.role_name, user=user
+    )
 
 _SESSION_COOKIE_KW = dict(httponly=True, samesite="lax", secure=False, path="/")
 _CSRF_COOKIE_KW = dict(httponly=False, samesite="lax", secure=False, path="/")
@@ -89,11 +115,16 @@ async def _complete_login(
         **_cookie_secure_kwargs(_CSRF_COOKIE_KW),
     )
 
+    mfa_enrollment_required = await _compute_mfa_enrollment_required(
+        db, user, memberships, active_membership_id
+    )
+
     return LoginResponse(
         user=await _build_user_read(db, user),
         memberships=memberships,
         active_membership_id=active_membership_id,
         csrf_token=csrf_token,
+        mfa_enrollment_required=mfa_enrollment_required,
     )
 
 
@@ -182,10 +213,14 @@ async def me(
     session_row = (
         await db.execute(select(SessionModel).where(SessionModel.id == ctx.session_id))
     ).scalar_one()
+    mfa_enrollment_required = await _compute_mfa_enrollment_required(
+        db, ctx.user, memberships, session_row.active_membership_id
+    )
     return MeResponse(
         user=await _build_user_read(db, ctx.user),
         memberships=memberships,
         active_membership_id=session_row.active_membership_id,
+        mfa_enrollment_required=mfa_enrollment_required,
     )
 
 

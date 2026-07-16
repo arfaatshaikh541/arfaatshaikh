@@ -37,6 +37,7 @@ class LoginResponse(BaseModel):
     memberships: list[MembershipSummary]
     active_membership_id: uuid.UUID | None
     csrf_token: str
+    mfa_enrollment_required: bool = False
 
 
 class MfaRequiredResponse(BaseModel):
@@ -52,6 +53,7 @@ class MeResponse(BaseModel):
     user: UserRead
     memberships: list[MembershipSummary]
     active_membership_id: uuid.UUID | None
+    mfa_enrollment_required: bool = False
 
 
 class VerifyEmailRequest(BaseModel):

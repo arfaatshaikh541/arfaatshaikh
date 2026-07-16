@@ -53,6 +53,11 @@ class TenantStatusError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+class MfaEnrollmentRequiredError(AppError):
+    code = "mfa_enrollment_required"
+    status_code = status.HTTP_403_FORBIDDEN
+
+
 class EntitlementError(AppError):
     code = "entitlement_required"
     status_code = status.HTTP_402_PAYMENT_REQUIRED

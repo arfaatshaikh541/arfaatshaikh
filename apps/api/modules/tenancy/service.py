@@ -156,3 +156,31 @@ async def update_security_profile(
         profile.session_ttl_seconds = payload.session_ttl_seconds
     await session.flush()
     return profile
+
+
+# Milestone 14: which tenant roles count as "admin" for
+# `require_mfa_for_admins` purposes — a deliberate, documented judgment
+# call (not derived from any formal specification), chosen as the two
+# roles with the broadest sensitive-permission surface: `tenant_owner`
+# holds every non-platform permission, and `security_administrator` holds
+# `actions.approve_disruptive`, `users.manage`, and `trust_passport.manage`
+# among others. Narrower admin-adjacent roles like `it_administrator`
+# were deliberately left out.
+ADMIN_ROLE_NAMES = frozenset({"tenant_owner", "security_administrator"})
+
+
+async def is_mfa_enrollment_required(
+    session: AsyncSession, *, tenant_id: uuid.UUID, role_name: str, user: User
+) -> bool:
+    """Milestone 14: `TenantSecurityProfile.require_mfa_for_admins` has
+    existed since Milestone 1 with zero enforcement callers (Milestone
+    13's own Known Limitations named this exact gap). This is the first
+    real enforcement — called both by `core.deps.get_tenant_context` (the
+    actual access-blocking gate) and by `/api/auth/me` (an informational
+    flag so the frontend can redirect proactively instead of only
+    discovering the block from a failed tenant API call)."""
+    if role_name not in ADMIN_ROLE_NAMES or user.mfa_enabled:
+        return False
+    await set_tenant_context(session, tenant_id)
+    profile = await get_security_profile(session, tenant_id)
+    return profile is not None and profile.require_mfa_for_admins
