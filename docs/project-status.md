@@ -1,14 +1,14 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 8 implementation)
+Last updated: 2026-07-16 (Milestone 9 implementation)
 
 ## Current Milestone
 
-**Milestone 8: Executive Reporting** — implementation complete, pending your review and explicit
-approval to proceed to Milestone 9. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
-Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
-Ransomware Resilience), and 7 (Compliance and Evidence) are complete and merged; their sections below
-are preserved as-is.
+**Milestone 9: Trust Passport** — implementation complete, pending your review and explicit approval to
+proceed to Milestone 10. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
+(Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and Ransomware
+Resilience), 7 (Compliance and Evidence), and 8 (Executive Reporting) are complete and merged; their
+sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1323,7 +1323,7 @@ the correct filename and matching data.
   `compliance.view`, that role would still see compliance data in this report. Worth confirming this is
   the intended semantics of `reports.view` going forward.
 
-## Pending Approvals
+## Milestone 8 — Pending Approvals
 
 - This Milestone 8 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1331,6 +1331,161 @@ the correct filename and matching data.
   Decisions and Unresolved Risks) — it's the interpretive core of this milestone and shapes how any
   future report-like surface should be gated.
 
+---
+
+## Milestone 9 — Completed Work
+
+### Backend — `modules/trust_passport`
+- **The last unused permission in the entire system.** Every permission in `PERMISSIONS` had a real
+  route gating it by Milestone 8 except `trust_passport.manage` — flagged explicitly in Milestone 7's
+  docs as "a distinct future deliverable from internal compliance tracking." This milestone builds it: a
+  public, shareable "trust center" page a tenant can publish summarizing their security program, safe to
+  send to a prospect or customer without giving them any access to GRIDKEEP itself.
+- **`TrustPassportSettings`**: one row per tenant (same lazy-singleton shape as Milestone 4's
+  `TenantAutomationSetting` — absence of a row means "never configured"), holding `is_published`,
+  `public_slug`, `headline`, `description`, `show_compliance_frameworks`. `public_slug` is stored in
+  **plaintext**, deliberately unlike session or invitation tokens — those are secrets that grant a
+  privileged action if leaked, so they're hashed at rest; this slug *is* the public identifier, designed
+  to be shared and put in a URL, so there is nothing to protect by hashing it.
+- **The first unauthenticated, data-returning endpoint in this codebase.** `GET /api/public/trust-
+  passport/{slug}` takes no session cookie and resolves no `TenantContext` at all. Making this safe
+  required a genuine new RLS pattern: rather than the standard `_SIMPLE_TENANT_TABLES` shape, the
+  `trust_passport_settings` table's SELECT policy is widened — mirroring the exact precedent Milestone 1
+  already set for `memberships` (`FOR SELECT ... USING (tenant_id = app_current_tenant_id() OR ...)`) —
+  to `tenant_id = app_current_tenant_id() OR is_published = true`. An anonymous session (where
+  `app_current_tenant_id()` is `NULL`) can therefore only ever see rows that are explicitly published;
+  INSERT/UPDATE/DELETE remain strictly tenant-scoped with no widening at all, so publishing or editing a
+  passport always requires being authenticated into that exact tenant. Once the public route finds a
+  published row, it calls `set_tenant_context` with that row's own `tenant_id` — the same mechanism
+  `get_tenant_context` uses after resolving a tenant from a session cookie, just resolved from a slug
+  instead — so every subsequent query in that request is normally tenant-scoped, not broadened.
+- **Coarse labels only, never raw scores, on the public page.** `get_public_passport()` reuses
+  `compliance_service.get_compliance_summary()` exactly like Milestone 8's executive summary did, but
+  converts each framework's numeric score to one of three labels (`Strong` / `In Progress` / `Building`)
+  before it ever leaves the service layer — a public page showing "38% compliant" reads as an admission
+  of failure to an outside visitor in a way "In Progress" doesn't; the real number stays behind
+  `compliance.view` on the internal `/compliance` page.
+- **Slug lifecycle**: a slug is generated automatically the first time a tenant publishes (no slug
+  needed for a draft/never-published passport); unpublishing does *not* clear the slug, so republishing
+  reuses the same URL rather than silently breaking a link someone may have already been given;
+  `POST /api/trust-passport/settings/regenerate-slug` lets a tenant explicitly rotate the link (e.g. if
+  it leaked somewhere it shouldn't have) — the old slug stops resolving immediately.
+- **Routes**: `GET/PATCH /api/trust-passport/settings` and `POST .../regenerate-slug`, all gated on
+  `trust_passport.manage` alone (there is no separate `trust_passport.view` — same "one manage permission,
+  no view permission" shape Milestone 4 used for `automations.manage`).
+
+### Frontend (`apps/web`)
+- New `/settings/trust-passport` page: status card (published/draft, the public URL with copy/regenerate
+  actions), content card (headline, description, show-compliance-frameworks toggle, publish/unpublish).
+- New **top-level** `apps/web/app/trust/[slug]/page.tsx` — deliberately outside both the `(auth)` and
+  `(tenant)` route groups, so it renders with no `AppShell`, no nav, and no dependency on the
+  authenticated `useAuth()` context at all; it fetches directly from the public API endpoint.
+- Nav gained a "Trust Passport" item under Settings.
+
+## Milestone 9 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A tenant can configure and publish a trust passport | ✅ | `test_update_settings_generates_slug_on_first_publish`; live-verified via the settings UI |
+| A slug is generated only on first publish, and stays stable across further edits | ✅ | `test_update_settings_does_not_regenerate_slug_on_subsequent_updates` |
+| Unpublishing hides the page but keeps the slug for republishing | ✅ | `test_unpublishing_keeps_the_slug_but_hides_the_page` |
+| Regenerating the slug invalidates the old URL immediately | ✅ | `test_regenerate_slug_changes_it_and_invalidates_the_old_one`; live-verified — the old link returned "Not found" in a real anonymous browser context immediately after regenerating |
+| The public page is reachable with **zero cookies**, not just "logged out in the same tab" | ✅ | Live-verified with a fresh Playwright browser context carrying no cookies at all for the API origin (`anon_context.cookies(...)` confirmed empty) |
+| The public page never exposes a raw compliance score, only a coarse label | ✅ | `test_public_passport_shows_coarse_labels_not_raw_scores` (asserts `"score" not in` the returned entry); live-verified — both frameworks showed "Building," never a number |
+| An unpublished or nonexistent slug returns 404, not the settings | ✅ | `test_get_public_passport_wrong_slug_raises_not_found`, `test_public_passport_404_for_unpublished_slug` |
+| A role without `trust_passport.manage` cannot configure the passport | ✅ | `test_security_analyst_cannot_manage_trust_passport` |
+| `show_compliance_frameworks` is respected on the public page | ✅ | `test_public_passport_respects_show_compliance_frameworks_toggle` |
+| Backend tests pass | ✅ | **160/160** passing (`pytest -q` in `apps/api`, up from 148 — 12 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 23/23 routes |
+
+## Milestone 9 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 160 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 23/23 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium, using **two separate browser contexts** (one authenticated, one carrying zero cookies) rather
+than one browser reused: onboarded a fresh tenant, opened `/settings/trust-passport`, set a headline and
+description, and published — a real public slug appeared immediately; navigated to that exact URL in the
+cookie-free context and confirmed the public page rendered with no nav/AppShell, the tenant's own
+headline/description, and both compliance frameworks correctly labeled "Building" (neither had any met
+controls); clicked "Regenerate link" in the authenticated context and confirmed the settings page showed
+a new, different slug; re-navigated the cookie-free context to the *old* URL and confirmed it now returns
+"Not found" rather than the passport.
+
+## Milestone 9 — Architecture Decisions (made or refined during implementation)
+
+- **The public endpoint resolves its tenant from the row it finds, then narrows the rest of the request
+  to it.** This was the central design problem of the milestone: an anonymous request has no tenant to
+  scope by in advance. Widening the RLS SELECT policy (mirroring `memberships`) answers "which tenant
+  does this slug belong to," and `set_tenant_context` immediately after answers "now restrict everything
+  else in this request to exactly that tenant" — the same two-step shape `get_tenant_context` already
+  uses for cookie-authenticated requests, just with a different first step.
+- **Coarse public labels, computed once, in the service layer — not left to the frontend.** The label
+  bucketing (`_status_label`) happens in `modules.trust_passport.service`, so `PublicTrustPassportRead`
+  structurally cannot carry a raw score; a frontend bug can't accidentally leak one, because the number
+  never crosses the API boundary in the first place.
+- **The slug is plaintext at rest, and this is a deliberate departure from every other token in this
+  codebase**, not an oversight — session tokens, invitation tokens, and password-reset tokens are all
+  hashed because possessing the plaintext grants a privileged action. Possessing this slug grants
+  exactly the ability the tenant explicitly wants to grant: viewing the public page. Hashing it would
+  only add cost with no security benefit.
+- **Unpublishing doesn't clear the slug.** The alternative — wiping `public_slug` back to `null` on
+  unpublish — would silently invalidate a URL the tenant may have already handed to a customer, the first
+  time they toggle the page off for any reason (even briefly). Keeping the slug stable and gating
+  visibility purely on `is_published` means "take the page down temporarily" and "burn this link forever"
+  are two different, deliberately separate actions (the latter is what "regenerate" is for).
+
+## Milestone 9 — Known Limitations
+
+- **Only compliance framework status is shown on the public page** — no security score, no incident
+  history, no asset counts. This is a deliberate initial scope (the most reputation-sensitive, most
+  already-external-facing category), not a technical ceiling; a future milestone could add opt-in
+  sections for other summaries the same way `show_compliance_frameworks` works today.
+- **No per-framework selection** — `show_compliance_frameworks` is all-or-nothing across every seeded
+  framework; a tenant can't publish just their SOC 2 status while hiding ISO 27001. Reasonable future
+  work, not attempted here to keep this milestone's scope coherent.
+- **No custom branding/theming** on the public page — it's a plain GRIDKEEP-styled page, not a
+  white-labeled one matching the tenant's own brand.
+- **No analytics on the public page** — a tenant can't see how many times their trust passport has been
+  viewed, or by whom.
+- **No frontend automated tests were added for the new settings page or the public passport page** —
+  same gap and rationale as every prior milestone's new pages: verified manually end-to-end via
+  Playwright (including with a genuinely cookie-free browser context), passes lint/typecheck/build, but
+  no dedicated Vitest coverage.
+
+## Milestone 9 — Unresolved Risks
+
+- Carried over from Milestones 1-8 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence permission-per-
+  target design, the control-scoring weights, the `reports.view` cross-cutting-permission decision) —
+  none were touched this milestone and remain open.
+- This is the first RLS policy in the codebase that widens SELECT based on a *data value*
+  (`is_published`) rather than an *identity* claim (`memberships`' `user_id = app_current_user_id()`).
+  It's the correct and narrowly-scoped precedent for "a tenant explicitly opts a specific row into public
+  visibility," but it's a new category of policy worth your explicit review before it becomes a template
+  for a different future public-data feature.
+- The status-label thresholds (`>=80` Strong, `>=50` In Progress, else Building) are a judgment call, not
+  derived from any stated specification — same category of flag as the scoring weights in Milestones 6
+  and 7.
+
+## Pending Approvals
+
+- This Milestone 9 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the widened-RLS-by-data-value pattern (see Architecture Decisions and
+  Unresolved Risks) specifically — it's the first policy of its kind in the codebase and sets precedent
+  for any future publicly-shareable data.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 9`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 10`** to begin the next milestone.
