@@ -59,6 +59,9 @@ export default function TenantWorkspaceSnapshotPage() {
         <div className="mt-1 flex items-center gap-2">
           <StatusBadge label={snapshot.tenant_status.replace(/_/g, " ")} tone="neutral" />
           <span className="text-sm text-ink-500">Read-only support view</span>
+          <span className="text-sm text-ink-500">
+            · Your access expires {new Date(snapshot.access_expires_at).toLocaleString()}
+          </span>
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { SUPPORT_ACCESS_STATUSES } from "@gridkeep/security-contracts";
 import { Alert, Button, Card, CardHeader, StatusBadge } from "@gridkeep/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -190,9 +191,11 @@ export default function PlatformSupportAccessPage() {
           className="h-9 rounded border border-surface-border bg-surface-800 px-3 text-sm text-ink-900"
         >
           <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="active">Active</option>
-          <option value="revoked">Revoked</option>
+          {SUPPORT_ACCESS_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </option>
+          ))}
         </select>
       </Card>
 

@@ -564,4 +564,5 @@ export interface TenantWorkspaceSnapshotRead {
   open_findings_total: number;
   open_incidents_total: number;
   connected_integrations_count: number;
+  access_expires_at: string;
 }
