@@ -6,7 +6,13 @@ import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { MfaEnrollResponse, TenantSecurityProfileRead } from "@/lib/types";
+import type { MfaEnrollResponse, SupportAccessGrantRead, TenantSecurityProfileRead } from "@/lib/types";
+
+function grantStatusTone(status: string): "neutral" | "positive" | "warning" {
+  if (status === "active") return "positive";
+  if (status === "pending") return "warning";
+  return "neutral";
+}
 
 export default function SecuritySettingsPage() {
   const { me, hasPermission, refetch: refetchAuth } = useAuth();
@@ -24,6 +30,12 @@ export default function SecuritySettingsPage() {
   const profileQuery = useQuery({
     queryKey: ["tenancy", "security-profile"],
     queryFn: () => apiClient.get<TenantSecurityProfileRead>("/api/tenancy/security-profile"),
+    enabled: canManageSettings,
+  });
+
+  const supportAccessQuery = useQuery({
+    queryKey: ["support-access-grants"],
+    queryFn: () => apiClient.get<SupportAccessGrantRead[]>("/api/support-access-grants"),
     enabled: canManageSettings,
   });
 
@@ -219,6 +231,44 @@ export default function SecuritySettingsPage() {
             </p>
           ) : (
             <p className="text-sm text-ink-500">Loading…</p>
+          )}
+        </Card>
+      ) : null}
+
+      {canManageSettings ? (
+        <Card>
+          <CardHeader
+            title="Platform Support Access"
+            description="Every request by a GRIDKEEP platform admin to access this workspace for support, and who approved it."
+          />
+          {(supportAccessQuery.data ?? []).length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {(supportAccessQuery.data ?? []).map((grant) => (
+                <div key={grant.id} className="rounded border border-surface-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <StatusBadge label={grant.status} tone={grantStatusTone(grant.status)} />
+                    <span className="text-xs text-ink-500">
+                      {grant.expires_at
+                        ? `Expires ${new Date(grant.expires_at).toLocaleString()}`
+                        : "Not yet approved"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-ink-500">{grant.reason}</p>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-500">
+                    <div>
+                      <dt className="font-medium text-ink-700">Requested by</dt>
+                      <dd>{grant.requested_by_email ?? grant.requested_by_user_id}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-ink-700">Approved by</dt>
+                      <dd>{grant.approved_by_email ?? "—"}</dd>
+                    </div>
+                  </dl>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-500">No platform support access has ever been granted.</p>
           )}
         </Card>
       ) : null}

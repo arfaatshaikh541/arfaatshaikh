@@ -10,6 +10,7 @@ import { useAuth, useInvalidateAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
   { href: "/platform/tenants", label: "Tenants" },
+  { href: "/platform/support-access", label: "Support Access" },
   { href: "/platform/audit-logs", label: "Audit Log" },
 ];
 

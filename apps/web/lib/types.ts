@@ -525,3 +525,23 @@ export interface TenantSecurityProfileRead {
   require_step_up_for_disruptive_actions: boolean;
   session_ttl_seconds: number;
 }
+
+// --- Milestone 15: support access second-approver workflow ---
+
+export interface SupportAccessGrantRead {
+  id: string;
+  tenant_id: string;
+  platform_user_id: string;
+  platform_user_email: string | null;
+  requested_by_user_id: string;
+  requested_by_email: string | null;
+  approved_by_user_id: string | null;
+  approved_by_email: string | null;
+  reason: string;
+  status: string;
+  requested_duration_hours: number | null;
+  starts_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+}
