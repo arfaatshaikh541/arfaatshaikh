@@ -25,6 +25,7 @@ from db import models_registry  # noqa: F401
 from db.session import AsyncSessionLocal
 from modules.assets.ingestion import RECORD_TYPE_TO_ASSET_TYPE_KEY
 from modules.assets.models import AssetType
+from modules.compliance.models import ComplianceControl, ComplianceFramework
 from modules.integrations.models import IntegrationCatalogEntry
 from modules.permissions.models import Permission, Role, RolePermission
 from modules.subscriptions.models import Feature, Module, PlanFeature, SubscriptionPlan
@@ -256,6 +257,83 @@ async def _upsert_integration_catalog(session: AsyncSession) -> None:
     await session.flush()
 
 
+_COMPLIANCE_CATALOG: tuple[tuple[str, str, str, tuple[tuple[str, str, str], ...]], ...] = (
+    (
+        "soc2_type2",
+        "SOC 2 Type II",
+        "AICPA Trust Services Criteria, Security (Common Criteria) category.",
+        (
+            ("cc6.1", "Logical access is restricted to authorized users",
+             "Access to systems and data is limited to identified and authenticated users."),
+            ("cc6.6", "Data is encrypted in transit and at rest",
+             "Sensitive data is protected using encryption appropriate to its classification."),
+            ("cc7.2", "Security incidents are identified and responded to",
+             "The organisation has a process to detect and respond to security incidents."),
+            ("cc7.3", "Security incidents are evaluated and communicated",
+             "Identified incidents are evaluated for impact and communicated to affected parties."),
+            ("cc9.1", "Business continuity and disaster recovery plans exist",
+             "Plans are in place to recover critical systems and data after a disruption."),
+        ),
+    ),
+    (
+        "iso27001",
+        "ISO/IEC 27001:2022",
+        "A representative subset of Annex A controls.",
+        (
+            ("a.5.1", "Policies for information security are defined",
+             "Information security policy and topic-specific policies are documented and approved."),
+            ("a.8.1", "User endpoint devices are protected",
+             "Endpoint devices are configured to protect information they store or process."),
+            ("a.8.24", "Cryptography is used appropriately",
+             "Rules for the effective use of cryptography, including key management, are defined."),
+            ("a.5.30", "ICT readiness for business continuity is planned",
+             "ICT readiness is planned, implemented, maintained and tested for business continuity."),
+            ("a.8.16", "Monitoring activities are in place",
+             "Networks, systems and applications are monitored for anomalous behaviour."),
+        ),
+    ),
+)
+
+
+async def _upsert_compliance_catalog(session: AsyncSession) -> None:
+    """Seeds a small, representative subset of two well-known frameworks —
+    not an exhaustive, certification-ready control set. A tenant's actual
+    compliance program will always need more than this seed provides;
+    it exists to give the Compliance module real, structurally correct
+    data to operate on, the same role Milestone 2's minimal AssetType
+    seed played for the asset graph."""
+    existing_frameworks = {
+        f.key: f for f in (await session.execute(select(ComplianceFramework))).scalars().all()
+    }
+    for framework_key, name, description, controls in _COMPLIANCE_CATALOG:
+        framework = existing_frameworks.get(framework_key)
+        if framework is None:
+            framework = ComplianceFramework(key=framework_key, name=name, description=description)
+            session.add(framework)
+            await session.flush()
+
+        existing_controls = {
+            c.key
+            for c in (
+                await session.execute(
+                    select(ComplianceControl).where(ComplianceControl.framework_id == framework.id)
+                )
+            ).scalars().all()
+        }
+        for sort_order, (control_key, title, control_description) in enumerate(controls):
+            if control_key not in existing_controls:
+                session.add(
+                    ComplianceControl(
+                        framework_id=framework.id,
+                        key=control_key,
+                        title=title,
+                        description=control_description,
+                        sort_order=sort_order,
+                    )
+                )
+    await session.flush()
+
+
 async def run_bootstrap() -> None:
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -265,6 +343,7 @@ async def run_bootstrap() -> None:
             await _upsert_starter_plan(session, features_by_module)
             await _upsert_asset_types(session)
             await _upsert_integration_catalog(session)
+            await _upsert_compliance_catalog(session)
     logger.info("bootstrap_seed_complete")
 
 

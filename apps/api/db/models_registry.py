@@ -7,6 +7,7 @@ main.py's router imports transitively pull in every module already."""
 from modules.actions import models as _actions_models  # noqa: F401
 from modules.assets import models as _assets_models  # noqa: F401
 from modules.audit import models as _audit_models  # noqa: F401
+from modules.compliance import models as _compliance_models  # noqa: F401
 from modules.credential_vault import models as _credential_vault_models  # noqa: F401
 from modules.entitlements import models as _entitlements_models  # noqa: F401
 from modules.findings import models as _findings_models  # noqa: F401

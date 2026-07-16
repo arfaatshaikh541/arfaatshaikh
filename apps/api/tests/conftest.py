@@ -89,6 +89,8 @@ async def _clean_tables(_bootstrap_catalog):
         "action_runs",
         "playbooks",
         "tenant_automation_settings",
+        "evidence_records",
+        "tenant_control_statuses",
         "incident_findings",
         "incident_assets",
         "incidents",
