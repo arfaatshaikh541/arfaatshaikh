@@ -15,6 +15,7 @@ from core.security_contracts import (
     MODULES,
     PERMISSIONS,
     PLATFORM_ROLES,
+    SUPPORT_ACCESS_STATUSES,
     TENANT_ROLES,
     TENANT_STATUSES,
 )
@@ -52,6 +53,10 @@ def test_platform_roles_match():
 
 def test_tenant_statuses_match():
     assert _extract_ts_array("TENANT_STATUSES") == list(TENANT_STATUSES)
+
+
+def test_support_access_statuses_match():
+    assert _extract_ts_array("SUPPORT_ACCESS_STATUSES") == list(SUPPORT_ACCESS_STATUSES)
 
 
 def test_modules_match():

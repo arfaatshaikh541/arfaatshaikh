@@ -61,6 +61,8 @@ PLATFORM_ROLES: tuple[str, ...] = (
 
 TENANT_STATUSES: tuple[str, ...] = ("trial", "active", "read_only", "suspended", "archived")
 
+SUPPORT_ACCESS_STATUSES: tuple[str, ...] = ("pending", "active", "expired", "revoked")
+
 MODULES: tuple[str, ...] = (
     "asset_inventory",
     "attack_surface",

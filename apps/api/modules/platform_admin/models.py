@@ -3,13 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from core.security_contracts import SUPPORT_ACCESS_STATUSES
 from db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-
-SUPPORT_ACCESS_STATUSES = ("pending", "active", "expired", "revoked")
 
 
 class SupportAccessGrant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -44,7 +43,9 @@ class SupportAccessGrant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(
+        Enum(*SUPPORT_ACCESS_STATUSES, name="support_access_grant_status"), nullable=False, default="pending"
+    )
     requested_duration_hours: Mapped[int | None] = mapped_column(nullable=True)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

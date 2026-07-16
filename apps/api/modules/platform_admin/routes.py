@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import (
     PlatformContext,
+    SupportAccessContext,
     TenantContext,
     get_platform_admin_db,
     get_tenant_db,
@@ -185,7 +186,7 @@ async def get_tenant(
 @router.get("/tenants/{tenant_id}/workspace-snapshot", response_model=TenantWorkspaceSnapshotRead)
 async def get_tenant_workspace_snapshot(
     tenant_id: uuid.UUID,
-    ctx: PlatformContext = Depends(require_support_access_grant()),
+    ctx: SupportAccessContext = Depends(require_support_access_grant()),
     db: AsyncSession = Depends(get_db),
 ) -> TenantWorkspaceSnapshotRead:
     """The read this whole grant workflow exists to gate: a platform admin
@@ -204,7 +205,9 @@ async def get_tenant_workspace_snapshot(
         target_id=str(tenant_id),
     )
     await db.commit()
-    return TenantWorkspaceSnapshotRead.model_validate(snapshot)
+    return TenantWorkspaceSnapshotRead.model_validate(
+        {**snapshot, "access_expires_at": ctx.grant_expires_at}
+    )
 
 
 @router.post(

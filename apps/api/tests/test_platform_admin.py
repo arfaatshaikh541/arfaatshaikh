@@ -568,6 +568,7 @@ async def test_workspace_snapshot_accessible_with_an_active_grant(client, db):
     assert isinstance(snapshot["open_findings_total"], int)
     assert isinstance(snapshot["open_incidents_total"], int)
     assert isinstance(snapshot["connected_integrations_count"], int)
+    assert snapshot["access_expires_at"] is not None
 
 
 async def test_workspace_snapshot_denied_after_grant_is_revoked(client, db):
@@ -642,3 +643,62 @@ async def test_tenant_user_cannot_view_platform_workspace_snapshot_endpoint(clie
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert resp.status_code == 403
+
+
+async def test_workspace_snapshot_access_expires_at_matches_the_grant(client, db):
+    """Milestone 17: `require_support_access_grant` now returns the actual
+    grant, not just a bool, specifically so the route can surface this."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Expiry Visible Co", full_name="Owner",
+        email="owner@expiry-visible.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-expiry-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-expiry-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-expiry-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    grant, _ = await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-expiry-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-expiry-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["access_expires_at"] == grant["expires_at"]
+
+
+async def test_support_access_grant_status_column_rejects_invalid_values(client, db):
+    """Milestone 17: `status` is now a real Postgres enum
+    (`support_access_grant_status`, sourced from `SUPPORT_ACCESS_STATUSES`)
+    instead of a plain `String(20)` that never actually constrained
+    anything — this is the DB-level guarantee that backs it."""
+    from sqlalchemy.exc import DBAPIError
+
+    from db.session import set_tenant_context
+    from modules.platform_admin.models import SupportAccessGrant
+
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Enum Constraint Co", full_name="Owner",
+        email="owner@enum-constraint.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_id = tenant_body["user_id"]
+
+    await set_tenant_context(db, tenant_id, is_platform_admin=True)
+    grant = SupportAccessGrant(
+        tenant_id=tenant_id,
+        platform_user_id=owner_id,
+        requested_by_user_id=owner_id,
+        reason="Testing the enum constraint directly",
+        status="not_a_real_status",
+    )
+    db.add(grant)
+    with pytest.raises(DBAPIError):
+        await db.flush()
+    await db.rollback()

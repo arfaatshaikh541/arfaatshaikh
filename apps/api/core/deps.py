@@ -29,7 +29,7 @@ from modules.entitlements.service import resolve_entitlements
 from modules.identity.models import Session as SessionModel
 from modules.identity.models import User
 from modules.permissions.models import Membership, Role, RolePermission
-from modules.platform_admin.service import is_grant_active
+from modules.platform_admin.service import get_active_grant
 from modules.tenancy.models import Tenant
 from modules.tenancy.repository import get_security_profile
 from modules.tenancy.service import is_mfa_enrollment_required
@@ -292,6 +292,22 @@ async def get_platform_admin_db(
         yield session
 
 
+@dataclass(frozen=True)
+class SupportAccessContext:
+    """Returned by `require_support_access_grant` instead of a bare
+    `PlatformContext` — Milestone 17 adds `grant_expires_at` so a route can
+    surface real remaining-access time (e.g. on the workspace snapshot)
+    instead of only gating on the grant's existence."""
+
+    user: User
+    role_name: str
+    permissions: frozenset[str]
+    grant_expires_at: datetime
+
+    def has_permission(self, permission: str) -> bool:
+        return permission in self.permissions
+
+
 def require_support_access_grant():
     """Milestone 16: the dependency `SupportAccessGrant`'s own docstring
     has promised since Milestone 15 ("every platform_admin read of tenant
@@ -302,7 +318,7 @@ def require_support_access_grant():
     the route handler receive the identical value.
 
     Deliberately shares its `get_db` session with the route handler
-    (FastAPI caches a dependency's result per request): `is_grant_active`
+    (FastAPI caches a dependency's result per request): `get_active_grant`
     calls `set_tenant_context(db, tenant_id, is_platform_admin=True)` on
     that session as a side effect of checking the grant, which is exactly
     the tenant-scoping the route handler's own queries need afterward —
@@ -313,13 +329,19 @@ def require_support_access_grant():
         tenant_id: uuid.UUID,
         ctx: PlatformContext = Depends(require_platform_permission("platform.support_access")),
         db: AsyncSession = Depends(get_db),
-    ) -> PlatformContext:
-        if not await is_grant_active(db, tenant_id=tenant_id, platform_user_id=ctx.user.id):
+    ) -> SupportAccessContext:
+        grant = await get_active_grant(db, tenant_id=tenant_id, platform_user_id=ctx.user.id)
+        if grant is None:
             raise AuthorizationError(
                 "An active support access grant for this tenant is required.",
                 details={"support_access_grant_required": True, "tenant_id": str(tenant_id)},
             )
-        return ctx
+        return SupportAccessContext(
+            user=ctx.user,
+            role_name=ctx.role_name,
+            permissions=ctx.permissions,
+            grant_expires_at=grant.expires_at,
+        )
 
     return _checker
 

@@ -172,11 +172,18 @@ async def revoke_grant(
     return grant
 
 
-async def is_grant_active(
+async def get_active_grant(
     session: AsyncSession, *, tenant_id: uuid.UUID, platform_user_id: uuid.UUID
-) -> bool:
+) -> SupportAccessGrant | None:
+    """Milestone 16 named this check `is_grant_active` and only needed a
+    boolean; Milestone 17's `require_support_access_grant` also needs the
+    grant's own `expires_at` to surface real remaining-access time on the
+    workspace snapshot, so this returns the row itself. A stale `status`
+    value never matters here regardless of the Milestone 1
+    `expire_support_access_grants` sweep's cadence — `expires_at > _now()`
+    is checked independently of `status` on every call."""
     await set_tenant_context(session, tenant_id, is_platform_admin=True)
-    grant = (
+    return (
         await session.execute(
             select(SupportAccessGrant).where(
                 SupportAccessGrant.tenant_id == tenant_id,
@@ -186,7 +193,6 @@ async def is_grant_active(
             )
         )
     ).scalar_one_or_none()
-    return grant is not None
 
 
 async def list_grants_for_tenant(session: AsyncSession, *, tenant_id: uuid.UUID) -> list[SupportAccessGrant]:

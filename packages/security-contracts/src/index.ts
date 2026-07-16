@@ -75,6 +75,15 @@ export const TENANT_STATUSES = [
 
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
+export const SUPPORT_ACCESS_STATUSES = [
+  "pending",
+  "active",
+  "expired",
+  "revoked",
+] as const;
+
+export type SupportAccessStatus = (typeof SUPPORT_ACCESS_STATUSES)[number];
+
 export const MODULES = [
   "asset_inventory",
   "attack_surface",

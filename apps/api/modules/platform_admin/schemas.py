@@ -66,6 +66,7 @@ class TenantWorkspaceSnapshotRead(BaseModel):
     open_findings_total: int
     open_incidents_total: int
     connected_integrations_count: int
+    access_expires_at: datetime
 
 
 class PlatformAuditLogRead(BaseModel):
