@@ -48,6 +48,8 @@ export default function LoginPage() {
     invalidateAuth();
     if (result.user.is_platform_user) {
       router.replace("/platform");
+    } else if (result.mfa_enrollment_required) {
+      router.replace("/settings/security");
     } else if (result.memberships.length > 1 && !result.active_membership_id) {
       router.replace("/select-workspace");
     } else {

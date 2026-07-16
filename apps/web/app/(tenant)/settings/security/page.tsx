@@ -51,6 +51,7 @@ export default function SecuritySettingsPage() {
       setConfirmCode("");
       setNotice("Multi-factor authentication is now enabled.");
       refetchAuth();
+      queryClient.invalidateQueries({ queryKey: ["tenancy", "security-profile"] });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
@@ -95,6 +96,12 @@ export default function SecuritySettingsPage() {
         </p>
       </div>
 
+      {me?.mfa_enrollment_required ? (
+        <Alert tone="error">
+          This workspace requires administrators to enable multi-factor authentication. Enable it below
+          to continue using the rest of GRIDKEEP.
+        </Alert>
+      ) : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
@@ -206,6 +213,10 @@ export default function SecuritySettingsPage() {
                 Require step-up verification for disruptive action approval
               </label>
             </div>
+          ) : profileQuery.isError ? (
+            <p className="text-sm text-ink-500">
+              Enable MFA above to unlock the rest of this workspace, including these settings.
+            </p>
           ) : (
             <p className="text-sm text-ink-500">Loading…</p>
           )}

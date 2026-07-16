@@ -24,12 +24,14 @@ export interface LoginResponse {
   memberships: MembershipSummary[];
   active_membership_id: string | null;
   csrf_token: string;
+  mfa_enrollment_required: boolean;
 }
 
 export interface MeResponse {
   user: UserRead;
   memberships: MembershipSummary[];
   active_membership_id: string | null;
+  mfa_enrollment_required: boolean;
 }
 
 export interface TenantRead {
