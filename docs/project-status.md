@@ -1,14 +1,14 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 10 implementation)
+Last updated: 2026-07-16 (Milestone 11 implementation)
 
 ## Current Milestone
 
-**Milestone 10: Threat Intelligence** — implementation complete, pending your review and explicit
-approval to proceed to Milestone 11. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
-Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
-Ransomware Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), and 9 (Trust Passport) are
-complete and merged; their sections below are preserved as-is.
+**Milestone 11: Attack Surface** — implementation complete, pending your review and explicit approval to
+proceed to Milestone 12. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
+(Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and Ransomware
+Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), 9 (Trust Passport), and 10 (Threat
+Intelligence) are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1631,7 +1631,7 @@ Medium "Device has not checked in recently."
   tradeoff, flagged for your review since a tenant with a very large asset graph and many indicators would
   eventually want an indexed lookup instead.
 
-## Pending Approvals
+## Milestone 10 — Pending Approvals
 
 - This Milestone 10 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1639,6 +1639,157 @@ Medium "Device has not checked in recently."
   (see Architecture Decisions and Unresolved Risks) — both are interpretations made in the absence of an
   explicit specification for this milestone.
 
+## Milestone 10 — Next Action
+
+Milestone 10 was approved and Milestone 11 is complete — see below.
+
+## Milestone 11 — Completed Work
+
+### Backend — `modules/attack_surface` (new module; operates on `modules.tenancy.models.TenantDomain`)
+
+- **The breadcrumb this milestone came from.** By Milestone 9 every `PERMISSIONS` entry in
+  `security-contracts` was already wired to a real route, so the usual scope signal was exhausted (as it
+  was for Milestone 10). `TenantDomain` has existed since Milestone 1 as schema-only — no service, no
+  routes — with its own docstring naming "Verification mechanics (DNS TXT / email)" as unbuilt future
+  work. This milestone builds that: real domain ownership verification, the last dormant table in the
+  schema.
+- **Mechanism substitution, made explicit in `TenantDomain`'s docstring**: verification is **HTTP-file**
+  based (`GET https://{domain}/.well-known/gridkeep-verification.txt` must contain the record's
+  `verification_token`) rather than the DNS TXT lookup the docstring originally named. Raw DNS queries
+  (tested directly with `dnspython`, including against the sandbox's own configured nameserver) time out
+  in the environment this was built in — network-blocked, not a code bug. Rather than ship
+  untestable/broken DNS code, or worse, fake a "verified" result the way a mock connector is allowed to
+  fake demo *data*, the mechanism was substituted for one that performs a genuine outbound check and can
+  actually be built and tested here. DNS TXT and email verification remain reasonable future methods.
+- **`verification_token`**: new nullable column on the existing `tenant_domains` table (additive
+  migration), generated via the same `core.security.generate_opaque_token` used for Milestone 9's trust
+  passport `public_slug` — stored plaintext, not hashed, since it's meant to be published by the tenant,
+  not kept secret.
+- **`modules.attack_surface.service`**: `add_domain` (normalizes to lowercase, generates a token, and
+  rejects a same-tenant duplicate via an RLS-visible pre-check); `list_domains`; `remove_domain`;
+  `verify_domain` (makes a real `httpx.AsyncClient` GET against the domain's well-known path — the first
+  non-test app code in the repo to make a genuine outbound HTTP call — and flips `is_verified` only if the
+  response is HTTP 200 and its body contains the stored token). `scheme` defaults to `"https"` and is
+  never exposed as a client-controllable parameter on the route; only tests override it to hit a local
+  server over plain HTTP.
+- **Cross-tenant uniqueness discovery**: `tenant_domains` has RLS restricting `SELECT` to the caller's own
+  tenant (it's in the `_SIMPLE_TENANT_TABLES` list, unlike Milestone 1's `memberships` widened-SELECT
+  exception). That means `add_domain`'s pre-check can only ever see a same-tenant duplicate — a domain
+  already claimed by a *different* tenant is invisible to that `SELECT` and only surfaces as an
+  `IntegrityError` against the table's pre-existing global `UniqueConstraint("domain")` when the insert
+  runs. `add_domain` catches that specific case and turns it into the same `ConflictError` (409) a caller
+  would expect, rather than leaking a raw database error. This is a genuine consequence of the RLS design
+  established in Milestone 1, not a new limitation introduced here.
+- **Routes**: `GET /api/attack-surface/domains` (`assets.view`); `POST /api/attack-surface/domains`,
+  `POST /api/attack-surface/domains/{id}/verify`, `DELETE /api/attack-surface/domains/{id}` (all
+  `assets.manage`) — domains are part of the discoverable attack-surface/asset inventory, so the existing
+  asset permissions were the natural fit rather than inventing new ones, following the same reasoning
+  Milestone 6 used for `modules.resilience` operating on `modules.assets.models.Asset` without owning it.
+
+### Frontend (`apps/web`)
+- New `/attack-surface` page: add a domain, see its verification instructions (well-known URL + token) if
+  unverified, trigger a real verification check, remove a domain.
+- Nav gained an "Attack Surface" item, after Assets.
+
+## Milestone 11 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Adding a domain generates a verification token | ✅ | `test_add_domain_generates_a_verification_token` |
+| A domain already added by the same tenant is rejected as a conflict | ✅ | `test_add_domain_twice_for_same_tenant_conflicts` |
+| A domain already claimed by a different tenant is rejected as a conflict, not a raw DB error | ✅ | `test_add_domain_already_claimed_by_another_tenant_conflicts` |
+| Domains are tenant-isolated in listings | ✅ | `test_list_domains_only_returns_the_tenant_own_domains` |
+| Verification succeeds only when a real HTTP fetch finds the token in the response body | ✅ | `test_verify_domain_succeeds_when_token_is_present` — against a genuine local HTTP server, not a mock |
+| Verification correctly fails on a wrong token, an unreachable host, and a non-200 response | ✅ | `test_verify_domain_fails_when_token_is_wrong`, `test_verify_domain_fails_when_host_is_unreachable`, `test_verify_domain_fails_when_status_is_not_200` |
+| A domain can be removed | ✅ | `test_remove_domain`; live-verified via the UI |
+| `assets.manage` gates add/verify/remove; `assets.view` gates listing | ✅ | `test_security_analyst_can_view_but_not_manage_domains` — a `security_analyst` (has `assets.view`, not `assets.manage`) gets 200 on list, 403 on add |
+| Full API flow (add → list → remove) works end-to-end over HTTP | ✅ | `test_api_add_list_and_remove_domain` |
+| Backend tests pass | ✅ | **180/180** passing (`pytest -q` in `apps/api`, up from 166 — 14 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 26/26 routes |
+
+## Milestone 11 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 180 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 26/26 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: logged in
+as the demo tenant owner, opened `/attack-surface`, added a domain, confirmed the "Unverified" badge and
+the well-known URL/token instructions rendered, clicked "Verify now" and confirmed a **real** outbound
+HTTP request was attempted (visible in the UI as "Could not reach ... " for the deliberately-unreachable
+test domain used), confirmed the domain correctly remained Unverified, then removed it and confirmed it
+disappeared from the list. The success path (a real HTTP 200 response containing the token) is covered by
+the backend test suite against a genuine local HTTP server rather than the browser flow — see Known
+Limitations below for why.
+
+## Milestone 11 — Architecture Decisions (made or refined during implementation)
+
+- **HTTP-file verification instead of DNS TXT**, detailed above and in `TenantDomain`'s docstring — a
+  substitution made for environment feasibility, preserving the feature's actual security purpose (a real
+  check) rather than either shipping untestable code or faking the result.
+- **`scheme` is a service-layer parameter, not client-controllable.** `verify_domain(..., scheme="https")`
+  exists so tests can point at a local HTTP server, but the route never accepts or forwards a
+  client-supplied scheme — a real ownership check has to run over HTTPS, and letting a caller downgrade
+  that would defeat the point of the control.
+- **The cross-tenant conflict is caught via `IntegrityError`, not a second cross-tenant SELECT.** Bypassing
+  RLS to check "does any other tenant already have this domain" would need a privileged query path that
+  doesn't otherwise exist in this codebase; catching the database's own global uniqueness constraint at
+  insert time is simpler, already-enforced-by-the-schema, and doesn't require inventing a new
+  RLS-bypass mechanism for one check.
+- **`assets.view`/`assets.manage` gate this module**, following the exact precedent Milestone 6 set for
+  `modules.resilience` and Milestone 8 for `modules.reporting`: a module doesn't need to own the model it
+  operates on, and an existing permission that already fits is preferable to a new one.
+
+## Milestone 11 — Known Limitations
+
+- **The verification-success path was not exercised through the live browser E2E flow.** Making a real
+  outbound HTTPS request that succeeds requires a domain the tester actually controls the content of —
+  not available in this sandboxed environment. The success path (HTTP 200, token present) is genuinely
+  exercised, but by the backend test suite against a real local HTTP server over plain HTTP
+  (`test_verify_domain_succeeds_when_token_is_present`), not by the UI. The failure paths (wrong token,
+  unreachable host, non-200) are exercised at both layers, including live through the browser.
+- **DNS TXT and email verification remain unbuilt**, as originally scoped in `TenantDomain`'s Milestone 1
+  docstring — only HTTP-file verification exists. A reasonable follow-up, not attempted here since one
+  working, real mechanism was judged more valuable than three partially-stubbed ones.
+- **No rate limiting or retry/backoff on the verification HTTP request itself** beyond the existing global
+  rate limiter on the route — a tenant could hammer `/verify` against a slow-to-respond host. The 10-second
+  request timeout bounds the damage per call but repeated calls aren't throttled specifically.
+- **No frontend automated tests were added for the new Attack Surface page** — same gap and rationale as
+  every prior milestone's new pages: verified manually end-to-end via Playwright, passes
+  lint/typecheck/build, but no dedicated Vitest coverage.
+
+## Milestone 11 — Unresolved Risks
+
+- Carried over from Milestones 1-10 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence
+  permission-per-target design, the control-scoring weights, the `reports.view`/`findings.view`
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds and O(n×m) matching approach) — none were touched this milestone and
+  remain open.
+- The HTTP-file verification mechanism itself is a substitution for the originally-scoped DNS TXT
+  approach, made for this environment's network constraints — flagged for explicit review since it's a
+  deviation from what the dormant schema's own docstring had named, even though it preserves the same
+  security property (genuine, checkable proof of domain control).
+- A tenant that loses control of a previously-verified domain (e.g., it expires and is re-registered by
+  someone else) stays marked `is_verified=True` indefinitely — there's no re-verification/expiry policy.
+  Reasonable future work, out of scope here.
+
+## Pending Approvals
+
+- This Milestone 11 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the DNS-TXT-to-HTTP-file mechanism substitution (see Architecture Decisions
+  and Unresolved Risks) — this is a deviation from what the pre-existing schema's docstring specified,
+  made for environment feasibility rather than because it was asked for.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 11`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 12`** to begin the next milestone.
