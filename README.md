@@ -7,7 +7,7 @@ expertise — the control plane, orchestration layer, asset graph, risk engine, 
 incident-response centre, evidence platform, compliance system, and executive command centre sitting
 on top of your existing security tools.
 
-This is **Milestone 6: Backup and Ransomware Resilience** — see
+This is **Milestone 7: Compliance and Evidence** — see
 [`docs/project-status.md`](docs/project-status.md) for what's built, what's tested, and what's
 known-incomplete.
 

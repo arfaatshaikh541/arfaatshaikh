@@ -1,13 +1,13 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 6 implementation)
+Last updated: 2026-07-16 (Milestone 7 implementation)
 
 ## Current Milestone
 
-**Milestone 6: Backup and Ransomware Resilience** — implementation complete, pending your review and
-explicit approval to proceed to Milestone 7. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and
-Asset Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), and 5 (Incident Response) are complete
-and merged; their sections below are preserved as-is.
+**Milestone 7: Compliance and Evidence** — implementation complete, pending your review and explicit
+approval to proceed to Milestone 8. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
+Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), and 6 (Backup and
+Ransomware Resilience) are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1031,7 +1031,7 @@ one new Medium findings' penalty.
   specification — flagged for your review the same way Milestone 3's severity-penalty table was, since
   it directly determines what "Needs attention" vs. "At risk" means to a customer.
 
-## Pending Approvals
+## Milestone 6 — Pending Approvals
 
 - This Milestone 6 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1039,6 +1039,177 @@ one new Medium findings' penalty.
   `assets.view` gating choice for `/api/resilience/summary` — both are interpretations made in the
   absence of an explicit specification for this milestone.
 
+---
+
+## Milestone 7 — Completed Work
+
+### Backend — `modules/compliance` (frameworks, controls, and polymorphic evidence)
+- **Two-tier catalogue, same shape as `AssetType`/`Asset`**: `ComplianceFramework` and `ComplianceControl`
+  are platform-wide, seeded, non-tenant-scoped tables (no RLS, same as `asset_types`) — a small,
+  representative subset of two well-known frameworks (SOC 2 Type II's Security/Common-Criteria category,
+  5 controls; ISO/IEC 27001:2022, 5 representative Annex A controls), seeded idempotently via a new
+  `_upsert_compliance_catalog()` in `seed/bootstrap.py`. Not exhaustive or certification-ready — it
+  exists to give the module real, structurally correct data, the same role Milestone 2's minimal
+  `AssetType` seed played for the asset graph.
+- **`TenantControlStatus`** is the tenant-scoped half: a tenant's own assessment (`met`/`partial`/
+  `not_met`/`not_applicable`) of one control, created lazily — a control with no row yet is treated as
+  `not_met` by the service layer, so the table only ever holds controls a tenant has actually touched.
+- **Scoring**: a framework's score is `met / total * 100`, where `partial` counts as half credit and
+  `not_applicable` controls are excluded from the denominator entirely (not counted against the tenant).
+  A framework with nothing left to count (all `not_applicable`, or no controls) scores 100, not 0 —
+  "nothing to assess" is distinct from "everything failing." The overall score is the plain average of
+  every framework's score. Deliberately simple and linear, mirroring `modules.findings.scoring` and
+  `modules.resilience.service` in spirit — not an actuarial audit model.
+- **`EvidenceRecord`**: a structured evidence entry (title, description, and either a URL or a free-text
+  note) with a polymorphic `target_type`/`target_id` — the same shape `audit_logs` already uses — so
+  evidence can attach to a `compliance_control` or an `incident` without a separate join table per
+  target. **Deliberately not a file upload**: there is no object-storage client wired up anywhere in this
+  codebase (the `object_storage_*` settings in `core/config.py` have sat unused since Milestone 1), so
+  real document attachment would have meant standing up and testing MinIO/S3 integration untested in
+  this environment — future work, not faked here with an unverified upload path.
+- **No standalone `evidence.manage` permission — this is deliberate, not an oversight.** The permission
+  matrix already splits it: `incident_responder` holds `evidence.view`/`evidence.export` but no
+  `compliance.*`, while `security_administrator` holds `incidents.manage` but no `compliance.*` either.
+  The only reading that makes both consistent is that **creating evidence is gated by whatever
+  permission already manages its target** — `compliance.manage` for a compliance control, `incidents.
+  manage` for an incident — while `evidence.view`/`evidence.export` are the uniform read-side
+  permissions that apply regardless of what the evidence is attached to. `modules.compliance.service.
+  TARGET_MANAGE_PERMISSION` encodes this mapping explicitly; the route layer checks it dynamically
+  per-request rather than using a single static `require_permission` dependency, since the correct
+  permission depends on the request body's `target_type`.
+- **Routes**: `GET /api/compliance/frameworks` and `/summary` (`compliance.view`), `PATCH /api/compliance/
+  controls/{id}` (`compliance.manage`), `GET/POST /api/evidence` and `DELETE /api/evidence/{id}`
+  (permission resolved per-target as above), `GET /api/evidence/export` (`evidence.export` — returns a
+  structured JSON manifest of a target's evidence, a documented lightweight stand-in for a future PDF/
+  zip export bundle).
+
+### Frontend (`apps/web`)
+- New `/compliance` page: one card per framework (score, tone badge), each control as a row with a
+  status dropdown + note field (gated `compliance.manage`; read-only for `compliance.view`-only roles),
+  and a per-control expandable evidence section.
+- New shared `EvidenceList` component (`components/EvidenceList.tsx`) — list + add + remove evidence for
+  any `target_type`/`target_id`, reused unmodified on both the Compliance page (per-control) and the
+  Incident detail page (per-incident), matching the backend's polymorphic design.
+- Incident detail page gained an "Evidence" card (gated `evidence.view`, manage actions gated by whatever
+  the caller already passes as `canManage` — `incidents.manage` in this context).
+- Dashboard gained a "Compliance" tile (overall score, framework count, link to `/compliance`), gated on
+  `compliance.view`, inserted after the "Recovery confidence" tile.
+- Nav gained a "Compliance" item, after Resilience.
+
+## Milestone 7 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Two frameworks are seeded with real controls | ✅ | `test_frameworks_seeded_with_five_controls_each_default_not_met`; live-verified — both SOC 2 and ISO 27001 rendered with 5 controls each on a fresh tenant |
+| Updating a control's status recomputes its framework's score correctly | ✅ | `test_update_control_status_upserts_and_recomputes_score`, `test_partial_status_counts_as_half_credit`; live-verified — marking one control "met" moved the ISO score from 0 to 20 |
+| `not_applicable` controls are excluded from the score, not counted as failing | ✅ | `test_not_applicable_controls_excluded_from_score` |
+| Overall compliance score averages every framework's score | ✅ | `test_compliance_summary_averages_framework_scores`; live-verified — dashboard tile showed 10/100 matching the two frameworks' 20 and 0 |
+| Evidence can attach to a compliance control | ✅ | `test_create_evidence_for_compliance_control`; live-verified — "Access review sign-off" attached and listed under its control |
+| Evidence can attach to an incident | ✅ | `test_evidence_create_permission_depends_on_target`; live-verified — "Login IP geolocation report" attached to a live-declared incident |
+| Evidence creation permission depends on the target, not a single `evidence.manage` | ✅ | `test_evidence_create_permission_depends_on_target` — `incident_responder` succeeded attaching evidence to an incident (`incidents.manage`) and got 403 attaching to a compliance control (no `compliance.manage`) |
+| A role without `compliance.manage` cannot change control status | ✅ | `test_security_analyst_cannot_manage_compliance` |
+| Evidence is tenant-isolated | ✅ | `test_evidence_scoped_to_own_tenant` |
+| Evidence list/export endpoints work and are permission-gated | ✅ | `test_evidence_list_and_export_endpoints` |
+| Backend tests pass | ✅ | **144/144** passing (`pytest -q` in `apps/api`, up from 126 — 18 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 21/21 routes |
+
+## Milestone 7 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 144 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 21/21 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium, on a fresh tenant: opened `/compliance` and confirmed both seeded frameworks rendered with all
+10 controls; set a control to "met" with a note and confirmed its framework's score updated live (0 →
+20/100) with no page reload; attached a "note"-type evidence record to that control and confirmed it
+appeared in the control's evidence list; confirmed the dashboard's new "Compliance" tile matched the
+`/compliance` page's overall score exactly (10/100, averaging 20 and 0); declared a fresh incident via
+the UI, opened its detail page, and attached a second evidence record directly to the incident, using the
+same shared `EvidenceList` component. One real bug was caught and fixed during this pass: the dev
+database's platform catalogue hadn't been re-seeded after the new migration ran, so `/compliance` first
+rendered as a blank page with an empty framework list — running `python -m seed.bootstrap` (the existing,
+idempotent, safe-everywhere catalogue seed) resolved it immediately; this is an operational step already
+documented in the README's setup instructions, not a code defect.
+
+## Milestone 7 — Architecture Decisions (made or refined during implementation)
+
+- **Evidence's create/delete permission is resolved per-target at the route layer, not via a single
+  static dependency.** Every other mutating route in this codebase uses `Depends(require_permission(...))`
+  with one fixed permission string. Evidence can't, because the correct permission depends on the
+  request's own `target_type` field. `TARGET_MANAGE_PERMISSION` in `modules.compliance.service` makes
+  this mapping an explicit, testable dictionary rather than scattering `if target_type == ...` permission
+  logic inline — and the route still raises the same `AuthorizationError` shape every other 403 in the
+  app raises, so the client-side error handling needed no special-casing.
+- **Compliance frameworks/controls are platform-wide catalogue tables, deliberately without RLS** — the
+  same reasoning as `asset_types`: every tenant reads the identical control definitions, so there is
+  nothing tenant-specific to isolate at that layer. Isolation instead lives one level down, in
+  `TenantControlStatus` and `EvidenceRecord`, which do carry RLS.
+- **A missing `TenantControlStatus` row means `not_met`, not `null`/"unknown."** A tenant that has never
+  touched a control is being measured against it as if it were failing, not exempted from measurement —
+  matching how a real audit would treat an unassessed control. This is why the table is populated lazily
+  rather than seeded per-tenant.
+- **Evidence reuses `audit_logs`' polymorphic `target_type`/`target_id` shape rather than inventing a new
+  one.** This is the same "reuse the established pattern" call Milestone 5 made explicitly for incident
+  timelines and Milestone 6 made implicitly for correlation rules — a fourth distinct way to model
+  "this record can point at one of several other entity types" would have been an unjustified new
+  abstraction when one already existed and fit.
+- **No file upload for evidence in this milestone.** The `object_storage_*` config settings have existed
+  since Milestone 1 and were never wired to a client; building a real upload path here would have meant
+  introducing and testing MinIO/S3 integration in an environment where Docker Compose itself is already
+  flagged as unverified end-to-end (see Milestone 1's Known Limitations) — a structured, URL/note-based
+  evidence record was the honest scope for this pass.
+
+## Milestone 7 — Known Limitations
+
+- **No file/document upload for evidence** — only titles, descriptions, URLs, and notes. Real document
+  attachment (screenshots, signed PDFs, log exports) needs object storage wired up first; see the
+  Architecture Decisions above.
+- **Only a small, representative control subset is seeded** (5 controls per framework) — not a complete
+  or certification-ready SOC 2/ISO 27001 control set. A tenant's real compliance program will always need
+  more controls than this seed provides.
+- **No tenant-configurable frameworks or controls** — the catalogue is fixed, code/seed-defined data
+  (same as `asset_types`), not something a tenant can add to or customize. A tenant-authored custom
+  framework is reasonable future work, not attempted here.
+- **`trust_passport.manage` remains reserved and unused** — the permission matrix grants it to
+  `security_administrator` and `compliance_manager`, and `MODULES` reserves a `trust_passport` key, but a
+  public-facing shareable "trust passport" page is a distinct future deliverable from internal compliance
+  tracking, not part of this milestone's scope.
+- **No automatic linking between findings/incidents and compliance controls** — e.g. a critical finding
+  never automatically marks a related control as `not_met`. All control status changes are manual.
+- **No frontend automated tests were added for the new Compliance page or `EvidenceList` component** —
+  same gap and rationale as every prior milestone's new pages: verified manually end-to-end via
+  Playwright, passes lint/typecheck/build, but no dedicated Vitest coverage.
+
+## Milestone 7 — Unresolved Risks
+
+- Carried over from Milestones 1-6 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the per-job resilience
+  scoring weights) — none were touched this milestone and remain open.
+- The evidence permission-per-target design (`TARGET_MANAGE_PERMISSION`) is a judgment call built to
+  satisfy the permission matrix's existing internal consistency, not an explicit instruction — flagged
+  for your review since it sets precedent for how any future evidence-attachable entity (e.g. a finding)
+  would be gated.
+- The control-scoring weights (met=1.0, partial=0.5, not_met=0.0, not_applicable excluded) are a judgment
+  call, not derived from any stated specification — same category of flag as Milestone 6's per-job
+  scoring weights.
+
+## Pending Approvals
+
+- This Milestone 7 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the evidence permission-per-target design and the control-scoring weights
+  (see Architecture Decisions) — both are interpretations made in the absence of an explicit
+  specification for this milestone.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 7`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 8`** to begin the next milestone.
