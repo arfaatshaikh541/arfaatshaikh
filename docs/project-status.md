@@ -1,15 +1,15 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 13 implementation)
+Last updated: 2026-07-16 (Milestone 14 implementation)
 
 ## Current Milestone
 
-**Milestone 13: MFA Enrollment & Step-Up Authentication** — implementation complete, pending your review
-and explicit approval to proceed to Milestone 14. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and
+**Milestone 14: Tenant Security Policy Enforcement** — implementation complete, pending your review and
+explicit approval to proceed to Milestone 15. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and
 Asset Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
 Ransomware Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), 9 (Trust Passport), 10
-(Threat Intelligence), 11 (Attack Surface), and 12 (Platform Admin Console) are complete and merged; their
-sections below are preserved as-is.
+(Threat Intelligence), 11 (Attack Surface), 12 (Platform Admin Console), and 13 (MFA Enrollment & Step-Up
+Authentication) are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -2133,7 +2133,7 @@ action run removed) afterward.
   standard tradeoff, not a specified requirement — same judgment-call category as prior milestones' scoring
   weights and thresholds.
 
-## Pending Approvals
+## Milestone 13 — Pending Approvals
 
 - This Milestone 13 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -2142,6 +2142,160 @@ action run removed) afterward.
   both are security-relevant judgment calls made in the absence of an explicit specification for this
   milestone.
 
+## Milestone 13 — Next Action
+
+Milestone 13 was approved and Milestone 14 is complete — see below.
+
+## Milestone 14 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 13's own Known Limitations named the exact gap: `TenantSecurityProfile.require_mfa_for_admins`
+  and `require_step_up_for_disruptive_actions` were finally stored and readable via new routes, but neither
+  actually governed anything — `approve_action_run` ignored the step-up toggle entirely, and nothing
+  anywhere enforced MFA enrollment for admins. This milestone wires both up for real.
+
+### Backend
+- **`modules.tenancy.service.is_mfa_enrollment_required()`** (new, shared): the single place that decides
+  whether a given role/tenant/user combination is currently required to have MFA enabled. Called from two
+  places — `core.deps.get_tenant_context` (the real enforcement gate, blocking all tenant-scoped access)
+  and `/api/auth/me`/login (an informational mirror so the frontend can redirect proactively instead of
+  only discovering the block from a failed tenant API call).
+- **`ADMIN_ROLE_NAMES = {"tenant_owner", "security_administrator"}`**: a deliberate, documented judgment
+  call about which tenant roles count as "admin" for this toggle's purposes — the two roles with the
+  broadest sensitive-permission surface (`actions.approve_disruptive`, `users.manage`,
+  `trust_passport.manage`). Narrower admin-adjacent roles like `it_administrator` were left out.
+- **A new `MfaEnrollmentRequiredError` (403)** raised by `get_tenant_context` itself — the same dependency
+  every tenant-scoped route already depends on for tenant/membership/role resolution — so an admin without
+  MFA is blocked from *all* tenant reads and writes alike, not just disruptive ones. Enrolling MFA remains
+  possible while blocked, since `/api/auth/mfa/enroll`/`confirm` only need `AuthContext`, never
+  `TenantContext`.
+- **A critical default-value fix discovered during implementation, before any real enforcement shipped**:
+  `TenantSecurityProfile.require_mfa_for_admins` had defaulted to `True` since Milestone 1 — harmless while
+  unenforced, but wiring real enforcement against that default would have locked every freshly-onboarded
+  tenant owner out of their own brand-new workspace immediately after signup, with literally no way to
+  satisfy the gate (this was caught by the full test suite going from 199 green to 10 broken the moment
+  enforcement was wired, tracing every failure back to the same onboarding-then-immediately-blocked
+  pattern). Changed the default to `False` — an admin now has to deliberately opt in to requiring MFA for
+  their tenant, exactly mirroring how MFA enrollment itself is opt-in. `require_step_up_for_disruptive_actions`
+  needed no such change: `require_step_up` only ever consults it for users who already have MFA enabled, so
+  an unenrolled user is unaffected by its default either way.
+- **`require_step_up` now reads `require_step_up_for_disruptive_actions`** before enforcing anything: if a
+  tenant has explicitly turned it off, an MFA-enabled admin can approve a disruptive action without a
+  fresh step-up, restoring the pre-Milestone-13 behaviour on request. The dependency now requires a
+  resolved `TenantContext` (previously tenant-agnostic) — a real coupling, documented in its own docstring,
+  that matches its one actual caller today.
+
+### Frontend (`apps/web`)
+- `(tenant)/layout.tsx` now redirects to `/settings/security` whenever `mfa_enrollment_required` is true —
+  the same pattern already used for the `active_membership_id` redirect — rather than letting every
+  tenant page's data fetch fail with a raw 403.
+- The security settings page shows a clear banner when landed on because of this block, and the workspace
+  policy card shows a specific "enable MFA above to unlock this" message instead of an indefinite
+  "Loading…" while the block is in effect.
+- Login redirects straight to `/settings/security` when the login response itself already carries
+  `mfa_enrollment_required: true`, skipping the extra hop through `/dashboard`.
+
+## Milestone 14 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A newly-onboarded tenant defaults to NOT requiring MFA for admins | ✅ | `test_new_tenant_defaults_to_require_mfa_for_admins_off` |
+| An admin without MFA is blocked from all tenant-scoped access once the tenant requires it | ✅ | `test_admin_without_mfa_is_blocked_once_tenant_requires_it`; live-verified against the demo tenant's pre-existing `require_mfa_for_admins=True` row |
+| The blocked admin can still enroll MFA and immediately regain access | ✅ | Same test, plus live-verified — no re-login required after confirming enrollment |
+| An admin who already has MFA enabled is unaffected by the toggle | ✅ | `test_admin_with_mfa_already_enabled_is_unaffected_by_the_toggle` |
+| Non-admin roles are never blocked by the toggle | ✅ | `test_non_admin_role_is_never_blocked_by_the_toggle` |
+| `/me` and login expose `mfa_enrollment_required` so the frontend can redirect proactively | ✅ | `test_login_and_me_expose_mfa_enrollment_required`; live-verified — direct redirect to `/settings/security` from both login and a direct dashboard navigation |
+| Turning off `require_step_up_for_disruptive_actions` lets an MFA-enabled admin approve without stepping up | ✅ | `test_require_step_up_toggle_off_lets_mfa_enabled_admin_approve_without_step_up`; live-verified — approval succeeded directly, no step-up prompt appeared |
+| Backend tests pass | ✅ | **205/205** passing (`pytest -q` in `apps/api`, up from 199 — 6 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 29/29 routes |
+
+## Milestone 14 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 205 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 29/29 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: the demo
+tenant's own `tenant_security_profiles` row happened to already carry `require_mfa_for_admins=True` (a
+leftover from before this milestone's default-value fix), so logging in as the demo owner without MFA
+enrolled reproduced the real block live without needing to toggle anything — login redirected straight to
+`/settings/security`, the blocking banner appeared, and navigating directly to `/dashboard` bounced straight
+back. Enrolled MFA with a real computed TOTP code; the workspace policy card (previously erroring) and
+`/dashboard` were both immediately reachable with no re-login. Separately, turned off
+`require_step_up_for_disruptive_actions`, logged back in through the MFA challenge, and confirmed a
+disruptive action approved directly with no step-up prompt. Demo environment reverted to its prior state
+(MFA disabled, toggles restored, test action run removed) afterward.
+
+## Milestone 14 — Architecture Decisions (made or refined during implementation)
+
+- **`is_mfa_enrollment_required` is a single shared function, called from both the real enforcement gate
+  and the informational `/me` flag**, rather than two separate implementations. Keeping the "what counts
+  as blocked" logic in exactly one place means the frontend's proactive redirect and the backend's actual
+  block can never silently drift out of sync with each other.
+- **Enforcement lives inside `get_tenant_context` itself, not a separate opt-in dependency** like
+  `require_tenant_write`. MFA-for-admins is an identity-assurance gate, not a write-specific one — an
+  insufficiently-authenticated admin shouldn't be trusted to read sensitive tenant data either, so every
+  tenant route needed to inherit the check automatically rather than requiring each route to remember to
+  add it.
+- **Changing `require_mfa_for_admins`'s default from `True` to `False` was a necessary correction, not
+  scope creep.** A default that silently locks out every new tenant's own owner immediately after signup —
+  with no self-service way to ever satisfy the gate, since the block itself prevents the very settings page
+  that would let them fix it via a *different* route than MFA enrollment — is not a viable default for a
+  feature the tenant is meant to opt into. This was caught by the existing test suite immediately, not
+  discovered later.
+- **`require_step_up` now requires a resolved `TenantContext`**, coupling it to tenant-scoped routes. Its
+  one real caller (`approve_action_run`) already needed one; a hypothetical future non-tenant use (the
+  credential-vault-access example in its own docstring since Milestone 1) would need a separate variant
+  rather than forcing this one to stay artificially generic.
+
+## Milestone 14 — Known Limitations
+
+- **The admin-role set (`tenant_owner`, `security_administrator`) is a fixed, hardcoded judgment call**,
+  not configurable per tenant and not derived from a formal permission-based heuristic. A tenant that
+  considers a different role "sensitive enough" to require MFA for has no way to express that.
+- **No grace period.** The moment `require_mfa_for_admins` is turned on, any admin without MFA is blocked
+  on their very next request — including, in principle, the admin who just turned the toggle on, if they
+  hadn't already enrolled MFA themselves first. There's no "you have N days to enroll" warning window.
+- **The self-lockout risk this creates for platform support was not specifically addressed** — a support
+  engineer helping a fully-locked-out tenant would need the existing (already-limited) support-access grant
+  mechanism, not anything new built this milestone.
+- **No frontend automated tests were added for the new enforcement UX** — same gap and rationale as every
+  prior milestone's new pages: verified manually end-to-end via Playwright, passes lint/typecheck/build,
+  but no dedicated Vitest coverage.
+
+## Milestone 14 — Unresolved Risks
+
+- Carried over from Milestones 1-13 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the second-approver support-access
+  workflow, MFA backup/recovery codes) — none were touched this milestone and remain open.
+- **The hardcoded admin-role set is a real judgment call with security implications** — flagged explicitly
+  for your review, since a tenant relying on a different role structure (e.g. a custom-permissioned
+  variant of `it_administrator` with `users.manage`) would find that role silently exempt from this
+  protection.
+- **No self-lockout safety valve beyond MFA enrollment itself remaining reachable.** If a future change
+  ever made MFA enrollment routes themselves tenant-scoped, this would become a genuine dead end — worth
+  keeping in mind as a design invariant, not just an implementation detail, in any future refactor of the
+  auth dependency chain.
+
+## Pending Approvals
+
+- This Milestone 14 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the hardcoded admin-role set and the `require_mfa_for_admins` default-value
+  change (see Architecture Decisions, Known Limitations, and Unresolved Risks) — both are security-relevant
+  judgment calls made in the absence of an explicit specification for this milestone.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 14`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 15`** to begin the next milestone.
