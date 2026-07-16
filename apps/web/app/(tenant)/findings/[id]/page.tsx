@@ -3,7 +3,7 @@
 import { Alert, Button, Card, CardHeader, SeverityBadge, StatusBadge } from "@gridkeep/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -13,6 +13,7 @@ import type {
   ActionRunRead,
   FindingActivityRead,
   FindingDetail,
+  IncidentDetail,
   MembershipRead,
   RunActionResponse,
 } from "@/lib/types";
@@ -28,6 +29,7 @@ const STATUS_TONE: Record<string, "positive" | "warning" | "neutral"> = {
 
 export default function FindingDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const findingId = params.id;
   const { hasPermission, me } = useAuth();
   const canAssign = hasPermission("findings.assign");
@@ -36,10 +38,12 @@ export default function FindingDetailPage() {
   const canAssignUsers = canAssign && hasPermission("users.manage");
   const canViewActions = hasPermission("actions.view");
   const canExecuteActions = hasPermission("actions.execute_safe");
+  const canEscalate = hasPermission("incidents.declare");
   const queryClient = useQueryClient();
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [isEscalating, setIsEscalating] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState("");
   const [acceptRiskReason, setAcceptRiskReason] = useState("");
   const [acceptRiskExpiresAt, setAcceptRiskExpiresAt] = useState("");
@@ -144,6 +148,23 @@ export default function FindingDetailPage() {
     }
   };
 
+  const escalateToIncident = async () => {
+    setActionError(null);
+    setIsEscalating(true);
+    try {
+      const incident = await apiClient.post<IncidentDetail>("/api/incidents", {
+        title: finding!.title,
+        description: `Escalated from finding: ${finding!.description}`,
+        severity: finding!.severity,
+        finding_ids: [findingId],
+      });
+      router.push(`/incidents/${incident.id}`);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Something went wrong.");
+      setIsEscalating(false);
+    }
+  };
+
   if (!finding) {
     return <p className="text-sm text-ink-500">Loading…</p>;
   }
@@ -173,6 +194,11 @@ export default function FindingDetailPage() {
             label={finding.status.replace(/_/g, " ")}
             tone={STATUS_TONE[finding.status] ?? "neutral"}
           />
+          {canEscalate ? (
+            <Button size="sm" variant="secondary" isLoading={isEscalating} onClick={escalateToIncident}>
+              Escalate to incident
+            </Button>
+          ) : null}
         </div>
       </div>
 

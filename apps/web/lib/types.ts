@@ -267,3 +267,54 @@ export interface PlaybookRead {
 export interface AutomationSettingRead {
   mode: string;
 }
+
+// --- Milestone 5: incident response ---
+
+export interface LinkedFindingRead {
+  id: string;
+  title: string;
+  rule_key: string;
+  severity: string;
+  status: string;
+  asset_display_name: string;
+}
+
+export interface LinkedAssetRead {
+  id: string;
+  display_name: string;
+  asset_type: string;
+  criticality: string;
+}
+
+export interface IncidentListItem {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  assigned_to_user_id: string | null;
+  finding_count: number;
+  asset_count: number;
+  declared_at: string;
+  resolved_at: string | null;
+  closed_at: string | null;
+}
+
+export interface IncidentDetail extends IncidentListItem {
+  description: string;
+  declared_by_user_id: string | null;
+  closure_summary: string | null;
+  findings: LinkedFindingRead[];
+  assets: LinkedAssetRead[];
+}
+
+export interface IncidentActivityRead {
+  actor_label: string;
+  action: string;
+  context: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface IncidentSummaryRead {
+  open_incidents_total: number;
+  open_incidents_by_severity: Record<string, number>;
+}

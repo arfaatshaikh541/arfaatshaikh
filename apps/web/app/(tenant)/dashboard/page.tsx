@@ -6,7 +6,13 @@ import Link from "next/link";
 
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { EntitlementsRead, RiskSummaryRead, SubscriptionRead, TenantRead } from "@/lib/types";
+import type {
+  EntitlementsRead,
+  IncidentSummaryRead,
+  RiskSummaryRead,
+  SubscriptionRead,
+  TenantRead,
+} from "@/lib/types";
 
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
 
@@ -40,6 +46,12 @@ export default function DashboardPage() {
     queryKey: ["findings", "summary"],
     queryFn: () => apiClient.get<RiskSummaryRead>("/api/findings/summary"),
     enabled: hasPermission("findings.view"),
+  });
+
+  const incidentSummaryQuery = useQuery({
+    queryKey: ["incidents", "summary"],
+    queryFn: () => apiClient.get<IncidentSummaryRead>("/api/incidents/summary"),
+    enabled: hasPermission("incidents.view"),
   });
 
   return (
@@ -93,6 +105,39 @@ export default function DashboardPage() {
               </div>
               <Link href="/findings" className="text-sm text-accent hover:underline">
                 View all findings &rarr;
+              </Link>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-500">Loading…</p>
+          )}
+        </Card>
+      ) : null}
+
+      {hasPermission("incidents.view") ? (
+        <Card>
+          <CardHeader title="Open incidents" />
+          {incidentSummaryQuery.data ? (
+            <div className="flex flex-wrap items-center gap-6">
+              <span className="text-4xl font-semibold text-ink-900">
+                {incidentSummaryQuery.data.open_incidents_total}
+              </span>
+              <div className="flex flex-wrap gap-3">
+                {SEVERITY_ORDER.map((severity) => {
+                  const count = incidentSummaryQuery.data!.open_incidents_by_severity[severity] ?? 0;
+                  if (count === 0) return null;
+                  return (
+                    <div key={severity} className="flex items-center gap-1.5 text-sm">
+                      <SeverityBadge severity={severity} />
+                      <span className="text-ink-700">{count} open</span>
+                    </div>
+                  );
+                })}
+                {incidentSummaryQuery.data.open_incidents_total === 0 ? (
+                  <p className="text-sm text-ink-500">No open incidents.</p>
+                ) : null}
+              </div>
+              <Link href="/incidents" className="text-sm text-accent hover:underline">
+                View all incidents &rarr;
               </Link>
             </div>
           ) : (
