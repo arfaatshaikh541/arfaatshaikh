@@ -1,13 +1,13 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 5 implementation)
+Last updated: 2026-07-16 (Milestone 6 implementation)
 
 ## Current Milestone
 
-**Milestone 5: Incident Response** — implementation complete, pending your review and explicit approval
-to proceed to Milestone 6. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
-(Findings and Risk Engine), and 4 (Cyber Autopilot) are complete and merged; their sections below are
-preserved as-is.
+**Milestone 6: Backup and Ransomware Resilience** — implementation complete, pending your review and
+explicit approval to proceed to Milestone 7. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and
+Asset Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), and 5 (Incident Response) are complete
+and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -875,7 +875,7 @@ correct order; confirmed the dashboard's "Open incidents" tile and the `/inciden
   rather than treated as beyond question, since it shapes how the future Evidence Platform milestone
   gets scoped.
 
-## Pending Approvals
+## Milestone 5 — Pending Approvals
 
 - This Milestone 5 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -884,6 +884,161 @@ correct order; confirmed the dashboard's "Open incidents" tile and the `/inciden
   explicitly specified, and it sets a precedent for how the future Evidence Platform milestone relates
   to Incident Response.
 
+---
+
+## Milestone 6 — Completed Work
+
+### Connector SDK — `mock_backup` demo scenario (`packages/connector-sdk`)
+- Extended the existing mock backup connector's `nightly-file-server-backup` job (no new records, no
+  identifier changes — every prior test that hardcodes `mock-backup-job-001`/`-002` or the job count
+  keeps working unmodified): flipped `immutable` from `True` to `False` and moved `last_run_at` from
+  10 hours ago to 60 hours ago, while leaving `last_run_status: "success"`. This is a deliberate "looks
+  healthy but isn't ransomware-resilient" scenario — the job *succeeded*, so a naive "did my backup run
+  OK?" check would miss both problems entirely. `nightly-database-backup` (already failing, from
+  Milestone 3) is untouched.
+
+### Backend — two new correlation rules (`modules/findings/rules.py`)
+- **`backup_not_immutable`** (`backup_job`, severity `high`): fires when `attributes.immutable is False`.
+  An immutable backup can't be altered or deleted by ransomware or a malicious actor before it's needed
+  for recovery; a mutable one can.
+- **`backup_job_stale`** (`backup_job`, severity `medium`): fires when `last_run_at` is older than a new
+  `BACKUP_STALE_THRESHOLD = timedelta(hours=48)` constant (mirrors the existing
+  `DORMANT_ACCOUNT_THRESHOLD`/`STALE_DEVICE_THRESHOLD` pattern in the same file). No news for 48+ hours
+  means no confidence a *recent* recovery point exists.
+- Both rules ride the existing correlation engine (`modules/findings/engine.py`) unmodified — the engine
+  already evaluates every rule registered for an asset's type, so a single `backup_job` asset can now
+  carry up to three simultaneous findings (`backup_job_failed`, `backup_not_immutable`,
+  `backup_job_stale`), each with its own lifecycle (open/resolved/reopened) independent of the others.
+  This gets the new risks the entire existing findings/correlation/actions/incidents pipeline for free —
+  a `backup_not_immutable` finding can be assigned, accepted-risk, remediated, actioned via a playbook,
+  or escalated into an incident exactly like any other finding, with no new code required for any of it.
+
+### Backend — `modules/resilience` (new, no migration)
+- **Deliberately has no models or migration of its own.** A `backup_job` is already an `Asset` (as
+  produced by any backup-platform connector); this module is pure read-only aggregation over existing
+  `Asset` rows filtered to `asset_type.key == "backup_job"`, not a new system of record.
+- **`get_resilience_summary()`**: for each backup-job asset, computes a per-job score starting at 100
+  with a fixed deduction for each of three independent risk factors — last run didn't succeed (-50), not
+  immutable (-30), stale beyond 48 hours or no timestamp at all (-20) — floored at 0. The tenant-wide
+  **Recovery Confidence Score** is the plain average of per-job scores, or `None` when the tenant has no
+  backup jobs yet (explicitly distinct from "score is 0" — nothing to score isn't the same as everything
+  being broken). Mirrors Milestone 3's `scoring.py` in spirit: simple, linear, explainable to a customer,
+  not a sophisticated backup-maturity model.
+- **Route**: `GET /api/resilience/summary`, gated on `assets.view` — chosen because no dedicated
+  permission namespace exists for this domain (`security-contracts` has a `backup_resilience` *module*
+  key but no `resilience.*`/`backup.*` *permissions*), and `assets.view` is already the broadest-held
+  permission in the matrix, including for `executive_viewer`.
+
+### Frontend (`apps/web`)
+- New `/resilience` page: Recovery Confidence Score card (score, tone badge, job/immutable/stale/failed
+  counts) plus a per-job table (last run status, immutable, freshness, individual score).
+- Dashboard gained a "Recovery confidence" tile (score, backup job count, link to `/resilience`), gated
+  on `assets.view`, inserted between the existing "Open incidents" tile and the 3-column status grid.
+- Nav gained a "Resilience" item, after Automation.
+
+## Milestone 6 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A backup job that succeeded but isn't immutable is flagged | ✅ | `test_correlation_flags_not_immutable_and_stale_backup_jobs`, `test_cloud_and_backup_rules`; live-verified — "Backup job is not immutable" (High) appeared on `nightly-file-server-backup` |
+| A backup job that hasn't run in 48+ hours is flagged, independent of status | ✅ | Same tests; live-verified — "Backup job has not run recently" (Medium) appeared on the same job alongside the immutability finding |
+| A single backup job can carry multiple independent findings | ✅ | Live-verified — `nightly-file-server-backup` carried both `backup_not_immutable` and `backup_job_stale` simultaneously; existing `backup_job_failed` on `nightly-database-backup` unaffected |
+| Recovery Confidence Score computes correctly from real asset data | ✅ | `test_resilience_summary_scores_mock_backup_jobs` (asserts the exact 50/100 score and per-job breakdown); live-verified — UI matched the test's expected numbers exactly on a fresh tenant |
+| No backup jobs yet → score is `None`, not 0 or an error | ✅ | `test_resilience_summary_empty_tenant_has_no_score` |
+| Resilience summary is tenant-isolated | ✅ | `test_resilience_summary_scoped_to_own_tenant` |
+| Resilience endpoint is reachable by the broad `assets.view` permission | ✅ | `test_resilience_summary_endpoint`; live-verified as `tenant_owner` |
+| No regressions to Milestones 2-5 from the mock connector data change | ✅ | Full backend suite passes (126/126, up from 121); the one pre-existing test whose *count* was directly affected (`test_cloud_and_backup_rules`) was updated with the new expected count and explicit new-rule assertions, not silently left wrong |
+| No new database migration required | ✅ | `alembic current` unchanged at `c4a8de62f1b3` before and after — `modules/resilience` has no models |
+| Backend tests pass | ✅ | **126/126** passing (`pytest -q` in `apps/api`, up from 121 — 5 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 20/20 routes |
+
+## Milestone 6 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 126 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 20/20 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium, on a fresh tenant: connected the `mock_backup` integration, triggered a sync, and confirmed
+the Findings page showed all three backup findings (`Backup job is not immutable` — High,
+`Backup job has not run recently` — Medium, both on `nightly-file-server-backup`, and the pre-existing
+`Backup job failed` — High on `nightly-database-backup`); confirmed `/resilience` showed a Recovery
+Confidence Score of exactly 50/100 with the correct per-job breakdown (1 of 2 immutable, 1 of 2 stale, 1
+of 2 failed last run); confirmed the dashboard's "Recovery confidence" tile matched the `/resilience`
+page exactly, and that the dashboard's security score (70/100) correctly reflected the two new High and
+one new Medium findings' penalty.
+
+## Milestone 6 — Architecture Decisions (made or refined during implementation)
+
+- **A new risk domain does not need a new detection system.** `backup_not_immutable` and
+  `backup_job_stale` are just two more `RuleDefinition`s in the same fixed registry Milestone 3 built —
+  no parallel "resilience findings" table, no separate evaluation loop. The correlation engine was
+  already generic over asset type and rule count per asset; extending it required zero engine changes.
+- **A rollup module doesn't need a system of record if the underlying facts already have one.**
+  `modules/resilience` has no models, no migration, and no new tables — a backup job's health is fully
+  described by its `Asset.attributes`, which the connector already writes. Building a new "backup job
+  posture" table that duplicates that data would create a second source of truth to keep in sync for no
+  benefit.
+- **Gated on `assets.view`, not a new permission.** `security-contracts` reserves the module key
+  `backup_resilience` for later (executive reporting / entitlements), but defining new
+  `resilience.*`/`backup.*` permissions now, with nothing yet to differentiate "can view resilience" from
+  "can view assets," would be speculative. `assets.view` is already correct and already broadly granted.
+- **Missing `last_run_at` counts as stale, not as "unknown/skip."** A backup job with no last-run
+  timestamp at all gets the same `-20` penalty as one whose last run is provably old — deliberately
+  pessimistic, since "we don't know when this last ran" is not meaningfully safer than "this hasn't run
+  recently" from a recovery-confidence standpoint.
+- **The connector data-shape change was scoped to be additive-only.** Before editing `mock_backup.py`,
+  confirmed via `grep` across `apps/api/tests` and `packages/connector-sdk/tests` that no test hardcodes
+  the specific attribute values being changed (only the one test whose *finding count* depends on them,
+  `test_cloud_and_backup_rules`, needed updating) — record identifiers, counts, and the job's
+  `last_run_status` were left untouched, so the blast radius was the demo scenario's realism, not the
+  fixture's shape.
+
+## Milestone 6 — Known Limitations
+
+- **No connector actually enforces immutability or restore testing** — `trigger_restore_test` (added in
+  Milestone 4) exists as an action but nothing in this milestone wires a playbook to it automatically
+  based on the new findings; a tenant has to create that playbook themselves via the existing Automation
+  page, the same way they would for any other rule/action pairing.
+- **Per-job score has no severity-weighted or recency-weighted variant** — a job that failed once
+  yesterday and one that's been failing for a month score identically. Same "deliberately simple, not
+  actuarial" tradeoff Milestone 3 made for finding/tenant scoring, applied consistently here.
+- **Only one connector (`mock_backup`) produces `backup_job` assets** — the resilience summary and both
+  new rules work against any connector that emits the `backup.job` record type with the same attribute
+  shape, but only the mock one exists today; a real backup-platform connector (Veeam, Datto, etc.) is
+  future integration work, not part of this milestone.
+- **No historical trend for the Recovery Confidence Score** — only the current snapshot is exposed; there
+  is no time-series of how the score has moved, matching the same gap called out for the security score
+  in Milestone 3.
+- **No frontend automated tests were added for the new Resilience page** — same gap and rationale as
+  every prior milestone's new pages: verified manually end-to-end via Playwright, passes
+  lint/typecheck/build, but no dedicated Vitest coverage.
+
+## Milestone 6 — Unresolved Risks
+
+- Carried over from Milestones 1-5 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the `evidence.*` scoping
+  decision) — none were touched this milestone and remain open.
+- The per-job scoring weights (-50/-30/-20) are a judgment call, not derived from any stated
+  specification — flagged for your review the same way Milestone 3's severity-penalty table was, since
+  it directly determines what "Needs attention" vs. "At risk" means to a customer.
+
+## Pending Approvals
+
+- This Milestone 6 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the per-job scoring weights (see Architecture Decisions) and of the
+  `assets.view` gating choice for `/api/resilience/summary` — both are interpretations made in the
+  absence of an explicit specification for this milestone.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 6`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 7`** to begin the next milestone.
