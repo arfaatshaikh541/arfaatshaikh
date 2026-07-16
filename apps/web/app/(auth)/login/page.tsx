@@ -36,7 +36,9 @@ export default function LoginPage() {
     try {
       const result = await apiClient.post<LoginResponse>("/api/auth/login", values);
       invalidateAuth();
-      if (result.memberships.length > 1 && !result.active_membership_id) {
+      if (result.user.is_platform_user) {
+        router.replace("/platform");
+      } else if (result.memberships.length > 1 && !result.active_membership_id) {
         router.replace("/select-workspace");
       } else {
         router.replace("/dashboard");

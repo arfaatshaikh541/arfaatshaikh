@@ -1,4 +1,4 @@
-import type { Permission, TenantRole, TenantStatus } from "@gridkeep/security-contracts";
+import type { Permission, PlatformRole, TenantRole, TenantStatus } from "@gridkeep/security-contracts";
 
 export interface UserRead {
   id: string;
@@ -6,6 +6,8 @@ export interface UserRead {
   full_name: string;
   email_verified: boolean;
   mfa_enabled: boolean;
+  is_platform_user: boolean;
+  platform_role_name: PlatformRole | null;
 }
 
 export interface MembershipSummary {
@@ -472,4 +474,29 @@ export interface VerifyDomainResult {
   domain: DomainRead;
   verified_now: boolean;
   message: string;
+}
+
+// --- Milestone 12: platform admin console ---
+
+export interface PlatformTenantSummary {
+  id: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  industry: string | null;
+  country_code: string | null;
+  is_demo: boolean;
+  created_at: string;
+}
+
+export interface PlatformAuditLogRead {
+  id: string;
+  tenant_id: string | null;
+  actor_user_id: string | null;
+  actor_label: string;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  context: Record<string, unknown>;
+  created_at: string;
 }

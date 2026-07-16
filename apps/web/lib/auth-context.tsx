@@ -1,6 +1,10 @@
 "use client";
 
-import { DEFAULT_ROLE_PERMISSIONS, type Permission } from "@gridkeep/security-contracts";
+import {
+  DEFAULT_PLATFORM_ROLE_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
+  type Permission,
+} from "@gridkeep/security-contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 
@@ -14,6 +18,9 @@ interface AuthContextValue {
   activeMembership: MeResponse["memberships"][number] | undefined;
   permissions: ReadonlySet<Permission>;
   hasPermission: (permission: Permission) => boolean;
+  isPlatformUser: boolean;
+  platformPermissions: ReadonlySet<Permission>;
+  hasPlatformPermission: (permission: Permission) => boolean;
   refetch: () => void;
 }
 
@@ -38,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const permissions = new Set<Permission>(
     activeMembership ? DEFAULT_ROLE_PERMISSIONS[activeMembership.role_name] ?? [] : [],
   );
+  const isPlatformUser = Boolean(data?.user.is_platform_user);
+  const platformPermissions = new Set<Permission>(
+    data?.user.platform_role_name ? DEFAULT_PLATFORM_ROLE_PERMISSIONS[data.user.platform_role_name] ?? [] : [],
+  );
 
   const value: AuthContextValue = {
     me: data ?? undefined,
@@ -46,6 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeMembership,
     permissions,
     hasPermission: (permission) => permissions.has(permission),
+    isPlatformUser,
+    platformPermissions,
+    hasPlatformPermission: (permission) => platformPermissions.has(permission),
     refetch,
   };
 
