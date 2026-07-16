@@ -454,3 +454,22 @@ export interface IndicatorRead {
   last_seen_at: string;
   matches: MatchedAssetRead[];
 }
+
+// --- Milestone 11: attack surface ---
+
+export interface DomainRead {
+  id: string;
+  domain: string;
+  is_verified: boolean;
+  verification_method: string | null;
+  verification_token: string | null;
+  verification_file_url: string;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export interface VerifyDomainResult {
+  domain: DomainRead;
+  verified_now: boolean;
+  message: string;
+}

@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/threat-intel", label: "Threat Intel" },
   { href: "/integrations", label: "Integrations" },
   { href: "/assets", label: "Assets" },
+  { href: "/attack-surface", label: "Attack Surface" },
   { href: "/automation", label: "Automation" },
   { href: "/resilience", label: "Resilience" },
   { href: "/compliance", label: "Compliance" },
