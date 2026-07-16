@@ -29,6 +29,11 @@ logger = structlog.get_logger("gridkeep.identity.routes")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+
+async def _build_user_read(db: AsyncSession, user: User) -> UserRead:
+    platform_role_name = await identity_service.get_platform_role_name(db, user)
+    return UserRead.model_validate(user).model_copy(update={"platform_role_name": platform_role_name})
+
 _SESSION_COOKIE_KW = dict(httponly=True, samesite="lax", secure=False, path="/")
 _CSRF_COOKIE_KW = dict(httponly=False, samesite="lax", secure=False, path="/")
 
@@ -90,7 +95,7 @@ async def login(
     )
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await _build_user_read(db, user),
         memberships=memberships,
         active_membership_id=active_membership_id,
         csrf_token=csrf_token,
@@ -134,7 +139,7 @@ async def me(
         await db.execute(select(SessionModel).where(SessionModel.id == ctx.session_id))
     ).scalar_one()
     return MeResponse(
-        user=UserRead.model_validate(ctx.user),
+        user=await _build_user_read(db, ctx.user),
         memberships=memberships,
         active_membership_id=session_row.active_membership_id,
     )
@@ -249,7 +254,7 @@ async def accept_invitation(
         **_cookie_secure_kwargs(_CSRF_COOKIE_KW),
     )
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await _build_user_read(db, user),
         memberships=memberships,
         active_membership_id=membership.id,
         csrf_token=csrf_token,

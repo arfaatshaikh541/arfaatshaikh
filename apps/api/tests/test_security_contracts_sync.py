@@ -11,6 +11,7 @@ from pathlib import Path
 
 from core.security_contracts import (
     AUTOMATION_MODES,
+    DEFAULT_PLATFORM_ROLE_PERMISSIONS,
     MODULES,
     PERMISSIONS,
     PLATFORM_ROLES,
@@ -59,3 +60,22 @@ def test_modules_match():
 
 def test_automation_modes_match():
     assert _extract_ts_array("AUTOMATION_MODES") == list(AUTOMATION_MODES)
+
+
+def _extract_ts_role_permission_map(const_name: str) -> dict[str, list[str]]:
+    match = re.search(
+        rf"export const {const_name}[^=]*= \{{(.*?)\n\}};", _TS_SOURCE, re.DOTALL
+    )
+    assert match, f"Could not find `{const_name}` in the TypeScript security contracts source."
+    body = match.group(1)
+    result: dict[str, list[str]] = {}
+    for role_match in re.finditer(r"(\w+):\s*\[(.*?)\]", body, re.DOTALL):
+        role, items = role_match.groups()
+        result[role] = re.findall(r'"([^"]+)"', items)
+    return result
+
+
+def test_platform_role_permissions_match():
+    ts_map = _extract_ts_role_permission_map("DEFAULT_PLATFORM_ROLE_PERMISSIONS")
+    py_map = {role: list(perms) for role, perms in DEFAULT_PLATFORM_ROLE_PERMISSIONS.items()}
+    assert ts_map == py_map

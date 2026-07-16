@@ -27,6 +27,8 @@ class UserRead(BaseModel):
     full_name: str
     email_verified: bool
     mfa_enabled: bool
+    is_platform_user: bool
+    platform_role_name: str | None = None
 
 
 class LoginResponse(BaseModel):

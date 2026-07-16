@@ -172,6 +172,17 @@ async def list_memberships_for_user(session: AsyncSession, user_id: uuid.UUID) -
     ]
 
 
+async def get_platform_role_name(session: AsyncSession, user: User) -> str | None:
+    """`User.platform_role_id` is a bare FK, not an ORM relationship (kept
+    structurally separate from tenant roles per Rule: platform roles
+    remain separated), so the name has to be resolved with its own query
+    rather than a plain attribute read."""
+    if not user.is_platform_user or user.platform_role_id is None:
+        return None
+    role = (await session.execute(select(Role).where(Role.id == user.platform_role_id))).scalar_one_or_none()
+    return role.name if role else None
+
+
 async def switch_active_tenant(
     session: AsyncSession, *, user_id: uuid.UUID, session_row: Session, membership_id: uuid.UUID
 ) -> Membership:

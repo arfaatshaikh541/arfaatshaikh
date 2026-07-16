@@ -169,3 +169,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<TenantRole, Permission[]> = {
     "playbooks.view", "compliance.view", "reports.view",
   ],
 };
+
+/** Default platform-role -> permission mapping (Milestone 1 baseline). */
+export const DEFAULT_PLATFORM_ROLE_PERMISSIONS: Record<PlatformRole, Permission[]> = {
+  platform_super_admin: ["platform.tenants.manage", "platform.support_access", "platform.audit.view"],
+  platform_security_operator: ["platform.support_access", "platform.audit.view"],
+  platform_support_engineer: ["platform.support_access"],
+  platform_auditor: ["platform.audit.view"],
+};
