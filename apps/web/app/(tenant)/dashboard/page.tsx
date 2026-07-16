@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import type {
   EntitlementsRead,
   IncidentSummaryRead,
+  ResilienceSummaryRead,
   RiskSummaryRead,
   SubscriptionRead,
   TenantRead,
@@ -52,6 +53,12 @@ export default function DashboardPage() {
     queryKey: ["incidents", "summary"],
     queryFn: () => apiClient.get<IncidentSummaryRead>("/api/incidents/summary"),
     enabled: hasPermission("incidents.view"),
+  });
+
+  const resilienceSummaryQuery = useQuery({
+    queryKey: ["resilience", "summary"],
+    queryFn: () => apiClient.get<ResilienceSummaryRead>("/api/resilience/summary"),
+    enabled: hasPermission("assets.view"),
   });
 
   return (
@@ -140,6 +147,44 @@ export default function DashboardPage() {
                 View all incidents &rarr;
               </Link>
             </div>
+          ) : (
+            <p className="text-sm text-ink-500">Loading…</p>
+          )}
+        </Card>
+      ) : null}
+
+      {hasPermission("assets.view") ? (
+        <Card>
+          <CardHeader title="Recovery confidence" />
+          {resilienceSummaryQuery.data ? (
+            resilienceSummaryQuery.data.recovery_confidence_score === null ? (
+              <p className="text-sm text-ink-500">No backup jobs discovered yet.</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-semibold text-ink-900">
+                    {resilienceSummaryQuery.data.recovery_confidence_score}
+                  </span>
+                  <span className="text-sm text-ink-500">/ 100</span>
+                  <StatusBadge
+                    label={
+                      resilienceSummaryQuery.data.recovery_confidence_score >= 80
+                        ? "Resilient"
+                        : resilienceSummaryQuery.data.recovery_confidence_score >= 50
+                          ? "Needs attention"
+                          : "At risk"
+                    }
+                    tone={scoreTone(resilienceSummaryQuery.data.recovery_confidence_score)}
+                  />
+                </div>
+                <span className="text-sm text-ink-700">
+                  {resilienceSummaryQuery.data.backup_job_total} backup jobs
+                </span>
+                <Link href="/resilience" className="text-sm text-accent hover:underline">
+                  View resilience &rarr;
+                </Link>
+              </div>
+            )
           ) : (
             <p className="text-sm text-ink-500">Loading…</p>
           )}

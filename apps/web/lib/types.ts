@@ -318,3 +318,24 @@ export interface IncidentSummaryRead {
   open_incidents_total: number;
   open_incidents_by_severity: Record<string, number>;
 }
+
+// --- Milestone 6: backup and ransomware resilience ---
+
+export interface BackupJobSummary {
+  asset_id: string;
+  job_name: string;
+  last_run_status: string | null;
+  last_run_at: string | null;
+  immutable: boolean | null;
+  is_stale: boolean;
+  score: number;
+}
+
+export interface ResilienceSummaryRead {
+  recovery_confidence_score: number | null;
+  backup_job_total: number;
+  backup_jobs_immutable: number;
+  backup_jobs_stale: number;
+  backup_jobs_failed: number;
+  jobs: BackupJobSummary[];
+}

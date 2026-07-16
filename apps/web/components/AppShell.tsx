@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/integrations", label: "Integrations" },
   { href: "/assets", label: "Assets" },
   { href: "/automation", label: "Automation" },
+  { href: "/resilience", label: "Resilience" },
   { href: "/settings/users", label: "Users" },
   { href: "/settings/subscription", label: "Subscription" },
 ];
