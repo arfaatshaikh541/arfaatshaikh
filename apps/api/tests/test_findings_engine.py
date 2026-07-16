@@ -101,10 +101,14 @@ async def test_cloud_and_backup_rules(db):
     await db.commit()
     await set_tenant_context(db, tenant_id)
 
-    assert summary.created == 2
+    # publicly_exposed_cloud_storage (1) + backup_job_failed (database job) +
+    # backup_not_immutable + backup_job_stale (both on the file-server job) = 4.
+    assert summary.created == 4
     findings = await _findings_by_rule(db, tenant_id)
     assert findings["publicly_exposed_cloud_storage"].severity == "critical"
     assert findings["backup_job_failed"].severity == "high"
+    assert findings["backup_not_immutable"].severity == "high"
+    assert findings["backup_job_stale"].severity == "medium"
 
 
 async def test_correlation_is_idempotent_on_rerun(db):

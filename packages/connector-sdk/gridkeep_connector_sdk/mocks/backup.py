@@ -53,9 +53,11 @@ class MockBackupConnector(Connector):
             {
                 "external_id": "mock-backup-job-001",
                 "job_name": "nightly-file-server-backup",
+                # demo scenario: looks healthy (last run succeeded) but is not ransomware-resilient —
+                # no immutability, and it hasn't actually run in over 48 hours.
                 "last_run_status": "success",
-                "last_run_at": (now - timedelta(hours=10)).isoformat(),
-                "immutable": True,
+                "last_run_at": (now - timedelta(hours=60)).isoformat(),
+                "immutable": False,
             },
             {
                 "external_id": "mock-backup-job-002",

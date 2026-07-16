@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 
 DORMANT_ACCOUNT_THRESHOLD = timedelta(days=90)
 STALE_DEVICE_THRESHOLD = timedelta(days=3)
+BACKUP_STALE_THRESHOLD = timedelta(hours=48)
 
 RuleEvaluator = Callable[[dict], dict | None]
 
@@ -96,6 +97,25 @@ def _backup_job_failed(attributes: dict) -> dict | None:
     return None
 
 
+def _backup_not_immutable(attributes: dict) -> dict | None:
+    if attributes.get("immutable") is False:
+        return {"immutable": False}
+    return None
+
+
+def _backup_job_stale(attributes: dict) -> dict | None:
+    last_run = _parse_timestamp(attributes.get("last_run_at"))
+    if last_run is None:
+        return None
+    age = datetime.now(UTC) - last_run
+    if age > BACKUP_STALE_THRESHOLD:
+        return {
+            "last_run_at": attributes["last_run_at"],
+            "hours_since_last_run": round(age.total_seconds() / 3600),
+        }
+    return None
+
+
 RULES: tuple[RuleDefinition, ...] = (
     RuleDefinition(
         key="admin_without_mfa",
@@ -163,6 +183,26 @@ RULES: tuple[RuleDefinition, ...] = (
         severity="high",
         asset_type_key="backup_job",
         evaluate=_backup_job_failed,
+    ),
+    RuleDefinition(
+        key="backup_not_immutable",
+        title="Backup job is not immutable",
+        description="This backup job has no immutability protection, so its backups could be altered "
+        "or deleted by ransomware or a malicious actor before you need to recover them.",
+        category="backup",
+        severity="high",
+        asset_type_key="backup_job",
+        evaluate=_backup_not_immutable,
+    ),
+    RuleDefinition(
+        key="backup_job_stale",
+        title="Backup job has not run recently",
+        description="This backup job has not completed a run in over 48 hours, so a recent recovery "
+        "point may not exist if it's needed.",
+        category="backup",
+        severity="medium",
+        asset_type_key="backup_job",
+        evaluate=_backup_job_stale,
     ),
 )
 
