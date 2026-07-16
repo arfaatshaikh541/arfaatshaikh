@@ -72,9 +72,19 @@ class TenantSecurityProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 
 class TenantDomain(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Ownership-verified domains. Verification mechanics (DNS TXT / email)
-    land in Milestone 5 (Attack Surface); schema exists now so downstream
-    modules can reference a stable table."""
+    """Ownership-verified domains — the attack-surface perimeter a tenant
+    claims as their own. `modules.attack_surface` (Milestone 11) is what
+    finally verifies these; this table stayed dormant since Milestone 1
+    (schema only, no service/routes) until then.
+
+    Verification is HTTP-file based (`GET https://{domain}/.well-known/
+    gridkeep-verification.txt` must contain `verification_token`) rather
+    than the DNS TXT this docstring originally named as the mechanism —
+    a deliberate substitution, not a shortcut: raw DNS queries are
+    network-blocked in the environment this was built in, and unlike a
+    mock connector's demo data, faking a real ownership check would
+    defeat its actual security purpose rather than just simulate it.
+    DNS TXT and email verification remain reasonable future methods."""
 
     __tablename__ = "tenant_domains"
     __table_args__ = (UniqueConstraint("domain", name="uq_tenant_domains_domain"),)
@@ -85,6 +95,7 @@ class TenantDomain(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     domain: Mapped[str] = mapped_column(String(255), nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verification_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    verification_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tenant: Mapped[Tenant] = relationship(back_populates="domains")
