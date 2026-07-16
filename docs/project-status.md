@@ -1,14 +1,14 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 9 implementation)
+Last updated: 2026-07-16 (Milestone 10 implementation)
 
 ## Current Milestone
 
-**Milestone 9: Trust Passport** — implementation complete, pending your review and explicit approval to
-proceed to Milestone 10. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
-(Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and Ransomware
-Resilience), 7 (Compliance and Evidence), and 8 (Executive Reporting) are complete and merged; their
-sections below are preserved as-is.
+**Milestone 10: Threat Intelligence** — implementation complete, pending your review and explicit
+approval to proceed to Milestone 11. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset
+Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
+Ransomware Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), and 9 (Trust Passport) are
+complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1478,7 +1478,7 @@ a new, different slug; re-navigated the cookie-free context to the *old* URL and
   derived from any stated specification — same category of flag as the scoring weights in Milestones 6
   and 7.
 
-## Pending Approvals
+## Milestone 9 — Pending Approvals
 
 - This Milestone 9 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1486,6 +1486,159 @@ a new, different slug; re-navigated the cookie-free context to the *old* URL and
   Unresolved Risks) specifically — it's the first policy of its kind in the codebase and sets precedent
   for any future publicly-shareable data.
 
+---
+
+## Milestone 10 — Completed Work
+
+### Backend — `modules/threat_intel`
+- **The "different subsystem" this codebase has been pointing at since Milestone 2.** Both
+  `modules.assets.ingestion`'s `RECORD_TYPE_TO_ASSET_TYPE_KEY` docstring and the `mock_threat_intel`
+  connector's own docstring have said all along that `threat_intel.indicator` records are deliberately
+  skipped by asset ingestion because "that data belongs to a different subsystem" — this milestone builds
+  it. Every other permission in the system was already wired to a route by Milestone 9, so this one came
+  from an explicit in-repo breadcrumb instead of the permission matrix.
+- **`ThreatIndicator`**: a new tenant-scoped table, deliberately *not* an `Asset` — an indicator of
+  compromise describes an external threat, not infrastructure the tenant owns. `indicator_type` is a free
+  string, not a Postgres enum, since a real threat-intel feed's vocabulary (ip, domain, hash, url, ...) is
+  open-ended and connector-defined — the same reasoning `AssetType.category` already used. Ordinary RLS
+  (`_SIMPLE_TENANT_TABLES` shape) — no widened-SELECT pattern needed here, unlike Milestone 9's trust
+  passport.
+- **`modules.threat_intel.ingestion.ingest_threat_indicators()`**: filters `threat_intel.indicator`
+  records out of the same connector record stream `ingest_sync_records` already consumes, upserting by
+  `(tenant_id, external_id)`. Deliberately simpler than asset ingestion — no relationship graph, no
+  change-log table, since a refined confidence/timestamp isn't evidence-worthy the way an asset attribute
+  changing is.
+- **`modules.threat_intel.engine.run_threat_intel_correlation()`**: a genuinely different detection shape
+  from `modules.findings.engine.run_correlation` — it cross-references every stored indicator's value
+  against every asset's own `attributes` dict (case-insensitive match on any attribute value, not one
+  fixed key), rather than evaluating one asset's attributes against a fixed per-asset-type rule. This is
+  why it stays a separate engine instead of a new entry in `modules.findings.rules.RULES` — but it writes
+  into the exact same `Finding` table, and reuses the identical create/update/reopen/auto-resolve
+  lifecycle `run_correlation` established in Milestone 3. Severity is derived from the indicator's own
+  confidence (`>=0.7` critical, `>=0.4` high, else medium) — a live match against a known threat is
+  treated as more serious than a static misconfiguration finding, since the asset actually communicated
+  with (or otherwise matched) something on a threat feed, not just a theoretical weakness.
+- **Demo scenario**: `mock_endpoint`'s already-flagged stale, EDR-unresponsive `sales-laptop-11` gained a
+  `last_known_public_ip` attribute matching `mock_threat_intel`'s `mock-ioc-001` — a realistic
+  convergence of independent risk signals (stale check-in + unresponsive EDR + a known-malicious IP)
+  landing on one asset, live-verified to produce three simultaneous findings.
+- **Worker**: `_run_integration_sync_async` now also calls `ingest_threat_indicators` on every sync
+  (harmless no-op for connectors that don't produce indicators), and chains a new
+  `enqueue_run_threat_intel_correlation` alongside the existing `enqueue_run_correlation` — every sync
+  re-evaluates both directions, since a new indicator can match an existing asset just as easily as a new
+  asset can match an existing indicator.
+- **Route**: `GET /api/threat-intel/indicators`, gated on `findings.view` — chosen because indicators
+  exist purely to feed the findings pipeline; the permission for viewing findings is the natural fit for
+  viewing the raw indicator data behind the threat-intel-sourced ones. As with Milestone 8's `reports.view`
+  decision, every tenant role already holds `findings.view`, so there was no role available to exercise a
+  403 case for this endpoint either — noted honestly rather than fabricated.
+
+### Frontend (`apps/web`)
+- New `/threat-intel` page: every stored indicator (value, type, confidence, source, last seen) and which
+  assets it matched, linking straight through to the resulting finding.
+- Nav gained a "Threat Intel" item, after Findings.
+
+## Milestone 10 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Threat-intel indicators are ingested into their own table, not the asset graph | ✅ | `test_ingest_threat_indicators_creates_then_updates` |
+| An asset attribute matching a known indicator creates a finding automatically | ✅ | `test_correlation_flags_endpoint_matching_known_indicator`; live-verified — `sales-laptop-11`'s planted IP produced a Critical "Asset matched a known threat indicator (ip)" finding |
+| Finding severity is derived from the indicator's confidence | ✅ | Same test asserts `severity == "critical"` for confidence 0.8 |
+| Re-running correlation on unchanged data is a no-op beyond refreshed timestamps | ✅ | `test_correlation_is_idempotent_on_rerun` |
+| A finding auto-resolves when its indicator no longer matches any asset | ✅ | `test_correlation_auto_resolves_when_indicator_value_changes` |
+| The indicators endpoint shows match status per indicator | ✅ | `test_indicators_endpoint_lists_matches`; live-verified — the domain indicator correctly showed "No matches" |
+| Indicators are tenant-isolated | ✅ | `test_indicators_scoped_to_own_tenant` |
+| A single asset can carry multiple simultaneous findings from independent engines | ✅ | Live-verified — `sales-laptop-11` showed three open findings at once: the new IOC match plus its pre-existing `edr_agent_unresponsive` and `stale_device_checkin` |
+| No regression to the asset-correlation pipeline from the added worker step | ✅ | Full backend suite passes; `run_correlation` and `run_threat_intel_correlation` both fire independently after every sync (confirmed in live worker logs) |
+| Backend tests pass | ✅ | **166/166** passing (`pytest -q` in `apps/api`, up from 160 — 6 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 24/24 routes |
+
+## Milestone 10 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 166 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 24/24 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium, on a fresh tenant: connected the Simulated Endpoint Platform and synced it; connected the
+Simulated Threat Intelligence Feed and synced it; confirmed the worker log showed both
+`run_correlation` and `run_threat_intel_correlation` firing after each sync; opened `/threat-intel` and
+confirmed the IP indicator showed `sales-laptop-11.example-tenant.local` as a match (a live link straight
+to the resulting finding) while the domain indicator correctly showed "No matches"; opened `/findings`
+and confirmed `sales-laptop-11` carried three simultaneous open findings — the new Critical "Asset
+matched a known threat indicator (ip)" alongside its pre-existing High "EDR agent unresponsive" and
+Medium "Device has not checked in recently."
+
+## Milestone 10 — Architecture Decisions (made or refined during implementation)
+
+- **Threat-intel correlation is a separate engine from `modules.findings.engine`, not a new rule in the
+  existing registry.** `modules.findings.rules.RULES` evaluates one asset's own attributes against a
+  fixed condition — that shape doesn't fit "does this external indicator show up anywhere in what we
+  discovered," which requires cross-referencing two collections. Keeping them separate engines (both
+  writing into the same `Finding` table with the same lifecycle semantics) avoided distorting the
+  existing rule registry's shape to fit a problem it wasn't designed for.
+- **Matching is attribute-value-agnostic, not keyed to one fixed field like `ip_address`.** Checking
+  every attribute value on an asset (case-insensitively) against every indicator value means this keeps
+  working regardless of what shape any current or future connector's attributes happen to take, without a
+  schema or matching-logic change here — the tradeoff is O(indicators × assets × attributes) rather than
+  an indexed lookup, acceptable at the scale a single tenant's asset graph actually reaches.
+- **No change-log table for indicators, unlike assets.** `AssetChange` exists because an asset's
+  attribute history has evidentiary value (M2's architecture reasoning); an indicator's confidence being
+  refreshed on every re-sync doesn't carry the same weight — it's external threat-feed data being kept
+  current, not a fact about the tenant's own infrastructure changing over time.
+- **`findings.view` gates the indicators endpoint**, following the exact reasoning Milestone 8 used for
+  `reports.view`: pick the permission that already governs the pipeline this data feeds, rather than
+  inventing a new one for a small, tightly-scoped piece of data with no natural permission of its own.
+
+## Milestone 10 — Known Limitations
+
+- **Threat-intel matches don't yet trigger playbook automation** the way asset-correlation findings do
+  (Milestone 4) — `run_threat_intel_correlation`'s summary doesn't track `actionable_finding_ids` the way
+  `run_correlation`'s does. A reasonable future integration between the two engines, not attempted here
+  to keep this milestone's scope coherent.
+- **Sync-run reporting (`IntegrationSyncRun.records_processed/created/updated`) still reflects asset
+  ingestion only** — threat-intel ingestion counts aren't surfaced there, only via the indicators list
+  page itself. Adding indicator counts to that schema was out of scope for this pass.
+- **Matching is exact-value, case-insensitive only** — no CIDR-range matching for IPs, no subdomain
+  matching for domains, no fuzzy/partial matching. A real threat-intel integration would likely need
+  richer matching semantics; this is the honest, simple baseline.
+- **Only one connector (`mock_threat_intel`) produces indicators today** — the ingestion and correlation
+  pipeline works against any connector emitting `threat_intel.indicator` records with the same shape, but
+  only the mock one exists; a real threat-intel feed integration is future work.
+- **No frontend automated tests were added for the new Threat Intel page** — same gap and rationale as
+  every prior milestone's new pages: verified manually end-to-end via Playwright, passes
+  lint/typecheck/build, but no dedicated Vitest coverage.
+
+## Milestone 10 — Unresolved Risks
+
+- Carried over from Milestones 1-9 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence permission-per-
+  target design, the control-scoring weights, the `reports.view` cross-cutting-permission decision, the
+  widened-RLS-by-data-value pattern) — none were touched this milestone and remain open.
+- The confidence-to-severity thresholds (`>=0.7` critical, `>=0.4` high, else medium) are a judgment
+  call, not derived from any stated specification — same category of flag as the resilience/compliance
+  scoring weights in Milestones 6-7.
+- The O(indicators × assets × attributes) matching approach is a deliberate simplicity-over-scale
+  tradeoff, flagged for your review since a tenant with a very large asset graph and many indicators would
+  eventually want an indexed lookup instead.
+
+## Pending Approvals
+
+- This Milestone 10 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the confidence-to-severity thresholds and the attribute-matching approach
+  (see Architecture Decisions and Unresolved Risks) — both are interpretations made in the absence of an
+  explicit specification for this milestone.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 10`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 11`** to begin the next milestone.
