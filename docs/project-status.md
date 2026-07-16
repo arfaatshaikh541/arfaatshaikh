@@ -2416,6 +2416,10 @@ removed from the database afterward so the demo environment isn't left with stal
   meaningful in principle — nothing revokes it, marks it `expired`, or hides it from the "active" filter.
   Since nothing currently reads grants to gate access, this has no live consequence yet, but would need
   addressing before the grant becomes a real enforcement mechanism.
+  **[Corrected in Milestone 17: this claim was factually wrong. `worker.tasks.expire_support_access_grants`
+  has existed since Milestone 1, runs every 5 minutes via Celery Beat, and correctly flips expired `active`
+  grants to `expired`. This limitation was never re-verified against the actual worker code before being
+  written — see Milestone 17's own notes for how this was caught and what the real remaining gap was.]**
 - **The second platform admin used for live verification was created ad hoc for this session** (not part of
   `seed/demo.py`), since the seed script has only ever created one platform user. The seed script itself
   was intentionally left unchanged to avoid scope creep; a real second demo platform admin would need to be
@@ -2440,6 +2444,8 @@ removed from the database afterward so the demo environment isn't left with stal
   question, not just an implementation detail.
 - **No expiry sweep** means an old `active` grant's `expires_at` having passed is not currently visible or
   actionable anywhere except by a human reading the timestamp themselves.
+  **[Corrected in Milestone 17: false — a real sweep has existed since Milestone 1. See that milestone's
+  notes.]**
 
 ## Milestone 15 — Pending Approvals
 
@@ -2567,6 +2573,8 @@ grants (including one still-active) behind. Cleaned up correctly this time by ca
 - **No UI-level indication of how much time is left on the active grant** on the workspace snapshot page
   itself — the expiry is visible on the Support Access page but not repeated on the snapshot view a platform
   admin is actually looking at while doing support work.
+  **[Resolved in Milestone 17: the snapshot response now includes `access_expires_at`, shown directly on
+  the workspace page.]**
 - **Bulk mutations against RLS-protected tables must set tenant context first, or they silently no-op.**
   This isn't a new limitation introduced this milestone, but this milestone's own E2E verification is what
   surfaced it concretely (see Test Results) — worth calling out as a standing operational hazard for any
@@ -2574,6 +2582,9 @@ grants (including one still-active) behind. Cleaned up correctly this time by ca
 - **No automatic expiry sweep still applies** (carried from Milestone 15) — an expired-but-still-`active`
   grant row would still read as inactive correctly via the `expires_at > now()` check in `is_grant_active`,
   but nothing proactively transitions its `status` to reflect that.
+  **[Corrected in Milestone 17: this claim, inherited from Milestone 15, was factually wrong — a real
+  sweep (`worker.tasks.expire_support_access_grants`) has existed since Milestone 1. See Milestone 17's
+  notes for how this was caught during that milestone's own scoping research.]**
 - **No frontend automated tests were added for the new page** — same gap and rationale as every prior
   milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
   dedicated Vitest coverage.
@@ -2586,8 +2597,9 @@ grants (including one still-active) behind. Cleaned up correctly this time by ca
   cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
   confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
   `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
-  backup/recovery codes, no expiry sweep for support access grants) — none were touched this milestone and
-  remain open.
+  backup/recovery codes) — none were touched this milestone and remain open. (The "no expiry sweep for
+  support access grants" item previously listed here has been removed — it was factually wrong; see the
+  Milestone 17 correction note above.)
 - **The workspace snapshot is currently the only grant-gated read** — if future milestones add more
   platform-admin-facing tenant data views, each will need to independently remember to apply
   `require_support_access_grant`, since there's no single enforcement point (like a router-level dependency)
@@ -2603,6 +2615,154 @@ grants (including one still-active) behind. Cleaned up correctly this time by ca
 - Recommend explicit review of the decision to scope the snapshot narrowly (members + three counts) rather
   than building deeper drill-down views in the same milestone.
 
+## Milestone 16 — Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 17`** to begin the next milestone.
+
+## Milestone 17 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 15's and Milestone 16's own Known Limitations both claimed "no automatic expiry sweep exists"
+  for support access grants. Before implementing against that claim, research confirmed it was **factually
+  wrong**: `worker.tasks.expire_support_access_grants` has existed since Milestone 1, runs every 5 minutes
+  via Celery Beat (`schedules.BEAT_SCHEDULE`), and correctly flips expired `active` grants to `expired`.
+  The Known Limitations text had been carried forward across two milestones without being re-verified
+  against the actual worker code. Live-verified this milestone by backdating a real grant's `expires_at`
+  and invoking the actual sweep task, confirming it flips the status exactly as designed (see Test Results).
+- With that false lead ruled out, research turned up the real gap: `SUPPORT_ACCESS_STATUSES`
+  (`modules.platform_admin.models`) has existed since Milestone 15 but was never consulted anywhere — not
+  by the TypeScript/Python security-contracts sync (every sibling status vocabulary, `TENANT_STATUSES`,
+  is synced there), not by the `status` column itself (a plain `String(20)` since Milestone 1, unlike every
+  sibling status column — `finding_status`, `incident_status`, `tenant_integration_status`,
+  `tenant_status` — which are real Postgres enums), and not by the frontend (the status filter dropdown on
+  `/platform/support-access` was missing "Expired" as an option entirely, despite the sweep actively
+  setting it every 5 minutes).
+
+### Backend
+- **`SUPPORT_ACCESS_STATUSES` moved into `core/security_contracts.py`** as the canonical source (mirroring
+  `TENANT_STATUSES`), with a matching TypeScript array in `packages/security-contracts/src/index.ts` and a
+  new sync test (`test_support_access_statuses_match`).
+- **`SupportAccessGrant.status` converted from `String(20)` to a real Postgres enum**
+  (`support_access_grant_status`) via migration, closing the actual gap the dormant tuple should have
+  prevented from the start. The migration casts the existing column in place
+  (`ALTER COLUMN status TYPE ... USING status::...`) — safe with no backfill, since the worker has only
+  ever written the four values in `SUPPORT_ACCESS_STATUSES`.
+- **`is_grant_active` replaced with `get_active_grant`**, returning the grant row itself instead of a bare
+  bool, so `require_support_access_grant` can surface the grant's real `expires_at` to the route — the
+  workspace snapshot response now includes `access_expires_at`, the calling admin's own remaining access
+  window, not just a pass/fail gate.
+
+### Frontend (`apps/web`)
+- The Support Access page's status filter dropdown now sources its options from the shared
+  `SUPPORT_ACCESS_STATUSES` contract instead of a hardcoded three-item list, so "Expired" is finally a real,
+  selectable filter — a support engineer can now actually find expired grants instead of only seeing them
+  mixed into "All statuses" with no way to isolate them.
+- The workspace snapshot page now shows "Your access expires ..." alongside the read-only-view label, using
+  the new `access_expires_at` field.
+
+## Milestone 17 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| `SUPPORT_ACCESS_STATUSES` is synced between Python and TypeScript like every other status vocabulary | ✅ | `test_support_access_statuses_match` |
+| The `status` column rejects a value outside the enum at the database level | ✅ | `test_support_access_grant_status_column_rejects_invalid_values` (raises `DBAPIError`) |
+| Migration round-trips cleanly (upgrade → downgrade → upgrade) | ✅ | Verified directly in this session against the live demo database |
+| The workspace snapshot response includes the calling admin's own access expiry | ✅ | `test_workspace_snapshot_access_expires_at_matches_the_grant`; live-verified — exact match against the grant's stored `expires_at` |
+| The frontend status filter includes "Expired" as a real, selectable option | ✅ | Live-verified via Playwright — dropdown options are `['All statuses', 'Pending', 'Active', 'Expired', 'Revoked']` |
+| The real Celery sweep task correctly flips an expired `active` grant to `expired`, and the UI reflects it | ✅ | Live-verified — backdated a real grant's `expires_at`, invoked `worker.tasks._expire_support_access_grants_async` directly, confirmed `expired count: 1`, then confirmed the grant appears when filtering by "Expired" in the live UI |
+| Access is denied the instant `expires_at` passes, independent of the sweep's cadence | ✅ | Live-verified — workspace snapshot returned 403 immediately after backdating `expires_at`, before the sweep had run at all |
+| Backend tests pass | ✅ | **217/217** passing (`pytest -q` in `apps/api`, up from 214 — 3 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 32/32 routes |
+
+## Milestone 17 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 217 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 32/32 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: requested and
+approved a 1-hour grant through the real UI (two different platform admins, as always), confirmed the
+status filter dropdown listed "Expired" as an option, and confirmed the workspace snapshot page showed
+"Your access expires ...". Then, directly against the database, backdated that grant's `expires_at` into
+the past and confirmed the workspace snapshot endpoint immediately returned 403 — proving access
+enforcement never depended on the sweep having run. Invoked the actual worker task
+(`worker.tasks._expire_support_access_grants_async`, imported and awaited directly, not a mock) and
+confirmed it returned `expired count: 1` and flipped the row's `status` to `expired`. Filtered the live UI
+by "Expired" and confirmed the grant appeared with the correct badge, reason, and attribution. Removed the
+test grant afterward (this time correctly, with `set_tenant_context` called first — see Milestone 16's own
+documented lesson about this).
+
+## Milestone 17 — Architecture Decisions (made or refined during implementation)
+
+- **Verified the "no expiry sweep" claim against the actual worker code before building anything against
+  it.** Two consecutive milestones' Known Limitations had repeated the same claim without re-checking it;
+  treating a prior milestone's own documentation as ground truth without verification would have led to
+  building a redundant, possibly conflicting second sweep mechanism. The correction is recorded in place in
+  Milestones 15 and 16's own sections rather than silently rewritten, per the standing discipline of
+  documenting mistakes honestly rather than hiding them.
+- **`SUPPORT_ACCESS_STATUSES` was moved into `core/security_contracts.py` and imported directly by
+  `modules.platform_admin.models`**, rather than kept as a second locally-duplicated tuple the way
+  `TENANT_STATUSES` exists in both `core/security_contracts.py` and `modules/tenancy/models.py`
+  independently. The existing duplication pattern was never a deliberate design choice worth preserving —
+  it was simply how the first status vocabulary happened to be wired — and since this tuple needed to move
+  into real use anyway, importing it directly avoids introducing a second copy that could drift.
+- **Chose a real Postgres enum for `status` over adding a `CHECK` constraint or leaving it as a plain
+  string with only Python-side validation.** Every sibling status column in the codebase already uses a
+  Postgres enum; leaving `SupportAccessGrant.status` as the sole exception was itself the inconsistency
+  this milestone existed to fix, not a deliberate choice to preserve.
+- **`get_active_grant` returns the ORM row instead of a purpose-built lightweight struct.** The route only
+  needs `expires_at` off it today, but returning the row keeps the door open for a future route needing
+  another field (e.g. `reason`, `requested_duration_hours`) without a second service function.
+
+## Milestone 17 — Known Limitations
+
+- **No countdown or proactive warning as access nears expiry** — the workspace snapshot page shows a
+  static timestamp, not a live countdown or a "your access expires soon" warning. A platform admin doing
+  support work would need to notice the timestamp themselves.
+- **The enum migration has no backfill step because none was needed** — this is a note for future
+  reviewers, not a limitation: had any row ever contained a value outside `SUPPORT_ACCESS_STATUSES`, the
+  migration would have failed at the `ALTER COLUMN ... USING` cast, and it did not, confirming the worker
+  has never written anything else.
+- **No frontend automated tests were added for the dropdown/expiry changes** — same gap and rationale as
+  every prior milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build,
+  but no dedicated Vitest coverage.
+- **This milestone corrected two prior milestones' documentation but did not audit every other Known
+  Limitation/Unresolved Risk for the same kind of staleness** — the correction here was triggered by this
+  milestone's own scoping research happening to touch this specific claim, not a systematic re-verification
+  pass over the full carried-over list.
+
+## Milestone 17 — Unresolved Risks
+
+- Carried over from Milestones 1-16 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes, the workspace snapshot being the only grant-gated read, the
+  RLS-silently-no-ops-without-tenant-context hazard, an active grant still gating no real platform
+  capability) — none were touched this milestone and remain open.
+- **Other carried-over Known Limitations/Unresolved Risks have not been re-verified against current code**
+  the way this milestone's "no expiry sweep" claim was — flagged explicitly, since this milestone
+  demonstrated concretely that at least one such claim had been wrong for two milestones running. A future
+  milestone (or an explicit ask) doing a systematic re-verification pass would have real value.
+
+## Milestone 17 — Pending Approvals
+
+- This Milestone 17 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the documentation-correction approach taken (annotating the stale claims in
+  place in Milestones 15/16 rather than silently editing them) — flagging in case a different convention
+  is preferred for future corrections of this kind.
+
 ## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 18`** to begin the next milestone.
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 17`** to begin the next milestone.
