@@ -19,6 +19,7 @@ from modules.integrations.routes import router as integrations_router
 from modules.permissions.routes import router as permissions_router
 from modules.platform_admin.routes import router as platform_admin_router
 from modules.platform_admin.routes import tenant_router as support_access_tenant_router
+from modules.reporting.routes import router as reporting_router
 from modules.resilience.routes import router as resilience_router
 from modules.subscriptions.routes import router as subscriptions_router
 from modules.tenancy.routes import router as tenancy_router
@@ -59,6 +60,7 @@ app.include_router(incidents_router)
 app.include_router(resilience_router)
 app.include_router(compliance_router)
 app.include_router(evidence_router)
+app.include_router(reporting_router)
 
 
 @app.get("/healthz")
