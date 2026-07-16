@@ -1,13 +1,13 @@
 "use client";
 
-import { Alert, Card, CardHeader, StatusBadge } from "@gridkeep/ui";
+import { Alert, Card, CardHeader, SeverityBadge, StatusBadge } from "@gridkeep/ui";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { TenantWorkspaceSnapshotRead } from "@/lib/types";
+import type { FindingListItem, TenantWorkspaceSnapshotRead } from "@/lib/types";
 
 export default function TenantWorkspaceSnapshotPage() {
   const params = useParams<{ tenantId: string }>();
@@ -20,6 +20,13 @@ export default function TenantWorkspaceSnapshotPage() {
     queryFn: () =>
       apiClient.get<TenantWorkspaceSnapshotRead>(`/api/platform/tenants/${tenantId}/workspace-snapshot`),
     enabled: canRequest,
+    retry: false,
+  });
+
+  const findingsQuery = useQuery({
+    queryKey: ["platform", "tenants", tenantId, "findings"],
+    queryFn: () => apiClient.get<FindingListItem[]>(`/api/platform/tenants/${tenantId}/findings`),
+    enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
 
@@ -105,6 +112,36 @@ export default function TenantWorkspaceSnapshotPage() {
           </table>
         ) : (
           <p className="text-sm text-ink-500">No members.</p>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title={`Findings (${findingsQuery.data?.length ?? 0})`} />
+        {findingsQuery.data && findingsQuery.data.length > 0 ? (
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-surface-border text-ink-500">
+                <th className="py-2 pr-4 font-medium">Title</th>
+                <th className="py-2 pr-4 font-medium">Severity</th>
+                <th className="py-2 pr-4 font-medium">Status</th>
+                <th className="py-2 font-medium">Asset</th>
+              </tr>
+            </thead>
+            <tbody>
+              {findingsQuery.data.map((finding) => (
+                <tr key={finding.id} className="border-b border-surface-border/50">
+                  <td className="py-2 pr-4 text-ink-900">{finding.title}</td>
+                  <td className="py-2 pr-4">
+                    <SeverityBadge severity={finding.severity as "critical" | "high" | "medium" | "low"} />
+                  </td>
+                  <td className="py-2 pr-4 text-ink-700">{finding.status.replace(/_/g, " ")}</td>
+                  <td className="py-2 text-ink-500">{finding.asset_display_name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-ink-500">No findings.</p>
         )}
       </Card>
     </div>
