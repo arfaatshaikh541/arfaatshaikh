@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/incidents", label: "Incidents" },
   { href: "/findings", label: "Findings" },
+  { href: "/threat-intel", label: "Threat Intel" },
   { href: "/integrations", label: "Integrations" },
   { href: "/assets", label: "Assets" },
   { href: "/automation", label: "Automation" },

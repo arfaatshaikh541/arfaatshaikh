@@ -434,3 +434,23 @@ export interface PublicTrustPassportRead {
   generated_at: string;
   compliance_frameworks: PublicFrameworkStatus[] | null;
 }
+
+// --- Milestone 10: threat intelligence ---
+
+export interface MatchedAssetRead {
+  asset_id: string;
+  asset_display_name: string;
+  finding_id: string;
+  finding_status: string;
+}
+
+export interface IndicatorRead {
+  id: string;
+  indicator_type: string;
+  value: string;
+  confidence: number;
+  source: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  matches: MatchedAssetRead[];
+}
