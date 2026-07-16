@@ -1,14 +1,14 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 11 implementation)
+Last updated: 2026-07-16 (Milestone 12 implementation)
 
 ## Current Milestone
 
-**Milestone 11: Attack Surface** — implementation complete, pending your review and explicit approval to
-proceed to Milestone 12. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
-(Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and Ransomware
-Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), 9 (Trust Passport), and 10 (Threat
-Intelligence) are complete and merged; their sections below are preserved as-is.
+**Milestone 12: Platform Admin Console** — implementation complete, pending your review and explicit
+approval to proceed to Milestone 13. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph),
+3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and Ransomware
+Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), 9 (Trust Passport), 10 (Threat
+Intelligence), and 11 (Attack Surface) are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -1782,7 +1782,7 @@ Limitations below for why.
   someone else) stays marked `is_verified=True` indefinitely — there's no re-verification/expiry policy.
   Reasonable future work, out of scope here.
 
-## Pending Approvals
+## Milestone 11 — Pending Approvals
 
 - This Milestone 11 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -1790,6 +1790,190 @@ Limitations below for why.
   and Unresolved Risks) — this is a deviation from what the pre-existing schema's docstring specified,
   made for environment feasibility rather than because it was asked for.
 
+## Milestone 11 — Next Action
+
+Milestone 11 was approved and Milestone 12 is complete — see below.
+
+## Milestone 12 — Completed Work
+
+### The breadcrumb this milestone came from
+- By Milestone 9 every tenant-facing `PERMISSIONS` entry was wired to a route, so the usual scope signal
+  was exhausted again (as it was for Milestones 10 and 11). A dedicated research pass found something the
+  earlier "every permission is wired" claim had actually missed: two **platform** permissions —
+  `platform.tenants.manage` and `platform.audit.view` — have existed since Milestone 1 with a role
+  (`platform_auditor`) that exists for no other purpose than holding the latter, yet neither was ever
+  wired to a route. The enforcement machinery both permissions imply was already fully built and idle:
+  `TENANT_STATUSES`/`WRITE_BLOCKED_STATUSES` gate every tenant write, and `audit_service.record()` is
+  called from 50+ call sites across nearly every module, but nothing could ever change a tenant's status
+  or view the audit trail it was already writing. This milestone builds both.
+- A related, more foundational gap surfaced while scoping this: `UserRead`/`LoginResponse`/`MeResponse`
+  never exposed `is_platform_user` at all, even though platform users already log in through the exact
+  same `/api/auth/login` endpoint tenant users do (confirmed by Milestone 1's own
+  `test_platform_admin_can_grant_and_revoke_support_access` test). The frontend had no way to know a
+  logged-in user was a platform admin, and the post-login redirect logic would have sent a
+  zero-membership platform user into a `/select-workspace` redirect loop. That plumbing gap had to be
+  closed before any platform-facing UI could exist at all.
+
+### Backend
+- **`UserRead`** (`modules/identity/schemas.py`) gained `is_platform_user: bool` and
+  `platform_role_name: str | None`. `platform_role_id` is a bare FK (kept structurally separate from
+  tenant roles per the platform-roles-stay-separated rule), so a new `identity_service.get_platform_role_name()`
+  resolves the name with its own query rather than a relationship traversal; `_build_user_read()` composes
+  it at `login` and `/me`.
+- **`packages/security-contracts`**: added `DEFAULT_PLATFORM_ROLE_PERMISSIONS` to the TypeScript side,
+  mirroring the Python dict that already existed — the same client-side-permission-mapping pattern
+  Milestone 1 established for tenant roles (`DEFAULT_ROLE_PERMISSIONS`), just never extended to platform
+  roles. A new sync test (`test_platform_role_permissions_match`) guards it the same way the existing enum
+  sync tests do.
+- **Widened `audit_logs_select` RLS policy** (new migration): the existing policy only let a
+  platform-admin session see `tenant_id IS NULL` rows (platform-level events like login/logout) — it never
+  actually granted cross-tenant visibility into ordinary tenant-scoped audit rows, despite
+  `app_is_platform_admin()` existing since Milestone 1's very first RLS migration seemingly for that
+  purpose. Widened to `tenant_id = app_current_tenant_id() OR app_is_platform_admin()`, following the same
+  widened-SELECT precedent as Milestone 1's `memberships` and Milestone 9's `trust_passport_settings`.
+- **`db.session.platform_admin_scoped_session()`** (new): sets `app.is_platform_admin=true` with no single
+  tenant selected, so the widened policy's OR clause is unconditionally true for that session — the one
+  session flavour that should ever see more than one tenant's audit history at once. `core.deps.get_platform_admin_db`
+  wires it as a route dependency, composing with `require_platform_permission` exactly the way
+  `get_tenant_db` composes with `require_permission`.
+- **`modules.platform_admin.service`**: `list_tenants`/`get_tenant_or_404` (the `tenants` table carries no
+  RLS of its own — it's the tenancy root, not a tenant-owned row — so a plain session already sees every
+  tenant); `update_tenant_status`, validated against an explicit state machine
+  (`_VALID_TENANT_STATUS_TRANSITIONS`) where `archived` is terminal and every other status can reach
+  `suspended`/`archived` or `active`. Reuses Milestone 1's `set_tenant_context(..., is_platform_admin=True)`
+  session-variable pattern (the same one `create_grant`/`revoke_grant` already used) so the
+  `audit_logs_insert` policy is satisfied when the status-change audit record is written.
+- **`modules.audit.service.list_platform_wide()`**: the actual cross-tenant audit query, filterable by
+  `tenant_id`/`action`, paginated. Belongs in `audit`, not `platform_admin`, since audit-log querying is
+  audit's job — the same "a module doesn't need to own the model it operates on" reasoning Milestones 6/8/11
+  already established, just applied to a service function instead of a whole module.
+- **Routes** (`modules/platform_admin/routes.py`): `GET /api/platform/tenants`,
+  `GET /api/platform/tenants/{id}`, `POST /api/platform/tenants/{id}/status` (all `platform.tenants.manage`);
+  `GET /api/platform/audit-logs` (`platform.audit.view`, the only route using `get_platform_admin_db`).
+
+### Frontend (`apps/web`)
+- New `app/platform/` route (a real folder, not a route group — `(platform)` would not have added a URL
+  prefix, the same way `(tenant)` and `(auth)` don't; this was caught and fixed during build verification,
+  not left as a latent bug).
+- `PlatformShell` component + `platform/layout.tsx` guarding on `isPlatformUser`, mirroring the tenant
+  `AppShell`/`(tenant)/layout.tsx` pattern but with no membership dependency.
+- `/platform/tenants`: every tenant on the platform, with an inline status-change form (new status +
+  required reason, audit-logged).
+- `/platform/audit-logs`: the platform-wide audit trail, filterable by tenant and action.
+- Login now redirects a platform user straight to `/platform` instead of `/dashboard`/`/select-workspace`.
+- `useAuth()` gained `isPlatformUser`/`platformPermissions`/`hasPlatformPermission`, computed client-side
+  from `platform_role_name` via `DEFAULT_PLATFORM_ROLE_PERMISSIONS` — identical in shape to how tenant
+  permissions are already computed from `role_name`.
+
+## Milestone 12 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A platform user's login/`/me` response identifies them as a platform user and names their role | ✅ | `test_login_response_exposes_platform_role_for_a_platform_user`, `test_login_response_shows_is_platform_user_false_for_a_tenant_user` |
+| `DEFAULT_PLATFORM_ROLE_PERMISSIONS` stays in sync between Python and TypeScript | ✅ | `test_platform_role_permissions_match` |
+| A platform admin can list every tenant and view one tenant's detail | ✅ | `test_platform_admin_can_list_and_view_tenants`; live-verified — the seeded demo tenant appeared in the list |
+| A tenant's status can be changed along valid transitions only | ✅ | `test_platform_admin_can_transition_tenant_status`, `test_invalid_tenant_status_transition_is_rejected`, `test_archived_tenant_status_is_terminal` |
+| Every status change is audit-logged with actor, reason, and from/to | ✅ | `test_tenant_status_change_is_audit_logged_and_visible_platform_wide` |
+| A platform admin can view audit events across every tenant, not just their own | ✅ | `test_platform_wide_audit_log_shows_entries_from_multiple_tenants` — the test that actually exercises the widened RLS policy, not just the application code on top of it; live-verified via the UI |
+| `platform.tenants.manage` and `platform.audit.view` are independently enforced | ✅ | `test_platform_auditor_can_view_audit_logs_but_not_manage_tenants`, `test_platform_support_engineer_cannot_view_audit_logs_or_manage_tenants` |
+| A platform user logging in lands on the platform console, not a broken tenant redirect loop | ✅ | Live-verified — login redirected straight to `/platform/tenants` |
+| Backend tests pass | ✅ | **194/194** passing (`pytest -q` in `apps/api`, up from 180 — 13 new platform_admin tests + 1 new sync test), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 28/28 routes |
+
+## Milestone 12 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 194 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 28/28 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: logged in as
+the seeded `platform.admin@gridkeep-platform.example` (`platform_super_admin`) and confirmed the redirect
+landed on `/platform/tenants` directly (not `/dashboard`, not a `/select-workspace` loop); confirmed the
+seeded Northstar Advisory Demo tenant appeared in the platform-wide list; changed its status to
+`suspended` via the UI and confirmed it reflected immediately; opened `/platform/audit-logs` and confirmed
+the `platform.tenant_status_changed` event appeared, correctly attributed to Northstar Advisory Demo, in a
+list that is NOT scoped to any single tenant's RLS context; reverted the tenant's status back to `active`
+to leave the demo environment as found.
+
+## Milestone 12 — Architecture Decisions (made or refined during implementation)
+
+- **Widening `audit_logs_select` rather than inventing a separate platform-audit table.** The audit trail
+  already exists, is already fed by every module, and already has a (partially-wired) platform-admin RLS
+  branch — extending that one policy is a smaller, more honest change than standing up a parallel
+  cross-tenant audit mechanism, and it keeps "one append-only audit log" true rather than fragmenting it.
+- **`platform_admin_scoped_session()` is a distinct session flavour from `tenant_scoped_session(...,
+  is_platform_admin=True)`, not a parameter on it.** The existing flavour always pins a specific
+  `tenant_id` (used by support-access grants and now tenant-status changes, where the audit write needs
+  `tenant_id = app_current_tenant_id()` to satisfy the insert policy); the new one deliberately leaves
+  `current_tenant_id` unset so the widened SELECT policy's OR clause is unconditionally true. Conflating
+  the two would either weaken the tenant-pinned flavour's guarantees or fail to give the audit-log route
+  the cross-tenant visibility it actually needs.
+- **The tenant status state machine treats `archived` as terminal.** No route back was implemented; a
+  platform admin who archives a tenant by mistake would need direct database access to undo it. This
+  mirrors how a real deletion/closure boundary should behave — not a decision to revisit lightly, flagged
+  explicitly below.
+- **`update_tenant_status` reuses the exact session-variable pattern `create_grant`/`revoke_grant`
+  established in Milestone 1** (`set_tenant_context(session, tenant_id, is_platform_admin=True)` on the
+  route's own injected session, committed by the route) rather than introducing a second, parallel way to
+  scope a platform-admin write — consistency with existing precedent over a "cleaner-looking" new
+  abstraction.
+- **Platform permissions are computed client-side from `platform_role_name`, exactly like tenant
+  permissions are computed from `role_name`.** No new backend-computed-permissions endpoint was invented;
+  `DEFAULT_PLATFORM_ROLE_PERMISSIONS` in the shared TS package is the single client-side source, kept in
+  sync with Python by a dedicated test — same shape, same guarantee, as the tenant-role equivalent.
+
+## Milestone 12 — Known Limitations
+
+- **No route back from `archived`.** A tenant a platform admin archives by mistake cannot be reactivated
+  through the API — this is by design (archived is meant to be terminal) but is worth your explicit
+  sign-off, since it has no self-service recovery path.
+- **Tenant detail is a bare summary, not an enriched view.** `GET /api/platform/tenants/{id}` returns the
+  same fields as the list endpoint — no membership count, subscription plan, or asset counts. Adding those
+  would require either widening `memberships`/`tenant_subscriptions` RLS further or a dedicated
+  aggregation query, judged out of scope for this pass to keep the milestone coherent (the same reasoning
+  Milestone 10 used to defer threat-intel/playbook integration).
+- **No rate limiting specific to the audit-log or tenant-list endpoints** beyond the existing global
+  limiter — a platform admin (by definition already a privileged, small population) could page through the
+  full cross-tenant audit trail without a dedicated throttle.
+- **No frontend automated tests were added for the new platform pages** — same gap and rationale as every
+  prior milestone's new pages: verified manually end-to-end via Playwright, passes lint/typecheck/build,
+  but no dedicated Vitest coverage.
+- **Second-approver support-access flow is still unbuilt** (carried over from Milestone 1 — unrelated to
+  this milestone's scope but adjacent, since it's the other half of `platform_admin`).
+
+## Milestone 12 — Unresolved Risks
+
+- Carried over from Milestones 1-11 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence
+  permission-per-target design, the control-scoring weights, the `reports.view`/`findings.view`
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution) — none were touched
+  this milestone and remain open.
+- **The widened `audit_logs_select` policy is a meaningful security-relevant change** — it expands what a
+  platform-admin-flavoured session can see. The blast radius is bounded (only reachable through
+  `get_platform_admin_db`, itself gated by `platform.audit.view`), but this is exactly the kind of RLS
+  change that deserves your explicit review rather than quiet acceptance, per the same standard applied to
+  every prior widened-SELECT decision.
+- The tenant status transition graph (`_VALID_TENANT_STATUS_TRANSITIONS`) is a judgment call, not derived
+  from any stated specification — same category of flag as the resilience/compliance scoring weights and
+  the threat-intel severity thresholds in earlier milestones.
+
+## Pending Approvals
+
+- This Milestone 12 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the widened `audit_logs_select` RLS policy and the terminal-`archived`
+  design (see Architecture Decisions and Unresolved Risks) — both are security/data-lifecycle-relevant
+  decisions made in the absence of an explicit specification for this milestone.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 12`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 13`** to begin the next milestone.
