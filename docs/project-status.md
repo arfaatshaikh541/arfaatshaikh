@@ -2449,6 +2449,160 @@ removed from the database afterward so the demo environment isn't left with stal
   Architecture Decisions, Known Limitations, and Unresolved Risks) — the grant workflow is now correct and
   auditable, but an `active` grant does not yet unlock anything on its own.
 
-## Next Action
+## Milestone 15 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 16`** to begin the next milestone.
+
+## Milestone 16 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 15's own Architecture Decisions and Known Limitations sections named this gap explicitly:
+  `SupportAccessGrant`'s docstring has promised since it was first written that "every platform_admin read
+  of tenant data must resolve an active grant row here first (see deps.py `require_support_access_grant`)"
+  — but that dependency never existed anywhere in `core/deps.py`, and `is_grant_active()` had zero callers.
+  Milestone 15 deliberately left this unbuilt, flagging it as the natural next step rather than attempting
+  it as scope creep. This milestone builds both halves: the dependency itself, and the first real
+  platform-admin read it gates.
+
+### Backend
+- **`core.deps.require_support_access_grant()`** (new): reads `tenant_id` from the same path parameter the
+  route declares (FastAPI resolves path parameters across the whole dependency tree), composes with
+  `require_platform_permission("platform.support_access")` so the permission check happens first, then
+  calls `is_grant_active`. Deliberately shares its `get_db` session with the route handler — FastAPI caches
+  a dependency's result per request, so `is_grant_active`'s `set_tenant_context(db, tenant_id,
+  is_platform_admin=True)` call already leaves the session correctly scoped for the route's own queries
+  afterward, the same "set context once, reuse the session" pattern `update_tenant_status`/`create_grant`
+  established.
+- **`GET /api/platform/tenants/{tenant_id}/workspace-snapshot`** (new): the actual read this whole grant
+  workflow exists to gate. Returns the tenant's member list (email, name, role, status) and open
+  findings/incidents/connected-integrations counts. Reuses `modules.findings.get_risk_summary` and
+  `modules.incidents.get_incident_summary` directly — the same per-module summary functions
+  `modules.reporting`'s executive summary already composes — rather than re-deriving what "open" means for
+  a second time.
+- **Every successful snapshot fetch is itself audit-logged** as `platform.support_access_used`, fulfilling
+  the model's other long-standing docstring promise ("every grant is itself an audited event (both
+  creation and each use)") — creation, approval, and revocation were already audited; this milestone adds
+  the missing fourth event.
+- No schema change and no migration — this is a pure read composition over existing tables plus one new
+  dependency function, the same shape Milestone 8's `modules.reporting` took.
+
+### Frontend (`apps/web`)
+- New `/platform/tenants/[tenantId]/workspace` page: tenant name/status, three summary tiles (open
+  findings, open incidents, connected integrations), and a member table. Shows a clear "you need an active
+  grant" message with a link back to Support Access when the backend returns
+  `support_access_grant_required`, rather than a generic error.
+- The Support Access page gained a "View workspace" button on a platform admin's own `active` grants,
+  linking straight to the snapshot for that tenant.
+
+## Milestone 16 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A platform admin with no grant for a tenant cannot view its workspace snapshot | ✅ | `test_workspace_snapshot_requires_an_active_grant` (403, `support_access_grant_required: true`); live-verified |
+| A grant that is only `pending` (not yet approved) still blocks the view | ✅ | `test_workspace_snapshot_denied_while_grant_is_still_pending`; live-verified |
+| Once approved by a different admin, the original requester can view the snapshot | ✅ | `test_workspace_snapshot_accessible_with_an_active_grant`; live-verified end-to-end (request → block → approve by a second admin → view) |
+| A revoked grant blocks the view again | ✅ | `test_workspace_snapshot_denied_after_grant_is_revoked` |
+| A platform role without `platform.support_access` cannot reach the endpoint regardless of any grant | ✅ | `test_tenant_user_cannot_view_platform_workspace_snapshot_endpoint` |
+| Each snapshot fetch is recorded in the platform audit log as `platform.support_access_used` | ✅ | `test_workspace_snapshot_use_is_audit_logged`; live-verified via direct query against the platform-wide audit log |
+| The snapshot shows accurate member and open-findings/incidents/integrations data | ✅ | Live-verified against the demo tenant (5 members, 6 open findings, 0 open incidents, 5 connected integrations, matching direct DB state) |
+| Backend tests pass | ✅ | **214/214** passing (`pytest -q` in `apps/api`, up from 208 — 6 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 32/32 routes |
+
+## Milestone 16 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 214 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 32/32 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium, using the
+same two platform-admin accounts as Milestone 15's verification. Confirmed the workspace view was blocked
+both before any grant existed and while a grant was still `pending`; requested access as one admin, approved
+it as a different admin, and confirmed the original requester could then view the tenant's real member list
+and open-findings/incidents/connected-integrations counts; confirmed the "View workspace" button on the
+Support Access page navigates correctly; confirmed each fetch appeared in the platform-wide audit log as
+`platform.support_access_used`, attributed to the correct actor.
+
+This verification pass caught a real bug in the verification setup itself, not in the shipped code: an
+`active` support-access grant left over from Milestone 15's own E2E session (created against the demo
+tenant, with a 4-hour window) was still valid at the start of this session and caused the very first
+E2E run to see the workspace snapshot when the intended test scenario was "no grant exists yet." Tracing it
+down surfaced a genuine operational gotcha worth documenting: Milestone 15's end-of-session cleanup script
+called `delete(SupportAccessGrant)` on a plain session with **no tenant context set** — since
+`support_access_grants`' DELETE policy requires `tenant_id = app_current_tenant_id()` with no
+platform-admin override, that delete silently affected zero rows despite reporting success, leaving three
+grants (including one still-active) behind. Cleaned up correctly this time by calling
+`set_tenant_context(session, tenant_id, is_platform_admin=True)` before the delete. See Known Limitations.
+
+## Milestone 16 — Architecture Decisions (made or refined during implementation)
+
+- **`require_support_access_grant` reads `tenant_id` as a bare path-parameter dependency rather than
+  requiring the route to pass it explicitly.** FastAPI resolves path parameters identically regardless of
+  which function in the dependency tree declares them, so the checker and the route handler both receive
+  the same value with no risk of one being stale relative to the other.
+- **Deliberately shares its DB session with the route handler instead of opening a second one.** The
+  alternative (a separate session for the grant check) would need to duplicate
+  `set_tenant_context` a second time in the route itself; sharing the session means the tenant-scoping
+  side effect of checking the grant is exactly the tenant-scoping the subsequent queries need, with no
+  duplication.
+- **The workspace snapshot reuses `findings_service.get_risk_summary` and
+  `incidents_service.get_incident_summary` verbatim** rather than re-querying `Finding`/`Incident` directly
+  with a fresh "open" definition. This is the same discipline `modules.reporting` (Milestone 8) already
+  established: one place decides what "open" means per domain, and every consumer (executive summary,
+  now the support snapshot) calls it rather than re-deriving it.
+- **Chose a single aggregate snapshot endpoint over several narrower ones** (e.g. separate
+  members/findings/incidents endpoints) — a platform admin using an active grant needs the whole picture at
+  once to actually help a tenant, and one audited "use" event per page view is clearer than several.
+
+## Milestone 16 — Known Limitations
+
+- **The snapshot is read-only and narrow by design** — members and three summary counts, not full
+  findings/incidents/asset detail. Expanding it to deeper drill-down views is a natural next increment but
+  wasn't attempted here to keep the milestone scoped to closing the specific gap Milestone 15 flagged.
+- **No UI-level indication of how much time is left on the active grant** on the workspace snapshot page
+  itself — the expiry is visible on the Support Access page but not repeated on the snapshot view a platform
+  admin is actually looking at while doing support work.
+- **Bulk mutations against RLS-protected tables must set tenant context first, or they silently no-op.**
+  This isn't a new limitation introduced this milestone, but this milestone's own E2E verification is what
+  surfaced it concretely (see Test Results) — worth calling out as a standing operational hazard for any
+  future ad-hoc cleanup script against this schema, not just support-access grants.
+- **No automatic expiry sweep still applies** (carried from Milestone 15) — an expired-but-still-`active`
+  grant row would still read as inactive correctly via the `expires_at > now()` check in `is_grant_active`,
+  but nothing proactively transitions its `status` to reflect that.
+- **No frontend automated tests were added for the new page** — same gap and rationale as every prior
+  milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
+  dedicated Vitest coverage.
+
+## Milestone 16 — Unresolved Risks
+
+- Carried over from Milestones 1-15 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes, no expiry sweep for support access grants) — none were touched this milestone and
+  remain open.
+- **The workspace snapshot is currently the only grant-gated read** — if future milestones add more
+  platform-admin-facing tenant data views, each will need to independently remember to apply
+  `require_support_access_grant`, since there's no single enforcement point (like a router-level dependency)
+  that would make forgetting it impossible.
+- **The RLS-silently-no-ops-without-tenant-context hazard** (see Known Limitations) applies to every
+  RLS-protected table, not just this one — flagged explicitly since it's a real footgun for anyone (human or
+  agent) writing a one-off script against this database in the future.
+
+## Milestone 16 — Pending Approvals
+
+- This Milestone 16 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the decision to scope the snapshot narrowly (members + three counts) rather
+  than building deeper drill-down views in the same milestone.
+
+## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 17`** to begin the next milestone.
