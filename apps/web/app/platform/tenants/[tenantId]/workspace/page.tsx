@@ -116,7 +116,10 @@ export default function TenantWorkspaceSnapshotPage() {
       </Card>
 
       <Card>
-        <CardHeader title={`Findings (${findingsQuery.data?.length ?? 0})`} />
+        <CardHeader
+          title={`All findings (${findingsQuery.data?.length ?? 0})`}
+          description="Every finding regardless of status — the tile above counts only open ones."
+        />
         {findingsQuery.data && findingsQuery.data.length > 0 ? (
           <table className="w-full text-left text-sm">
             <thead>
