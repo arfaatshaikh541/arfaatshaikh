@@ -3,13 +3,17 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.errors import ConflictError, NotFoundError, ValidationAppError
 from db.session import set_tenant_context
 from modules.audit import service as audit_service
+from modules.findings import service as findings_service
 from modules.identity.models import User
+from modules.incidents import service as incidents_service
+from modules.integrations.models import TenantIntegration
+from modules.permissions.models import Membership, Role
 from modules.platform_admin.models import SupportAccessGrant
 from modules.tenancy.models import Tenant
 
@@ -214,6 +218,55 @@ async def list_all_grants(
     query = query.order_by(SupportAccessGrant.created_at.desc())
     result = await session.execute(query)
     return list(result.scalars().all())
+
+
+async def get_tenant_workspace_snapshot(session: AsyncSession, *, tenant_id: uuid.UUID) -> dict:
+    """Milestone 16: the actual "platform_admin read of tenant data" the
+    `SupportAccessGrant` docstring has referenced since Milestone 15 —
+    reachable only through `core.deps.require_support_access_grant`, which
+    already set `app.current_tenant_id`/`app.is_platform_admin` on this
+    session as a side effect of checking the grant. Reuses the same
+    per-module summary functions `modules.reporting` already composes for
+    the tenant's own executive summary, rather than re-deriving "open"
+    definitions here."""
+    tenant = await get_tenant_or_404(session, tenant_id=tenant_id)
+
+    members_result = await session.execute(
+        select(Membership, User, Role)
+        .join(User, User.id == Membership.user_id)
+        .join(Role, Role.id == Membership.role_id)
+        .where(Membership.tenant_id == tenant_id)
+    )
+    members = [
+        {
+            "user_id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role_name": role.name,
+            "status": membership.status,
+        }
+        for membership, user, role in members_result.all()
+    ]
+
+    risk_summary = await findings_service.get_risk_summary(session, tenant_id=tenant_id)
+    incident_summary = await incidents_service.get_incident_summary(session, tenant_id=tenant_id)
+    connected_integrations_count = (
+        await session.execute(
+            select(func.count()).select_from(TenantIntegration).where(
+                TenantIntegration.tenant_id == tenant_id, TenantIntegration.status == "connected"
+            )
+        )
+    ).scalar_one()
+
+    return {
+        "tenant_id": tenant.id,
+        "tenant_name": tenant.name,
+        "tenant_status": tenant.status,
+        "members": members,
+        "open_findings_total": risk_summary["open_findings_total"],
+        "open_incidents_total": incident_summary["open_incidents_total"],
+        "connected_integrations_count": connected_integrations_count,
+    }
 
 
 async def resolve_user_emails(session: AsyncSession, user_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:

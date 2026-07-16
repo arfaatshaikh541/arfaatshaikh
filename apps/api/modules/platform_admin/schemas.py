@@ -50,6 +50,24 @@ class UpdateTenantStatusRequest(BaseModel):
     reason: str = Field(min_length=10, max_length=500)
 
 
+class TenantWorkspaceMemberRead(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    full_name: str
+    role_name: str
+    status: str
+
+
+class TenantWorkspaceSnapshotRead(BaseModel):
+    tenant_id: uuid.UUID
+    tenant_name: str
+    tenant_status: str
+    members: list[TenantWorkspaceMemberRead]
+    open_findings_total: int
+    open_incidents_total: int
+    connected_integrations_count: int
+
+
 class PlatformAuditLogRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

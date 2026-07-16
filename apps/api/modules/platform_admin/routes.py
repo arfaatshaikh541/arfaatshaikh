@@ -13,6 +13,7 @@ from core.deps import (
     require_csrf,
     require_permission,
     require_platform_permission,
+    require_support_access_grant,
 )
 from db.session import get_db
 from modules.audit import service as audit_service
@@ -23,6 +24,7 @@ from modules.platform_admin.schemas import (
     SupportAccessGrantCreateRequest,
     SupportAccessGrantRead,
     TenantSummaryRead,
+    TenantWorkspaceSnapshotRead,
     UpdateTenantStatusRequest,
 )
 
@@ -178,6 +180,31 @@ async def get_tenant(
 ) -> TenantSummaryRead:
     tenant = await platform_service.get_tenant_or_404(db, tenant_id=tenant_id)
     return TenantSummaryRead.model_validate(tenant)
+
+
+@router.get("/tenants/{tenant_id}/workspace-snapshot", response_model=TenantWorkspaceSnapshotRead)
+async def get_tenant_workspace_snapshot(
+    tenant_id: uuid.UUID,
+    ctx: PlatformContext = Depends(require_support_access_grant()),
+    db: AsyncSession = Depends(get_db),
+) -> TenantWorkspaceSnapshotRead:
+    """The read this whole grant workflow exists to gate: a platform admin
+    can only reach this once `require_support_access_grant` has confirmed
+    they hold an active, approved grant for this exact tenant. Recorded as
+    an audited "use" of the grant, not just its creation/approval/revoke —
+    the model's own docstring has always promised both are audited."""
+    snapshot = await platform_service.get_tenant_workspace_snapshot(db, tenant_id=tenant_id)
+    await audit_service.record(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=f"platform:{ctx.user.email}",
+        action="platform.support_access_used",
+        target_type="tenant",
+        target_id=str(tenant_id),
+    )
+    await db.commit()
+    return TenantWorkspaceSnapshotRead.model_validate(snapshot)
 
 
 @router.post(

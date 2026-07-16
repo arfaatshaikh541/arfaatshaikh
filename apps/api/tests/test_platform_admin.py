@@ -458,3 +458,187 @@ async def test_platform_auditor_cannot_request_or_list_support_access_grants(cli
 
     list_resp = await client.get("/api/platform/support-access-grants")
     assert list_resp.status_code == 403
+
+
+async def _request_and_approve_grant(
+    client, requester_csrf: str, tenant_id: str, approver_email: str
+) -> tuple[dict, str]:
+    """Shared setup for Milestone 16 tests: request a grant as whichever
+    admin is already logged in (`requester_csrf`), then log in as a
+    second, distinct platform admin to approve it — mirroring the real
+    Milestone 15 workflow rather than a shortcut, since `approve_grant`
+    rejects self-approval. Returns the approved grant and the approver's
+    CSRF token (the client session is left logged in as the approver)."""
+    grant_resp = await client.post(
+        "/api/platform/support-access-grants",
+        json={
+            "tenant_id": tenant_id,
+            "reason": "Investigating reported workspace issue",
+            "duration_hours": 4,
+        },
+        headers={"X-CSRF-Token": requester_csrf},
+    )
+    assert grant_resp.status_code == 200, grant_resp.text
+    grant = grant_resp.json()
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
+    approver_login = await login(client, approver_email, "Platform-Pass1!")
+    approver_csrf = approver_login.json()["csrf_token"]
+
+    approve_resp = await client.post(
+        f"/api/platform/support-access-grants/{grant['id']}/approve",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": approver_csrf},
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+    return approve_resp.json(), approver_csrf
+
+
+async def test_workspace_snapshot_requires_an_active_grant(client, db):
+    """Milestone 16: `require_support_access_grant` is the dependency
+    `SupportAccessGrant`'s own docstring has referenced since Milestone
+    15 but which never existed until now. A platform admin who holds
+    `platform.support_access` but has never requested (or been granted)
+    access to this specific tenant must still be blocked."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="No Grant Yet Co", full_name="Owner",
+        email="owner@no-grant-yet.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-no-grant@gridkeep-platform.example")
+    await login(client, "platform-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["details"]["support_access_grant_required"] is True
+
+
+async def test_workspace_snapshot_denied_while_grant_is_still_pending(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Pending Grant Co", full_name="Owner",
+        email="owner@pending-grant.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-pending-req@gridkeep-platform.example")
+    requester_login = await login(client, "platform-pending-req@gridkeep-platform.example", "Platform-Pass1!")
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await client.post(
+        "/api/platform/support-access-grants",
+        json={"tenant_id": tenant_id, "reason": "Not yet approved by anyone", "duration_hours": 4},
+        headers={"X-CSRF-Token": requester_csrf},
+    )
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 403
+
+
+async def test_workspace_snapshot_accessible_with_an_active_grant(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Active Grant Snapshot Co", full_name="Owner",
+        email="owner@active-grant-snapshot.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-snapshot-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-snapshot-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-snapshot-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-snapshot-appr@gridkeep-platform.example"
+    )
+
+    # Log back in as the original requester (the approver session is left
+    # active by the helper) — the grant's `platform_user_id`
+    # (who the access is actually for) is the requester, not the approver.
+    await client.post("/api/auth/logout")
+    await login(client, "platform-snapshot-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 200, resp.text
+    snapshot = resp.json()
+    assert snapshot["tenant_id"] == tenant_id
+    assert snapshot["tenant_name"] == "Active Grant Snapshot Co"
+    assert any(m["email"] == "owner@active-grant-snapshot.example" for m in snapshot["members"])
+    assert isinstance(snapshot["open_findings_total"], int)
+    assert isinstance(snapshot["open_incidents_total"], int)
+    assert isinstance(snapshot["connected_integrations_count"], int)
+
+
+async def test_workspace_snapshot_denied_after_grant_is_revoked(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Revoked Grant Snapshot Co", full_name="Owner",
+        email="owner@revoked-grant-snapshot.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-revoke-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-revoke-appr@gridkeep-platform.example")
+    requester_login = await login(client, "platform-revoke-req@gridkeep-platform.example", "Platform-Pass1!")
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    grant, approver_csrf = await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-revoke-appr@gridkeep-platform.example"
+    )
+
+    # Still logged in as the approver from `_request_and_approve_grant`.
+    revoke_resp = await client.post(
+        f"/api/platform/support-access-grants/{grant['id']}/revoke",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": approver_csrf},
+    )
+    assert revoke_resp.status_code == 200
+    assert revoke_resp.json()["status"] == "revoked"
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": approver_csrf})
+    await login(client, "platform-revoke-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 403
+
+
+async def test_workspace_snapshot_use_is_audit_logged(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Audited Snapshot Co", full_name="Owner",
+        email="owner@audited-snapshot.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-audit-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-audit-appr@gridkeep-platform.example")
+    requester_login = await login(client, "platform-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-audit-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    snapshot_resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert snapshot_resp.status_code == 200
+
+    logs_resp = await client.get(
+        "/api/platform/audit-logs", params={"tenant_id": tenant_id, "action": "platform.support_access_used"}
+    )
+    assert logs_resp.status_code == 200
+    logs = logs_resp.json()
+    assert len(logs) == 1
+    assert logs[0]["actor_label"] == "platform:platform-audit-req@gridkeep-platform.example"
+
+
+async def test_tenant_user_cannot_view_platform_workspace_snapshot_endpoint(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Not Platform Snapshot Co", full_name="Owner",
+        email="owner@not-platform-snapshot.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    await login(client, "owner@not-platform-snapshot.example", "Owner-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
+    assert resp.status_code == 403

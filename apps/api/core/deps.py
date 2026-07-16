@@ -29,6 +29,7 @@ from modules.entitlements.service import resolve_entitlements
 from modules.identity.models import Session as SessionModel
 from modules.identity.models import User
 from modules.permissions.models import Membership, Role, RolePermission
+from modules.platform_admin.service import is_grant_active
 from modules.tenancy.models import Tenant
 from modules.tenancy.repository import get_security_profile
 from modules.tenancy.service import is_mfa_enrollment_required
@@ -289,6 +290,38 @@ async def get_platform_admin_db(
     `get_tenant_db` composes with `require_permission`."""
     async with platform_admin_scoped_session() as session:
         yield session
+
+
+def require_support_access_grant():
+    """Milestone 16: the dependency `SupportAccessGrant`'s own docstring
+    has promised since Milestone 15 ("every platform_admin read of tenant
+    data must resolve an active grant row here first") but which never
+    actually existed until now. Reads `tenant_id` from the same path
+    parameter the route itself declares — FastAPI resolves path
+    parameters across the whole dependency tree, so both this checker and
+    the route handler receive the identical value.
+
+    Deliberately shares its `get_db` session with the route handler
+    (FastAPI caches a dependency's result per request): `is_grant_active`
+    calls `set_tenant_context(db, tenant_id, is_platform_admin=True)` on
+    that session as a side effect of checking the grant, which is exactly
+    the tenant-scoping the route handler's own queries need afterward —
+    the same "set context once, reuse the session" pattern
+    `update_tenant_status`/`create_grant` already use."""
+
+    async def _checker(
+        tenant_id: uuid.UUID,
+        ctx: PlatformContext = Depends(require_platform_permission("platform.support_access")),
+        db: AsyncSession = Depends(get_db),
+    ) -> PlatformContext:
+        if not await is_grant_active(db, tenant_id=tenant_id, platform_user_id=ctx.user.id):
+            raise AuthorizationError(
+                "An active support access grant for this tenant is required.",
+                details={"support_access_grant_required": True, "tenant_id": str(tenant_id)},
+            )
+        return ctx
+
+    return _checker
 
 
 async def require_csrf(
