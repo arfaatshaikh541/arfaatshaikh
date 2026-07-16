@@ -14,7 +14,11 @@ from gridkeep_connector_sdk.registry import get_connector_class
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
-from core.task_queue import enqueue_run_action, enqueue_run_correlation
+from core.task_queue import (
+    enqueue_run_action,
+    enqueue_run_correlation,
+    enqueue_run_threat_intel_correlation,
+)
 from db.session import AsyncSessionLocal, set_tenant_context
 from modules.actions import service as actions_service
 from modules.actions.models import ActionRun
@@ -25,9 +29,16 @@ from modules.credential_vault import service as vault_service
 from modules.findings import service as findings_service
 from modules.findings.engine import run_correlation
 from modules.identity.models import Session as SessionModel
-from modules.integrations.models import IntegrationCatalogEntry, IntegrationHealth, IntegrationSyncRun, TenantIntegration
+from modules.integrations.models import (
+    IntegrationCatalogEntry,
+    IntegrationHealth,
+    IntegrationSyncRun,
+    TenantIntegration,
+)
 from modules.platform_admin.models import SupportAccessGrant
 from modules.tenancy.models import Tenant
+from modules.threat_intel.engine import run_threat_intel_correlation
+from modules.threat_intel.ingestion import ingest_threat_indicators
 from worker.celery_app import celery_app
 
 logger = structlog.get_logger("gridkeep.worker.tasks")
@@ -137,6 +148,18 @@ async def _run_integration_sync_async(
                 provider_id=catalog_entry.provider_id,
                 records=records,
             )
+            # Threat-intel indicators are a different subsystem from the
+            # asset graph (see modules.assets.ingestion's
+            # RECORD_TYPE_TO_ASSET_TYPE_KEY docstring) — ingested from the
+            # same record stream, into their own table, in the same
+            # transaction as the asset ingestion above.
+            await ingest_threat_indicators(
+                session,
+                tenant_id=tenant_uuid,
+                tenant_integration_id=integration_uuid,
+                provider_id=catalog_entry.provider_id,
+                records=records,
+            )
             health = await connector.health_check()
             await connector.disconnect()
 
@@ -164,6 +187,11 @@ async def _run_integration_sync_async(
             # function call, so a correlation failure can't roll back the
             # sync that already committed.
             enqueue_run_correlation(tenant_id)
+            # Threat-intel correlation runs independently of asset
+            # correlation above — a new indicator can match an existing
+            # asset just as easily as a new asset can match an existing
+            # indicator, so every sync re-evaluates both directions.
+            enqueue_run_threat_intel_correlation(tenant_id)
             return {
                 "status": "success",
                 "processed": summary.processed,
@@ -230,6 +258,26 @@ async def _run_correlation_async(tenant_id: str) -> dict:
             "accepted_risk_expired": summary.accepted_risk_expired,
             "action_runs_created": len(created_runs),
             "action_runs_auto_approved": len(approved_run_ids),
+        }
+
+
+async def _run_threat_intel_correlation_async(tenant_id: str) -> dict:
+    """Threat-intel matches don't yet feed playbook evaluation the way
+    asset-correlation findings do (Milestone 4) — a reasonable future
+    integration between the two engines, not attempted in this pass to
+    keep this milestone's scope coherent."""
+    tenant_uuid = uuid.UUID(tenant_id)
+    async with AsyncSessionLocal() as session:
+        await set_tenant_context(session, tenant_uuid)
+        summary = await run_threat_intel_correlation(session, tenant_id=tenant_uuid)
+        await session.commit()
+        return {
+            "indicators_evaluated": summary.indicators_evaluated,
+            "assets_evaluated": summary.assets_evaluated,
+            "created": summary.created,
+            "updated": summary.updated,
+            "reopened": summary.reopened,
+            "auto_resolved": summary.auto_resolved,
         }
 
 
@@ -349,6 +397,13 @@ def run_integration_sync(tenant_id: str, tenant_integration_id: str, sync_run_id
 def run_correlation_task(tenant_id: str) -> dict:
     result = asyncio.run(_run_correlation_async(tenant_id))
     logger.info("correlation_complete", tenant_id=tenant_id, **result)
+    return result
+
+
+@celery_app.task(name="worker.tasks.run_threat_intel_correlation")
+def run_threat_intel_correlation_task(tenant_id: str) -> dict:
+    result = asyncio.run(_run_threat_intel_correlation_async(tenant_id))
+    logger.info("threat_intel_correlation_complete", tenant_id=tenant_id, **result)
     return result
 
 

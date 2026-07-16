@@ -72,6 +72,12 @@ class MockEndpointConnector(Connector):
                 "encrypted": True,
                 "edr_status": "unresponsive",
                 "last_seen_at": (now - timedelta(days=9)).isoformat(),  # demo scenario: lost/stale device
+                # demo scenario: this stale, EDR-unresponsive device also
+                # last communicated with a known-malicious IP (matches
+                # mock_threat_intel's mock-ioc-001) — a realistic
+                # combination of independent risk signals converging on
+                # one asset.
+                "last_known_public_ip": "203.0.113.55",
             },
         ]
         for device in devices:
@@ -86,6 +92,11 @@ class MockEndpointConnector(Connector):
                     "encrypted": device["encrypted"],
                     "edr_status": device["edr_status"],
                     "last_seen_at": device["last_seen_at"],
+                    **(
+                        {"last_known_public_ip": device["last_known_public_ip"]}
+                        if "last_known_public_ip" in device
+                        else {}
+                    ),
                 },
                 raw=device,
                 observed_at=now,

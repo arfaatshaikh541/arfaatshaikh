@@ -29,6 +29,13 @@ def enqueue_run_correlation(tenant_id: str) -> str:
     return result.id
 
 
+def enqueue_run_threat_intel_correlation(tenant_id: str) -> str:
+    result = _client.send_task(
+        "worker.tasks.run_threat_intel_correlation", args=[tenant_id], queue="correlate"
+    )
+    return result.id
+
+
 def enqueue_run_action(tenant_id: str, action_run_id: str) -> str:
     result = _client.send_task(
         "worker.tasks.run_action", args=[tenant_id, action_run_id], queue="actions"

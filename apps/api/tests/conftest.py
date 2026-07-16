@@ -96,6 +96,7 @@ async def _clean_tables(_bootstrap_catalog):
         "incident_assets",
         "incidents",
         "findings",
+        "threat_indicators",
         "asset_changes",
         "asset_tags",
         "asset_owners",
