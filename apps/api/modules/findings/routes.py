@@ -22,31 +22,12 @@ from modules.findings.schemas import (
     RemediateFindingRequest,
     RiskSummaryRead,
 )
-from modules.findings.scoring import compute_finding_risk_score
 
 router = APIRouter(prefix="/api/findings", tags=["findings"])
 
 
-def _to_list_item(finding: Finding, asset: Asset) -> FindingListItem:
-    return FindingListItem(
-        id=finding.id,
-        rule_key=finding.rule_key,
-        title=finding.title,
-        category=finding.category,
-        severity=finding.severity,
-        status=finding.status,
-        risk_score=compute_finding_risk_score(finding.severity, asset.criticality),
-        asset_id=asset.id,
-        asset_display_name=asset.display_name,
-        asset_criticality=asset.criticality,
-        assigned_to_user_id=finding.assigned_to_user_id,
-        first_observed_at=finding.first_observed_at,
-        last_observed_at=finding.last_observed_at,
-    )
-
-
 def _to_detail(finding: Finding, asset: Asset) -> FindingDetail:
-    base = _to_list_item(finding, asset)
+    base = findings_service.to_finding_list_item(finding, asset)
     return FindingDetail(
         **base.model_dump(),
         description=finding.description,
@@ -69,7 +50,7 @@ async def list_findings(
     rows = await findings_service.list_findings(
         db, tenant_id=ctx.tenant_id, severity=severity, status=status, asset_id=asset_id, search=search
     )
-    return [_to_list_item(finding, asset) for finding, asset in rows]
+    return [findings_service.to_finding_list_item(finding, asset) for finding, asset in rows]
 
 
 @router.get("/summary", response_model=RiskSummaryRead)

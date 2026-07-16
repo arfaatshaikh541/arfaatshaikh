@@ -702,3 +702,92 @@ async def test_support_access_grant_status_column_rejects_invalid_values(client,
     with pytest.raises(DBAPIError):
         await db.flush()
     await db.rollback()
+
+
+async def test_grant_gated_findings_drilldown_requires_an_active_grant(client, db):
+    """Milestone 18: the drill-down endpoint must be gated exactly like the
+    workspace snapshot — no active grant, no findings."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Findings Drilldown No Grant Co", full_name="Owner",
+        email="owner@findings-drilldown-no-grant.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-findings-no-grant@gridkeep-platform.example")
+    await login(client, "platform-findings-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["details"]["support_access_grant_required"] is True
+
+
+async def test_grant_gated_findings_drilldown_returns_real_findings(client, db):
+    from tests.test_findings_api import _connected_owner, _seed_findings
+
+    owner_ctx = await _connected_owner(
+        client, db, org="Findings Drilldown Co", email="owner@findings-drilldown.example"
+    )
+    await _seed_findings(owner_ctx)
+    tenant_id = owner_ctx["tenant_id"]
+
+    await client.post("/api/auth/logout")
+    await _create_platform_admin(db, "platform-findings-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-findings-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-findings-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-findings-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-findings-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
+    assert resp.status_code == 200, resp.text
+    findings = resp.json()
+    assert len(findings) > 0
+    assert all("risk_score" in f and "asset_display_name" in f for f in findings)
+
+    severity_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/findings", params={"severity": findings[0]["severity"]}
+    )
+    assert severity_resp.status_code == 200
+    assert all(f["severity"] == findings[0]["severity"] for f in severity_resp.json())
+
+
+async def test_grant_gated_findings_drilldown_is_audited_with_view_context(client, db):
+    from tests.test_findings_api import _connected_owner, _seed_findings
+
+    owner_ctx = await _connected_owner(
+        client, db, org="Findings Audit Co", email="owner@findings-audit.example"
+    )
+    await _seed_findings(owner_ctx)
+    tenant_id = owner_ctx["tenant_id"]
+
+    await client.post("/api/auth/logout")
+    await _create_platform_admin(db, "platform-findings-audit-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-findings-audit-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-findings-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-findings-audit-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-findings-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
+    assert resp.status_code == 200
+
+    logs_resp = await client.get(
+        "/api/platform/audit-logs", params={"tenant_id": tenant_id, "action": "platform.support_access_used"}
+    )
+    assert logs_resp.status_code == 200
+    logs = logs_resp.json()
+    findings_views = [log for log in logs if log["context"].get("view") == "findings"]
+    assert len(findings_views) == 1

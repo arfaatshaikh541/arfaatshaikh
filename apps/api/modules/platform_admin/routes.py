@@ -18,6 +18,8 @@ from core.deps import (
 )
 from db.session import get_db
 from modules.audit import service as audit_service
+from modules.findings import service as findings_service
+from modules.findings.schemas import FindingListItem
 from modules.platform_admin import service as platform_service
 from modules.platform_admin.models import SupportAccessGrant
 from modules.platform_admin.schemas import (
@@ -203,11 +205,43 @@ async def get_tenant_workspace_snapshot(
         action="platform.support_access_used",
         target_type="tenant",
         target_id=str(tenant_id),
+        context={"view": "workspace_snapshot"},
     )
     await db.commit()
     return TenantWorkspaceSnapshotRead.model_validate(
         {**snapshot, "access_expires_at": ctx.grant_expires_at}
     )
+
+
+@router.get("/tenants/{tenant_id}/findings", response_model=list[FindingListItem])
+async def get_tenant_findings_for_support(
+    tenant_id: uuid.UUID,
+    severity: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    ctx: SupportAccessContext = Depends(require_support_access_grant()),
+    db: AsyncSession = Depends(get_db),
+) -> list[FindingListItem]:
+    """Milestone 18: the drill-down Milestone 16's own Known Limitations
+    named as "a natural next increment" — the workspace snapshot's
+    `open_findings_total` count with no way to see what those findings
+    actually are. Reuses `findings_service.list_findings` and
+    `to_finding_list_item` verbatim (the same mapping the tenant-facing
+    `GET /api/findings` uses) rather than re-deriving risk scoring here."""
+    rows = await findings_service.list_findings(
+        db, tenant_id=tenant_id, severity=severity, status=status
+    )
+    await audit_service.record(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=f"platform:{ctx.user.email}",
+        action="platform.support_access_used",
+        target_type="tenant",
+        target_id=str(tenant_id),
+        context={"view": "findings", "severity": severity, "status": status},
+    )
+    await db.commit()
+    return [findings_service.to_finding_list_item(finding, asset) for finding, asset in rows]
 
 
 @router.post(

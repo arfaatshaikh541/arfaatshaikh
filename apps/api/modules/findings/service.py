@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.errors import NotFoundError, ValidationAppError
 from modules.assets.models import Asset
 from modules.findings.models import ACTIVE_STATUSES, Finding
-from modules.findings.scoring import compute_tenant_security_score
+from modules.findings.schemas import FindingListItem
+from modules.findings.scoring import compute_finding_risk_score, compute_tenant_security_score
 from modules.permissions.models import Membership
 
 
@@ -42,6 +43,28 @@ async def list_findings(
     query = query.order_by(Finding.last_observed_at.desc())
     result = await session.execute(query)
     return [(finding, asset) for finding, asset in result.all()]
+
+
+def to_finding_list_item(finding: Finding, asset: Asset) -> FindingListItem:
+    """Milestone 18: promoted out of `findings.routes`'s route-private
+    `_to_list_item` so `modules.platform_admin`'s grant-gated findings
+    drill-down can reuse the exact same risk-scoring mapping instead of
+    duplicating it."""
+    return FindingListItem(
+        id=finding.id,
+        rule_key=finding.rule_key,
+        title=finding.title,
+        category=finding.category,
+        severity=finding.severity,
+        status=finding.status,
+        risk_score=compute_finding_risk_score(finding.severity, asset.criticality),
+        asset_id=asset.id,
+        asset_display_name=asset.display_name,
+        asset_criticality=asset.criticality,
+        assigned_to_user_id=finding.assigned_to_user_id,
+        first_observed_at=finding.first_observed_at,
+        last_observed_at=finding.last_observed_at,
+    )
 
 
 async def get_finding_detail(
