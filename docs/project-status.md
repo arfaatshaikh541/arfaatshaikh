@@ -2288,7 +2288,7 @@ disruptive action approved directly with no step-up prompt. Demo environment rev
   keeping in mind as a design invariant, not just an implementation detail, in any future refactor of the
   auth dependency chain.
 
-## Pending Approvals
+## Milestone 14 — Pending Approvals
 
 - This Milestone 14 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -2296,6 +2296,159 @@ disruptive action approved directly with no step-up prompt. Demo environment rev
   change (see Architecture Decisions, Known Limitations, and Unresolved Risks) — both are security-relevant
   judgment calls made in the absence of an explicit specification for this milestone.
 
-## Next Action
+## Milestone 14 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 15`** to begin the next milestone.
+
+## Milestone 15 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 14's own Unresolved Risks explicitly carried forward "the second-approver support-access
+  workflow" as an untouched open item. Independent verification found the gap was real and specific:
+  `create_grant` set `approved_by_user_id` to the very same platform user who requested the grant, with
+  `status="active"` immediately — no second person was ever actually involved, despite
+  `SupportAccessGrant`'s own docstring describing a proper approval workflow. There was also no
+  platform-wide list endpoint at all (only "create", "revoke", and a tenant-side "list my grants"), so a
+  genuine second approver would have had no way to discover a pending request in the first place.
+
+### Backend
+- **`create_grant` now produces a `pending` grant with no `approved_by_user_id`, `starts_at`, or
+  `expires_at`** — the requested duration is stored separately (`requested_duration_hours`) and only
+  applied once approved. **`approve_grant`** (new) is the second-approver check this milestone exists for:
+  it rejects a grant that isn't currently `pending` (409) and rejects the requester approving their own
+  request (422), then activates it, stamping `starts_at`/`expires_at` from the stored duration.
+- **Rejecting a still-pending request needed no new function** — the existing `revoke_grant` never checked
+  prior status, so it already worked correctly as a rejection path for a `pending` grant, not just as a
+  revocation of an `active` one.
+- **A new platform-wide `list_all_grants` / `GET /api/platform/support-access-grants`**, filterable by
+  tenant and status, is the cross-tenant discovery surface a second approver needs. It's reachable only
+  through `get_platform_admin_db` (Milestone 12's platform-admin-scoped session), because the underlying
+  RLS policy on `support_access_grants` was widened — SELECT now allows `tenant_id = app_current_tenant_id()
+  OR app_is_platform_admin()`, with INSERT/UPDATE/DELETE staying strictly tenant-scoped — the same
+  widened-SELECT shape used for `trust_passport_settings` (M9), `audit_logs` (M12), and now this table.
+- **`resolve_user_emails`** (new): a single batched `users` lookup that resolves `platform_user_id`,
+  `requested_by_user_id`, and `approved_by_user_id` to emails for every grant returned by any of the three
+  read endpoints (platform-wide list, tenant list, create/approve/revoke responses) — raw UUIDs weren't
+  real transparency despite the model's own docstring promising tenant-visible grants. `users` carries no
+  RLS (identity isn't tenant-owned), so this works regardless of which session flavour is calling it.
+- Chose **`platform.support_access` as the sole gating permission for both request and approve** — any two
+  different holders of that permission can request/approve each other's grants — rather than inventing a
+  separate, more senior "approver" permission. A documented judgment call, not a more elaborate two-tier
+  scheme.
+
+### Frontend (`apps/web`)
+- New `/platform/support-access` page: request a grant against a tenant (tenant picker sourced from the
+  existing `GET /api/platform/tenants`, reason, duration), filter by status, and Approve/Reject/Revoke each
+  grant. The Approve button is disabled for the requester's own pending request — mirroring the backend's
+  self-approval rejection for good UX even though the backend enforces it regardless. Added "Support
+  Access" to `PlatformShell`'s nav, between "Tenants" and "Audit Log".
+- A new "Platform Support Access" card on the tenant-side `/settings/security` page (gated on
+  `settings.manage`, consistent with the existing tenant-facing `GET /api/support-access-grants` endpoint)
+  shows every grant against that workspace — status, reason, requester, and approver — using the newly
+  resolved emails instead of raw IDs.
+
+## Milestone 15 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| A new support access request starts `pending`, with no approver or active window | ✅ | `test_platform_admin_can_request_approve_and_revoke_support_access` |
+| The requester cannot approve their own request | ✅ | Same test (422); live-verified — Approve button disabled in the UI for the requester |
+| A different platform admin can approve a pending request, activating it with the stored duration | ✅ | Same test; live-verified — a second platform admin (`platform_support_engineer` role) approved live and the grant became `active` with correct `expires_at` |
+| Approving a grant that isn't pending is rejected | ✅ | `test_cannot_approve_a_grant_that_is_not_pending` (409) |
+| A pending request can be rejected via the existing revoke path | ✅ | Covered by `test_platform_admin_can_request_approve_and_revoke_support_access` |
+| A platform-wide list spans multiple tenants in one call (exercises the widened RLS) | ✅ | `test_platform_wide_support_access_grants_list_spans_multiple_tenants` |
+| A platform role without `platform.support_access` cannot request, approve, or list grants | ✅ | `test_platform_auditor_cannot_request_or_list_support_access_grants` |
+| The tenant can see every grant against its own workspace, including who requested/approved it | ✅ | Live-verified — demo tenant owner's `/settings/security` page showed both the `active` and still-`pending` grants with resolved requester/approver emails |
+| Backend tests pass | ✅ | **208/208** passing (`pytest -q` in `apps/api`, up from 205 — 3 net new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 15 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 208 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium, using a
+second platform-admin account created for this purpose (`platform_support_engineer` role — the seeded demo
+environment only ships one platform admin). As the first platform admin: requested access against the
+demo tenant, confirmed the grant showed `pending` with no approver, and confirmed the Approve button was
+disabled for that same admin's own request. Logged out, logged in as the second platform admin, confirmed
+Approve was enabled there, approved it live, and confirmed the grant became `active` with the correct
+`expires_at` and `approved_by` email. Logged in as the demo tenant owner and confirmed `/settings/security`
+showed the grant with both the requester's and approver's emails correctly attributed. Test grants were
+removed from the database afterward so the demo environment isn't left with stale support-access rows.
+
+## Milestone 15 — Architecture Decisions (made or refined during implementation)
+
+- **Rejection of a pending request reuses `revoke_grant` rather than introducing a separate `reject_grant`.**
+  `revoke_grant` never checked prior status, so it already behaved correctly as a rejection path — adding a
+  parallel function would have meant two code paths doing the same state transition (`status="revoked"`)
+  for no behavioural difference.
+- **The second-approver check is a single equality comparison
+  (`grant.requested_by_user_id == approver_user_id`), not a role-based or seniority-based rule.** Any two
+  distinct holders of `platform.support_access` can request/approve for each other. This keeps the
+  permission model flat and matches how the pre-existing `platform_super_admin` /
+  `platform_security_operator` / `platform_support_engineer` roles already share that single permission.
+- **The platform-wide list endpoint reuses the exact widened-SELECT-RLS pattern from Milestone 12's audit
+  log** rather than inventing a new cross-tenant access mechanism — `get_platform_admin_db` is now the
+  established, single way any platform read endpoint gets to see more than one tenant's rows.
+- **Deliberately did not build grant-gated tenant-data-read enforcement in this milestone.** The
+  `SupportAccessGrant` model's own docstring references a `require_support_access_grant` dependency in
+  `core/deps.py` that has never existed, and `is_grant_active()` has zero callers anywhere in the codebase.
+  Actually gating some real platform read capability behind an active grant would mean inventing what that
+  capability is — a materially larger scope than fixing the approval workflow itself, and left as an
+  explicit Known Limitation below rather than attempted partially.
+
+## Milestone 15 — Known Limitations
+
+- **An active support access grant still gates nothing.** No platform code path currently checks
+  `is_grant_active()` (it has zero callers) before letting a platform admin read or act on tenant data —
+  the grant is an audited, tenant-visible record of intent, not yet an enforced access boundary. This is
+  the same gap the model's docstring has described since it was first written; this milestone fixed the
+  approval workflow around it but did not close it.
+- **No automatic expiry sweep.** An `active` grant whose `expires_at` has passed simply stops being
+  meaningful in principle — nothing revokes it, marks it `expired`, or hides it from the "active" filter.
+  Since nothing currently reads grants to gate access, this has no live consequence yet, but would need
+  addressing before the grant becomes a real enforcement mechanism.
+- **The second platform admin used for live verification was created ad hoc for this session** (not part of
+  `seed/demo.py`), since the seed script has only ever created one platform user. The seed script itself
+  was intentionally left unchanged to avoid scope creep; a real second demo platform admin would need to be
+  a deliberate seed-data decision, not a side effect of testing this milestone.
+- **No frontend automated tests were added for the new pages** — same gap and rationale as every prior
+  milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
+  dedicated Vitest coverage.
+
+## Milestone 15 — Unresolved Risks
+
+- Carried over from Milestones 1-14 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes) — none were touched this milestone and remain open.
+- **A support access grant being `active` still doesn't gate any real platform capability** — flagged
+  explicitly for your review, since this means the approval workflow this milestone built is currently
+  process/audit value only, not a technical access boundary. Closing that gap would require defining what
+  platform reads/actions actually need to check for an active grant, which is a genuinely open product
+  question, not just an implementation detail.
+- **No expiry sweep** means an old `active` grant's `expires_at` having passed is not currently visible or
+  actionable anywhere except by a human reading the timestamp themselves.
+
+## Milestone 15 — Pending Approvals
+
+- This Milestone 15 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the decision to leave grant-gated access enforcement unbuilt (see
+  Architecture Decisions, Known Limitations, and Unresolved Risks) — the grant workflow is now correct and
+  auditable, but an `active` grant does not yet unlock anything on its own.
+
+## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 16`** to begin the next milestone.
