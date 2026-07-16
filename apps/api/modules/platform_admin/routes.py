@@ -17,6 +17,7 @@ from core.deps import (
 from db.session import get_db
 from modules.audit import service as audit_service
 from modules.platform_admin import service as platform_service
+from modules.platform_admin.models import SupportAccessGrant
 from modules.platform_admin.schemas import (
     PlatformAuditLogRead,
     SupportAccessGrantCreateRequest,
@@ -27,6 +28,33 @@ from modules.platform_admin.schemas import (
 
 router = APIRouter(prefix="/api/platform", tags=["platform_admin"])
 tenant_router = APIRouter(prefix="/api", tags=["support_access"])
+
+
+async def _to_grant_reads(
+    db: AsyncSession, grants: list[SupportAccessGrant]
+) -> list[SupportAccessGrantRead]:
+    """Resolves the three actor columns to emails in one batched lookup —
+    `SupportAccessGrant`'s own docstring has always promised these grants
+    are tenant-visible; raw UUIDs aren't real transparency."""
+    user_ids = {
+        uid
+        for grant in grants
+        for uid in (grant.platform_user_id, grant.requested_by_user_id, grant.approved_by_user_id)
+        if uid is not None
+    }
+    emails = await platform_service.resolve_user_emails(db, user_ids)
+    return [
+        SupportAccessGrantRead.model_validate(grant).model_copy(
+            update={
+                "platform_user_email": emails.get(grant.platform_user_id),
+                "requested_by_email": emails.get(grant.requested_by_user_id),
+                "approved_by_email": (
+                    emails.get(grant.approved_by_user_id) if grant.approved_by_user_id else None
+                ),
+            }
+        )
+        for grant in grants
+    ]
 
 
 @router.post(
@@ -51,13 +79,42 @@ async def create_support_access_grant(
         tenant_id=payload.tenant_id,
         actor_user_id=ctx.user.id,
         actor_label=f"platform:{ctx.user.email}",
-        action="platform.support_access_granted",
+        action="platform.support_access_requested",
         target_type="support_access_grant",
         target_id=str(grant.id),
         context={"reason": payload.reason, "duration_hours": payload.duration_hours},
     )
     await db.commit()
-    return SupportAccessGrantRead.model_validate(grant)
+    return (await _to_grant_reads(db, [grant]))[0]
+
+
+@router.post(
+    "/support-access-grants/{grant_id}/approve",
+    response_model=SupportAccessGrantRead,
+    dependencies=[Depends(require_csrf)],
+)
+async def approve_support_access_grant(
+    grant_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    ctx: PlatformContext = Depends(require_platform_permission("platform.support_access")),
+    db: AsyncSession = Depends(get_db),
+) -> SupportAccessGrantRead:
+    """The second-approver check this milestone exists for: `approve_grant`
+    rejects the requester approving their own request."""
+    grant = await platform_service.approve_grant(
+        db, grant_id=grant_id, tenant_id=tenant_id, approver_user_id=ctx.user.id
+    )
+    await audit_service.record(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=f"platform:{ctx.user.email}",
+        action="platform.support_access_approved",
+        target_type="support_access_grant",
+        target_id=str(grant.id),
+    )
+    await db.commit()
+    return (await _to_grant_reads(db, [grant]))[0]
 
 
 @router.post(
@@ -84,7 +141,24 @@ async def revoke_support_access_grant(
         target_id=str(grant.id),
     )
     await db.commit()
-    return SupportAccessGrantRead.model_validate(grant)
+    return (await _to_grant_reads(db, [grant]))[0]
+
+
+@router.get("/support-access-grants", response_model=list[SupportAccessGrantRead])
+async def list_all_support_access_grants(
+    tenant_id: uuid.UUID | None = Query(default=None),
+    status: str | None = Query(default=None),
+    ctx: PlatformContext = Depends(require_platform_permission("platform.support_access")),
+    db: AsyncSession = Depends(get_platform_admin_db),
+) -> list[SupportAccessGrantRead]:
+    """The platform-wide view a second approver needs to discover pending
+    requests across every tenant — only reachable through
+    `get_platform_admin_db`, the one session flavour the widened
+    `support_access_grants_select` RLS policy grants cross-tenant
+    visibility to (the same pattern Milestone 12 used for the platform-wide
+    audit log)."""
+    grants = await platform_service.list_all_grants(db, tenant_id=tenant_id, status=status)
+    return await _to_grant_reads(db, grants)
 
 
 @router.get("/tenants", response_model=list[TenantSummaryRead])
@@ -155,4 +229,4 @@ async def list_support_access_grants_for_my_tenant(
     this workspace — satisfies 'audit all platform support access' from
     the tenant's own side, not just the platform's."""
     grants = await platform_service.list_grants_for_tenant(db, tenant_id=ctx.tenant_id)
-    return [SupportAccessGrantRead.model_validate(g) for g in grants]
+    return await _to_grant_reads(db, grants)

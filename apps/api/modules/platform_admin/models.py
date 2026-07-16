@@ -18,7 +18,16 @@ class SupportAccessGrant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     anywhere else in the codebase — every platform_admin read of tenant
     data must resolve an active grant row here first (see deps.py
     `require_support_access_grant`), and every grant is itself an audited
-    event (both creation and each use)."""
+    event (both creation and each use).
+
+    Milestone 15: `requested_by_user_id` and `approved_by_user_id` are
+    genuinely distinct actors now — a grant starts `pending` and only
+    becomes `active` once a *different* platform user (also holding
+    `platform.support_access`) approves it. `requested_duration_hours` is
+    the window length the requester asked for, applied starting at
+    approval time (not request time), since the clock on a support
+    engineer's access shouldn't run before anyone has actually agreed to
+    it."""
 
     __tablename__ = "support_access_grants"
 
@@ -36,6 +45,7 @@ class SupportAccessGrant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    requested_duration_hours: Mapped[int | None] = mapped_column(nullable=True)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

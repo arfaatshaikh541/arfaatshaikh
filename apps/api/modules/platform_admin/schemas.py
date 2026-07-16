@@ -18,11 +18,18 @@ class SupportAccessGrantRead(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     platform_user_id: uuid.UUID
+    platform_user_email: str | None = None
+    requested_by_user_id: uuid.UUID
+    requested_by_email: str | None = None
+    approved_by_user_id: uuid.UUID | None
+    approved_by_email: str | None = None
     reason: str
     status: str
+    requested_duration_hours: int | None
     starts_at: datetime | None
     expires_at: datetime | None
     revoked_at: datetime | None
+    revoked_reason: str | None
 
 
 class TenantSummaryRead(BaseModel):

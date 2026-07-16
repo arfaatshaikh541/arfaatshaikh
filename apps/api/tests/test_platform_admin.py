@@ -27,17 +27,17 @@ async def _create_platform_admin(db, email: str, role_name: str = "platform_supe
     await db.commit()
 
 
-async def test_platform_admin_can_grant_and_revoke_support_access(client, db):
+async def test_platform_admin_can_request_approve_and_revoke_support_access(client, db):
     tenant_body = await onboard_verified_owner(
         client, db, org_name="Support Target Co", full_name="Owner", email="owner@support-target.example",
         password="Owner-Pass1!",
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-admin@gridkeep-platform.example")
-    platform_login = await login(client, "platform-admin@gridkeep-platform.example", "Platform-Pass1!")
-    assert platform_login.status_code == 200
-    platform_csrf = platform_login.json()["csrf_token"]
+    await _create_platform_admin(db, "platform-requester@gridkeep-platform.example")
+    requester_login = await login(client, "platform-requester@gridkeep-platform.example", "Platform-Pass1!")
+    assert requester_login.status_code == 200
+    requester_csrf = requester_login.json()["csrf_token"]
 
     grant_resp = await client.post(
         "/api/platform/support-access-grants",
@@ -46,17 +46,43 @@ async def test_platform_admin_can_grant_and_revoke_support_access(client, db):
             "reason": "Investigating a customer-reported billing issue",
             "duration_hours": 2,
         },
-        headers={"X-CSRF-Token": platform_csrf},
+        headers={"X-CSRF-Token": requester_csrf},
     )
     assert grant_resp.status_code == 200, grant_resp.text
     grant = grant_resp.json()
-    assert grant["status"] == "active"
+    assert grant["status"] == "pending"
     assert grant["tenant_id"] == tenant_id
+    assert grant["approved_by_user_id"] is None
+
+    # The requester cannot approve their own request.
+    self_approve_resp = await client.post(
+        f"/api/platform/support-access-grants/{grant['id']}/approve",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": requester_csrf},
+    )
+    assert self_approve_resp.status_code == 422
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
+    await _create_platform_admin(db, "platform-approver@gridkeep-platform.example")
+    approver_login = await login(client, "platform-approver@gridkeep-platform.example", "Platform-Pass1!")
+    approver_csrf = approver_login.json()["csrf_token"]
+
+    approve_resp = await client.post(
+        f"/api/platform/support-access-grants/{grant['id']}/approve",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": approver_csrf},
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+    approved = approve_resp.json()
+    assert approved["status"] == "active"
+    assert approved["approved_by_email"] == "platform-approver@gridkeep-platform.example"
+    assert approved["starts_at"] is not None
+    assert approved["expires_at"] is not None
 
     revoke_resp = await client.post(
         f"/api/platform/support-access-grants/{grant['id']}/revoke",
         params={"tenant_id": tenant_id},
-        headers={"X-CSRF-Token": platform_csrf},
+        headers={"X-CSRF-Token": approver_csrf},
     )
     assert revoke_resp.status_code == 200
     assert revoke_resp.json()["status"] == "revoked"
@@ -328,3 +354,107 @@ async def test_platform_support_engineer_cannot_view_audit_logs_or_manage_tenant
 
     tenants_resp = await client.get("/api/platform/tenants")
     assert tenants_resp.status_code == 403
+
+
+async def test_cannot_approve_a_grant_that_is_not_pending(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Not Pending Co", full_name="Owner", email="owner@not-pending.example",
+        password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-req-np@gridkeep-platform.example")
+    requester_login = await login(client, "platform-req-np@gridkeep-platform.example", "Platform-Pass1!")
+    requester_csrf = requester_login.json()["csrf_token"]
+    grant_resp = await client.post(
+        "/api/platform/support-access-grants",
+        json={
+            "tenant_id": tenant_id,
+            "reason": "Investigating a routine support ticket",
+            "duration_hours": 1,
+        },
+        headers={"X-CSRF-Token": requester_csrf},
+    )
+    grant_id = grant_resp.json()["id"]
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
+
+    await _create_platform_admin(db, "platform-app-np@gridkeep-platform.example")
+    approver_login = await login(client, "platform-app-np@gridkeep-platform.example", "Platform-Pass1!")
+    approver_csrf = approver_login.json()["csrf_token"]
+    first_approve = await client.post(
+        f"/api/platform/support-access-grants/{grant_id}/approve",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": approver_csrf},
+    )
+    assert first_approve.status_code == 200
+
+    second_approve = await client.post(
+        f"/api/platform/support-access-grants/{grant_id}/approve",
+        params={"tenant_id": tenant_id},
+        headers={"X-CSRF-Token": approver_csrf},
+    )
+    assert second_approve.status_code == 409
+
+
+async def test_platform_wide_support_access_grants_list_spans_multiple_tenants(client, db):
+    """The whole point of Milestone 15's widened `support_access_grants_select`
+    RLS policy: a second approver must be able to discover pending grants
+    across every tenant, not just one at a time. This is the test that
+    actually exercises the widened policy, not just the application code
+    on top of it."""
+    tenant_a = await onboard_verified_owner(
+        client, db, org_name="Grant Span A Co", full_name="Owner", email="owner@grant-span-a.example",
+        password="Owner-Pass1!",
+    )
+    tenant_b = await onboard_verified_owner(
+        client, db, org_name="Grant Span B Co", full_name="Owner", email="owner@grant-span-b.example",
+        password="Owner-Pass1!",
+    )
+
+    await _create_platform_admin(db, "platform-span@gridkeep-platform.example")
+    platform_login = await login(client, "platform-span@gridkeep-platform.example", "Platform-Pass1!")
+    platform_csrf = platform_login.json()["csrf_token"]
+
+    for tenant_body in (tenant_a, tenant_b):
+        await client.post(
+            "/api/platform/support-access-grants",
+            json={
+                "tenant_id": tenant_body["tenant_id"],
+                "reason": "Part of a cross-tenant grant-visibility test",
+                "duration_hours": 1,
+            },
+            headers={"X-CSRF-Token": platform_csrf},
+        )
+
+    list_resp = await client.get(
+        "/api/platform/support-access-grants", params={"status": "pending"}
+    )
+    assert list_resp.status_code == 200
+    seen_tenant_ids = {g["tenant_id"] for g in list_resp.json()}
+    assert tenant_a["tenant_id"] in seen_tenant_ids
+    assert tenant_b["tenant_id"] in seen_tenant_ids
+
+
+async def test_platform_auditor_cannot_request_or_list_support_access_grants(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Auditor No Support Co", full_name="Owner",
+        email="owner@auditor-no-support.example", password="Owner-Pass1!",
+    )
+
+    await _create_platform_admin(db, "platform-auditor-ns@gridkeep-platform.example", "platform_auditor")
+    platform_login = await login(client, "platform-auditor-ns@gridkeep-platform.example", "Platform-Pass1!")
+    platform_csrf = platform_login.json()["csrf_token"]
+
+    create_resp = await client.post(
+        "/api/platform/support-access-grants",
+        json={
+            "tenant_id": tenant_body["tenant_id"],
+            "reason": "An auditor should not be able to request this",
+            "duration_hours": 1,
+        },
+        headers={"X-CSRF-Token": platform_csrf},
+    )
+    assert create_resp.status_code == 403
+
+    list_resp = await client.get("/api/platform/support-access-grants")
+    assert list_resp.status_code == 403
