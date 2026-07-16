@@ -1,13 +1,13 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-15 (Milestone 4 implementation)
+Last updated: 2026-07-16 (Milestone 5 implementation)
 
 ## Current Milestone
 
-**Milestone 4: Cyber Autopilot (Automation and Action Execution)** — implementation complete, pending
-your review and explicit approval to proceed to Milestone 5. Milestones 1 (Secure SaaS Core), 2
-(Integration SDK and Asset Graph), and 3 (Findings and Risk Engine) are complete and merged; their
-sections below are preserved as-is.
+**Milestone 5: Incident Response** — implementation complete, pending your review and explicit approval
+to proceed to Milestone 6. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and Asset Graph), 3
+(Findings and Risk Engine), and 4 (Cyber Autopilot) are complete and merged; their sections below are
+preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -722,7 +722,7 @@ Chromium:
   most rewards a careful second look before any tenant is allowed to enable `autopilot` or `lockdown` in
   production.
 
-## Pending Approvals
+## Milestone 4 — Pending Approvals
 
 - This Milestone 4 implementation is ready for your review. Nothing further is pending my side — the
   acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
@@ -731,6 +731,159 @@ Chromium:
   the first to let the platform act on a tenant's behalf without a human clicking a button, and both of
   those are where that boundary is actually enforced.
 
+---
+
+## Milestone 5 — Completed Work
+
+### Backend — `modules/incidents` (declared → investigating → contained → resolved → closed)
+- **Models**: `Incident` (title, description, severity, status, declared/assigned-to actors, declared/
+  resolved/closed timestamps, closure summary) plus two lightweight join tables — `IncidentFinding` and
+  `IncidentAsset` — linking an incident to zero or more findings/assets. An incident is explicitly a
+  *coordinating narrative* over findings/assets, not a control mechanism over them: closing an incident
+  never changes the status of any linked finding, since some may already be remediated, some
+  accepted-risk, some deliberately left open.
+- **No dedicated timeline table.** Same decision Milestone 3 made for a finding's activity timeline —
+  an incident's history (declared, status changed, note added, finding/asset linked, closed, reopened)
+  is the same shape `audit_logs` already models, so it reuses `modules.audit.service.list_for_target()`
+  rather than adding a fourth table.
+- **`declare_incident()`**: creates the incident and, for every `finding_id` passed at declaration time,
+  also links that finding's own asset automatically — escalating a finding is inherently about the asset
+  it concerns, so that asset shouldn't have to be linked as a second manual step. The same auto-link
+  happens on `link_finding()` when called later, not just at declaration.
+- **Status lifecycle enforcement**: `update_status()` only accepts `investigating`/`contained`/
+  `resolved` (never `declared` or `closed` directly — those have their own dedicated entry/exit routes)
+  and refuses to run at all once an incident is `closed`. `close_incident()` requires a closure summary
+  and refuses a second close. `reopen_incident()` only accepts a `closed` incident and moves it back to
+  `investigating`.
+- **Routes**: `GET/POST /api/incidents`, `GET /api/incidents/summary`, `GET /api/incidents/{id}`
+  (+`/activity`), `PATCH /api/incidents/{id}` (details/assignee — assignee validated as a real tenant
+  member, same pattern Milestone 3 used for finding assignment), `PATCH .../status`,
+  `POST .../notes`, `.../link-finding`, `.../link-asset`, `.../close`, `.../reopen`. All mutating routes
+  CSRF-protected, permission-gated, and audited.
+- **Scoping decision: `evidence.*` permissions are deliberately unused in this milestone.** The
+  permission matrix already distinguishes them from `incidents.*` — `compliance_manager` holds
+  `evidence.view`/`evidence.export` but *not* `incidents.view`, which only makes sense if evidence is a
+  decoupled concept (a future Evidence Platform pillar, matching the README tagline's ordering:
+  "incident-response centre, evidence platform, ...") rather than part of incident detail. Gating
+  incident routes on `evidence.*` would have been a plausible-looking but incorrect reading of the
+  vocabulary; every incident route is gated purely on `incidents.*`.
+
+### Frontend (`apps/web`)
+- `/incidents`: filterable list (status, severity) plus an inline "Declare incident" form
+  (`incidents.declare`).
+- `/incidents/[id]`: details, status-transition buttons, a note form, linked findings/assets (with
+  dropdowns to link more, pre-filtered to exclude what's already linked), close/reopen, assignee picker,
+  and a full activity timeline — all permission-gated per action (`incidents.manage` / `.close`).
+- Finding detail page gained an "Escalate to incident" button (`incidents.declare`): declares a new
+  incident pre-populated from the finding's own title/description/severity, pre-linked to that finding
+  (and therefore its asset), and navigates straight to the new incident.
+- Dashboard gained an "Open incidents" tile (open count + severity breakdown, mirroring Milestone 3's
+  security-score tile), gated on `incidents.view`.
+
+## Milestone 5 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Incidents can be declared, manually or from a finding | ✅ | `test_declare_incident_sets_declared_status`, `test_declare_incident_from_finding_links_asset`; live-verified — escalated a real "publicly exposed cloud storage" finding into an incident via the UI |
+| Escalating a finding auto-links its asset | ✅ | `test_declare_incident_with_finding_links_findings_asset_too`, `test_link_finding_and_asset_endpoints`; live-verified in the same run |
+| Linking a finding/asset is idempotent | ✅ | `test_link_finding_is_idempotent`; API test confirms re-linking an already-linked asset doesn't duplicate |
+| Status moves through investigating/contained/resolved, tracks resolved_at | ✅ | `test_update_status_sets_resolved_at`; live-verified via the UI's status buttons |
+| A closed incident can't have its status changed directly, or be closed twice | ✅ | `test_close_then_status_change_rejected` |
+| Reopen only works on a closed incident, and clears closed_at | ✅ | `test_reopen_incident`, `test_reopen_rejects_non_closed_incident`; live-verified |
+| Closing an incident never mutates linked findings' own status | ✅ | Verified by code inspection (`close_incident` touches only the `Incident` row) and live — the linked finding stayed `open` throughout the incident's full close/reopen cycle |
+| Assignment is restricted to actual tenant members | ✅ | `test_update_incident_validates_assignee_membership` |
+| A full activity timeline is recorded and visible | ✅ | `test_incident_lifecycle_status_notes_close_reopen` asserts all 5 event types present; live-verified — the UI showed declared → status_changed → note_added → closed → reopened in correct order |
+| `security_analyst` can declare but not manage or close | ✅ | `test_security_analyst_can_declare_but_not_manage_or_close` — a real invited member with that role got 403 on status-change and close |
+| Incidents are tenant-isolated | ✅ | `test_incidents_scoped_to_own_tenant`; RLS policies verified via migration round-trip |
+| Dashboard and list summaries exclude closed incidents | ✅ | `test_incident_summary_excludes_closed`, `test_incident_summary_endpoint`; live-verified — the dashboard tile matched the incidents list exactly |
+| Backend tests pass | ✅ | **121/121** passing (`pytest -q` in `apps/api`, up from 103 in Milestone 4 — 18 new tests), plus **12/12** in `packages/connector-sdk` |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 19/19 routes |
+
+## Milestone 5 — Test Results (as actually executed in this session)
+
+```
+packages/connector-sdk: pytest -q     → 12 passed
+apps/api: pytest -q                   → 121 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 19/19 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Celery-worker/Next.js stack, driven by headless
+Chromium: connected and synced the cloud provider on a fresh tenant, opened the resulting "publicly
+exposed cloud storage" finding, clicked "Escalate to incident" and confirmed it landed on a new incident
+pre-linked to that finding and its asset; moved the incident through `investigating`, added a note,
+closed it with a summary, reopened it, and confirmed the activity timeline showed all five events in the
+correct order; confirmed the dashboard's "Open incidents" tile and the `/incidents` list agreed exactly.
+
+## Milestone 5 — Architecture Decisions (made or refined during implementation)
+
+- **An incident coordinates findings/assets; it does not control them.** Explicitly decided against
+  auto-remediating or auto-accepting-risk on linked findings when an incident closes — some findings
+  might already be fixed via Milestone 4 automation, some might be deliberately accepted risk, and some
+  might remain genuinely open after the incident narrative itself is closed (e.g. "the breach is
+  contained, but the underlying misconfiguration still needs a follow-up ticket"). Conflating "this
+  incident is over" with "every finding it touched is now fine" would have been a false signal.
+- **`evidence.view`/`evidence.export` are reserved, not used, in this milestone** — see the Completed
+  Work section above for the reasoning from the permission matrix itself. This was a genuine scoping
+  fork: it would have been easy to gate the incident timeline or a "close" action on `evidence.export`
+  and have it look plausible, but the matrix's own data (`compliance_manager` lacking `incidents.view`)
+  rules that reading out.
+- **Incident timeline reuses `audit_logs` again, not a new table** — third consecutive milestone
+  (Findings, then implicitly Actions via the same audit trail, now Incidents) reusing the same
+  append-only ledger + `list_for_target()` helper rather than inventing a parallel per-module history
+  table each time. This is now clearly the established pattern for "a sequence of discrete named events
+  about one entity," not a one-off.
+- **`link_finding`/`link_asset` are idempotent by design**, not by catching a unique-constraint
+  violation — they check for an existing row first and no-op if found. This avoids relying on exception
+  handling for a normal, expected code path (a user might reasonably click "link" on something already
+  linked) and keeps the operation's happy path and its "already done" path equally cheap and equally
+  safe to call from both `declare_incident` and the standalone link routes.
+
+## Milestone 5 — Known Limitations
+
+- **No incident-response playbooks or automation.** Unlike findings, an incident's lifecycle is entirely
+  human-driven — there's no equivalent of Milestone 4's automation engine that, say, auto-declares an
+  incident when N critical findings appear together, or auto-contains an asset when an incident reaches
+  a certain severity. This is a reasonable and likely valuable future integration between the two
+  milestones, not attempted here to keep this milestone's scope coherent.
+- **No file/attachment evidence** — the timeline is text notes and structured events only; there's no
+  way to attach a screenshot, log export, or other artifact to an incident. That's squarely the future
+  Evidence Platform milestone's scope (see the `evidence.*` scoping decision above).
+- **No incident severity auto-escalation** from its linked findings — declaring an incident at "medium"
+  and later linking a "critical" finding does not change the incident's own severity; a human sets and
+  changes it explicitly via `PATCH /api/incidents/{id}`. Simple and predictable, but a tenant might
+  reasonably expect some correlation.
+- **No SLA/response-time tracking** (e.g. time-to-acknowledge, time-to-contain) — `declared_at`/
+  `resolved_at`/`closed_at` are recorded, so this is derivable later without a schema change, but no
+  metric or reporting surface computes it yet.
+- **No frontend automated tests were added for the new Incidents pages** — same gap and rationale as
+  every prior milestone's new pages: verified manually end-to-end via Playwright, passes
+  lint/typecheck/build, but no dedicated Vitest coverage.
+
+## Milestone 5 — Unresolved Risks
+
+- Carried over from Milestones 1-4 (in-memory rate limiter, no second-approver support-access flow, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution) — none were touched this
+  milestone and remain open.
+- The `evidence.*` scoping decision (deliberately unused here) is a judgment call based on reading the
+  permission matrix's own internal consistency, not an explicit instruction — flagged for your review
+  rather than treated as beyond question, since it shapes how the future Evidence Platform milestone
+  gets scoped.
+
+## Pending Approvals
+
+- This Milestone 5 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the `evidence.*` scoping decision specifically (see Architecture
+  Decisions) — it's an interpretation of the existing permission vocabulary rather than something
+  explicitly specified, and it sets a precedent for how the future Evidence Platform milestone relates
+  to Incident Response.
+
 ## Next Action
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 5`** to begin the next milestone.
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 6`** to begin the next milestone.
