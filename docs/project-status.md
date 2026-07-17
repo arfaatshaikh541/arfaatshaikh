@@ -2899,8 +2899,128 @@ afterward with tenant context set first, per Milestone 16's own documented lesso
 - Recommend explicit review of the decision to defer pagination and the incidents/integrations drill-down
   to a future milestone rather than building all three grant-gated drill-downs at once.
 
-## Next Action
+## Milestone 18 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 19`** to begin the next milestone.
 
-Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 17`** to begin the next milestone.
+## Milestone 19 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 18's own Known Limitations named this directly: "Only findings have a drill-down; incidents
+  and connected integrations still only have summary counts on the workspace snapshot. Extending the same
+  pattern to incidents is a natural next increment." This milestone builds exactly that — the second of the
+  two summary-only tiles Milestone 16 originally flagged.
+- Separately: while reviewing this document to append Milestone 19's sections, a stray duplicate line was
+  found at the very end of the file — a leftover "Awaiting your review... APPROVE MILESTONE 17" line that
+  had never been cleaned up when Milestone 18's content was appended. Removed as part of this milestone's
+  documentation update; not a claim about functionality, just a file-hygiene fix worth noting honestly
+  rather than silently.
+
+### Backend
+- **`incidents.routes`'s route-private `_to_list_item` mapping promoted to
+  `incidents_service.to_incident_list_item`** — the exact same refactor Milestone 18 applied to findings.
+  The tenant-facing `GET /api/incidents` now calls it too.
+- **New `GET /api/platform/tenants/{tenant_id}/incidents`**, gated by `require_support_access_grant`,
+  supporting the same `status`/`severity` filters as the tenant-facing endpoint. Reuses
+  `incidents_service.list_incidents` and `to_incident_list_item` verbatim.
+- **Tagged with `context={"view": "incidents", ...}`** on the shared `platform.support_access_used` audit
+  action, extending the distinguishing pattern Milestone 18 introduced to a third grant-gated view.
+
+### Frontend (`apps/web`)
+- The workspace snapshot page gained an "Incidents" section listing title, severity, and status for every
+  incident, fetched from the new endpoint — mirroring the findings section's structure and using the same
+  severity/status badge conventions as the tenant-facing `/incidents` page.
+
+## Milestone 19 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| The incidents drill-down requires the same active grant as the other grant-gated views | ✅ | `test_grant_gated_incidents_drilldown_requires_an_active_grant` (403, `support_access_grant_required`) |
+| The drill-down returns real incident data matching the tenant-facing endpoint's shape | ✅ | `test_grant_gated_incidents_drilldown_returns_real_incidents`; live-verified against a real declared incident on the demo tenant |
+| Severity filtering works the same way as the tenant-facing endpoint | ✅ | Same test — filtering by a non-matching severity returns an empty list |
+| The incidents view is distinguishable from the other two grant-gated views in the audit log | ✅ | `test_grant_gated_incidents_drilldown_is_audited_with_view_context`; live-verified — `context.view` values `workspace_snapshot`, `findings`, and `incidents` all observed across recorded events in one session |
+| The tenant-facing `GET /api/incidents` behaves identically after the refactor | ✅ | Full `test_incidents_api.py` + `test_incidents_engine.py` suites (18 tests) still pass unchanged |
+| Backend tests pass | ✅ | **223/223** passing (`pytest -q` in `apps/api`, up from 220 — 3 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 19 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 223 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: declared a
+real incident ("M19 E2E verification incident", `high` severity) against the demo tenant as its owner,
+confirmed the incidents section was inaccessible before any grant existed, requested and approved a grant
+through two different platform admins as always, then confirmed the workspace page showed the real
+declared incident with correct severity and status badges. Queried the live platform audit log afterward
+and confirmed all three grant-gated views (`workspace_snapshot`, `findings`, `incidents`) were each
+distinctly represented via `context.view` across the session's recorded events. Removed the test grant and
+the test incident afterward, with tenant context set first.
+
+This session's backend verification runs were also interrupted twice by the local Postgres/Redis services
+going down mid-session (unrelated to any code change — confirmed via `pg_isready`/`redis-cli ping` both
+failing, then both services restarting cleanly via `service postgresql start` / `service redis-server
+start`). Noted here for the record since it caused two rounds of spurious `alembic upgrade head` test
+failures that had nothing to do with this milestone's actual changes.
+
+## Milestone 19 — Architecture Decisions (made or refined during implementation)
+
+- **Extended the exact Milestone 18 pattern rather than inventing a new one** — same dependency
+  (`require_support_access_grant`), same promoted-mapping-function shape, same audit `context.view`
+  convention, same frontend card structure. Consistency across the three grant-gated views matters more
+  than any per-view optimization would have.
+- **No new schema, no new migration** — this is the second consecutive milestone (after Milestone 18) that
+  is a pure read composition over existing tables plus route wiring, the same shape Milestone 8's
+  `modules.reporting` and Milestone 18's findings drill-down both took.
+
+## Milestone 19 — Known Limitations
+
+- **Connected integrations still has no drill-down** — the third and last summary-only tile on the
+  workspace snapshot. A natural next increment, not attempted here to keep this milestone scoped to the one
+  drill-down Milestone 18 explicitly named next.
+- **No pagination on the incidents drill-down**, the same gap Milestone 18 flagged for findings — not
+  addressed here either, for the same reason (small demo/realistic tenant sizes don't currently exercise
+  it).
+- **No systematic audit of the remaining carried-over Known Limitations/Unresolved Risks was performed** —
+  the third consecutive milestone to note this without actually doing the full pass.
+- **No frontend automated tests were added for the incidents section** — same gap and rationale as every
+  prior milestone's new UI.
+
+## Milestone 19 — Unresolved Risks
+
+- Carried over from Milestones 1-18 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes, the RLS-silently-no-ops-without-tenant-context hazard, no pagination on
+  findings/incidents reads, connected integrations still lacking a drill-down) — none were touched this
+  milestone and remain open.
+- **A full, systematic re-verification pass over every carried-over Known Limitation/Unresolved Risk has
+  still not been done** — three consecutive milestones (17, 18, and 19) have each independently caught one
+  stale documentation issue as a side effect of other work (a factual claim, a factual claim, and a stray
+  duplicate line, respectively), not through a deliberate audit. This pattern itself is now worth treating
+  as a signal that a dedicated documentation-audit milestone would have real value.
+- **No pagination on findings or incidents drill-downs** remains a real scalability risk if either pattern
+  is later applied to a tenant with a large table.
+
+## Milestone 19 — Pending Approvals
+
+- This Milestone 19 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of the decision to defer the connected-integrations drill-down and pagination
+  to a future milestone rather than building everything at once, and of the observation (repeated three
+  milestones running now) that a dedicated documentation-audit milestone may be worth prioritizing over
+  another incremental feature.
+
+## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 20`** to begin the next milestone.
