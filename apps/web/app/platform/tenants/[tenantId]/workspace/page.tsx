@@ -1,9 +1,10 @@
 "use client";
 
-import { Alert, Card, CardHeader, SeverityBadge, StatusBadge } from "@gridkeep/ui";
+import { Alert, Button, Card, CardHeader, SeverityBadge, StatusBadge } from "@gridkeep/ui";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
@@ -28,11 +29,48 @@ function integrationStatusTone(status: string): "positive" | "warning" | "neutra
   return "warning";
 }
 
+// Milestone 26: real pagination replacing the fixed 100-row cap. There's no
+// total-count endpoint, so "has a next page" is inferred from a full page
+// being returned — the standard limit/offset heuristic, with the known
+// edge case that a result set landing exactly on a page boundary shows one
+// extra (empty) enabled "Next" click.
+const PAGE_SIZE = 5;
+
+function Pager({
+  page,
+  hasNextPage,
+  onPrevious,
+  onNext,
+}: {
+  page: number;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
+      <span>Page {page + 1}</span>
+      <div className="flex gap-2">
+        <Button size="sm" variant="secondary" disabled={page === 0} onClick={onPrevious}>
+          Previous
+        </Button>
+        <Button size="sm" variant="secondary" disabled={!hasNextPage} onClick={onNext}>
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function TenantWorkspaceSnapshotPage() {
   const params = useParams<{ tenantId: string }>();
   const tenantId = params.tenantId;
   const { hasPlatformPermission } = useAuth();
   const canRequest = hasPlatformPermission("platform.support_access");
+
+  const [findingsPage, setFindingsPage] = useState(0);
+  const [incidentsPage, setIncidentsPage] = useState(0);
+  const [integrationsPage, setIntegrationsPage] = useState(0);
 
   const snapshotQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "workspace-snapshot"],
@@ -43,30 +81,33 @@ export default function TenantWorkspaceSnapshotPage() {
   });
 
   const findingsQuery = useQuery({
-    queryKey: ["platform", "tenants", tenantId, "findings"],
+    queryKey: ["platform", "tenants", tenantId, "findings", findingsPage],
     queryFn: () =>
       apiClient.get<FindingListItem[]>(`/api/platform/tenants/${tenantId}/findings`, {
-        limit: "100",
+        limit: String(PAGE_SIZE),
+        offset: String(findingsPage * PAGE_SIZE),
       }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
 
   const incidentsQuery = useQuery({
-    queryKey: ["platform", "tenants", tenantId, "incidents"],
+    queryKey: ["platform", "tenants", tenantId, "incidents", incidentsPage],
     queryFn: () =>
       apiClient.get<IncidentListItem[]>(`/api/platform/tenants/${tenantId}/incidents`, {
-        limit: "100",
+        limit: String(PAGE_SIZE),
+        offset: String(incidentsPage * PAGE_SIZE),
       }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
 
   const integrationsQuery = useQuery({
-    queryKey: ["platform", "tenants", tenantId, "integrations"],
+    queryKey: ["platform", "tenants", tenantId, "integrations", integrationsPage],
     queryFn: () =>
       apiClient.get<TenantIntegrationRead[]>(`/api/platform/tenants/${tenantId}/integrations`, {
-        limit: "100",
+        limit: String(PAGE_SIZE),
+        offset: String(integrationsPage * PAGE_SIZE),
       }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
@@ -159,7 +200,7 @@ export default function TenantWorkspaceSnapshotPage() {
 
       <Card>
         <CardHeader
-          title={`All findings (${findingsQuery.data?.length ?? 0})`}
+          title="All findings"
           description="Every finding regardless of status — the tile above counts only open ones."
         />
         {findingsQuery.data && findingsQuery.data.length > 0 ? (
@@ -186,12 +227,18 @@ export default function TenantWorkspaceSnapshotPage() {
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-ink-500">No findings.</p>
+          <p className="text-sm text-ink-500">{findingsPage === 0 ? "No findings." : "No more findings."}</p>
         )}
+        <Pager
+          page={findingsPage}
+          hasNextPage={(findingsQuery.data?.length ?? 0) === PAGE_SIZE}
+          onPrevious={() => setFindingsPage((p) => Math.max(0, p - 1))}
+          onNext={() => setFindingsPage((p) => p + 1)}
+        />
       </Card>
 
       <Card>
-        <CardHeader title={`Incidents (${incidentsQuery.data?.length ?? 0})`} />
+        <CardHeader title="Incidents" />
         {incidentsQuery.data && incidentsQuery.data.length > 0 ? (
           <table className="w-full text-left text-sm">
             <thead>
@@ -219,12 +266,18 @@ export default function TenantWorkspaceSnapshotPage() {
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-ink-500">No incidents.</p>
+          <p className="text-sm text-ink-500">{incidentsPage === 0 ? "No incidents." : "No more incidents."}</p>
         )}
+        <Pager
+          page={incidentsPage}
+          hasNextPage={(incidentsQuery.data?.length ?? 0) === PAGE_SIZE}
+          onPrevious={() => setIncidentsPage((p) => Math.max(0, p - 1))}
+          onNext={() => setIncidentsPage((p) => p + 1)}
+        />
       </Card>
 
       <Card>
-        <CardHeader title={`Integrations (${integrationsQuery.data?.length ?? 0})`} />
+        <CardHeader title="Integrations" />
         {integrationsQuery.data && integrationsQuery.data.length > 0 ? (
           <table className="w-full text-left text-sm">
             <thead>
@@ -256,8 +309,16 @@ export default function TenantWorkspaceSnapshotPage() {
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-ink-500">No integrations.</p>
+          <p className="text-sm text-ink-500">
+            {integrationsPage === 0 ? "No integrations." : "No more integrations."}
+          </p>
         )}
+        <Pager
+          page={integrationsPage}
+          hasNextPage={(integrationsQuery.data?.length ?? 0) === PAGE_SIZE}
+          onPrevious={() => setIntegrationsPage((p) => Math.max(0, p - 1))}
+          onNext={() => setIntegrationsPage((p) => p + 1)}
+        />
       </Card>
     </div>
   );
