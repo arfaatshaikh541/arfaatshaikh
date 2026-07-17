@@ -6,13 +6,11 @@ RUN corepack enable
 
 FROM base AS deps
 WORKDIR /repo
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/security-contracts/package.json packages/security-contracts/package.json
 COPY packages/config/package.json packages/config/package.json
-COPY packages/shared-types/package.json packages/shared-types/package.json
-COPY packages/connector-sdk/package.json packages/connector-sdk/README.md packages/connector-sdk/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build

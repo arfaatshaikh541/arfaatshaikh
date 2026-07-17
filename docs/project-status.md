@@ -4273,7 +4273,46 @@ scoping as production Mailhog in dev). Both are stated explicitly rather than im
   (Docker Compose end-to-end, a live GitHub Actions run) or intentional, previously-disclosed design
   tradeoffs (see Unresolved Risks above, carried across many milestones) — not gaps left to close.
 
+## Post-Milestone 28: First Real Docker Compose Build Surfaced Three Latent Bugs
+
+Every milestone since Milestone 1 has carried the same disclosed limitation: `docker compose up` was
+config-validated (`docker compose config`) but never actually run end-to-end, because this build's sandbox
+has no Docker daemon. That finally happened — the user ran it for real — and it failed on `web`'s build
+stage. This is exactly the outcome that disclosure existed to warn about.
+
+**Root cause, `infrastructure/docker/web.Dockerfile`** — three bugs in the `deps` stage, present unchanged
+since the file was first written in Milestone 1:
+
+1. `pnpm-lock.yaml` was never copied into the `deps` stage before `pnpm install --frozen-lockfile` ran.
+   With no lockfile present, pnpm installed a permissive, unpinned dependency tree. The later `build`
+   stage's `COPY . .` then brings in the *real* `pnpm-lock.yaml`, and pnpm's own dependency-status check
+   (`runDepsStatusCheck`, visible in the reported stack trace) correctly detected the mismatch and refused
+   to run the build — the exact error reported.
+2. `COPY packages/connector-sdk/package.json packages/connector-sdk/README.md packages/connector-sdk/` —
+   `connector-sdk` is a pure-Python package (a `pyproject.toml`, no `package.json`, ever — confirmed via
+   `git log --diff-filter=A` returning nothing for that path). This COPY references a file that has never
+   existed in the repository.
+3. `COPY packages/shared-types/package.json packages/shared-types/package.json` — `shared-types` is a
+   Milestone 1 placeholder containing only a `README.md` (its own description: "placeholder — Milestone
+   2+ housekeeping"). Same bug as #2: no `package.json` has ever existed there either.
+
+Neither `connector-sdk` nor `shared-types` is an actual dependency of `apps/web` (confirmed by grepping
+`apps/web/package.json` — only `@gridkeep/ui`, `@gridkeep/security-contracts`, and `@gridkeep/config` are
+listed via `workspace:*`), so both COPY lines were dead weight, not lines that needed replacing.
+
+**Fix applied**: added `pnpm-lock.yaml` to the real COPY line, and deleted the two COPY lines referencing
+files that don't exist. `apps/api` and `apps/worker`'s Dockerfiles use plain `pip install` with no
+lockfile-freshness check, so they were never exposed to this bug class — confirmed by reading both, not
+assumed.
+
+**Honest limitation, unchanged**: this fix could not be verified by actually running `docker build` in
+this sandbox — still no Docker daemon here. It's root-caused against the literal error text and stack
+trace the user reported, and against confirmed file-existence and dependency-graph facts, not guessed at.
+If a second, different failure surfaces on retry, that's expected to be reported back and fixed the same
+way — this is the first time this file has ever been exercised for real.
+
 ## Next Action
 
-Milestone 28 complete. Awaiting your review; no further closable items remain from the "complete the
-project" audit.
+Milestone 28 complete. Docker Compose's `web` build fixed pending the user's retry confirmation — this is
+real user-driven end-to-end verification finally happening on the one item every prior milestone could
+only disclose as unverified, not test.

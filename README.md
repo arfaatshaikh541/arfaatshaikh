@@ -48,9 +48,12 @@ docker compose up
 Brings up Postgres, Redis, MinIO (object storage), Mailhog (mail capture), the API (auto-migrates and
 seeds the platform catalogue on start), the worker, Celery Beat, and the web app.
 
-> **Note:** this compose file has been syntax-validated (`docker compose config`) but not run
-> end-to-end in the environment this was built in (no Docker daemon available there) — see
-> `docs/project-status.md`'s Known Limitations. Please verify it end-to-end before relying on it.
+> **Note:** this compose file was syntax-validated (`docker compose config`) but never run end-to-end in
+> the environment it was built in (no Docker daemon available there). The first real attempt (by a user)
+> hit a genuine bug in `web.Dockerfile` — a missing `pnpm-lock.yaml` copy plus two COPY lines referencing
+> `package.json` files that never existed for `connector-sdk`/`shared-types`. Fixed; see
+> `docs/project-status.md`'s "Post-Milestone 28" section for the root cause. Still worth a fresh
+> `docker compose up` before you rely on it — this file has now been exercised for real exactly once.
 
 ### Option B — run services directly
 
