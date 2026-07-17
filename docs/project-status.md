@@ -3574,6 +3574,136 @@ provably closed.
   next-most-concrete remaining candidate (see Unresolved Risks above) and would be the default absent other
   direction.
 
-## Next Action
+## Milestone 23 — Next Action
 
 Awaiting your review or direction for Milestone 24.
+
+## Milestone 24: MFA Backup/Recovery Codes
+
+**Scope chosen by explicit user instruction** — the user asked to run all tests, report what's
+remaining, and complete the project. The remaining-work review categorized items as structurally
+blocked (no Docker daemon in this environment), concretely closable, or intentional design tradeoffs,
+and this is the first of five closable items being worked through in sequence: self-service MFA
+recovery, carried as an Unresolved Risk since Milestone 13.
+
+### Backend (`apps/api`)
+- **New `MfaBackupCode` table** — same generate-hash-store-consume shape as every other token table in
+  `modules.identity` (`PasswordResetToken`, `EmailVerificationToken`, `MfaChallengeToken`), but
+  deliberately no `expires_at`: a backup code is meant to sit unused for months until the one day it's
+  actually needed.
+- **10 codes generated on `confirm_mfa_enrollment`**, format `XXXXX-XXXXX` drawn from an alphabet that
+  excludes visually-ambiguous characters (0/O, 1/I/L) since these are meant to be handwritten or read off
+  a screen during a real recovery. Only each code's SHA-256 hash is ever persisted; the plaintext batch is
+  returned to the caller exactly once, in the `/mfa/confirm` response.
+- **`consume_mfa_challenge_token` now accepts either a TOTP `code` or a `backup_code`** — exactly one,
+  enforced in the service layer since "exactly one of two optional fields" isn't a simple pydantic field
+  constraint. A backup code is single-use (marked `used_at` on success) and only usable at the login
+  challenge — not for `disable_mfa` or `step_up`, which still require the authenticator device, the same
+  trust level those already had.
+- **New `POST /api/auth/mfa/backup-codes/regenerate`** — requires a fresh TOTP code (the same trust level
+  `disable_mfa` already requires), invalidates every existing code, and issues a new batch of 10. A user
+  who has lost both their authenticator and every backup code has no self-service path here — a
+  deliberately narrower scope than a full account-recovery flow, documented as a Known Limitation rather
+  than silently left ambiguous.
+- **`disable_mfa` now also deletes all backup codes** for the account — they're moot once MFA itself is
+  off.
+- **A backup-code login is tagged in the audit trail** — `_complete_login` gained an `mfa_method` param
+  (`"totp"` or `"backup_code"`), recorded in `auth.login`'s `context`, so a login that bypassed the normal
+  second factor is distinguishable from a routine one without needing a separate audit action name.
+
+### Frontend (`apps/web`)
+- **Security settings page**: confirming MFA enrollment now shows a one-time "Save your backup codes"
+  card with all 10 codes, dismissed explicitly by the user ("I've saved these codes") rather than
+  auto-hiding. A "Regenerate backup codes" control (requiring a fresh TOTP code) reuses the same
+  once-only display card.
+- **Login page's MFA-challenge step**: a "Lost your device? Use a backup code" toggle switches the
+  6-digit TOTP input for an 11-character backup-code input, calling the same `/mfa/verify-login` endpoint
+  with `backup_code` instead of `code`.
+
+## Milestone 24 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Confirming MFA enrollment returns exactly 10 unique, correctly-formatted backup codes | ✅ | `test_confirm_mfa_returns_ten_unique_backup_codes`; live-verified — 10 real codes captured from the settings page UI |
+| A backup code can complete the login challenge in place of a TOTP code | ✅ | `test_login_with_backup_code_when_totp_unavailable`; live-verified end-to-end via a real browser, landing on the real dashboard |
+| A backup code is single-use | ✅ | `test_backup_code_is_single_use` — reusing the same code on a second login attempt returns 401 |
+| A wrong/unknown backup code is rejected | ✅ | `test_wrong_backup_code_is_rejected` |
+| Regenerating backup codes requires a valid TOTP code and invalidates the old batch | ✅ | `test_regenerate_backup_codes_invalidates_old_ones` — an old code returns 401 after regeneration, a new one succeeds |
+| Disabling MFA clears all backup codes | ✅ | `test_disable_mfa_clears_backup_codes` — direct DB check confirms zero rows remain |
+| No regressions to existing MFA/step-up flows | ✅ | Full `test_mfa.py` suite (14 tests, up from 6) and `test_security_policy_enforcement.py` pass unchanged |
+| Backend tests pass | ✅ | **236/236** passing (`pytest -q` in `apps/api`, up from 230 — 8 new backup-code tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 24 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 236 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium, against the
+real demo tenant owner account (previously MFA-free): enabled MFA through the real settings-page flow,
+computed the TOTP confirmation code via the Web Crypto API in-browser (RFC 6238, the same algorithm
+`pyotp` uses server-side — nothing mocked), captured all 10 real backup codes as rendered in the UI,
+logged out, triggered a real login challenge, clicked "Lost your device? Use a backup code," submitted one
+of the captured codes, and confirmed the browser landed on the real dashboard — a genuine login completed
+without ever entering a TOTP code. Disabled MFA afterward to restore the demo tenant to its normal
+(MFA-free) state for future milestones' verification.
+
+## Milestone 24 — Architecture Decisions (made or refined during implementation)
+
+- **Backup codes are login-challenge-only, not a general MFA-proof substitute.** `disable_mfa` and
+  `step_up` still require a TOTP code. Allowing a backup code to disable MFA entirely would mean a single
+  leaked backup code could permanently strip an account's second factor; requiring the device itself for
+  that specific action is a deliberately higher bar.
+- **Regeneration requires TOTP, not just an authenticated session or a spare backup code.** This means a
+  user who has exhausted every backup code and lost their device has no self-service recovery path — a
+  real, documented gap (see Known Limitations) rather than a broader "logged-in users can always
+  regenerate" design that would weaken what a backup code proves.
+- **No expiry on backup codes**, unlike every other token table in `modules.identity`. A code is meant to
+  sit dormant for months; adding a TTL would defeat the point of a recovery mechanism for a rarely-touched
+  credential.
+
+## Milestone 24 — Known Limitations
+
+- **No path back if both the authenticator and every backup code are lost.** Regeneration requires a valid
+  TOTP code; there is no admin-assisted or email-based account-recovery flow. A deliberately narrower scope
+  than a full recovery system — flagged explicitly rather than implied to be complete.
+- **No download/print/copy affordance on the backup-codes card** — a user must manually select and copy the
+  10 codes shown. A reasonable UX polish item, not attempted here to keep this milestone's scope to the
+  actual security gap (self-service recovery existing at all) rather than presentation niceties.
+- **No frontend automated tests were added** for the new backup-code UI — same gap and rationale as every
+  prior milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
+  dedicated Vitest coverage.
+
+## Milestone 24 — Unresolved Risks
+
+- Carried over from Milestones 1-23 (no dependency/container/secret scanning in CI, Docker Compose still
+  unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of unattended action
+  execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the terminal-`archived`
+  tenant status, the hardcoded MFA admin-role set, the RLS-silently-no-ops-without-tenant-context hazard, the
+  fixed-window rate-limiter boundary effect, no pager UI beyond a 100-row cap on the three grant-gated
+  drill-downs, object storage and real email delivery still simulated) — none were touched this milestone
+  and remain open.
+- **MFA backup/recovery codes, carried since Milestone 13, is now resolved** — removed from this list.
+- **No path back if both the authenticator and every backup code are lost** (new this milestone — see Known
+  Limitations above) is a small, understood, deliberately out-of-scope gap.
+
+## Milestone 24 — Pending Approvals
+
+- This Milestone 24 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and the live end-to-end proof (a real login completed
+  via backup code alone) is the strongest verification available for this feature.
+- Continuing directly to Milestone 25 (CI dependency/secret scanning) per the "complete the project"
+  instruction, working through the remaining closable items in the order presented.
+
+## Next Action
+
+Milestone 25 in progress.
