@@ -3865,6 +3865,116 @@ library.
 - Continuing directly to Milestone 26 (pager UI on the grant-gated drill-downs) per the "complete the
   project" instruction.
 
-## Next Action
+## Milestone 25 — Next Action
 
 Milestone 26 in progress.
+
+## Milestone 26: Pager UI on the Grant-Gated Drill-Downs
+
+**Scope chosen by explicit user instruction** — the third of five closable items identified from the
+user's "run all tests, report what's remaining, complete the project" request. Closes the "no pager UI
+beyond a 100-row cap" gap flagged in Milestone 21, replacing the fixed `limit=100` cap on the tenant
+workspace snapshot page's three grant-gated drill-downs with real Previous/Next pagination, using the
+`limit`/`offset` support Milestone 21 already built server-side.
+
+### Frontend (`apps/web`) — the only surface this milestone touched
+- **`PAGE_SIZE = 5`** replaces the fixed `limit=100` on all three drill-down queries (findings, incidents,
+  integrations) on `app/platform/tenants/[tenantId]/workspace/page.tsx`. Each section gets its own `page`
+  state (`findingsPage`, `incidentsPage`, `integrationsPage`), included in its query key so React Query
+  caches each page distinctly rather than treating pagination as a single evolving query.
+- **A small reusable `Pager` component** (Previous/Next buttons + "Page N" label) added once and used by
+  all three sections rather than duplicating the same markup three times.
+- **"Has a next page" is inferred from a full page being returned** (`data.length === PAGE_SIZE`) — there's
+  no total-count endpoint, so this is the standard limit/offset heuristic. The known edge case (a result
+  set landing exactly on a page boundary shows one extra enabled-but-empty "Next" click) is documented
+  below rather than silently accepted as invisible.
+- **Card headers dropped their inline counts** (`All findings (${count})` → `All findings`) since the
+  count now reflects only the current page's size, not the tenant's true total — showing it would have
+  been actively misleading rather than merely incomplete.
+
+## Milestone 26 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Findings/incidents/integrations drill-downs paginate in fixed-size pages instead of a flat 100-row cap | ✅ | Live-verified against the demo tenant's 7 real findings: page 1 shows exactly 5, page 2 shows the remaining 2, with zero overlap between the two sets |
+| "Next" is disabled once a page is not full | ✅ | Live-verified: `Next` enabled on findings page 1 (5 items = `PAGE_SIZE`), disabled on page 2 (2 items < `PAGE_SIZE`) |
+| "Previous" returns to the exact same page-1 content | ✅ | Live-verified: clicking `Previous` from page 2 reproduced page 1's row titles exactly |
+| Real `limit`/`offset` query params are sent, not just a UI-only slice of a larger fetch | ✅ | Live-verified via captured network responses: `.../findings?limit=5&offset=0` then `.../findings?limit=5&offset=5` |
+| No regressions to the surrounding page (member list, snapshot tiles, grant-gating) | ✅ | Live screenshot shows all sections rendering correctly together with real demo-tenant data |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+| Backend unaffected | ✅ | No backend files changed this milestone — stated explicitly rather than re-running the unaffected 236-test suite for a frontend-only change |
+
+## Milestone 26 — Test Results (as actually executed in this session)
+
+```
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+No backend code was touched this milestone (`limit`/`offset` support already existed from Milestone 21),
+so the backend test suite was not re-run — noted explicitly rather than silently reused from a prior
+milestone's log. Manual, real end-to-end verification performed against a live
+Postgres/Redis/`uvicorn`/Next.js stack: requested and approved a real support access grant, opened the
+tenant workspace page for the demo tenant (7 real findings, 5 real integrations, 0 incidents), confirmed
+page 1 of findings showed exactly 5 real rows with `Next` enabled, clicked `Next` and confirmed the
+remaining 2 rows appeared with zero overlap and `Next` now disabled, clicked `Previous` and confirmed page
+1's exact content reappeared, and confirmed via captured network responses that the browser actually sent
+`limit=5&offset=0` then `limit=5&offset=5` to the real API — not a client-side slice of a larger
+already-fetched list. Revoked the test grant afterward.
+
+## Milestone 26 — Architecture Decisions (made or refined during implementation)
+
+- **`PAGE_SIZE = 5`, not a larger production-typical page size**, chosen specifically because it's small
+  enough to actually exercise multi-page behavior against the current demo tenant's real data (7 findings)
+  in live verification, while still being a reasonable size for a real support-drill-down view (which is
+  inherently a narrow, occasional-use surface, not a high-volume list). If tenant data volumes grow
+  significantly, this is a one-constant change, not a redesign.
+- **No total-count / page-number display beyond "Page N"** — building a jump-to-page or total-pages
+  indicator would require either a `COUNT(*)` query added to each of the three drill-down endpoints or an
+  approximate/cached count, judged unnecessary complexity for what's fundamentally a "scroll forward through
+  a list" support tool, not a reporting UI.
+- **Per-section page state, not a single shared page number** — findings, incidents, and integrations are
+  independent lists with independent lengths; forcing them to share one page cursor would either be
+  meaningless or would require them to always fetch in lockstep for no benefit.
+
+## Milestone 26 — Known Limitations
+
+- **The "has next page" heuristic has a known edge case**: a result count that's an exact multiple of
+  `PAGE_SIZE` shows `Next` enabled on the last real page, and clicking it lands on a legitimately empty
+  page (the UI does render "No more findings." — not broken, just a possible one-click surprise). Fixing
+  this properly requires a total-count endpoint, judged out of scope for this pass — see Architecture
+  Decisions above.
+- **No frontend automated tests were added** for the pagination UI — same gap and rationale as every prior
+  milestone's new UI: verified manually end-to-end via Playwright, passes lint/typecheck/build, but no
+  dedicated Vitest coverage.
+
+## Milestone 26 — Unresolved Risks
+
+- Carried over from Milestones 1-25 (Docker Compose still unverified end-to-end, the scoring formulas'
+  simplicity, the inherent stakes of unattended action execution, the evidence permission-per-target
+  design, the control-scoring weights, the cross-cutting-permission decisions, the
+  widened-RLS-by-data-value pattern, the threat-intel confidence-to-severity thresholds, the HTTP-file
+  domain-verification substitution, the terminal-`archived` tenant status, the hardcoded MFA admin-role
+  set, the RLS-silently-no-ops-without-tenant-context hazard, the fixed-window rate-limiter boundary
+  effect, object storage and real email delivery still simulated, no path back if both the authenticator
+  and every backup code are lost, `starlette`'s CVEs blocked by FastAPI's pin, `next`'s remaining CVEs
+  requiring the 15.x line) — none were touched this milestone and remain open.
+- **No pager UI beyond a 100-row cap on the three grant-gated drill-downs, carried since Milestone 21, is
+  now resolved** — removed from this list.
+- **The exact-page-boundary "Next" edge case** (new this milestone — see Known Limitations above) is a
+  small, understood, deliberate tradeoff pending a future total-count endpoint if ever prioritized.
+
+## Milestone 26 — Pending Approvals
+
+- This Milestone 26 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, and the live network-level proof (real `limit`/`offset` params,
+  not a client-side slice) is the strongest verification available for confirming this is real pagination
+  and not a cosmetic-only change.
+- Continuing directly to Milestone 27 (DNS TXT domain verification) per the "complete the project"
+  instruction.
+
+## Next Action
+
+Milestone 27 in progress.
