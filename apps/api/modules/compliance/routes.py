@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import (
@@ -45,6 +46,9 @@ def _to_evidence_read(evidence: EvidenceRecord) -> EvidenceRead:
         collected_at=evidence.collected_at,
         created_by_user_id=evidence.created_by_user_id,
         created_at=evidence.created_at,
+        file_name=evidence.file_name,
+        file_content_type=evidence.file_content_type,
+        file_size_bytes=evidence.file_size_bytes,
     )
 
 
@@ -177,6 +181,69 @@ async def create_evidence(
     response = _to_evidence_read(evidence)
     await db.commit()
     return response
+
+
+@evidence_router.post("/document", response_model=EvidenceRead, dependencies=[Depends(require_csrf)])
+async def create_document_evidence(
+    title: str = Form(..., min_length=2, max_length=300),
+    description: str = Form(default=""),
+    target_type: str = Form(..., pattern="^(compliance_control|incident)$"),
+    target_id: uuid.UUID = Form(...),
+    collected_at: datetime | None = Form(default=None),
+    file: UploadFile = File(...),
+    ctx: TenantContext = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> EvidenceRead:
+    require_tenant_write(ctx)
+    required_permission = TARGET_MANAGE_PERMISSION[target_type]
+    if not ctx.has_permission(required_permission):
+        raise AuthorizationError(
+            f"Your role does not have the '{required_permission}' permission.",
+            details={"required_permission": required_permission},
+        )
+    content = await file.read()
+    evidence = await compliance_service.create_document_evidence(
+        db,
+        tenant_id=ctx.tenant_id,
+        title=title,
+        description=description,
+        target_type=target_type,
+        target_id=target_id,
+        collected_at=collected_at,
+        created_by_user_id=ctx.user.id,
+        filename=file.filename or "upload",
+        content_type=file.content_type,
+        content=content,
+    )
+    await audit_service.record(
+        db,
+        tenant_id=ctx.tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+        action="evidence.recorded",
+        target_type=target_type,
+        target_id=str(target_id),
+        context={"evidence_id": str(evidence.id), "title": title, "file_name": evidence.file_name},
+    )
+    response = _to_evidence_read(evidence)
+    await db.commit()
+    return response
+
+
+@evidence_router.get("/{evidence_id}/file")
+async def download_evidence_file(
+    evidence_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_permission("evidence.view")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> Response:
+    evidence, content = await compliance_service.get_evidence_file(
+        db, tenant_id=ctx.tenant_id, evidence_id=evidence_id
+    )
+    return Response(
+        content=content,
+        media_type=evidence.file_content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{evidence.file_name}"'},
+    )
 
 
 @evidence_router.delete("/{evidence_id}", dependencies=[Depends(require_csrf)])

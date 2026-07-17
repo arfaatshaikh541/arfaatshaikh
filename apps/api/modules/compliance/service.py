@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core import storage
 from core.errors import NotFoundError, ValidationAppError
 from modules.compliance.models import (
     ComplianceControl,
@@ -26,6 +27,8 @@ from modules.compliance.models import (
 from modules.incidents.models import Incident
 
 _CONTROL_STATUS_CREDIT = {"met": 1.0, "partial": 0.5, "not_met": 0.0}
+
+MAX_EVIDENCE_FILE_BYTES = 10 * 1024 * 1024  # 10 MiB
 
 # Which permission is required to create/delete evidence depends on what
 # it's attached to — there is no standalone `evidence.manage` permission
@@ -232,6 +235,64 @@ async def create_evidence(
     return evidence
 
 
+async def create_document_evidence(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    title: str,
+    description: str,
+    target_type: str,
+    target_id: uuid.UUID,
+    collected_at: datetime | None,
+    created_by_user_id: uuid.UUID,
+    filename: str,
+    content_type: str | None,
+    content: bytes,
+) -> EvidenceRecord:
+    """Creates a `document` evidence record with a real uploaded file
+    written to local disk (`core/storage.py`). The row is flushed first to
+    obtain its id (the stored filename is namespaced by evidence id), then
+    updated with the file's storage path once written."""
+    if len(content) > MAX_EVIDENCE_FILE_BYTES:
+        max_mib = MAX_EVIDENCE_FILE_BYTES // (1024 * 1024)
+        raise ValidationAppError(f"File too large — evidence uploads are limited to {max_mib} MiB.")
+    if not content:
+        raise ValidationAppError("Uploaded file is empty.")
+
+    await _validate_target_exists(session, tenant_id=tenant_id, target_type=target_type, target_id=target_id)
+    evidence = EvidenceRecord(
+        tenant_id=tenant_id,
+        title=title,
+        description=description,
+        evidence_type="document",
+        target_type=target_type,
+        target_id=target_id,
+        collected_at=collected_at or _now(),
+        created_by_user_id=created_by_user_id,
+    )
+    session.add(evidence)
+    await session.flush()
+
+    stored_path = storage.save_evidence_file(
+        tenant_id=tenant_id, evidence_id=evidence.id, filename=filename, content=content
+    )
+    evidence.file_path = stored_path
+    evidence.file_name = filename
+    evidence.file_content_type = content_type
+    evidence.file_size_bytes = len(content)
+    await session.flush()
+    return evidence
+
+
+async def get_evidence_file(
+    session: AsyncSession, *, tenant_id: uuid.UUID, evidence_id: uuid.UUID
+) -> tuple[EvidenceRecord, bytes]:
+    evidence = await get_evidence_or_404(session, tenant_id=tenant_id, evidence_id=evidence_id)
+    if evidence.evidence_type != "document" or not evidence.file_path:
+        raise NotFoundError("This evidence record has no attached file.")
+    return evidence, storage.read_evidence_file(evidence.file_path)
+
+
 async def list_evidence(
     session: AsyncSession, *, tenant_id: uuid.UUID, target_type: str, target_id: uuid.UUID
 ) -> list[EvidenceRecord]:
@@ -266,5 +327,8 @@ async def get_evidence_or_404(
 
 async def delete_evidence(session: AsyncSession, *, tenant_id: uuid.UUID, evidence_id: uuid.UUID) -> None:
     evidence = await get_evidence_or_404(session, tenant_id=tenant_id, evidence_id=evidence_id)
+    file_path = evidence.file_path
     await session.delete(evidence)
     await session.flush()
+    if file_path:
+        storage.delete_evidence_file(file_path)

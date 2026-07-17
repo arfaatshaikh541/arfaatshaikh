@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     object_storage_access_key: str = Field(default="gridkeep")
     object_storage_secret_key: str = Field(default="gridkeep-dev-secret")
 
+    # Real local-disk evidence file storage (see core/storage.py) — not the
+    # S3/MinIO-compatible object store the settings above describe. That
+    # remains dormant: a real MinIO instance needs a Docker daemon this
+    # environment doesn't have. This is a genuinely real, but intentionally
+    # scoped-down, local equivalent.
+    evidence_storage_root: str = Field(default="var/evidence-storage")
+
     mail_capture_host: str = Field(default="localhost")
     mail_capture_port: int = Field(default=1025)
     mail_from_address: str = Field(default="no-reply@gridkeep.local")

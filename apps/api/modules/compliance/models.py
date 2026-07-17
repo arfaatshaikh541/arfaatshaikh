@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,12 +71,13 @@ class TenantControlStatus(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, Timestam
 
 
 class EvidenceRecord(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin):
-    """A structured evidence entry — a title, description, and either a
-    URL or a free-text note. Deliberately NOT a file upload: there is no
-    object-storage client wired up anywhere in this codebase yet (the
-    `object_storage_*` settings in `core/config.py` have sat unused since
-    Milestone 1), so real document attachment is future work, not faked
-    here with an untested upload path.
+    """A structured evidence entry — a title, description, and one of a
+    URL, a free-text note, or (Milestone 28) a real uploaded file stored
+    on local disk via `core/storage.py`. `file_path`/`file_name`/
+    `file_content_type`/`file_size_bytes` are populated only for
+    `evidence_type == "document"` rows, created through the dedicated
+    multipart upload route rather than the general JSON create route
+    (file bytes don't fit a JSON body).
 
     `target_type`/`target_id` is the same polymorphic-target shape
     `audit_logs` already uses, reused deliberately rather than adding a
@@ -101,3 +102,7 @@ class EvidenceRecord(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixi
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    file_path: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    file_content_type: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

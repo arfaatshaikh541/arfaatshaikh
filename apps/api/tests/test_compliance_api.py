@@ -174,6 +174,102 @@ async def test_evidence_list_and_export_endpoints(client, db):
     assert len(export_resp.json()["evidence"]) == 1
 
 
+async def test_document_evidence_upload_and_download_round_trips_real_bytes(client, db):
+    ctx = await _connected_owner(
+        client, db, org="API Evidence Upload Co", email="owner@api-evidence-upload.example"
+    )
+    control_id = await _soc2_control_id()
+    file_bytes = b"This is a real uploaded evidence file, not a mock.\n" * 20
+
+    create_resp = await client.post(
+        "/api/evidence/document",
+        data={
+            "title": "Firewall config export",
+            "description": "Exported from the firewall admin console.",
+            "target_type": "compliance_control",
+            "target_id": control_id,
+        },
+        files={"file": ("firewall-config.txt", file_bytes, "text/plain")},
+        headers={"X-CSRF-Token": ctx["csrf_token"]},
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    body = create_resp.json()
+    assert body["evidence_type"] == "document"
+    assert body["file_name"] == "firewall-config.txt"
+    assert body["file_size_bytes"] == len(file_bytes)
+    evidence_id = body["id"]
+
+    download_resp = await client.get(f"/api/evidence/{evidence_id}/file")
+    assert download_resp.status_code == 200
+    assert download_resp.content == file_bytes  # real bytes round-trip through real disk I/O
+    assert download_resp.headers["content-type"].startswith("text/plain")
+    assert "firewall-config.txt" in download_resp.headers["content-disposition"]
+
+
+async def test_document_evidence_rejects_oversized_file(client, db):
+    ctx = await _connected_owner(
+        client, db, org="API Evidence Oversize Co", email="owner@api-evidence-oversize.example"
+    )
+    control_id = await _soc2_control_id()
+    too_big = b"x" * (10 * 1024 * 1024 + 1)
+
+    resp = await client.post(
+        "/api/evidence/document",
+        data={
+            "title": "Huge file",
+            "target_type": "compliance_control",
+            "target_id": control_id,
+        },
+        files={"file": ("huge.bin", too_big, "application/octet-stream")},
+        headers={"X-CSRF-Token": ctx["csrf_token"]},
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["error"]["code"] == "validation_error"
+
+
+async def test_deleting_document_evidence_removes_it_and_the_file(client, db):
+    ctx = await _connected_owner(
+        client, db, org="API Evidence Delete Co", email="owner@api-evidence-delete.example"
+    )
+    control_id = await _soc2_control_id()
+    create_resp = await client.post(
+        "/api/evidence/document",
+        data={"title": "Temp file", "target_type": "compliance_control", "target_id": control_id},
+        files={"file": ("temp.txt", b"temporary", "text/plain")},
+        headers={"X-CSRF-Token": ctx["csrf_token"]},
+    )
+    evidence_id = create_resp.json()["id"]
+
+    delete_resp = await client.delete(
+        f"/api/evidence/{evidence_id}", headers={"X-CSRF-Token": ctx["csrf_token"]}
+    )
+    assert delete_resp.status_code == 200
+
+    download_resp = await client.get(f"/api/evidence/{evidence_id}/file")
+    assert download_resp.status_code == 404
+
+
+async def test_document_evidence_file_scoped_to_own_tenant(client, db):
+    ctx_a = await _connected_owner(
+        client, db, org="Evidence File Iso A Co", email="ownerA@evidence-file-iso-a.example"
+    )
+    control_id = await _soc2_control_id()
+    create_resp = await client.post(
+        "/api/evidence/document",
+        data={"title": "Tenant A file", "target_type": "compliance_control", "target_id": control_id},
+        files={"file": ("secret.txt", b"tenant a secret", "text/plain")},
+        headers={"X-CSRF-Token": ctx_a["csrf_token"]},
+    )
+    evidence_id = create_resp.json()["id"]
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx_a["csrf_token"]})
+
+    await _connected_owner(
+        client, db, org="Evidence File Iso B Co", email="ownerB@evidence-file-iso-b.example"
+    )
+    resp = await client.get(f"/api/evidence/{evidence_id}/file")
+    assert resp.status_code == 404
+
+
 async def test_evidence_scoped_to_own_tenant(client, db):
     ctx_a = await _connected_owner(
         client, db, org="Evidence Iso A Co", email="ownerA@evidence-iso-a.example"
