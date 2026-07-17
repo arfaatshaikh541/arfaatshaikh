@@ -124,13 +124,13 @@ async def _clean_tables(_bootstrap_catalog):
     await run_bootstrap()
 
 
-@pytest.fixture(autouse=True)
-def _reset_rate_limiter():
-    """`login_rate_limiter` is a process-wide singleton (by design — see
-    core/middleware.py) so its state must not leak between tests."""
-    login_rate_limiter._hits.clear()
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_rate_limiter():
+    """`login_rate_limiter` is a process-wide singleton backed by Redis
+    (Milestone 23) so its state must not leak between tests."""
+    await login_rate_limiter.reset_all()
     yield
-    login_rate_limiter._hits.clear()
+    await login_rate_limiter.reset_all()
 
 
 @pytest_asyncio.fixture

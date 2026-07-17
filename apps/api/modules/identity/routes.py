@@ -135,12 +135,12 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse | MfaRequiredResponse:
-    login_rate_limiter.check(
+    await login_rate_limiter.check(
         f"login-ip:{request.client.host if request.client else 'unknown'}",
         limit=settings.rate_limit_login_per_minute,
         window_seconds=60,
     )
-    login_rate_limiter.check(
+    await login_rate_limiter.check(
         f"login-account:{payload.email.lower()}",
         limit=settings.rate_limit_login_per_hour_per_account,
         window_seconds=3600,
@@ -322,7 +322,7 @@ async def forgot_password(
 ) -> dict:
     """Always returns 200 regardless of whether the email is registered —
     prevents account enumeration."""
-    login_rate_limiter.check(
+    await login_rate_limiter.check(
         f"forgot-password:{payload.email.lower()}", limit=5, window_seconds=3600
     )
     from sqlalchemy import select

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import time
-from collections import defaultdict, deque
-
+import redis.asyncio as redis_asyncio
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
-from core.config import Settings
+from core.config import Settings, settings
 from core.errors import RateLimitError
 
 
@@ -25,29 +23,45 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class InMemorySlidingWindowLimiter:
-    """Process-local sliding-window rate limiter for auth endpoints.
+class RedisRateLimiter:
+    """Multi-instance-safe rate limiter for auth endpoints, backed by
+    Redis's INCR + EXPIRE per window — the exact swap this class's
+    single-process predecessor (`InMemorySlidingWindowLimiter`, replaced
+    in Milestone 23) named as its own intended replacement, down to the
+    technique. This is a fixed-window counter, not a true sliding window
+    like the predecessor: a client could in principle get up to `2 *
+    limit` requests through across a window boundary. That tradeoff is
+    deliberate — INCR + EXPIRE needs no Lua scripting or sorted-set
+    bookkeeping to reason about, and is the standard, well-understood
+    building block for this in Redis. Documented explicitly in
+    docs/project-status.md rather than left implicit."""
 
-    NOTE: this is a single-process limiter suitable for local development
-    and a single-API-instance deployment. Multi-instance production
-    deployments must back this with Redis (INCR + EXPIRE per window) —
-    the interface below (`check`) is the seam for that swap and is not
-    referenced anywhere else in the codebase, so the swap is isolated."""
+    def __init__(self, redis_client: redis_asyncio.Redis) -> None:
+        self._redis = redis_client
 
-    def __init__(self) -> None:
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
-
-    def check(self, key: str, *, limit: int, window_seconds: int) -> None:
-        now = time.monotonic()
-        bucket = self._hits[key]
-        while bucket and now - bucket[0] > window_seconds:
-            bucket.popleft()
-        if len(bucket) >= limit:
+    async def check(self, key: str, *, limit: int, window_seconds: int) -> None:
+        redis_key = f"ratelimit:{key}"
+        count = await self._redis.incr(redis_key)
+        if count == 1:
+            await self._redis.expire(redis_key, window_seconds)
+        if count > limit:
             raise RateLimitError("Too many attempts. Please wait before trying again.")
-        bucket.append(now)
+
+    async def reset_all(self) -> None:
+        """Test-only: clears every rate-limiter key without touching any
+        other Redis-backed state — Celery's broker/backend share this same
+        Redis instance in dev/test, so this scans by the `ratelimit:`
+        prefix rather than issuing a blanket `FLUSHDB`."""
+        cursor = 0
+        while True:
+            cursor, keys = await self._redis.scan(cursor=cursor, match="ratelimit:*", count=200)
+            if keys:
+                await self._redis.delete(*keys)
+            if cursor == 0:
+                break
 
 
-login_rate_limiter = InMemorySlidingWindowLimiter()
+login_rate_limiter = RedisRateLimiter(redis_asyncio.Redis.from_url(settings.redis_url, decode_responses=True))
 
 
 def install_middleware(app: FastAPI, settings: Settings) -> None:

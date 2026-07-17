@@ -1,5 +1,9 @@
 import pytest
+import redis.asyncio as redis_asyncio
 
+from core.config import settings
+from core.errors import RateLimitError
+from core.middleware import RedisRateLimiter
 from modules.identity import service as identity_service
 from modules.permissions import service as permissions_service
 from tests.helpers import get_user_by_email, login, onboard_verified_owner
@@ -137,6 +141,35 @@ async def test_invitation_accept_flow(client, db):
         json={"token": raw_token, "full_name": "New Analyst", "password": "Analyst-Pass1!"},
     )
     assert accept_again.status_code == 401
+
+
+async def test_rate_limiter_state_is_shared_across_separate_processes():
+    """Milestone 23: the whole point of moving off `InMemorySlidingWindowLimiter`
+    was that its per-process dict could never coordinate across a
+    horizontally-scaled deployment's separate API instances. Two distinct
+    `RedisRateLimiter` objects — standing in for two separate `uvicorn`
+    processes, since they share nothing in Python memory — must still see
+    each other's hits because they're both backed by the same Redis
+    instance."""
+    client_a = redis_asyncio.Redis.from_url(settings.redis_url, decode_responses=True)
+    client_b = redis_asyncio.Redis.from_url(settings.redis_url, decode_responses=True)
+    limiter_a = RedisRateLimiter(client_a)
+    limiter_b = RedisRateLimiter(client_b)
+    key = "test-cross-process-key"
+
+    try:
+        for _ in range(3):
+            await limiter_a.check(key, limit=5, window_seconds=60)
+        for _ in range(2):
+            await limiter_b.check(key, limit=5, window_seconds=60)
+        # The 6th hit total, seen by whichever instance, must be rejected —
+        # proving the two "processes" share one counter, not two independent ones.
+        with pytest.raises(RateLimitError):
+            await limiter_b.check(key, limit=5, window_seconds=60)
+    finally:
+        await limiter_a.reset_all()
+        await client_a.aclose()
+        await client_b.aclose()
 
 
 async def test_rate_limiting_on_login(client, db):
