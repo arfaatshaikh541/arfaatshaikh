@@ -515,6 +515,17 @@ export interface MfaEnrollResponse {
   provisioning_uri: string;
 }
 
+// --- Milestone 24: MFA backup/recovery codes ---
+
+export interface MfaConfirmResponse {
+  status: string;
+  backup_codes: string[];
+}
+
+export interface MfaBackupCodesResponse {
+  backup_codes: string[];
+}
+
 export interface StepUpResponse {
   status: string;
   step_up_expires_at: string;

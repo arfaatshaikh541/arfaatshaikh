@@ -6,7 +6,13 @@ import { useState } from "react";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { MfaEnrollResponse, SupportAccessGrantRead, TenantSecurityProfileRead } from "@/lib/types";
+import type {
+  MfaBackupCodesResponse,
+  MfaConfirmResponse,
+  MfaEnrollResponse,
+  SupportAccessGrantRead,
+  TenantSecurityProfileRead,
+} from "@/lib/types";
 
 function grantStatusTone(status: string): "neutral" | "positive" | "warning" {
   if (status === "active") return "positive";
@@ -26,6 +32,9 @@ export default function SecuritySettingsPage() {
   const [confirmCode, setConfirmCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [showDisableForm, setShowDisableForm] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
+  const [regenerateCode, setRegenerateCode] = useState("");
 
   const profileQuery = useQuery({
     queryKey: ["tenancy", "security-profile"],
@@ -58,12 +67,32 @@ export default function SecuritySettingsPage() {
     setError(null);
     setIsBusy(true);
     try {
-      await apiClient.post("/api/auth/mfa/confirm", { code: confirmCode });
+      const result = await apiClient.post<MfaConfirmResponse>("/api/auth/mfa/confirm", {
+        code: confirmCode,
+      });
       setEnrollment(null);
       setConfirmCode("");
+      setBackupCodes(result.backup_codes);
       setNotice("Multi-factor authentication is now enabled.");
       refetchAuth();
       queryClient.invalidateQueries({ queryKey: ["tenancy", "security-profile"] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const regenerateBackupCodes = async () => {
+    setError(null);
+    setIsBusy(true);
+    try {
+      const result = await apiClient.post<MfaBackupCodesResponse>("/api/auth/mfa/backup-codes/regenerate", {
+        code: regenerateCode,
+      });
+      setBackupCodes(result.backup_codes);
+      setShowRegenerateForm(false);
+      setRegenerateCode("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
@@ -116,6 +145,25 @@ export default function SecuritySettingsPage() {
       ) : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
+
+      {backupCodes ? (
+        <Card>
+          <CardHeader
+            title="Save your backup codes"
+            description="Each code can be used once to sign in if you lose access to your authenticator app. They won't be shown again — store them somewhere safe."
+          />
+          <div className="grid grid-cols-2 gap-2 rounded border border-surface-border bg-surface-800 p-3 sm:grid-cols-5">
+            {backupCodes.map((code) => (
+              <code key={code} className="text-sm text-ink-900">
+                {code}
+              </code>
+            ))}
+          </div>
+          <Button className="mt-3 w-fit" onClick={() => setBackupCodes(null)}>
+            I&apos;ve saved these codes
+          </Button>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader
@@ -190,6 +238,40 @@ export default function SecuritySettingsPage() {
                   Confirm disable
                 </Button>
                 <Button variant="ghost" onClick={() => setShowDisableForm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {mfaEnabled && !showRegenerateForm ? (
+            <Button className="w-fit" variant="secondary" onClick={() => setShowRegenerateForm(true)}>
+              Regenerate backup codes
+            </Button>
+          ) : null}
+
+          {showRegenerateForm ? (
+            <div className="flex flex-col gap-2 rounded border border-surface-border p-3">
+              <p className="text-sm text-ink-700">
+                This invalidates all of your existing backup codes and issues 10 new ones. Enter your
+                current verification code to confirm.
+              </p>
+              <label htmlFor="regenerate-code" className="text-sm font-medium text-ink-700">
+                Verification code
+              </label>
+              <input
+                id="regenerate-code"
+                type="text"
+                inputMode="numeric"
+                value={regenerateCode}
+                onChange={(e) => setRegenerateCode(e.target.value)}
+                className="h-10 w-40 rounded border border-surface-border bg-surface-800 px-3 text-sm text-ink-900"
+              />
+              <div className="flex gap-2">
+                <Button variant="secondary" isLoading={isBusy} onClick={regenerateBackupCodes}>
+                  Regenerate
+                </Button>
+                <Button variant="ghost" onClick={() => setShowRegenerateForm(false)}>
                   Cancel
                 </Button>
               </div>

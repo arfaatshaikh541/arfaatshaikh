@@ -26,11 +26,18 @@ const mfaSchema = z.object({
 
 type MfaFormValues = z.infer<typeof mfaSchema>;
 
+const backupCodeSchema = z.object({
+  backupCode: z.string().min(11, "Enter your 10-character backup code.").max(11),
+});
+
+type BackupCodeFormValues = z.infer<typeof backupCodeSchema>;
+
 export default function LoginPage() {
   const router = useRouter();
   const invalidateAuth = useInvalidateAuth();
   const [serverError, setServerError] = useState<string | null>(null);
   const [mfaChallengeToken, setMfaChallengeToken] = useState<string | null>(null);
+  const [useBackupCode, setUseBackupCode] = useState(false);
 
   const {
     register,
@@ -43,6 +50,12 @@ export default function LoginPage() {
     handleSubmit: handleMfaSubmit,
     formState: { errors: mfaErrors, isSubmitting: isMfaSubmitting },
   } = useForm<MfaFormValues>({ resolver: zodResolver(mfaSchema) });
+
+  const {
+    register: registerBackupCode,
+    handleSubmit: handleBackupCodeSubmit,
+    formState: { errors: backupCodeErrors, isSubmitting: isBackupCodeSubmitting },
+  } = useForm<BackupCodeFormValues>({ resolver: zodResolver(backupCodeSchema) });
 
   const finishLogin = (result: LoginResponse) => {
     invalidateAuth();
@@ -87,25 +100,68 @@ export default function LoginPage() {
     }
   };
 
+  const onSubmitBackupCode = async (values: BackupCodeFormValues) => {
+    setServerError(null);
+    try {
+      const result = await apiClient.post<LoginResponse>("/api/auth/mfa/verify-login", {
+        mfa_challenge_token: mfaChallengeToken,
+        backup_code: values.backupCode,
+      });
+      finishLogin(result);
+    } catch (err) {
+      setServerError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+    }
+  };
+
   if (mfaChallengeToken) {
     return (
       <AuthShell
-        title="Enter your verification code"
-        description="Open your authenticator app and enter the 6-digit code for GRIDKEEP."
+        title={useBackupCode ? "Enter a backup code" : "Enter your verification code"}
+        description={
+          useBackupCode
+            ? "Enter one of the backup codes you saved when you enabled multi-factor authentication."
+            : "Open your authenticator app and enter the 6-digit code for GRIDKEEP."
+        }
       >
-        <FormRoot onSubmit={handleMfaSubmit(onSubmitMfa)}>
-          {serverError ? <Alert tone="error">{serverError}</Alert> : null}
-          <TextInput
-            label="Verification code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            error={mfaErrors.code?.message}
-            {...registerMfa("code")}
-          />
-          <Button type="submit" isLoading={isMfaSubmitting} className="w-full">
-            Verify
-          </Button>
-        </FormRoot>
+        {useBackupCode ? (
+          <FormRoot onSubmit={handleBackupCodeSubmit(onSubmitBackupCode)}>
+            {serverError ? <Alert tone="error">{serverError}</Alert> : null}
+            <TextInput
+              label="Backup code"
+              placeholder="XXXXX-XXXXX"
+              autoComplete="one-time-code"
+              error={backupCodeErrors.backupCode?.message}
+              {...registerBackupCode("backupCode")}
+            />
+            <Button type="submit" isLoading={isBackupCodeSubmitting} className="w-full">
+              Verify
+            </Button>
+          </FormRoot>
+        ) : (
+          <FormRoot onSubmit={handleMfaSubmit(onSubmitMfa)}>
+            {serverError ? <Alert tone="error">{serverError}</Alert> : null}
+            <TextInput
+              label="Verification code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              error={mfaErrors.code?.message}
+              {...registerMfa("code")}
+            />
+            <Button type="submit" isLoading={isMfaSubmitting} className="w-full">
+              Verify
+            </Button>
+          </FormRoot>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setServerError(null);
+            setUseBackupCode((v) => !v);
+          }}
+          className="mt-3 text-xs text-ink-500 hover:text-ink-700"
+        >
+          {useBackupCode ? "Use your authenticator app instead" : "Lost your device? Use a backup code"}
+        </button>
       </AuthShell>
     );
   }
