@@ -3,7 +3,15 @@ name = "gridkeep-connector-sdk"
 version = "0.1.0"
 description = "Provider-neutral business-data source connector interface, shared by apps/api and apps/worker"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["httpx>=0.27.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.9",
+    "mypy>=1.11.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +19,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["connector_sdk"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

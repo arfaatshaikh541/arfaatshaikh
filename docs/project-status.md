@@ -1,7 +1,7 @@
 # GRIDKEEP Lead Intelligence — Project Status
 
 ## Current milestone
-**Milestone 2: Campaign and Job Engine** — implementation complete, pending your review/approval to proceed to Milestone 3.
+**Milestone 3: Google Places Connector** — implementation complete, with one significant caveat: it has not been verified against the real Google API (no credentials were available — see the Milestone 3 section below and **Known limitations**). Pending your review, and ideally a real API key, before proceeding to Milestone 4.
 
 ## Completed work
 
@@ -68,6 +68,19 @@
 - **Worker (`apps/worker/tests/test_campaign_tasks.py`, 5 tests, new test package)**: a full multi-page campaign run to completion with correct credit reconciliation, duplicate-task-delivery idempotency, pause stopping the chain between pages with the reservation left open, and cancel both with no progress (full release) and with partial progress (partial commit, partial release) — driving the actual `_run_campaign_task_async` coroutine directly rather than mocking it.
 - **Live end-to-end verification** (not part of the checked-in suite, done by hand against the real running stack): a full browser session (Playwright + real Chromium) through register → verify → onboarding → create campaign → estimate → launch → live progress polling → completion, and a separate httpx-based script exercising pause→resume and cancel-with-no-progress/cancel-with-partial-progress against the live API, worker, Postgres, and Redis. This is how the two real bugs below were found — they did not show up in isolated unit-style testing.
 
+## Milestone 3 completed work
+
+### Google Places connector (`packages/connector-sdk/connector_sdk/google_places.py`)
+- `GooglePlacesConnector` implements `BaseConnector` against Google's real Places API (New) (`https://places.googleapis.com/v1`) — **Text Search** (the primary path, matching `SearchQuery`'s text-based location filters), **Place Details** and **Nearby Search** (both real, working, callable methods — see ADR-0010 for why neither is on the default `search()` path today), minimal per-call **field masks**, **pagination** via an opaque cursor that carries both Google's own page token and this connector's own running result count (needed because the worker's task chain enforces `result_limit` purely off `SearchPage.has_more`, exactly like `MockConnector`), an **error taxonomy mapping** (auth/permission → `ConnectorAuthError`, rate-limit vs. quota-exhausted 429s distinguished by message content, 5xx/network → `ConnectorTransientError`, malformed-query 400s → `ConnectorPermanentError`, page-token-related 400s → `ConnectorTransientError` since Google's page tokens have a documented short activation delay), an **API-call counter** (`api_calls_made`) for usage measurement, **source attribution** (`source="google_places"`, the real Google place ID, the real Google Maps URL), **business normalization** that never fabricates a missing field (a place missing even its display name falls back to a label built from its own real place ID, never an invented name), and a real **health check**.
+- Registered in `connector_sdk.registry` under `"google_places"`, alongside `"mock"` — campaigns can set `source_key: "google_places"` today through the same API surface Milestone 2 built, with no orchestration-layer changes needed.
+- Follows the ADR-0009 lesson: `httpx.AsyncClient` is bound to the event loop that creates it, exactly like asyncpg/redis-py, so this connector opens a fresh client per request rather than caching one at instance scope (instances live in the module-level registry, reused across the worker's per-task event loops).
+
+### Tests (`packages/connector-sdk/tests/test_google_places.py`, 22 tests, new test package)
+- Mocked-adapter tests (`httpx.MockTransport`, per the milestone's own explicit requirement) covering: successful Text Search normalization, missing-optional-field handling (never fabricated), address-component parsing into region/city/area, pagination across two pages with correct cursor encoding, `result_limit` enforcement even when Google reports more results available, client-side phone/website/review-count filtering, `estimate_cost` making no network call, a missing API key only raising when the connector is actually invoked (not at construction), every mapped error status code (401/403/429×2/500/503), both `INVALID_ARGUMENT` branches (with vs. without a page token), both `health_check` outcomes, and both `get_place_details`/`search_nearby`'s real request construction.
+
+### ⚠️ What was not verified
+**No live call was made against the real Google Places API.** No Google Cloud API key was available in this environment. Everything above about Google's actual request/response contract is implemented from Google's published API documentation and tested against mocked HTTP responses shaped to match that documentation — genuine test coverage of this connector's own logic, but not proof that a real call to Google's servers succeeds. See ADR-0010 and **Known limitations** below for what's needed to close this gap, and please read it before pointing a real campaign at this connector.
+
 ## Acceptance criteria (from the approved architecture)
 
 | Criterion | Status |
@@ -94,13 +107,17 @@
 | Task retries and idempotency work | ✅ Worker tests (duplicate delivery no-op); retry backoff logic implemented, exercised implicitly (no connector-error injection test yet — see unresolved risks) |
 | Per-tenant concurrency limits enforced | ✅ Backend tests (slot exhaustion/release directly) |
 | Every score/estimate is explainable | ✅ `EstimateResponse` exposes `estimated_credits`/`estimated_results`/`calculated_at`; lead *scoring* itself is a later milestone |
-| Backend tests pass | ✅ 35/35 (api) + 5/5 (worker) = 40/40 |
+| Backend tests pass | ✅ 35/35 (api) + 5/5 (worker) + 22/22 (connector-sdk) = 62/62 |
 | Frontend lint passes | ✅ |
 | Frontend type checking passes | ✅ |
 | Production builds pass | ✅ `next build` succeeds; API/worker have no separate "build" step (Python) |
+| Google Places: Text Search, Place Details, field masks, pagination | ✅ Implemented against Google's documented contract; mocked-adapter tests only — **not verified live** (see above) |
+| Google Places: quota management, API usage measurement | ✅ Error-taxonomy mapping for quota/rate-limit responses; `api_calls_made` counter — not exercised against real quota behavior |
+| Google Places: source attribution, business normalization | ✅ Mocked tests verify no fabricated fields; real-data shape not confirmed live |
+| Google Places: provider health checks, mocked adapter tests | ✅ `health_check()` implemented; 22 mocked-adapter tests, all passing |
 
 ## Architecture decisions
-See `docs/adr/0001` through `0009`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), and a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009).
+See `docs/adr/0001` through `0010`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009), and the Google Places connector's design plus its explicit live-verification gap (0010).
 
 ## Known limitations
 
@@ -111,23 +128,25 @@ See `docs/adr/0001` through `0009`. Summary: shared-schema+RLS multi-tenancy, se
 5. **No CI/CD pipeline yet.** GitHub Actions workflows (lint/test/build/scan on push) have not been created.
 6. **Object storage (MinIO) is configured but unexercised.** No file-storage feature exists yet (exports are a later milestone), so the S3 client configuration exists in `core/config.py` but was never actually connected to in verification.
 7. **Frontend uses hand-written types** (`apps/web/lib/types.ts`), not OpenAPI-generated ones — reasonable at this API-surface size; `packages/shared-types` is reserved for generated types later (see its README).
-8. **Only one connector exists (`mock`).** It returns clearly-labeled, deterministic fictional data for testing the campaign engine's mechanics — no real lead-discovery provider (Google Places, etc.) is wired up yet; that is later-milestone scope.
-9. **No automated test exercises a real connector error path** (auth/quota/rate-limit/permanent failure and the retry backoff that follows). The retry/backoff logic in `run_campaign_task` is implemented and was reasoned through carefully, but `MockConnector` never actually raises those errors, so nothing forces it to run. A fault-injecting test connector (or a flag on `MockConnector` to simulate failures) is recommended as an early follow-up.
-10. **The dev sandbox's own long-running processes (Postgres, Redis, the SMTP capture server, the Celery worker, the API/web dev servers) were repeatedly reaped during idle gaps in this session** and had to be restarted more than once mid-verification. This is a property of this particular sandboxed environment, not the application, but it's worth knowing if you see "connection refused" locally after leaving a dev environment idle — check that all four services are actually still running before assuming something is broken.
+8. **`google_places` has never made a real call to Google's API (Milestone 3, ADR-0010).** No Google Cloud API key was available during implementation. The connector is built against Google's documented Places API (New) contract and covered by 22 mocked-HTTP-transport tests, but that is not the same as proof it works against Google's real servers — if any assumption about Google's actual response shape is wrong in a way the mocked tests didn't anticipate, it will only surface on first live use. **Before launching any real campaign against this connector**: obtain a Google Cloud API key with the Places API (New) enabled and billing configured, set `GOOGLE_PLACES_API_KEY`, and run a manual smoke test (a single real `search()` call, inspected by a human) before pointing a real tenant's campaign at it.
+9. **`google_places` is not exposed in the frontend campaign-creation form.** Only `mock` is offered there today — deliberate, per ADR-0010, since offering a connector that can only fail without a real key would be poor UX, not a missing feature.
+10. **No automated test exercises a real connector error path end-to-end through the worker's retry logic** (auth/quota/rate-limit/permanent failure and the retry backoff that follows). Milestone 3's mocked-adapter tests verify `GooglePlacesConnector` itself raises the right error type for each Google API error shape, but nothing yet drives `worker.campaign_tasks.run_campaign_task`'s actual retry/backoff loop end-to-end with an injected connector failure. A fault-injecting test connector (or a flag on `MockConnector` to simulate failures) is recommended as an early follow-up.
+11. **The dev sandbox's own long-running processes (Postgres, Redis, the SMTP capture server, the Celery worker, the API/web dev servers) were repeatedly reaped during idle gaps in this session** and had to be restarted more than once mid-verification. This is a property of this particular sandboxed environment, not the application, but it's worth knowing if you see "connection refused" locally after leaving a dev environment idle — check that all four services are actually still running before assuming something is broken.
 
 ## Unresolved risks
 
+- **`google_places` has never been called live (ADR-0010) — the single biggest open risk carried forward from this milestone.** Everything about this connector's correctness against Google's real API rests on documentation-reasoning plus mocked-HTTP tests, not a live call. Treat it as unverified until a real key is supplied and a manual smoke test is run — do not launch a real tenant's campaign against it first.
 - **Connection-pool GUC leakage class of bug** (ADR-0007): fixed everywhere it was found by manual audit, but the codebase has no automated guard against a *future* service function making the same mistake — and Milestone 2 proved this risk is real by reintroducing it once (see limitation #4 above). Recommend a lightweight integration test pattern (assert a fresh session with no context set returns zero rows for every RLS table) as a standing regression test.
-- **Per-task event-loop isolation** (ADR-0009): the worker's `run_db_task` helper is the only thing preventing every new Celery task from silently inheriting a previous task's closed-loop database/Redis connections. Like the RLS ordering rule, this is a discipline documented in an ADR and a code comment, not something a linter enforces — a future task added via a bare `asyncio.run(...)` instead of `run_db_task` would reintroduce exactly this bug, and it would only surface once a worker process handles a second task (not on first use), making it easy to miss in a quick manual check.
+- **Per-task event-loop isolation** (ADR-0009): the worker's `run_db_task` helper is the only thing preventing every new Celery task from silently inheriting a previous task's closed-loop database/Redis/HTTP connections — now proven to matter a third time by `GooglePlacesConnector`'s own per-call-client discipline (ADR-0010). Like the RLS ordering rule, this is a discipline documented in ADRs and code comments, not something a linter enforces — a future async client added the naive way (a cached instance-scoped `httpx.AsyncClient`, a persistent connection of any kind) would reintroduce exactly this bug, and it would only surface once a worker process handles a second task, making it easy to miss in a quick manual check.
 - **Single shared Postgres instance**: no read replica, no connection-pool sizing exercise under real background-job write load now that the campaign engine exists. A real concern once campaign volume grows.
 - **Rate limiting is IP/account-keyed only**, no distributed abuse detection. Adequate for now.
-- **No connector-error-path test coverage** (see limitation #9) — the retry/backoff/permanent-failure logic is implemented but not exercised by an automated test that actually triggers those code paths.
+- **No connector-error-path test coverage through the worker's own retry loop** (see limitation #10) — `GooglePlacesConnector` itself is tested to raise the right error types, but nothing yet drives `run_campaign_task`'s retry/backoff/permanent-failure handling end-to-end with an injected failure.
 
 ## Pending approvals
-None outstanding. Milestone 2's scope (campaign/job engine, per the original architecture) was implemented as previously directed. ADR-0008 (entity consolidation) and ADR-0009 (worker event-loop isolation) document decisions/fixes made *during* implementation that didn't exist at architecture-review time; neither requires separate approval — 0008 is a scope-preserving simplification within Milestone 2's already-approved feature set, and 0009 is a bug fix to already-approved behavior (the task chain must actually work correctly) — but both are called out here for transparency.
+None outstanding. Milestone 3's scope (Google Places connector, per the original architecture) was implemented as previously directed, after you declined to provide a real API key when asked — implementation proceeded with mocked-adapter verification only, as flagged at the time. ADR-0010 documents this connector's design and, explicitly, its unresolved live-verification gap; it doesn't require separate approval since it's the recommended default path when no credentials are available, but is called out here for transparency, same as ADR-0008/0009 were for Milestone 2.
 
 ## Next action
-Awaiting your review of Milestone 2. When ready, let me know how you'd like to proceed to Milestone 3.
+Awaiting your review of Milestone 3 — and ideally a real Google Cloud API key with the Places API (New) enabled, so the one open gap (live verification) can actually be closed before Milestone 4. When ready, let me know how you'd like to proceed.
 
 ---
 
@@ -214,3 +233,20 @@ See the **Milestone 2 file inventory** below for everything added/changed since 
 
 ### Docs
 `docs/project-status.md`, `docs/adr/0008-campaign-entity-consolidation.md` (new), `docs/adr/0009-worker-per-task-event-loop-isolation.md` (new)
+
+---
+
+## Complete file inventory (created or modified in Milestone 3)
+
+### `packages/connector-sdk`
+`pyproject.toml` (added `httpx` runtime dependency, `pytest`/`pytest-asyncio`/`ruff`/`mypy` dev deps, pytest config — new test infrastructure for this package),
+`connector_sdk/google_places.py` (new — the real Google Places connector),
+`connector_sdk/registry.py` (registered `google_places` alongside `mock`),
+`connector_sdk/__init__.py` (exported `GooglePlacesConnector`),
+`tests/test_google_places.py` (new, 22 tests — this package's first test suite)
+
+### Root
+`.env.example` (updated the `GOOGLE_PLACES_API_KEY` comment to reflect it's now active, and clarified it's worker-only, not needed by the API process)
+
+### Docs
+`docs/project-status.md`, `docs/adr/0010-google-places-connector.md` (new)

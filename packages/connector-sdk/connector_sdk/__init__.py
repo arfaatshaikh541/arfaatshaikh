@@ -7,6 +7,7 @@ from connector_sdk.errors import (
     ConnectorRateLimitError,
     ConnectorTransientError,
 )
+from connector_sdk.google_places import GooglePlacesConnector
 from connector_sdk.mock import MockConnector
 from connector_sdk.registry import get_connector
 from connector_sdk.types import BusinessRecord, SearchPage, SearchQuery
@@ -20,6 +21,7 @@ __all__ = [
     "ConnectorQuotaError",
     "ConnectorRateLimitError",
     "ConnectorTransientError",
+    "GooglePlacesConnector",
     "MockConnector",
     "SearchPage",
     "SearchQuery",
