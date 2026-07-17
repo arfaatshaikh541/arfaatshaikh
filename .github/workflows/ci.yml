@@ -41,6 +41,24 @@ jobs:
       - name: Ruff lint
         working-directory: apps/api
         run: ruff check .
+      - name: Dependency vulnerability scan (pip-audit)
+        working-directory: apps/api
+        # `-l` audits the local venv; `gridkeep-api`/`gridkeep-connector-sdk` are
+        # unpublished local packages and are skipped (not a scan failure) rather
+        # than erroring, since --strict would fail the whole job on that alone.
+        # The --ignore-vuln entries are starlette CVEs with no fix version inside
+        # the range FastAPI 0.115.6 itself allows (<0.42.0) — upgrading past that
+        # requires a FastAPI major-version bump, tracked as a known, accepted risk
+        # (see docs/project-status.md Milestone 25) rather than silently ignored.
+        run: |
+          pip-audit -l \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln PYSEC-2026-1941 \
+            --ignore-vuln PYSEC-2026-1942 \
+            --ignore-vuln PYSEC-2026-2280 \
+            --ignore-vuln PYSEC-2026-2281
       - name: Run migrations
         working-directory: apps/api
         run: alembic upgrade head
@@ -61,6 +79,14 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Dependency vulnerability scan (pnpm audit)
+        # --ignore-unfixable excludes CVEs with no fix available inside the
+        # current exact-pinned major version (currently: several `next` CVEs
+        # whose fix requires the 15.x line) — a known, accepted risk tracked in
+        # docs/project-status.md Milestone 25, not silently ignored. Any
+        # vulnerability with a fix available within the current pin still fails
+        # this step.
+        run: pnpm audit --ignore-unfixable
       - name: Lint
         working-directory: apps/web
         run: pnpm exec eslint .
@@ -75,6 +101,25 @@ jobs:
         run: pnpm run build
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install detect-secrets
+        run: pip install detect-secrets==1.5.0
+      - name: Scan for new secrets against the committed baseline
+        # .secrets.baseline records every finding that was manually reviewed
+        # and confirmed to be a false positive (dev-only fixture credentials,
+        # Alembic revision hashes, etc. — see docs/project-status.md
+        # Milestone 25). This only fails on secrets NOT already in that
+        # baseline, i.e. something genuinely new.
+        run: |
+          git ls-files | grep -v -E '\.venv/|node_modules/|\.next/|pnpm-lock\.yaml' \
+            | xargs detect-secrets-hook --baseline .secrets.baseline
 
   security-contracts-sync:
     runs-on: ubuntu-latest
