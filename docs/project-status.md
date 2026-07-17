@@ -3021,6 +3021,121 @@ failures that had nothing to do with this milestone's actual changes.
   milestones running now) that a dedicated documentation-audit milestone may be worth prioritizing over
   another incremental feature.
 
-## Next Action
+## Milestone 19 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 20`** to begin the next milestone.
+
+## Milestone 20 — Completed Work
+
+### The breadcrumb this milestone came from
+- Milestone 19's own Known Limitations named this directly: "Connected integrations still has no
+  drill-down — the third and last summary-only tile on the workspace snapshot." This milestone builds
+  exactly that, completing the trilogy of grant-gated drill-downs Milestone 16's workspace snapshot
+  originally left as summary-only tiles.
+
+### Backend
+- **`integrations.routes`'s route-private `_to_tenant_integration_read` mapping promoted to
+  `integrations_service.to_tenant_integration_read`** — the same refactor Milestone 18 applied to findings
+  and Milestone 19 applied to incidents. The tenant-facing `GET /api/integrations`,
+  `POST /api/integrations`, and `POST /api/integrations/{id}/disconnect` all now call it.
+- **New `GET /api/platform/tenants/{tenant_id}/integrations`**, gated by `require_support_access_grant`.
+  Reuses `integrations_service.list_tenant_integrations` and `to_tenant_integration_read` verbatim — no
+  new query, no new mapping logic.
+- **Tagged with `context={"view": "integrations"}`** on the shared `platform.support_access_used` audit
+  action, extending the distinguishing pattern to a fourth grant-gated view (workspace snapshot, findings,
+  incidents, integrations).
+
+### Frontend (`apps/web`)
+- The workspace snapshot page gained an "Integrations" section listing provider, label, status, and
+  last-synced time for every connected integration, fetched from the new endpoint — completing the
+  three-way drill-down (findings, incidents, integrations) alongside the summary tiles at the top of the
+  page.
+
+## Milestone 20 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| The integrations drill-down requires the same active grant as the other grant-gated views | ✅ | `test_grant_gated_integrations_drilldown_requires_an_active_grant` (403, `support_access_grant_required`) |
+| The drill-down returns real integration data matching the tenant-facing endpoint's shape | ✅ | `test_grant_gated_integrations_drilldown_returns_real_integrations`; live-verified against the demo tenant's 5 real connected integrations |
+| The integrations view is distinguishable from the other three grant-gated views in the audit log | ✅ | `test_grant_gated_integrations_drilldown_is_audited_with_view_context`; live-verified — `context.view` values `workspace_snapshot`, `findings`, `incidents`, and `integrations` all observed across recorded events in one session |
+| The tenant-facing integrations endpoints behave identically after the refactor | ✅ | Full `test_integrations_and_assets.py` suite (8 tests) still passes unchanged |
+| All three drill-downs (findings, incidents, integrations) render together on one workspace snapshot page | ✅ | Live-verified via full-page screenshot showing all three sections with real demo-tenant data simultaneously |
+| Backend tests pass | ✅ | **226/226** passing (`pytest -q` in `apps/api`, up from 223 — 3 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 20 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 226 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, driven by headless Chromium: confirmed the
+integrations section was inaccessible before any grant existed, requested and approved a grant through two
+different platform admins as always, then confirmed the workspace page showed all 5 of the demo tenant's
+real connected integrations (Simulated Identity Provider, Endpoint Platform, Cloud Provider, Backup
+Platform, Threat Intelligence Feed) with correct status badges and last-synced timestamps — alongside the
+findings and incidents sections from the prior two milestones, all rendering together on one page. Queried
+the live platform audit log afterward and confirmed all four grant-gated views were each distinctly
+represented via `context.view`. Removed the test grant afterward, with tenant context set first.
+
+This session was also interrupted once by a full container restart mid-verification (background processes
+lost, working-tree changes preserved) and once more by Postgres/Redis going down (same as Milestone 19) —
+both required restarting local services (`service postgresql start` / `service redis-server start`) before
+verification could resume. Neither was related to any code change; noted here for the record.
+
+## Milestone 20 — Architecture Decisions (made or refined during implementation)
+
+- **Completed the trilogy using the exact same pattern for the third time**, rather than varying the
+  approach — same dependency, same promoted-mapping-function shape, same audit `context.view` convention,
+  same frontend card structure. By the third repetition, this is now an established, low-risk pattern for
+  adding a grant-gated read, not something requiring fresh design decisions each time.
+- **No new schema, no new migration** — the third consecutive milestone that is a pure read composition
+  over existing tables plus route wiring.
+
+## Milestone 20 — Known Limitations
+
+- **All three drill-downs still have no pagination**, the same gap flagged in Milestones 18 and 19 — not
+  addressed here either. With the trilogy now complete, this is the most concrete remaining gap across all
+  three grant-gated reads and would be a reasonable, well-scoped next increment.
+- **No systematic audit of the remaining carried-over Known Limitations/Unresolved Risks was performed** —
+  the fourth consecutive milestone to note this without doing the full pass. With the drill-down trilogy
+  now complete and no further "natural next increment" obviously named, the next milestone may be a better
+  point to prioritize this over another incremental feature.
+- **No frontend automated tests were added for the integrations section** — same gap and rationale as every
+  prior milestone's new UI.
+
+## Milestone 20 — Unresolved Risks
+
+- Carried over from Milestones 1-19 (in-memory rate limiter, no dependency/container/secret scanning in
+  CI, Docker Compose still unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of
+  unattended action execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the widened
+  `audit_logs_select` policy, the terminal-`archived` tenant status, the hardcoded MFA admin-role set, MFA
+  backup/recovery codes, the RLS-silently-no-ops-without-tenant-context hazard, no pagination on any of the
+  three grant-gated drill-downs) — none were touched this milestone and remain open.
+- **A full, systematic re-verification pass over every carried-over Known Limitation/Unresolved Risk has
+  still not been done**, now flagged for a fourth consecutive milestone. With the drill-down trilogy
+  complete, this is a genuinely strong candidate for Milestone 21's scope rather than continuing to defer
+  it — explicitly flagged for your review.
+- **No pagination across all three grant-gated drill-downs** is the clearest concrete remaining gap in this
+  specific feature area, now that all three exist.
+
+## Milestone 20 — Pending Approvals
+
+- This Milestone 20 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and known gaps are documented rather than hidden.
+- Recommend explicit review of two competing candidates for Milestone 21: (a) adding pagination to the now-
+  complete drill-down trilogy, or (b) the dedicated documentation-audit pass flagged for four consecutive
+  milestones now. Both are legitimate; your preference would help focus the next milestone rather than
+  another judgment call made independently.
+
+## Next Action
+
+Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 21`** to begin the next milestone.
