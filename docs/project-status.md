@@ -1,15 +1,13 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-16 (Milestone 14 implementation)
+Last updated: 2026-07-17 (Milestone 28 implementation)
 
 ## Current Milestone
 
-**Milestone 14: Tenant Security Policy Enforcement** — implementation complete, pending your review and
-explicit approval to proceed to Milestone 15. Milestones 1 (Secure SaaS Core), 2 (Integration SDK and
-Asset Graph), 3 (Findings and Risk Engine), 4 (Cyber Autopilot), 5 (Incident Response), 6 (Backup and
-Ransomware Resilience), 7 (Compliance and Evidence), 8 (Executive Reporting), 9 (Trust Passport), 10
-(Threat Intelligence), 11 (Attack Surface), 12 (Platform Admin Console), and 13 (MFA Enrollment & Step-Up
-Authentication) are complete and merged; their sections below are preserved as-is.
+**Milestone 28: Real Evidence File Storage + Real Email Dispatch** — implementation complete. This was the
+fifth and last of five closable items identified from the user's "run all tests, tell me what's remaining,
+and complete the project" instruction; see that milestone's section below for the full closeout summary.
+Milestones 1 through 27 are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -4113,6 +4111,169 @@ path was.
 - Continuing directly to Milestone 28 (real evidence storage + real email dispatch), the last of the five
   closable items, per the "complete the project" instruction.
 
+## Milestone 28: Real Evidence File Storage + Real Email Dispatch
+
+**Scope chosen by explicit user instruction** — the fifth and last of five closable items from the user's
+"run all tests, report what's remaining, complete the project" request. Closes two long-standing dormant
+settings blocks in `core/config.py` (`mail_capture_*`, `object_storage_*`) that had sat unused since
+Milestone 1, and the `email_dispatch_simulated` log-line stand-in used by onboarding, invitations, and
+password reset since Milestone 1.
+
+### Real email dispatch (`core/email.py`)
+- **`send_email()`** is a genuine `smtplib` client (stdlib), not a log line — builds a real RFC 5322
+  message via `email.message.EmailMessage` and sends it over a real SMTP connection to
+  `settings.mail_capture_host`/`mail_capture_port` (already-defined settings, pointed at Mailhog's default
+  port since Milestone 1, never previously used). Raises on failure rather than swallowing it.
+- All three `email_dispatch_simulated` call sites now call `send_email()` with a real subject/body:
+  `modules/tenancy/service.py` (email verification on onboarding), `modules/permissions/routes.py`
+  (invitations), `modules/identity/routes.py` (password reset).
+- **New `aiosmtpd==1.4.6` dev dependency** — a real, pure-Python SMTP *server* used only in tests, to
+  genuinely exercise the SMTP client rather than mock it. This is the third use of the project's
+  "real local protocol server" pattern (`_local_well_known_server` for HTTP in Milestone 11,
+  `_local_dns_txt_server` for DNS in Milestone 27, and now a session-scoped `aiosmtpd` `Controller` in
+  `conftest.py` for SMTP) — bound to the same host/port production points at Mailhog, so every existing
+  test that triggers an email (onboarding, invitations, password reset) now exercises a real SMTP
+  round-trip, not a mock. Captured messages are exposed to tests via a `sent_emails` fixture.
+
+### Real evidence file storage (`core/storage.py`, `modules/compliance`)
+- **`core/storage.py`** writes/reads/deletes real files on local disk under `settings.evidence_storage_root`
+  (new setting, default `var/evidence-storage`), scoped per-tenant (`{root}/{tenant_id}/{evidence_id}__
+  {sanitized_filename}`), with filename sanitization and a path-traversal guard (`Path.is_relative_to`)
+  on read/delete.
+- **Deliberately not the dormant `object_storage_*` (S3/MinIO-compatible) settings** — a real MinIO instance
+  needs a Docker daemon this sandboxed environment doesn't have (same constraint that's kept Docker Compose
+  itself unverified end-to-end since Milestone 1). This is the same tradeoff Milestone 27 made for DNS TXT
+  verification: a genuinely real, but intentionally scoped-down, local substitute for the unreachable
+  production-shaped dependency — disclosed explicitly here rather than glossed over. `object_storage_*`
+  remains dormant.
+- **`EvidenceRecord` gained four nullable columns** (`file_path`, `file_name`, `file_content_type`,
+  `file_size_bytes`), populated only for `evidence_type == "document"` rows — migration
+  `636ee68487fe_milestone28_evidence_file_columns`.
+- **`CreateEvidenceRequest`'s `evidence_type` pattern narrowed to `url|note`** — `document` evidence now
+  requires real file bytes, which don't fit a JSON body, so it's created through a dedicated route instead.
+- **New `POST /api/evidence/document`** (multipart form: `title`, `description`, `target_type`, `target_id`,
+  `collected_at`, `file`) — same permission-per-target-type gate as the existing JSON create route
+  (`compliance.manage`/`incidents.manage`), a 10 MiB size cap, and rejects empty files.
+- **New `GET /api/evidence/{evidence_id}/file`** — downloads the real stored bytes with the original
+  filename and content type (`Content-Disposition: attachment`), gated on `evidence.view` and tenant-scoped
+  (cross-tenant access returns 404, same as the rest of the evidence API).
+- **`delete_evidence` now also deletes the underlying file** from disk when one exists.
+
+### Frontend (`apps/web`)
+- **`apiClient.postForm()`** — new multipart-form request helper (no `Content-Type` header, letting the
+  browser set the boundary) alongside the existing JSON `post`/`patch`/`delete`.
+- **`components/EvidenceList.tsx`** (shared by both the Compliance and Incident evidence panels): selecting
+  "Document (file upload)" now shows a real file input instead of the old "reference only" label with no
+  actual attachment path; uploads via `postForm` to the new multipart route; documents in the list render a
+  real download link (file name + human-readable size) pointing at the new file route.
+
+## Milestone 28 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Onboarding/invitation/password-reset emails are dispatched via a real SMTP client, not a log line | ✅ | `core/email.py`; all 3 call sites refactored |
+| Real SMTP dispatch is exercised against a real local SMTP server in tests, not mocked | ✅ | `_smtp_capture` session fixture (`aiosmtpd` `Controller`) in `conftest.py`; `test_email.py`, plus assertions added to `test_auth_flow.py` and `test_rbac.py` |
+| SMTP failures are not silently swallowed | ✅ | `test_send_email_raises_when_smtp_server_unreachable` |
+| A document evidence upload writes a real file to local disk | ✅ | `test_document_evidence_upload_and_download_round_trips_real_bytes` |
+| Downloaded bytes exactly match uploaded bytes | ✅ | Same test (assert equality) + live E2E (byte-for-byte file comparison) |
+| Oversized uploads are rejected | ✅ | `test_document_evidence_rejects_oversized_file` (>10 MiB → 422) |
+| Deleting evidence deletes the underlying file | ✅ | `test_deleting_document_evidence_removes_it_and_the_file` |
+| Evidence files are tenant-isolated | ✅ | `test_document_evidence_file_scoped_to_own_tenant` (cross-tenant download → 404) |
+| Frontend supports real file upload and download | ✅ | Live-verified via Playwright against the demo tenant: uploaded a real file through the browser, downloaded it, confirmed byte-for-byte match |
+| Backend tests pass | ✅ | **248/248** passing (up from 240 — 8 new tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 28 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 248 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack, plus a standalone `aiosmtpd` capture
+server started for this verification only (mirroring the test suite's fixture, pointed at the same
+`mail_capture_host`/`mail_capture_port` the dev config already used):
+
+- **Email**: submitted the real onboarding form as a new tenant in the browser; the standalone SMTP capture
+  server received and printed a real message — correct `To`, `Subject: Verify your GRIDKEEP account`, and a
+  real verification token in the body — proving the full path (form → API → `smtplib` → real SMTP wire
+  protocol → server) genuinely works, not just the unit-tested slice of it.
+- **Evidence file upload/download**: logged in as the demo tenant owner, opened a compliance control's
+  evidence panel, selected "Document (file upload)," uploaded a real text file through the browser's file
+  picker, confirmed the file name and size appeared in the evidence list, clicked the download link, and
+  confirmed the downloaded file's bytes were identical to the originally uploaded file — genuine disk I/O
+  round-tripped through the full stack, not a stub.
+
+**What this live E2E does *not* claim**: it did not exercise a real S3/MinIO-compatible object store (the
+dormant `object_storage_*` settings still point at an unreachable MinIO instance — no Docker daemon here),
+and it did not exercise delivery to a real external mail relay or inbox (only the local capture server, same
+scoping as production Mailhog in dev). Both are stated explicitly rather than implied to have been proven.
+
+## Milestone 28 — Architecture Decisions (made or refined during implementation)
+
+- **A real local SMTP server for the whole test session, not a per-test mock.** Extending the "real local
+  protocol server" pattern (HTTP in M11, DNS in M27) to SMTP meant every *existing* test exercising
+  onboarding/invitations/password-reset now genuinely proves the email path works, instead of adding
+  isolated new tests alongside an unchanged mocked/logged path elsewhere.
+- **Local-disk evidence storage instead of wiring up the dormant S3/MinIO settings.** A real MinIO instance
+  needs Docker, which this environment doesn't have — the same reasoning that's kept Docker Compose itself
+  unverified since Milestone 1. Building a genuinely real (if scoped-down) local-disk store was judged more
+  valuable than either leaving evidence uploads entirely unbuilt or building an S3 client against a target
+  that could never be exercised here.
+- **Per-tenant subdirectories plus a path-traversal guard on every stored path.** Filenames are sanitized
+  to their basename before being written; on read/delete, the resolved path is checked with
+  `Path.is_relative_to` against the storage root before any file operation.
+- **`document` evidence moved off the JSON create route entirely** rather than accepting file references or
+  base64-encoding bytes into JSON — multipart form data is the correct shape for real file uploads, and
+  splitting the route keeps the common note/url path unchanged for every existing caller.
+- **10 MiB upload cap** — an explicit, if arbitrary, safety bound rather than no bound at all; not wired to
+  a setting since nothing in this milestone's scope needed it configurable.
+
+## Milestone 28 — Known Limitations
+
+- **Real S3/MinIO object storage remains dormant** — `object_storage_*` settings are still unused; evidence
+  files live on local disk instead. A production deployment with a real MinIO/S3 endpoint would need that
+  wiring built separately.
+- **Live delivery to a real external mail relay/inbox was not exercised** — only a local SMTP capture
+  server, matching how Mailhog is used in the documented dev/Docker-Compose setup.
+- **No virus/malware scanning on uploaded evidence files** — same standard as any other dev-stage file
+  upload in this codebase; would need addressing before handling real untrusted uploads in production.
+- **The 10 MiB size cap is a hardcoded constant**, not a configurable setting or per-tenant limit.
+- **No frontend automated tests were added** for the new file upload/download UI — same recurring gap and
+  rationale as every prior milestone's new UI.
+
+## Milestone 28 — Unresolved Risks
+
+- Carried over from Milestones 1-27 (Docker Compose still unverified end-to-end, the scoring formulas'
+  simplicity, the inherent stakes of unattended action execution, the evidence permission-per-target
+  design, the control-scoring weights, the cross-cutting-permission decisions, the
+  widened-RLS-by-data-value pattern, the threat-intel confidence-to-severity thresholds, the terminal-
+  `archived` tenant status, the hardcoded MFA admin-role set, the RLS-silently-no-ops-without-tenant-context
+  hazard, the fixed-window rate-limiter boundary effect, no path back if both the authenticator and every
+  backup code are lost, `starlette`'s CVEs blocked by FastAPI's pin, `next`'s remaining CVEs requiring the
+  15.x line, the exact-page-boundary "Next" pagination edge case, DNS TXT's live success path being
+  unverified against the real internet) — none were touched this milestone and remain open.
+- **"Object storage and real email delivery still simulated," carried since Milestone 1, is now resolved
+  for email** (genuinely real SMTP dispatch) **and partially resolved for evidence storage** (genuinely
+  real local-disk file storage, though not the S3/MinIO-compatible object store the dormant settings
+  describe) — removed from this list, replaced by the more precise limitations stated above.
+
+## Milestone 28 — Pending Approvals
+
+- This Milestone 28 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and every honest limitation (dormant S3/MinIO,
+  no live external mail relay, no malware scanning, no frontend tests for the new UI) is stated explicitly.
+- This closes the fifth and last of the five closable items identified from the "complete the project"
+  instruction. The remaining open items are either structurally blocked in this sandboxed environment
+  (Docker Compose end-to-end, a live GitHub Actions run) or intentional, previously-disclosed design
+  tradeoffs (see Unresolved Risks above, carried across many milestones) — not gaps left to close.
+
 ## Next Action
 
-Milestone 28 in progress.
+Milestone 28 complete. Awaiting your review; no further closable items remain from the "complete the
+project" audit.
