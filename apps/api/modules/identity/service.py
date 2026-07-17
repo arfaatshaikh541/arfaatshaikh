@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import base64
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pyotp
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -28,6 +29,7 @@ from modules.credential_vault.adapters.base import EncryptedSecret
 from modules.credential_vault.service import get_vault_adapter
 from modules.identity.models import (
     EmailVerificationToken,
+    MfaBackupCode,
     MfaChallengeToken,
     PasswordResetToken,
     Session,
@@ -322,12 +324,81 @@ async def enroll_mfa(session: AsyncSession, user: User) -> tuple[str, str]:
     return secret, provisioning_uri
 
 
-async def confirm_mfa_enrollment(session: AsyncSession, user: User, code: str) -> None:
+BACKUP_CODE_COUNT = 10
+# Excludes visually-ambiguous characters (0/O, 1/I/L) since these codes are
+# meant to be handwritten or read off a screen during a real recovery.
+_BACKUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_backup_code() -> str:
+    raw = "".join(secrets.choice(_BACKUP_CODE_ALPHABET) for _ in range(10))
+    return f"{raw[:5]}-{raw[5:]}"
+
+
+def _normalize_backup_code(code: str) -> str:
+    return code.strip().upper()
+
+
+async def _issue_backup_codes(session: AsyncSession, user: User) -> list[str]:
+    """Milestone 24: invalidates any existing codes and issues a fresh
+    batch of `BACKUP_CODE_COUNT` — called on enrollment confirm and on
+    explicit regeneration. Returns the plaintext codes exactly once; only
+    each code's SHA-256 hash is ever persisted, the same
+    generate-hash-store-consume shape every other token in this module
+    uses."""
+    await session.execute(delete(MfaBackupCode).where(MfaBackupCode.user_id == user.id))
+    plaintext_codes = [_generate_backup_code() for _ in range(BACKUP_CODE_COUNT)]
+    for code in plaintext_codes:
+        session.add(MfaBackupCode(user_id=user.id, code_hash=hash_token(code)))
+    await session.flush()
+    return plaintext_codes
+
+
+async def _consume_backup_code(session: AsyncSession, user: User, backup_code: str) -> bool:
+    """Returns True and marks the code used if it matches an unused
+    backup code for this user, False otherwise. Input is
+    case/whitespace-normalized since users retype these by hand."""
+    code_hash = hash_token(_normalize_backup_code(backup_code))
+    result = await session.execute(
+        select(MfaBackupCode).where(
+            MfaBackupCode.user_id == user.id,
+            MfaBackupCode.code_hash == code_hash,
+            MfaBackupCode.used_at.is_(None),
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return False
+    row.used_at = _now()
+    await session.flush()
+    return True
+
+
+async def confirm_mfa_enrollment(session: AsyncSession, user: User, code: str) -> list[str]:
+    """Milestone 24: returns a fresh batch of backup codes now that
+    enrollment succeeds — the caller (the `/mfa/confirm` route) must show
+    these to the user exactly once, since only their hash is persisted."""
     secret = _decrypt_mfa_secret(user)
     if not verify_totp_code(secret, code):
         raise ValidationAppError("That code doesn't match. Please try again.")
     user.mfa_enabled = True
     await session.flush()
+    return await _issue_backup_codes(session, user)
+
+
+async def regenerate_backup_codes(session: AsyncSession, user: User, code: str) -> list[str]:
+    """Milestone 24: requires a fresh TOTP code, the same trust level
+    `disable_mfa` already requires — proves the caller still controls the
+    authenticator, not just an active session. A user who has lost both
+    the authenticator and every backup code has no self-service path here
+    (documented as a Known Limitation); that's a deliberately narrower
+    scope than a full account-recovery flow."""
+    if not user.mfa_enabled:
+        raise ValidationAppError("Multi-factor authentication is not enabled for this account.")
+    secret = _decrypt_mfa_secret(user)
+    if not verify_totp_code(secret, code):
+        raise ValidationAppError("That code doesn't match. Please try again.")
+    return await _issue_backup_codes(session, user)
 
 
 async def disable_mfa(session: AsyncSession, user: User, code: str) -> None:
@@ -338,6 +409,7 @@ async def disable_mfa(session: AsyncSession, user: User, code: str) -> None:
         raise ValidationAppError("That code doesn't match. Please try again.")
     user.mfa_enabled = False
     user.mfa_totp_secret_encrypted = None
+    await session.execute(delete(MfaBackupCode).where(MfaBackupCode.user_id == user.id))
     await session.flush()
 
 
@@ -354,7 +426,16 @@ async def issue_mfa_challenge_token(session: AsyncSession, user: User) -> str:
     return raw_token
 
 
-async def consume_mfa_challenge_token(session: AsyncSession, raw_token: str, code: str) -> User:
+async def consume_mfa_challenge_token(
+    session: AsyncSession, raw_token: str, *, code: str | None = None, backup_code: str | None = None
+) -> User:
+    """Milestone 24: accepts either a TOTP `code` or a `backup_code` (not
+    both, but exactly one is required) — the login-challenge is the one
+    place a backup code is actually usable, since it exists precisely for
+    "I no longer have my authenticator device"."""
+    if not code and not backup_code:
+        raise InvalidCredentialsError("Incorrect verification code.")
+
     token_hash = hash_token(raw_token)
     result = await session.execute(
         select(MfaChallengeToken).where(MfaChallengeToken.token_hash == token_hash)
@@ -368,8 +449,12 @@ async def consume_mfa_challenge_token(session: AsyncSession, raw_token: str, cod
     if user is None or not user.mfa_enabled:
         raise AuthenticationError("This sign-in attempt is no longer valid. Please sign in again.")
 
-    secret = _decrypt_mfa_secret(user)
-    if not verify_totp_code(secret, code):
+    if code:
+        secret = _decrypt_mfa_secret(user)
+        verified = verify_totp_code(secret, code)
+    else:
+        verified = await _consume_backup_code(session, user, backup_code)
+    if not verified:
         raise InvalidCredentialsError("Incorrect verification code.")
 
     token_row.used_at = _now()

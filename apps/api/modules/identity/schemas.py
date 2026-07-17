@@ -93,12 +93,31 @@ class MfaConfirmRequest(BaseModel):
     code: str = Field(min_length=6, max_length=6)
 
 
+class MfaConfirmResponse(BaseModel):
+    status: str = "ok"
+    backup_codes: list[str]
+
+
 class MfaDisableRequest(BaseModel):
     code: str = Field(min_length=6, max_length=6)
 
 
 class MfaVerifyLoginRequest(BaseModel):
+    """Milestone 24: exactly one of `code` (TOTP) or `backup_code` must be
+    supplied — the service layer enforces this, not pydantic, since
+    "exactly one of two optional fields" isn't expressible as a simple
+    field constraint."""
+
     mfa_challenge_token: str
+    code: str | None = Field(default=None, min_length=6, max_length=6)
+    backup_code: str | None = Field(default=None, min_length=11, max_length=11)
+
+
+class MfaBackupCodesResponse(BaseModel):
+    backup_codes: list[str]
+
+
+class MfaRegenerateBackupCodesRequest(BaseModel):
     code: str = Field(min_length=6, max_length=6)
 
 

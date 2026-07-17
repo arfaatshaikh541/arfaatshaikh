@@ -167,6 +167,156 @@ async def test_disable_mfa_requires_the_correct_code(client, db):
     assert me_resp.json()["user"]["mfa_enabled"] is False
 
 
+async def _enroll_and_confirm_mfa_with_backup_codes(client, csrf_token: str) -> tuple[str, list[str]]:
+    enroll_resp = await client.post("/api/auth/mfa/enroll", headers={"X-CSRF-Token": csrf_token})
+    assert enroll_resp.status_code == 200, enroll_resp.text
+    secret = enroll_resp.json()["secret"]
+
+    confirm_resp = await client.post(
+        "/api/auth/mfa/confirm",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert confirm_resp.status_code == 200, confirm_resp.text
+    return secret, confirm_resp.json()["backup_codes"]
+
+
+async def test_confirm_mfa_returns_ten_unique_backup_codes(client, db):
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Codes Co", email="owner@mfa-backup-codes.example"
+    )
+    _secret, backup_codes = await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+
+    assert len(backup_codes) == 10
+    assert len(set(backup_codes)) == 10
+    assert all(len(code) == 11 and code[5] == "-" for code in backup_codes)
+
+
+async def test_login_with_backup_code_when_totp_unavailable(client, db):
+    """Milestone 24: the actual point of backup codes — a user who has
+    lost their authenticator device can still get past the login
+    challenge using one, without ever entering a TOTP code."""
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Login Co", email="owner@mfa-backup-login.example"
+    )
+    _secret, backup_codes = await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+
+    login_resp = await login(client, "owner@mfa-backup-login.example", "Owner-Pass1!")
+    assert login_resp.status_code == 200
+    challenge_token = login_resp.json()["mfa_challenge_token"]
+
+    verify_resp = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": challenge_token, "backup_code": backup_codes[0]},
+    )
+    assert verify_resp.status_code == 200, verify_resp.text
+    assert verify_resp.json()["csrf_token"]
+
+    me_resp = await client.get("/api/auth/me")
+    assert me_resp.status_code == 200
+
+
+async def test_backup_code_is_single_use(client, db):
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Reuse Co", email="owner@mfa-backup-reuse.example"
+    )
+    _secret, backup_codes = await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+
+    first_login = await login(client, "owner@mfa-backup-reuse.example", "Owner-Pass1!")
+    first_verify = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={
+            "mfa_challenge_token": first_login.json()["mfa_challenge_token"],
+            "backup_code": backup_codes[0],
+        },
+    )
+    assert first_verify.status_code == 200
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": first_verify.json()["csrf_token"]})
+
+    second_login = await login(client, "owner@mfa-backup-reuse.example", "Owner-Pass1!")
+    second_verify = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={
+            "mfa_challenge_token": second_login.json()["mfa_challenge_token"],
+            "backup_code": backup_codes[0],
+        },
+    )
+    assert second_verify.status_code == 401
+
+
+async def test_wrong_backup_code_is_rejected(client, db):
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Wrong Co", email="owner@mfa-backup-wrong.example"
+    )
+    await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+
+    login_resp = await login(client, "owner@mfa-backup-wrong.example", "Owner-Pass1!")
+    verify_resp = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": login_resp.json()["mfa_challenge_token"], "backup_code": "ZZZZZ-ZZZZZ"},
+    )
+    assert verify_resp.status_code == 401
+
+
+async def test_regenerate_backup_codes_invalidates_old_ones(client, db):
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Regen Co", email="owner@mfa-backup-regen.example"
+    )
+    secret, old_codes = await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+
+    regen_resp = await client.post(
+        "/api/auth/mfa/backup-codes/regenerate",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers={"X-CSRF-Token": ctx["csrf_token"]},
+    )
+    assert regen_resp.status_code == 200, regen_resp.text
+    new_codes = regen_resp.json()["backup_codes"]
+    assert len(new_codes) == 10
+    assert set(new_codes).isdisjoint(old_codes)
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+    login_resp = await login(client, "owner@mfa-backup-regen.example", "Owner-Pass1!")
+
+    old_code_verify = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": login_resp.json()["mfa_challenge_token"], "backup_code": old_codes[0]},
+    )
+    assert old_code_verify.status_code == 401
+
+    login_resp_2 = await login(client, "owner@mfa-backup-regen.example", "Owner-Pass1!")
+    new_code_verify = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": login_resp_2.json()["mfa_challenge_token"], "backup_code": new_codes[0]},
+    )
+    assert new_code_verify.status_code == 200, new_code_verify.text
+
+
+async def test_disable_mfa_clears_backup_codes(client, db):
+    from sqlalchemy import select
+
+    from modules.identity.models import MfaBackupCode
+
+    ctx = await _connected_owner(
+        client, db, org="MFA Backup Disable Co", email="owner@mfa-backup-disable.example"
+    )
+    secret, _backup_codes = await _enroll_and_confirm_mfa_with_backup_codes(client, ctx["csrf_token"])
+
+    disable_resp = await client.post(
+        "/api/auth/mfa/disable",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers={"X-CSRF-Token": ctx["csrf_token"]},
+    )
+    assert disable_resp.status_code == 200
+
+    remaining = (
+        await db.execute(select(MfaBackupCode).where(MfaBackupCode.user_id == uuid.UUID(ctx["user_id"])))
+    ).scalars().all()
+    assert remaining == []
+
+
 async def test_step_up_requires_mfa_enabled_first(client, db):
     ctx = await _connected_owner(client, db, org="Step Up No MFA Co", email="owner@step-up-no-mfa.example")
 

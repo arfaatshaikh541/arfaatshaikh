@@ -81,6 +81,24 @@ class EmailVerificationToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MfaBackupCode(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Milestone 24: single-use recovery codes for a user who has lost
+    their authenticator device — the self-service recovery path MFA has
+    lacked since Milestone 13. Same generate-hash-store-consume shape as
+    every other token table in this module, but deliberately no
+    `expires_at`: a backup code is meant to sit unused for months until
+    the one day it's actually needed, unlike a password-reset or
+    email-verification token."""
+
+    __tablename__ = "mfa_backup_codes"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class MfaChallengeToken(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Milestone 13: a short-lived, single-use proof that a user already
     passed the password check, issued by `login()` in place of a real

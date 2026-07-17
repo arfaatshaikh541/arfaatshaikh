@@ -21,9 +21,12 @@ from modules.identity.schemas import (
     LoginResponse,
     MembershipSummary,
     MeResponse,
+    MfaBackupCodesResponse,
     MfaConfirmRequest,
+    MfaConfirmResponse,
     MfaDisableRequest,
     MfaEnrollResponse,
+    MfaRegenerateBackupCodesRequest,
     MfaRequiredResponse,
     MfaVerifyLoginRequest,
     ResetPasswordRequest,
@@ -78,12 +81,16 @@ def _cookie_secure_kwargs(base: dict) -> dict:
 
 
 async def _complete_login(
-    db: AsyncSession, user: User, request: Request, response: Response
+    db: AsyncSession, user: User, request: Request, response: Response, *, mfa_method: str | None = None
 ) -> LoginResponse:
     """The part of signing in that only ever happens once a session should
     actually be created — shared between a normal (no-MFA) login and
     `/mfa/verify-login` completing a challenge, so there is exactly one
-    place that creates a session, sets cookies, and records `auth.login`."""
+    place that creates a session, sets cookies, and records `auth.login`.
+    `mfa_method` (Milestone 24: `"totp"` or `"backup_code"`) is tagged onto
+    the audit record's `context` so a backup-code login — a signal worth a
+    closer look, since it means the account's normal second factor wasn't
+    used — is distinguishable from a routine one."""
     memberships = await identity_service.list_memberships_for_user(db, user.id)
     active_membership_id = memberships[0].membership_id if len(memberships) == 1 else None
 
@@ -102,6 +109,7 @@ async def _complete_login(
         actor_user_id=user.id,
         actor_label=user.email,
         action="auth.login",
+        context={"mfa_method": mfa_method} if mfa_method else None,
         ip_address=request.client.host if request.client else None,
     )
     await db.commit()
@@ -172,9 +180,10 @@ async def verify_login_mfa(
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     user = await identity_service.consume_mfa_challenge_token(
-        db, payload.mfa_challenge_token, payload.code
+        db, payload.mfa_challenge_token, code=payload.code, backup_code=payload.backup_code
     )
-    return await _complete_login(db, user, request, response)
+    mfa_method = "backup_code" if payload.backup_code else "totp"
+    return await _complete_login(db, user, request, response, mfa_method=mfa_method)
 
 
 @router.post("/logout", dependencies=[Depends(require_csrf)])
@@ -262,18 +271,18 @@ async def enroll_mfa(
     return MfaEnrollResponse(secret=secret, provisioning_uri=provisioning_uri)
 
 
-@router.post("/mfa/confirm", dependencies=[Depends(require_csrf)])
+@router.post("/mfa/confirm", response_model=MfaConfirmResponse, dependencies=[Depends(require_csrf)])
 async def confirm_mfa(
     payload: MfaConfirmRequest,
     ctx: AuthContext = Depends(get_auth_context),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    await identity_service.confirm_mfa_enrollment(db, ctx.user, payload.code)
+) -> MfaConfirmResponse:
+    backup_codes = await identity_service.confirm_mfa_enrollment(db, ctx.user, payload.code)
     await audit_service.record(
         db, tenant_id=None, actor_user_id=ctx.user.id, actor_label=ctx.user.email, action="auth.mfa_enabled"
     )
     await db.commit()
-    return {"status": "ok"}
+    return MfaConfirmResponse(backup_codes=backup_codes)
 
 
 @router.post("/mfa/disable", dependencies=[Depends(require_csrf)])
@@ -288,6 +297,31 @@ async def disable_mfa(
     )
     await db.commit()
     return {"status": "ok"}
+
+
+@router.post(
+    "/mfa/backup-codes/regenerate",
+    response_model=MfaBackupCodesResponse,
+    dependencies=[Depends(require_csrf)],
+)
+async def regenerate_backup_codes(
+    payload: MfaRegenerateBackupCodesRequest,
+    ctx: AuthContext = Depends(get_auth_context),
+    db: AsyncSession = Depends(get_db),
+) -> MfaBackupCodesResponse:
+    """Milestone 24: invalidates every existing backup code and issues a
+    fresh batch — used both for routine rotation and for topping back up
+    after several codes have been spent."""
+    backup_codes = await identity_service.regenerate_backup_codes(db, ctx.user, payload.code)
+    await audit_service.record(
+        db,
+        tenant_id=None,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+        action="auth.mfa_backup_codes_regenerated",
+    )
+    await db.commit()
+    return MfaBackupCodesResponse(backup_codes=backup_codes)
 
 
 @router.post("/step-up", response_model=StepUpResponse, dependencies=[Depends(require_csrf)])
