@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const CSRF_COOKIE_NAME = "gridkeep_csrf";
 
 export class ApiError extends Error {
@@ -61,10 +61,36 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T;
 }
 
+async function postForm<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const csrf = readCookie(CSRF_COOKIE_NAME);
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  // No Content-Type header here — the browser sets multipart/form-data
+  // with the correct boundary itself when the body is a FormData.
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const payload = contentType.includes("application/json") ? await response.json() : null;
+
+  if (!response.ok) {
+    const error = payload?.error ?? { code: "unknown_error", message: "Something went wrong.", details: {} };
+    throw new ApiError(response.status, error.code, error.message, error.details ?? {});
+  }
+
+  return payload as T;
+}
+
 export const apiClient = {
   get: <T>(path: string, params?: Record<string, string>) => request<T>(path, { method: "GET", params }),
   post: <T>(path: string, body?: unknown, params?: Record<string, string>) =>
     request<T>(path, { method: "POST", body, params }),
+  postForm: <T>(path: string, formData: FormData) => postForm<T>(path, formData),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

@@ -2,16 +2,22 @@
 
 import { Button } from "@gridkeep/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { apiClient, ApiError } from "@/lib/api-client";
+import { API_BASE_URL, apiClient, ApiError } from "@/lib/api-client";
 import type { EvidenceRead } from "@/lib/types";
 
 const EVIDENCE_TYPES = [
   { value: "note", label: "Note" },
   { value: "url", label: "URL" },
-  { value: "document", label: "Document (reference only)" },
+  { value: "document", label: "Document (file upload)" },
 ];
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function EvidenceList({
   targetType,
@@ -27,8 +33,10 @@ export function EvidenceList({
   const [description, setDescription] = useState("");
   const [evidenceType, setEvidenceType] = useState("note");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const queryKey = ["evidence", targetType, targetId];
 
@@ -38,22 +46,39 @@ export function EvidenceList({
       apiClient.get<EvidenceRead[]>("/api/evidence", { target_type: targetType, target_id: targetId }),
   });
 
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setSourceUrl("");
+    setEvidenceType("note");
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const addEvidence = async () => {
     setError(null);
     setIsBusy(true);
     try {
-      await apiClient.post("/api/evidence", {
-        title,
-        description,
-        evidence_type: evidenceType,
-        source_url: evidenceType === "url" ? sourceUrl : null,
-        target_type: targetType,
-        target_id: targetId,
-      });
-      setTitle("");
-      setDescription("");
-      setSourceUrl("");
-      setEvidenceType("note");
+      if (evidenceType === "document") {
+        if (!file) throw new Error("Choose a file to upload.");
+        const formData = new FormData();
+        formData.set("title", title);
+        formData.set("description", description);
+        formData.set("target_type", targetType);
+        formData.set("target_id", targetId);
+        formData.set("file", file);
+        await apiClient.postForm("/api/evidence/document", formData);
+      } else {
+        await apiClient.post("/api/evidence", {
+          title,
+          description,
+          evidence_type: evidenceType,
+          source_url: evidenceType === "url" ? sourceUrl : null,
+          target_type: targetType,
+          target_id: targetId,
+        });
+      }
+      resetForm();
       queryClient.invalidateQueries({ queryKey });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -88,6 +113,17 @@ export function EvidenceList({
                 {e.source_url ? (
                   <a href={e.source_url} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">
                     {e.source_url}
+                  </a>
+                ) : null}
+                {e.evidence_type === "document" && e.file_name ? (
+                  <a
+                    href={`${API_BASE_URL}/api/evidence/${e.id}/file`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-accent hover:underline"
+                  >
+                    {e.file_name}
+                    {e.file_size_bytes !== null ? ` (${formatFileSize(e.file_size_bytes)})` : ""}
                   </a>
                 ) : null}
                 <p className="text-xs text-ink-500">
@@ -143,10 +179,22 @@ export function EvidenceList({
                 className="h-9 flex-1 rounded border border-surface-border bg-surface-800 px-3 text-sm text-ink-900"
               />
             ) : null}
+            {evidenceType === "document" ? (
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="h-9 flex-1 rounded border border-surface-border bg-surface-800 px-3 py-1.5 text-sm text-ink-900"
+              />
+            ) : null}
           </div>
           <Button
             size="sm"
-            disabled={!title.trim() || (evidenceType === "url" && !sourceUrl.trim())}
+            disabled={
+              !title.trim() ||
+              (evidenceType === "url" && !sourceUrl.trim()) ||
+              (evidenceType === "document" && !file)
+            }
             isLoading={isBusy}
             onClick={addEvidence}
           >

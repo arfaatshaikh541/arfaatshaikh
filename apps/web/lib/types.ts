@@ -391,6 +391,9 @@ export interface EvidenceRead {
   collected_at: string;
   created_by_user_id: string | null;
   created_at: string;
+  file_name: string | null;
+  file_content_type: string | null;
+  file_size_bytes: number | null;
 }
 
 // --- Milestone 8: executive reporting ---
