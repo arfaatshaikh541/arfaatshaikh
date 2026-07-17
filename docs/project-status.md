@@ -4311,6 +4311,34 @@ trace the user reported, and against confirmed file-existence and dependency-gra
 If a second, different failure surfaces on retry, that's expected to be reported back and fixed the same
 way — this is the first time this file has ever been exercised for real.
 
+### A fourth bug: the same class of problem, in `api.Dockerfile`, hiding the login failure's real cause
+
+With `web`'s build fixed, the user got the stack running far enough to hit `ModuleNotFoundError: No module
+named 'gridkeep_connector_sdk'` — and separately, before that, a generic "something went wrong" on login
+that turned out to be the same root cause, not a credentials problem.
+
+**Root cause**: `api.Dockerfile` built the connector SDK's editable install at `/app/connector-sdk` —
+inside the same `WORKDIR /app` where `apps/api`'s own code also lands. `docker-compose.yml`'s `api` service
+bind-mounts `./apps/api:/app` for the dev hot-reload loop. A bind mount replaces the *entire* target
+directory with the host directory's contents at container start — so `/app/connector-sdk` (built into the
+image, but not part of `./apps/api` on the host) disappears the moment the container actually runs, even
+though the image built without error. `seed/bootstrap.py` imports the connector SDK, and the `api`
+service's startup command is `alembic upgrade head && python -m seed.bootstrap && uvicorn main:app ...` —
+so the container never reached `uvicorn` at all. That's why login returned a generic, non-`ApiError`
+failure: the API was never actually up to answer the request.
+
+`worker.Dockerfile` already avoids this exact trap — it installs the connector SDK at
+`/app/packages/connector-sdk`, outside the two directories its own compose volumes mount
+(`/app/apps/api`, `/app/apps/worker`). `api.Dockerfile` just didn't follow that same pattern.
+
+**Fix applied**: moved the connector SDK's editable install to `/opt/connector-sdk`, entirely outside
+`/app`, so the `./apps/api:/app` bind mount can't hide it. Same principle as `worker.Dockerfile`'s existing
+layout, applied consistently.
+
+**Honest limitation, unchanged**: same as above — root-caused from the reported error, the compose file's
+actual mount configuration, and `seed/bootstrap.py`'s real import graph, not verified with a live
+`docker build`/`docker compose up` in this sandbox.
+
 ## Next Action
 
 Milestone 28 complete. Docker Compose's `web` build fixed pending the user's retry confirmation — this is
