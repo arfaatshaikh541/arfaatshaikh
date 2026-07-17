@@ -1,0 +1,21 @@
+{
+  "name": "gridkeep",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GRIDKEEP Lead Intelligence - multi-tenant SaaS platform monorepo",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @gridkeep/web dev",
+    "lint:web": "pnpm --filter @gridkeep/web lint",
+    "typecheck:web": "pnpm --filter @gridkeep/web typecheck",
+    "build:web": "pnpm --filter @gridkeep/web build",
+    "test:web": "pnpm --filter @gridkeep/web test"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ]
+}

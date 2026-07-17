@@ -1,0 +1,42 @@
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+!apps/**/.env.example
+
+# Build artifacts
+dist/
+build/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Local data volumes
+infrastructure/docker/volumes/

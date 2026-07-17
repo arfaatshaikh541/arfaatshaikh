@@ -1,0 +1,32 @@
+{
+  "name": "@gridkeep/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gridkeep/ui": "workspace:*",
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3",
+    "react-hook-form": "7.81.0",
+    "@hookform/resolvers": "5.4.0",
+    "@tanstack/react-query": "5.101.2"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "tailwindcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.3",
+    "eslint": "9.19.0",
+    "eslint-config-next": "16.2.10"
+  }
+}
