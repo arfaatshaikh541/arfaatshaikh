@@ -7,7 +7,7 @@ expertise — the control plane, orchestration layer, asset graph, risk engine, 
 incident-response centre, evidence platform, compliance system, and executive command centre sitting
 on top of your existing security tools.
 
-This is **Milestone 26: Pager UI on the Grant-Gated Drill-Downs** — see
+This is **Milestone 27: DNS TXT Domain Verification** — see
 [`docs/project-status.md`](docs/project-status.md) for what's built, what's tested, and what's
 known-incomplete.
 

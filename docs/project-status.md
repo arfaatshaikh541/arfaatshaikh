@@ -3975,6 +3975,144 @@ already-fetched list. Revoked the test grant afterward.
 - Continuing directly to Milestone 27 (DNS TXT domain verification) per the "complete the project"
   instruction.
 
-## Next Action
+## Milestone 26 — Next Action
 
 Milestone 27 in progress.
+
+## Milestone 27: DNS TXT Domain Verification
+
+**Scope chosen by explicit user instruction** — the fourth of five closable items from the user's "run all
+tests, report what's remaining, complete the project" request. Adds DNS TXT as a second domain-ownership
+verification method alongside Milestone 11's HTTP file, closing that milestone's own documented gap.
+
+### A real constraint, checked directly before writing any code
+Milestone 11's own code comments already explained why DNS TXT wasn't the first method built: "raw DNS
+queries are network-blocked in the environment this was built in." Before assuming that no longer applied,
+this milestone re-tested it directly — a `dnspython` query to the system-configured resolver (`8.8.8.8`,
+matching `/etc/resolv.conf`) for a real domain's TXT record timed out after 5+ seconds. **That constraint is
+still real and still true.** Rather than treat this as a hard blocker (the same way Docker Compose
+verification and a live GitHub Actions run were already categorized as out of reach in this environment),
+this milestone found a middle path: a **real local DNS server on loopback** answers a **real UDP DNS
+protocol exchange** in this environment (confirmed directly — a hand-rolled server on `127.0.0.1` answered
+a real `dnspython` TXT query correctly). This is exactly the same pattern Milestone 11's own HTTP-file tests
+already use — a real local HTTP server standing in for a live one, not a mocked network call — just applied
+to DNS instead of HTTP. It is real DNS, real code, real network I/O; only the live public internet path is
+unavailable here, and that's disclosed explicitly below rather than glossed over.
+
+### Backend (`apps/api`)
+- **New `dnspython==2.8.0` direct dependency** — was already present transitively (via `email-validator`),
+  now declared explicitly since application code uses it directly.
+- **`_verify_via_dns_txt`** queries `_gridkeep-verification.{domain}` (a dedicated subdomain, not the
+  domain's apex — the same pattern real DNS verification schemes like Google Search Console use, so this
+  never collides with a domain's existing TXT records such as SPF or DKIM) via `dns.asyncresolver`, checking
+  whether any returned TXT record contains the domain's verification token.
+- **`verify_domain` now dispatches on a `method` parameter** (`"http_file"` or `"dns_txt"`, defaulting to
+  `"http_file"` for full backward compatibility with existing tenant-facing behavior and tests), refactored
+  from a single HTTP-only function into a dispatcher plus two private per-method implementations
+  (`_verify_via_http_file`, `_verify_via_dns_txt`).
+- **`DomainRead` gained a `dns_txt_record_name` field** alongside the existing `verification_file_url`, so
+  the frontend can show correct instructions for either method without separate lookups.
+- **The verification-method choice is now tagged on the audit record** (`context={"domain": ..., "method":
+  ...}`), extending the `context`-tagging convention established in Milestones 18-20 to this module.
+- **`modules.tenancy.models.TenantDomain`'s docstring corrected in place** — it previously named DNS TXT as
+  a "reasonable future method"; that's no longer accurate, so the docstring itself (living documentation,
+  not a dated historical record like this file) was rewritten to describe both methods as they exist today.
+
+### Frontend (`apps/web`)
+- **A method radio selector** (HTTP file / DNS TXT record) on each unverified domain in the Attack Surface
+  page, switching the displayed instructions (well-known URL vs. DNS record name) and passing the chosen
+  `method` as a query parameter on verify.
+
+## Milestone 27 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| DNS TXT verification succeeds when the correct token is present | ✅ | `test_verify_domain_dns_txt_succeeds_when_token_is_present`, against a real local DNS server (real UDP DNS protocol, not mocked) |
+| DNS TXT verification fails when the token is wrong | ✅ | `test_verify_domain_dns_txt_fails_when_token_is_wrong` |
+| DNS TXT verification fails cleanly when no record exists (NXDOMAIN) | ✅ | `test_verify_domain_dns_txt_fails_when_no_record_exists` |
+| An unknown verification method is rejected | ✅ | `test_verify_domain_unknown_method_is_rejected` |
+| Existing HTTP-file behavior is completely unchanged (default method, same tests) | ✅ | All 5 pre-existing HTTP-file tests pass unmodified |
+| The frontend correctly switches instructions and sends the right method | ✅ | Live-verified: selecting "DNS TXT record" on a real added domain showed the correct `_gridkeep-verification.<domain>` record name; clicking "Verify now" sent a real DNS query and returned a real "No TXT record found" failure (not a fake success) |
+| Backend tests pass | ✅ | **240/240** passing (`pytest -q` in `apps/api`, up from 236 — 4 new DNS TXT tests), `ruff check .` clean |
+| Frontend lint/typecheck/tests/build pass | ✅ | eslint 0 errors, `tsc --noEmit` 0 errors, vitest 10/10 passing, `next build` 31/31 routes |
+
+## Milestone 27 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 240 passed
+apps/api: ruff check .                → All checks passed
+apps/web: pnpm exec eslint .          → 0 errors
+apps/web: pnpm exec tsc --noEmit      → 0 errors
+apps/web: pnpm exec vitest run        → 10 passed (3 files)
+apps/web: next build                  → succeeded, 31/31 routes
+```
+
+All of the above were executed directly in this session. Manual, real end-to-end verification also
+performed against a live Postgres/Redis/`uvicorn`/Next.js stack: added a real domain via the real demo
+tenant owner account, confirmed the HTTP-file instructions render by default, selected "DNS TXT record" and
+confirmed the instructions correctly switched to show `_gridkeep-verification.<domain>` with the same
+token, clicked "Verify now," and confirmed the browser received a real "No TXT record found at
+_gridkeep-verification.<domain>." message — the real code path genuinely attempted a real DNS query against
+the tenant's real configured resolver and correctly did not produce a false-positive verification. Domain
+removed afterward.
+
+**What this live E2E does *not* claim**: a full DNS TXT *success* path against a real, publicly-resolvable
+domain was not exercised live, since no such domain with DNS control was available in this session. That
+success path is verified by the automated test suite against a real local DNS server instead (see above) —
+stated explicitly rather than implied to have been proven the same way the HTTP-file method's live success
+path was.
+
+## Milestone 27 — Architecture Decisions (made or refined during implementation)
+
+- **Re-verified a documented environmental constraint directly rather than assuming it still held (or
+  assuming it didn't).** Milestone 11's docstring claim about DNS being network-blocked was six milestones
+  and presumably a different underlying environment instance old; treating it as permanently true without
+  re-checking would have been exactly the kind of stale-claim risk Milestone 22's audit was built to catch.
+  Re-checking cost one command and confirmed the constraint is still accurate today.
+- **A real local DNS server for tests, not a mocked resolver call.** Mocking `dns.asyncresolver.resolve`
+  directly would have been faster to write but would only prove the response-parsing logic works, not that
+  a real DNS query round-trip functions — the same standard the HTTP-file tests already hold themselves to,
+  and the same reasoning connector code in this project always uses real (if simulated) I/O rather than
+  fully-mocked calls.
+- **`_gridkeep-verification.{domain}` subdomain, not a TXT record on the domain apex** — deliberately avoids
+  ever colliding with a tenant's real SPF/DKIM/other TXT records, a correctness concern a naive
+  apex-TXT-record design would have.
+- **Default method stays `http_file`** — zero behavior change for any existing tenant, test, or integration
+  that doesn't explicitly opt into DNS TXT.
+
+## Milestone 27 — Known Limitations
+
+- **DNS TXT's live *success* path was not exercised against the real public internet** — see the explicit
+  callout in Test Results above. A tenant using this method in a real deployment (where DNS isn't blocked)
+  would get a genuine result; this session simply couldn't observe a live success case itself.
+- **No frontend automated tests were added** for the method selector — same gap and rationale as every
+  prior milestone's new UI.
+
+## Milestone 27 — Unresolved Risks
+
+- Carried over from Milestones 1-26 (Docker Compose still unverified end-to-end, the scoring formulas'
+  simplicity, the inherent stakes of unattended action execution, the evidence permission-per-target
+  design, the control-scoring weights, the cross-cutting-permission decisions, the
+  widened-RLS-by-data-value pattern, the threat-intel confidence-to-severity thresholds, the terminal-
+  `archived` tenant status, the hardcoded MFA admin-role set, the RLS-silently-no-ops-without-tenant-context
+  hazard, the fixed-window rate-limiter boundary effect, object storage and real email delivery still
+  simulated, no path back if both the authenticator and every backup code are lost, `starlette`'s CVEs
+  blocked by FastAPI's pin, `next`'s remaining CVEs requiring the 15.x line, the exact-page-boundary "Next"
+  pagination edge case) — none were touched this milestone and remain open.
+- **The HTTP-file-only domain-verification substitution, carried since Milestone 11, is now resolved** —
+  removed from this list.
+- **DNS TXT's live success path being unverified against the real internet** (new this milestone — see
+  Known Limitations above) is an environment constraint, not a code gap — the automated test suite exercises
+  the real protocol against a real local server instead.
+
+## Milestone 27 — Pending Approvals
+
+- This Milestone 27 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass against a real local DNS server, and the one honest
+  limitation (no live public-internet success case observed) is stated explicitly rather than implied away.
+- Continuing directly to Milestone 28 (real evidence storage + real email dispatch), the last of the five
+  closable items, per the "complete the project" instruction.
+
+## Next Action
+
+Milestone 28 in progress.
