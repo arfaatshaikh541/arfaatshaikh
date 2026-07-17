@@ -20,6 +20,8 @@ from db.session import get_db
 from modules.audit import service as audit_service
 from modules.findings import service as findings_service
 from modules.findings.schemas import FindingListItem
+from modules.incidents import service as incidents_service
+from modules.incidents.schemas import IncidentListItem
 from modules.platform_admin import service as platform_service
 from modules.platform_admin.models import SupportAccessGrant
 from modules.platform_admin.schemas import (
@@ -242,6 +244,39 @@ async def get_tenant_findings_for_support(
     )
     await db.commit()
     return [findings_service.to_finding_list_item(finding, asset) for finding, asset in rows]
+
+
+@router.get("/tenants/{tenant_id}/incidents", response_model=list[IncidentListItem])
+async def get_tenant_incidents_for_support(
+    tenant_id: uuid.UUID,
+    severity: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    ctx: SupportAccessContext = Depends(require_support_access_grant()),
+    db: AsyncSession = Depends(get_db),
+) -> list[IncidentListItem]:
+    """Milestone 19: the second grant-gated drill-down, extending the exact
+    pattern Milestone 18 established for findings to incidents — the other
+    summary-only tile Milestone 16's Known Limitations named. Reuses
+    `incidents_service.list_incidents` and `to_incident_list_item`
+    verbatim, the same mapping the tenant-facing `GET /api/incidents`
+    uses."""
+    rows = await incidents_service.list_incidents(
+        db, tenant_id=tenant_id, severity=severity, status=status
+    )
+    await audit_service.record(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=f"platform:{ctx.user.email}",
+        action="platform.support_access_used",
+        target_type="tenant",
+        target_id=str(tenant_id),
+        context={"view": "incidents", "severity": severity, "status": status},
+    )
+    await db.commit()
+    return [
+        incidents_service.to_incident_list_item(incident, fc, ac) for incident, fc, ac in rows
+    ]
 
 
 @router.post(

@@ -30,27 +30,12 @@ from modules.incidents.schemas import (
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
 
-def _to_list_item(incident: Incident, finding_count: int, asset_count: int) -> IncidentListItem:
-    return IncidentListItem(
-        id=incident.id,
-        title=incident.title,
-        severity=incident.severity,
-        status=incident.status,
-        assigned_to_user_id=incident.assigned_to_user_id,
-        finding_count=finding_count,
-        asset_count=asset_count,
-        declared_at=incident.declared_at,
-        resolved_at=incident.resolved_at,
-        closed_at=incident.closed_at,
-    )
-
-
 def _to_detail(
     incident: Incident,
     findings_rows: list[tuple[Finding, str]],
     assets_rows: list[tuple[Asset, str]],
 ) -> IncidentDetail:
-    base = _to_list_item(incident, len(findings_rows), len(assets_rows))
+    base = incidents_service.to_incident_list_item(incident, len(findings_rows), len(assets_rows))
     return IncidentDetail(
         **base.model_dump(),
         description=incident.description,
@@ -82,7 +67,7 @@ async def list_incidents(
     rows = await incidents_service.list_incidents(
         db, tenant_id=ctx.tenant_id, status=status, severity=severity
     )
-    return [_to_list_item(incident, fc, ac) for incident, fc, ac in rows]
+    return [incidents_service.to_incident_list_item(incident, fc, ac) for incident, fc, ac in rows]
 
 
 @router.get("/summary", response_model=IncidentSummaryRead)

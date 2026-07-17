@@ -10,6 +10,7 @@ from core.errors import NotFoundError, ValidationAppError
 from modules.assets.models import Asset, AssetType
 from modules.findings.models import Finding
 from modules.incidents.models import Incident, IncidentAsset, IncidentFinding
+from modules.incidents.schemas import IncidentListItem
 from modules.permissions.models import Membership
 
 
@@ -210,6 +211,25 @@ async def list_incidents(
         ).all()
     )
     return [(i, finding_counts.get(i.id, 0), asset_counts.get(i.id, 0)) for i in incidents]
+
+
+def to_incident_list_item(incident: Incident, finding_count: int, asset_count: int) -> IncidentListItem:
+    """Milestone 19: promoted out of `incidents.routes`'s route-private
+    `_to_list_item` so `modules.platform_admin`'s grant-gated incidents
+    drill-down can reuse the exact same mapping instead of duplicating
+    it — the same refactor Milestone 18 did for findings."""
+    return IncidentListItem(
+        id=incident.id,
+        title=incident.title,
+        severity=incident.severity,
+        status=incident.status,
+        assigned_to_user_id=incident.assigned_to_user_id,
+        finding_count=finding_count,
+        asset_count=asset_count,
+        declared_at=incident.declared_at,
+        resolved_at=incident.resolved_at,
+        closed_at=incident.closed_at,
+    )
 
 
 async def get_incident_detail(session: AsyncSession, *, tenant_id: uuid.UUID, incident_id: uuid.UUID):

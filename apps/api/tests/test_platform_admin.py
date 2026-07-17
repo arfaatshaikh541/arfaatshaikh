@@ -791,3 +791,108 @@ async def test_grant_gated_findings_drilldown_is_audited_with_view_context(clien
     logs = logs_resp.json()
     findings_views = [log for log in logs if log["context"].get("view") == "findings"]
     assert len(findings_views) == 1
+
+
+async def _declare_incident(client, csrf_token: str, *, title: str, severity: str = "high") -> str:
+    resp = await client.post(
+        "/api/incidents",
+        json={"title": title, "severity": severity},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()["id"]
+
+
+async def test_grant_gated_incidents_drilldown_requires_an_active_grant(client, db):
+    """Milestone 19: the incidents drill-down must be gated exactly like
+    the findings drill-down and the workspace snapshot — no active grant,
+    no incidents."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Incidents Drilldown No Grant Co", full_name="Owner",
+        email="owner@incidents-drilldown-no-grant.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-incidents-no-grant@gridkeep-platform.example")
+    await login(client, "platform-incidents-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["details"]["support_access_grant_required"] is True
+
+
+async def test_grant_gated_incidents_drilldown_returns_real_incidents(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Incidents Drilldown Co", full_name="Owner",
+        email="owner@incidents-drilldown.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@incidents-drilldown.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    await _declare_incident(
+        client, owner_csrf, title="Ransomware suspected on file server", severity="critical"
+    )
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-incidents-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-incidents-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-incidents-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-incidents-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-incidents-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
+    assert resp.status_code == 200, resp.text
+    incidents = resp.json()
+    assert len(incidents) == 1
+    assert incidents[0]["title"] == "Ransomware suspected on file server"
+    assert incidents[0]["severity"] == "critical"
+
+    severity_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/incidents", params={"severity": "low"}
+    )
+    assert severity_resp.status_code == 200
+    assert severity_resp.json() == []
+
+
+async def test_grant_gated_incidents_drilldown_is_audited_with_view_context(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Incidents Audit Co", full_name="Owner",
+        email="owner@incidents-audit.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@incidents-audit.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    await _declare_incident(client, owner_csrf, title="Suspicious admin login", severity="medium")
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-incidents-audit-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-incidents-audit-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-incidents-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-incidents-audit-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-incidents-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
+    assert resp.status_code == 200
+
+    logs_resp = await client.get(
+        "/api/platform/audit-logs", params={"tenant_id": tenant_id, "action": "platform.support_access_used"}
+    )
+    assert logs_resp.status_code == 200
+    logs = logs_resp.json()
+    incidents_views = [log for log in logs if log["context"].get("view") == "incidents"]
+    assert len(incidents_views) == 1
