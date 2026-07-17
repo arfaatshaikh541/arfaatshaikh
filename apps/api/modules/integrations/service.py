@@ -135,12 +135,14 @@ async def list_tenant_integrations(
     /api/integrations` calls this without them. Added an explicit
     `ORDER BY created_at DESC` here since `LIMIT`/`OFFSET` without a
     deterministic order is not safe in Postgres — this query previously
-    had no ordering because it was always returning every row."""
+    had no ordering because it was always returning every row. Milestone
+    22 added `.id` as a tie-breaker, same as `list_findings`/
+    `list_incidents` — `created_at` alone isn't guaranteed unique."""
     query = (
         select(TenantIntegration)
         .options(selectinload(TenantIntegration.catalog_entry))
         .where(TenantIntegration.tenant_id == tenant_id)
-        .order_by(TenantIntegration.created_at.desc())
+        .order_by(TenantIntegration.created_at.desc(), TenantIntegration.id)
     )
     if limit is not None:
         query = query.limit(limit).offset(offset)
