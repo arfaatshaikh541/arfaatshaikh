@@ -7,7 +7,15 @@ import { useParams } from "next/navigation";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { FindingListItem, TenantWorkspaceSnapshotRead } from "@/lib/types";
+import type { FindingListItem, IncidentListItem, TenantWorkspaceSnapshotRead } from "@/lib/types";
+
+const INCIDENT_STATUS_TONE: Record<string, "positive" | "warning" | "neutral"> = {
+  declared: "warning",
+  investigating: "warning",
+  contained: "neutral",
+  resolved: "positive",
+  closed: "positive",
+};
 
 export default function TenantWorkspaceSnapshotPage() {
   const params = useParams<{ tenantId: string }>();
@@ -26,6 +34,13 @@ export default function TenantWorkspaceSnapshotPage() {
   const findingsQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "findings"],
     queryFn: () => apiClient.get<FindingListItem[]>(`/api/platform/tenants/${tenantId}/findings`),
+    enabled: canRequest && !snapshotQuery.isError,
+    retry: false,
+  });
+
+  const incidentsQuery = useQuery({
+    queryKey: ["platform", "tenants", tenantId, "incidents"],
+    queryFn: () => apiClient.get<IncidentListItem[]>(`/api/platform/tenants/${tenantId}/incidents`),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
@@ -145,6 +160,39 @@ export default function TenantWorkspaceSnapshotPage() {
           </table>
         ) : (
           <p className="text-sm text-ink-500">No findings.</p>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title={`Incidents (${incidentsQuery.data?.length ?? 0})`} />
+        {incidentsQuery.data && incidentsQuery.data.length > 0 ? (
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-surface-border text-ink-500">
+                <th className="py-2 pr-4 font-medium">Title</th>
+                <th className="py-2 pr-4 font-medium">Severity</th>
+                <th className="py-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidentsQuery.data.map((incident) => (
+                <tr key={incident.id} className="border-b border-surface-border/50">
+                  <td className="py-2 pr-4 text-ink-900">{incident.title}</td>
+                  <td className="py-2 pr-4">
+                    <SeverityBadge severity={incident.severity as "critical" | "high" | "medium" | "low"} />
+                  </td>
+                  <td className="py-2">
+                    <StatusBadge
+                      label={incident.status}
+                      tone={INCIDENT_STATUS_TONE[incident.status] ?? "neutral"}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-ink-500">No incidents.</p>
         )}
       </Card>
     </div>
