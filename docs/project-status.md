@@ -163,6 +163,10 @@ building, both documented inline where they matter:
   `step_up_expires_at` exist and `core/deps.require_step_up` is implemented and unit-testable, but no
   route enforces MFA setup or challenge yet (no Milestone 1 route requires step-up). Full MFA
   enrollment/challenge UX is appropriately Milestone-1-adjacent but not yet built.
+  **[Resolved in Milestones 13-14: Milestone 13 built real TOTP enrollment/login-challenge/step-up
+  routes on top of exactly this schema; Milestone 14 then enforced `require_mfa_for_admins` and
+  `require_step_up_for_disruptive_actions`. Found stale and corrected during Milestone 22's
+  documentation-audit pass.]**
 - **Worker/API code-sharing via `sys.path`, not a packaged library.** `apps/worker` imports
   `apps/api`'s `core`/`db`/`modules` directly. Fine for Milestone 1's two maintenance tasks; extracting
   shared domain code into an installable package (e.g. `packages/gridkeep-core`) before Milestone 2
@@ -2100,6 +2104,9 @@ action run removed) afterward.
   `require_step_up_for_disruptive_actions` to decide whether to skip the gate — it's driven purely by
   `user.mfa_enabled`. Wiring these toggles to actual enforcement is a reasonable, coherent follow-up milestone
   rather than an oversight; exposing them at all (from zero callers) was this milestone's actual scope.
+  **[Resolved in Milestone 14: `require_mfa_for_admins` is now enforced in `get_tenant_context`
+  (via `is_mfa_enrollment_required`) and `require_step_up_for_disruptive_actions` now gates
+  `approve_action_run`. Found stale and corrected during Milestone 22's documentation-audit pass.]**
 - **No backup/recovery codes.** A user who enables MFA and loses their authenticator device has no
   self-service recovery path — only a platform admin with direct database access could clear
   `mfa_totp_secret_encrypted` today. Reasonable, common future work.
@@ -3288,6 +3295,157 @@ connected integrations):
   strongest candidate for Milestone 22 — the drill-down trilogy and its pagination are both complete, and no
   other concrete, in-repo-flagged feature gap remains as obviously named as this one.
 
-## Next Action
+## Milestone 21 — Next Action
 
 Awaiting your review. Once you're satisfied, send **`APPROVE MILESTONE 22`** to begin the next milestone.
+
+## Milestone 22: Documentation-Audit Pass
+
+**Scope inferred from breadcrumb, not user instruction** — the user's "Continue" after Milestone 21's
+completion was interpreted as approval to proceed with the milestone I had explicitly named as the strongest
+candidate in Milestone 21's own Pending Approvals: a systematic re-verification pass over every carried-over
+Known Limitation and Unresolved Risk, flagged for five consecutive milestones (18-21) without ever being
+done.
+
+### What this milestone actually did
+Went through the full accumulated risk/limitation history in this document — both the parenthetical
+"carried over" shorthand list that's been rolling forward since Milestone 12, and the older,
+milestone-specific Known Limitations sections from Milestones 1-11 that predate that rolling list — and
+checked each concrete, checkable claim against the current state of the codebase (not just re-read the
+prose). Design-decision-style items ("the scoring formulas' simplicity", "the control-scoring weights", etc.)
+were not re-litigated — those are accepted tradeoffs, not factual claims that can go stale. The audit focused
+on claims of the form "X is not yet built" / "X has zero callers" / "X is not enforced", which are exactly
+the kind of statement later milestones can silently invalidate without anyone going back to fix the sentence
+that made the original claim.
+
+**Confirmed still accurate (checked against current code, not just assumed):**
+- In-memory rate limiter (`core/middleware.py`'s `InMemorySlidingWindowLimiter`) — unchanged.
+- No dependency/container/secret scanning in `.github/workflows/ci.yml` — unchanged (ruff, migrations,
+  pytest, eslint, tsc, vitest, build, and the security-contracts sync check are the only jobs).
+- No MFA backup/recovery codes — confirmed no `recovery_code`/`backup_code` concept exists anywhere in
+  `modules.identity`.
+- The hardcoded `ADMIN_ROLE_NAMES` frozenset (`tenant_owner`, `security_administrator`) in
+  `modules.tenancy.service` — unchanged since Milestone 14, no tenant-configurable equivalent added.
+- The terminal `archived` tenant status — `_VALID_TENANT_STATUS_TRANSITIONS["archived"]` is still an empty
+  frozenset; no reactivation path exists.
+- The HTTP-file-only domain verification substitution in `modules.attack_surface` (`_VERIFICATION_METHOD =
+  "http_file"`) — no DNS TXT alternative was ever added.
+- The widened `audit_logs_select` RLS policy (`tenant_id = app_current_tenant_id() OR
+  app_is_platform_admin()`) — matches the migration exactly as originally documented.
+- Asset dedup is still keyed purely on `(tenant_id, identifier_type, identifier_value)` — no cross-provider
+  identity resolution was ever added to `modules.assets.ingestion`.
+- Threat-intel matches still don't trigger playbook automation — `run_threat_intel_correlation` still has no
+  `actionable_finding_ids` concept.
+- Object storage and real email delivery are still simulated — `email_dispatch_simulated` structured-log
+  line and unused `object_storage_*` config settings both confirmed unchanged.
+
+**Found stale and corrected in place** (using the same `**[Resolved in Milestone N: ...]**` annotation
+convention Milestones 17 and 18 established, never silently rewriting the original claim):
+- **Milestone 1's "MFA is schema-only... no route enforces MFA setup or challenge yet"** — fully resolved by
+  Milestones 13 (real enrollment/login-challenge/step-up routes) and 14 (actual enforcement), but the
+  original M1 sentence was never annotated. This claim predates the "carried over" rolling list entirely
+  (it lived only in Milestone 1's own Known Limitations, never in the parenthetical shorthand), which is
+  likely why it was never swept up by any later correction pass.
+- **Milestone 13's "`require_mfa_for_admins` and `require_step_up_for_disruptive_actions`... neither is
+  actually enforced yet"** — resolved one milestone later, by Milestone 14, but never annotated at the
+  source. Same root cause as the Milestone 1 claim above: it lived in a milestone-specific section, not the
+  rolling carried-over list, so it fell outside the scope of Milestones 17/18's prior correction passes
+  (which only ever corrected claims already inside that rolling list).
+
+**A real, small bug found and fixed rather than just documented:**
+- `list_tenant_integrations` was the one place Milestone 21 deliberately left an ordering tie-breaker gap
+  (documented honestly as a Known Limitation at the time, since it hadn't been observed to manifest). This
+  audit closed it: added `TenantIntegration.id` as the same secondary sort key `list_findings`/
+  `list_incidents` already got in Milestone 21, for consistency and to remove the latent risk rather than
+  continue carrying it forward.
+
+### Backend (`apps/api`)
+- `modules.integrations.service.list_tenant_integrations`: `ORDER BY created_at DESC` gained `, id` as a
+  tie-breaker — one line, same fix class as Milestone 21's live-caught findings/incidents bug, applied here
+  pre-emptively rather than waiting for it to actually manifest.
+
+## Milestone 22 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Every concrete (non-design-tradeoff) carried-over Known Limitation/Unresolved Risk claim was checked against current code | ✅ | See the itemized "Confirmed still accurate" list above — each backed by a direct code check, not assumption |
+| Stale claims found are corrected in place, not silently rewritten | ✅ | Two `[Resolved in Milestone N: ...]` annotations added, preserving the original text |
+| `list_tenant_integrations`'s tie-breaker gap is closed | ✅ | `TenantIntegration.id` added as a secondary sort key |
+| No regressions from the tie-breaker addition | ✅ | Full `pytest -q` suite (229/229) passes unchanged |
+| Backend tests pass | ✅ | **229/229** passing (`pytest -q` in `apps/api`, unchanged count — this milestone added no new tests, since the fix is already covered by Milestone 21's pagination/ordering tests exercising `list_tenant_integrations`), `ruff check .` clean |
+
+## Milestone 22 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 229 passed
+apps/api: ruff check .                → All checks passed
+```
+
+No frontend or new backend behavior was introduced this milestone (the `.id` tie-breaker is an ordering
+implementation detail with no schema, route, or response-shape change), so the full frontend
+lint/typecheck/vitest/build suite and a live Playwright E2E pass were judged unnecessary — nothing exists for
+either to exercise that Milestone 21's own live verification and automated pagination tests don't already
+cover. This is a narrower verification scope than every prior milestone, stated explicitly rather than
+silently reused from Milestone 21's log.
+
+This session was interrupted once more by Postgres/Redis going down (the same recurring, code-unrelated
+environment issue noted in Milestones 19-21) — fixed via `service postgresql start` / `service
+redis-server start` before the test suite could run.
+
+## Milestone 22 — Architecture Decisions (made or refined during implementation)
+
+- **The audit's scope was claims, not design decisions.** Judgment calls documented as Unresolved Risks
+  (scoring weights, cross-cutting permission choices, RLS widening tradeoffs, TTL/threshold values) are
+  intentional and don't "go stale" the way a factual "X doesn't exist yet" statement can — re-litigating them
+  wasn't this milestone's job, and doing so would have diluted the actual finding (two claims that were
+  simply wrong by the time of reading).
+- **Root-caused *why* two stale claims survived five milestones of "carried over" tracking**: both lived in
+  milestone-specific Known Limitations sections that predate or sit outside the rolling parenthetical list
+  Milestones 12+ use. The rolling list mechanism works correctly for what it tracks; it simply never tracked
+  these two. Noted explicitly so a future audit knows to check milestone-specific sections too, not just the
+  rolling list.
+- **Fixed the `list_tenant_integrations` tie-breaker rather than just noting it was still open** — it was
+  already fully scoped (a one-line, low-risk change explicitly named in Milestone 21's own docs), so treating
+  it as a "found stale claim" that must only be documented rather than fixed would have been an arbitrary
+  distinction with no real benefit over just closing it.
+
+## Milestone 22 — Known Limitations
+
+- **The audit was not exhaustive over every word of every prior milestone's prose** — it targeted claims
+  matching an identifiable pattern ("not yet", "zero callers", "not enforced", "does not support") via
+  targeted search, cross-checked against code. A stale claim phrased in a way that didn't match any of these
+  patterns could theoretically have been missed.
+- **No frontend automated tests were added** — this milestone touched no frontend code.
+
+## Milestone 22 — Unresolved Risks
+
+- Carried over from Milestones 1-21, confirmed still accurate this milestone (in-memory rate limiter, no
+  dependency/container/secret scanning in CI, Docker Compose still unverified end-to-end, the scoring
+  formulas' simplicity, the inherent stakes of unattended action execution, the evidence
+  permission-per-target design, the control-scoring weights, the cross-cutting-permission decisions, the
+  widened-RLS-by-data-value pattern, the threat-intel confidence-to-severity thresholds, the HTTP-file
+  domain-verification substitution, the terminal-`archived` tenant status, the hardcoded MFA admin-role set,
+  MFA backup/recovery codes, the RLS-silently-no-ops-without-tenant-context hazard, no pager UI beyond a
+  100-row cap on the three grant-gated drill-downs) — none were touched this milestone and remain open by
+  design or by explicit prior deferral.
+- **`list_tenant_integrations`'s tie-breaker gap is now closed**, removed from this list.
+- **No further concrete, in-repo-flagged feature gap is currently named** anywhere in this document. Unlike
+  every milestone from 15 through 21, which each had an obvious next breadcrumb (second-approver flow → MFA
+  → enforcement → workspace snapshot → expiry exposure → findings drill-down → incidents drill-down →
+  integrations drill-down → pagination → this audit), Milestone 23 has no equally obvious candidate. Your
+  direction would be genuinely valuable here rather than another default judgment call.
+
+## Milestone 22 — Pending Approvals
+
+- This Milestone 22 implementation is ready for your review. Nothing further is pending my side — the audit
+  is complete, the two stale claims found are corrected in place, the one small live risk is closed, tests
+  pass, and the audit's own limitations (not exhaustive, targeted-pattern-based) are stated rather than
+  implied to be a complete guarantee.
+- No default scope is proposed for Milestone 23 — see the note in Unresolved Risks above. Please advise on
+  direction (e.g. a specific module to deepen, hardening work like the rate limiter or CI scanning, or a new
+  feature area).
+
+## Next Action
+
+Awaiting your direction on Milestone 23 — there is no obvious next breadcrumb this time, so a specific
+instruction would help more than another inferred default.
