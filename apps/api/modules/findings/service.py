@@ -26,7 +26,14 @@ async def list_findings(
     status: str | None = None,
     asset_id: uuid.UUID | None = None,
     search: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[tuple[Finding, Asset]]:
+    """Milestone 21: `limit`/`offset` are opt-in — the tenant-facing
+    `GET /api/findings` calls this without them, preserving its existing
+    unpaginated behaviour exactly. Only `modules.platform_admin`'s
+    grant-gated drill-down passes them, the same "no pagination on the
+    drill-down" gap Milestones 18-20 each flagged and deferred."""
     query = (
         select(Finding, Asset)
         .join(Asset, Asset.id == Finding.asset_id)
@@ -40,7 +47,15 @@ async def list_findings(
         query = query.where(Finding.asset_id == asset_id)
     if search:
         query = query.where(Finding.title.ilike(f"%{search}%"))
-    query = query.order_by(Finding.last_observed_at.desc())
+    # `.id` is a deterministic tie-breaker: `last_observed_at` alone is not
+    # unique (correlation runs frequently stamp several findings with the
+    # exact same timestamp), and LIMIT/OFFSET over a non-unique ORDER BY is
+    # not guaranteed stable across calls in Postgres — confirmed live during
+    # Milestone 21 verification, where paginated pages did not line up with
+    # slices of the unpaginated list for tied-timestamp demo data.
+    query = query.order_by(Finding.last_observed_at.desc(), Finding.id)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
     result = await session.execute(query)
     return [(finding, asset) for finding, asset in result.all()]
 

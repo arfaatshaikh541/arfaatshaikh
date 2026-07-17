@@ -182,14 +182,27 @@ async def reopen_incident(session: AsyncSession, *, tenant_id: uuid.UUID, incide
 
 
 async def list_incidents(
-    session: AsyncSession, *, tenant_id: uuid.UUID, status: str | None, severity: str | None
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    status: str | None,
+    severity: str | None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[tuple[Incident, int, int]]:
+    """Milestone 21: `limit`/`offset` are opt-in, same convention as
+    `findings_service.list_findings` — the tenant-facing `GET
+    /api/incidents` calls this without them."""
     query = select(Incident).where(Incident.tenant_id == tenant_id)
     if status:
         query = query.where(Incident.status == status)
     if severity:
         query = query.where(Incident.severity == severity)
-    query = query.order_by(Incident.declared_at.desc())
+    # See findings_service.list_findings for why a tie-breaker is required —
+    # `declared_at` alone is not unique.
+    query = query.order_by(Incident.declared_at.desc(), Incident.id)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
     incidents = (await session.execute(query)).scalars().all()
 
     finding_counts = dict(

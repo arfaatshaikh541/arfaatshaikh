@@ -222,6 +222,8 @@ async def get_tenant_findings_for_support(
     tenant_id: uuid.UUID,
     severity: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     ctx: SupportAccessContext = Depends(require_support_access_grant()),
     db: AsyncSession = Depends(get_db),
 ) -> list[FindingListItem]:
@@ -230,9 +232,14 @@ async def get_tenant_findings_for_support(
     `open_findings_total` count with no way to see what those findings
     actually are. Reuses `findings_service.list_findings` and
     `to_finding_list_item` verbatim (the same mapping the tenant-facing
-    `GET /api/findings` uses) rather than re-deriving risk scoring here."""
+    `GET /api/findings` uses) rather than re-deriving risk scoring here.
+
+    Milestone 21: `limit`/`offset` follow the exact style
+    `list_platform_audit_logs` already established in Milestone 12 —
+    closes the "no pagination on the drill-down" gap Milestones 18-20
+    each flagged and deferred."""
     rows = await findings_service.list_findings(
-        db, tenant_id=tenant_id, severity=severity, status=status
+        db, tenant_id=tenant_id, severity=severity, status=status, limit=limit, offset=offset
     )
     await audit_service.record(
         db,
@@ -253,6 +260,8 @@ async def get_tenant_incidents_for_support(
     tenant_id: uuid.UUID,
     severity: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     ctx: SupportAccessContext = Depends(require_support_access_grant()),
     db: AsyncSession = Depends(get_db),
 ) -> list[IncidentListItem]:
@@ -261,9 +270,11 @@ async def get_tenant_incidents_for_support(
     summary-only tile Milestone 16's Known Limitations named. Reuses
     `incidents_service.list_incidents` and `to_incident_list_item`
     verbatim, the same mapping the tenant-facing `GET /api/incidents`
-    uses."""
+    uses.
+
+    Milestone 21: paginated the same way as the findings drill-down."""
     rows = await incidents_service.list_incidents(
-        db, tenant_id=tenant_id, severity=severity, status=status
+        db, tenant_id=tenant_id, severity=severity, status=status, limit=limit, offset=offset
     )
     await audit_service.record(
         db,
@@ -284,6 +295,8 @@ async def get_tenant_incidents_for_support(
 @router.get("/tenants/{tenant_id}/integrations", response_model=list[TenantIntegrationRead])
 async def get_tenant_integrations_for_support(
     tenant_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     ctx: SupportAccessContext = Depends(require_support_access_grant()),
     db: AsyncSession = Depends(get_db),
 ) -> list[TenantIntegrationRead]:
@@ -292,8 +305,12 @@ async def get_tenant_integrations_for_support(
     integrations) each now having a real drill-down. Reuses
     `integrations_service.list_tenant_integrations` and
     `to_tenant_integration_read` verbatim, the same mapping the
-    tenant-facing `GET /api/integrations` uses."""
-    integrations = await integrations_service.list_tenant_integrations(db, tenant_id=tenant_id)
+    tenant-facing `GET /api/integrations` uses.
+
+    Milestone 21: paginated the same way as the other two drill-downs."""
+    integrations = await integrations_service.list_tenant_integrations(
+        db, tenant_id=tenant_id, limit=limit, offset=offset
+    )
     await audit_service.record(
         db,
         tenant_id=tenant_id,

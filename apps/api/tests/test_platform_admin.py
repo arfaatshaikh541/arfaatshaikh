@@ -793,6 +793,62 @@ async def test_grant_gated_findings_drilldown_is_audited_with_view_context(clien
     assert len(findings_views) == 1
 
 
+async def test_grant_gated_findings_drilldown_pagination(client, db):
+    """Milestone 21: the findings drill-down's `limit`/`offset` behave the
+    same way `list_platform_audit_logs` already does — default is capped
+    at 50 (not exercised here since seeding only produces 2 findings), an
+    explicit smaller `limit` caps the result count, and `offset` moves the
+    window forward without duplicating or dropping rows."""
+    from tests.test_findings_api import _connected_owner, _seed_findings
+
+    owner_ctx = await _connected_owner(
+        client, db, org="Findings Pagination Co", email="owner@findings-pagination.example"
+    )
+    await _seed_findings(owner_ctx)
+    tenant_id = owner_ctx["tenant_id"]
+
+    await client.post("/api/auth/logout")
+    await _create_platform_admin(db, "platform-findings-page-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-findings-page-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-findings-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-findings-page-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-findings-page-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
+    assert full_resp.status_code == 200
+    full_findings = full_resp.json()
+    assert len(full_findings) == 2
+
+    page1_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/findings", params={"limit": 1, "offset": 0}
+    )
+    assert page1_resp.status_code == 200
+    page1 = page1_resp.json()
+    assert len(page1) == 1
+    assert page1[0]["id"] == full_findings[0]["id"]
+
+    page2_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/findings", params={"limit": 1, "offset": 1}
+    )
+    assert page2_resp.status_code == 200
+    page2 = page2_resp.json()
+    assert len(page2) == 1
+    assert page2[0]["id"] == full_findings[1]["id"]
+
+    invalid_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/findings", params={"limit": 0}
+    )
+    assert invalid_resp.status_code == 422
+
+
 async def _declare_incident(client, csrf_token: str, *, title: str, severity: str = "high") -> str:
     resp = await client.post(
         "/api/incidents",
@@ -898,6 +954,56 @@ async def test_grant_gated_incidents_drilldown_is_audited_with_view_context(clie
     assert len(incidents_views) == 1
 
 
+async def test_grant_gated_incidents_drilldown_pagination(client, db):
+    """Milestone 21: same pagination contract as the findings drill-down —
+    declare three incidents, confirm `limit` caps the page size and
+    `offset` moves the window, ordered newest-declared-first."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Incidents Pagination Co", full_name="Owner",
+        email="owner@incidents-pagination.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@incidents-pagination.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    await _declare_incident(client, owner_csrf, title="Incident One", severity="low")
+    await _declare_incident(client, owner_csrf, title="Incident Two", severity="medium")
+    await _declare_incident(client, owner_csrf, title="Incident Three", severity="high")
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-incidents-page-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-incidents-page-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-incidents-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-incidents-page-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-incidents-page-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
+    assert full_resp.status_code == 200
+    full_incidents = full_resp.json()
+    assert [i["title"] for i in full_incidents] == ["Incident Three", "Incident Two", "Incident One"]
+
+    page_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/incidents", params={"limit": 2, "offset": 0}
+    )
+    assert page_resp.status_code == 200
+    page = page_resp.json()
+    assert [i["title"] for i in page] == ["Incident Three", "Incident Two"]
+
+    next_page_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/incidents", params={"limit": 2, "offset": 2}
+    )
+    assert next_page_resp.status_code == 200
+    next_page = next_page_resp.json()
+    assert [i["title"] for i in next_page] == ["Incident One"]
+
+
 async def test_grant_gated_integrations_drilldown_requires_an_active_grant(client, db):
     """Milestone 20: the integrations drill-down must be gated exactly
     like the findings and incidents drill-downs — no active grant, no
@@ -994,3 +1100,64 @@ async def test_grant_gated_integrations_drilldown_is_audited_with_view_context(c
     logs = logs_resp.json()
     integrations_views = [log for log in logs if log["context"].get("view") == "integrations"]
     assert len(integrations_views) == 1
+
+
+async def test_grant_gated_integrations_drilldown_pagination(client, db):
+    """Milestone 21: same pagination contract as the other two
+    drill-downs — connect three integrations, confirm `limit` caps the
+    page size and `offset` moves the window, ordered newest-connected-first
+    (mirrors `list_tenant_integrations`'s new `created_at desc` ordering)."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Integrations Pagination Co", full_name="Owner",
+        email="owner@integrations-pagination.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@integrations-pagination.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    for provider_id, label in [
+        ("mock_identity", "Identity Connector"),
+        ("mock_endpoint", "Endpoint Connector"),
+        ("mock_backup", "Backup Connector"),
+    ]:
+        connect_resp = await client.post(
+            "/api/integrations",
+            json={"provider_id": provider_id, "label": label, "secret": "fake-secret-value"},
+            headers={"X-CSRF-Token": owner_csrf},
+        )
+        assert connect_resp.status_code == 200, connect_resp.text
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-integrations-page-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-integrations-page-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-integrations-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-integrations-page-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-integrations-page-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
+    assert full_resp.status_code == 200
+    full_integrations = full_resp.json()
+    assert [i["label"] for i in full_integrations] == [
+        "Backup Connector", "Endpoint Connector", "Identity Connector",
+    ]
+
+    page_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/integrations", params={"limit": 2, "offset": 0}
+    )
+    assert page_resp.status_code == 200
+    page = page_resp.json()
+    assert [i["label"] for i in page] == ["Backup Connector", "Endpoint Connector"]
+
+    next_page_resp = await client.get(
+        f"/api/platform/tenants/{tenant_id}/integrations", params={"limit": 2, "offset": 2}
+    )
+    assert next_page_resp.status_code == 200
+    next_page = next_page_resp.json()
+    assert [i["label"] for i in next_page] == ["Identity Connector"]

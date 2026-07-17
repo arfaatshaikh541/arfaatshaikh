@@ -127,12 +127,24 @@ async def disconnect_integration(
     return tenant_integration
 
 
-async def list_tenant_integrations(session: AsyncSession, *, tenant_id: uuid.UUID) -> list[TenantIntegration]:
-    result = await session.execute(
+async def list_tenant_integrations(
+    session: AsyncSession, *, tenant_id: uuid.UUID, limit: int | None = None, offset: int = 0
+) -> list[TenantIntegration]:
+    """Milestone 21: `limit`/`offset` are opt-in, same convention as
+    `findings_service.list_findings` — the tenant-facing `GET
+    /api/integrations` calls this without them. Added an explicit
+    `ORDER BY created_at DESC` here since `LIMIT`/`OFFSET` without a
+    deterministic order is not safe in Postgres — this query previously
+    had no ordering because it was always returning every row."""
+    query = (
         select(TenantIntegration)
         .options(selectinload(TenantIntegration.catalog_entry))
         .where(TenantIntegration.tenant_id == tenant_id)
+        .order_by(TenantIntegration.created_at.desc())
     )
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 
