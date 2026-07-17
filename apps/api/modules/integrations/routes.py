@@ -27,19 +27,6 @@ from modules.integrations.schemas import (
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
 
-def _to_tenant_integration_read(ti) -> TenantIntegrationRead:
-    return TenantIntegrationRead(
-        id=ti.id,
-        provider_id=ti.catalog_entry.provider_id,
-        provider_name=ti.catalog_entry.name,
-        label=ti.label,
-        status=ti.status,
-        sync_mode=ti.sync_mode,
-        last_synced_at=ti.last_synced_at,
-        created_at=ti.created_at,
-    )
-
-
 @router.get("/catalog", response_model=list[CatalogEntryRead])
 async def get_catalog(
     ctx: TenantContext = Depends(require_permission("integrations.view")),
@@ -55,7 +42,7 @@ async def list_integrations(
     db: AsyncSession = Depends(get_tenant_db),
 ) -> list[TenantIntegrationRead]:
     integrations = await integrations_service.list_tenant_integrations(db, tenant_id=ctx.tenant_id)
-    return [_to_tenant_integration_read(ti) for ti in integrations]
+    return [integrations_service.to_tenant_integration_read(ti) for ti in integrations]
 
 
 @router.post("", response_model=TenantIntegrationRead, dependencies=[Depends(require_csrf)])
@@ -83,7 +70,7 @@ async def connect_integration(
         target_id=str(tenant_integration.id),
         context={"provider_id": payload.provider_id, "label": payload.label},
     )
-    response = _to_tenant_integration_read(tenant_integration)
+    response = integrations_service.to_tenant_integration_read(tenant_integration)
     await db.commit()
     return response
 
@@ -111,7 +98,7 @@ async def disconnect_integration(
         target_type="tenant_integration",
         target_id=str(tenant_integration.id),
     )
-    response = _to_tenant_integration_read(tenant_integration)
+    response = integrations_service.to_tenant_integration_read(tenant_integration)
     await db.commit()
     return response
 

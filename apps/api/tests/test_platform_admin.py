@@ -896,3 +896,101 @@ async def test_grant_gated_incidents_drilldown_is_audited_with_view_context(clie
     logs = logs_resp.json()
     incidents_views = [log for log in logs if log["context"].get("view") == "incidents"]
     assert len(incidents_views) == 1
+
+
+async def test_grant_gated_integrations_drilldown_requires_an_active_grant(client, db):
+    """Milestone 20: the integrations drill-down must be gated exactly
+    like the findings and incidents drill-downs — no active grant, no
+    integrations."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Integrations Drilldown No Grant Co", full_name="Owner",
+        email="owner@integrations-drilldown-no-grant.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    await _create_platform_admin(db, "platform-integrations-no-grant@gridkeep-platform.example")
+    await login(client, "platform-integrations-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["details"]["support_access_grant_required"] is True
+
+
+async def test_grant_gated_integrations_drilldown_returns_real_integrations(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Integrations Drilldown Co", full_name="Owner",
+        email="owner@integrations-drilldown.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@integrations-drilldown.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    connect_resp = await client.post(
+        "/api/integrations",
+        json={"provider_id": "mock_identity", "label": "Demo Identity", "secret": "fake-secret-value"},
+        headers={"X-CSRF-Token": owner_csrf},
+    )
+    assert connect_resp.status_code == 200, connect_resp.text
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-integrations-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-integrations-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-integrations-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-integrations-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-integrations-req@gridkeep-platform.example", "Platform-Pass1!")
+
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
+    assert resp.status_code == 200, resp.text
+    integrations = resp.json()
+    assert len(integrations) == 1
+    assert integrations[0]["provider_id"] == "mock_identity"
+    assert integrations[0]["label"] == "Demo Identity"
+    assert integrations[0]["status"] == "connected"
+
+
+async def test_grant_gated_integrations_drilldown_is_audited_with_view_context(client, db):
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Integrations Audit Co", full_name="Owner",
+        email="owner@integrations-audit.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+    owner_login = await login(client, "owner@integrations-audit.example", "Owner-Pass1!")
+    owner_csrf = owner_login.json()["csrf_token"]
+    connect_resp = await client.post(
+        "/api/integrations",
+        json={"provider_id": "mock_identity", "label": "Demo Identity", "secret": "fake-secret-value"},
+        headers={"X-CSRF-Token": owner_csrf},
+    )
+    assert connect_resp.status_code == 200, connect_resp.text
+
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
+    await _create_platform_admin(db, "platform-integrations-audit-req@gridkeep-platform.example")
+    await _create_platform_admin(db, "platform-integrations-audit-appr@gridkeep-platform.example")
+    requester_login = await login(
+        client, "platform-integrations-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    )
+    requester_csrf = requester_login.json()["csrf_token"]
+
+    await _request_and_approve_grant(
+        client, requester_csrf, tenant_id, "platform-integrations-audit-appr@gridkeep-platform.example"
+    )
+
+    await client.post("/api/auth/logout")
+    await login(client, "platform-integrations-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
+    assert resp.status_code == 200
+
+    logs_resp = await client.get(
+        "/api/platform/audit-logs", params={"tenant_id": tenant_id, "action": "platform.support_access_used"}
+    )
+    assert logs_resp.status_code == 200
+    logs = logs_resp.json()
+    integrations_views = [log for log in logs if log["context"].get("view") == "integrations"]
+    assert len(integrations_views) == 1

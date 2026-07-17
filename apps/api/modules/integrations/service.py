@@ -17,6 +17,7 @@ from modules.integrations.models import (
     IntegrationSyncRun,
     TenantIntegration,
 )
+from modules.integrations.schemas import TenantIntegrationRead
 
 
 def _now() -> datetime:
@@ -133,6 +134,25 @@ async def list_tenant_integrations(session: AsyncSession, *, tenant_id: uuid.UUI
         .where(TenantIntegration.tenant_id == tenant_id)
     )
     return list(result.scalars().all())
+
+
+def to_tenant_integration_read(tenant_integration: TenantIntegration) -> TenantIntegrationRead:
+    """Milestone 20: promoted out of `integrations.routes`'s route-private
+    `_to_tenant_integration_read` so `modules.platform_admin`'s grant-gated
+    integrations drill-down can reuse the exact same mapping — the same
+    refactor Milestone 18 did for findings and Milestone 19 did for
+    incidents. Requires `catalog_entry` to already be eager-loaded (see
+    `list_tenant_integrations`'s `selectinload`)."""
+    return TenantIntegrationRead(
+        id=tenant_integration.id,
+        provider_id=tenant_integration.catalog_entry.provider_id,
+        provider_name=tenant_integration.catalog_entry.name,
+        label=tenant_integration.label,
+        status=tenant_integration.status,
+        sync_mode=tenant_integration.sync_mode,
+        last_synced_at=tenant_integration.last_synced_at,
+        created_at=tenant_integration.created_at,
+    )
 
 
 async def create_sync_run(

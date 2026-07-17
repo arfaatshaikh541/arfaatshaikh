@@ -22,6 +22,8 @@ from modules.findings import service as findings_service
 from modules.findings.schemas import FindingListItem
 from modules.incidents import service as incidents_service
 from modules.incidents.schemas import IncidentListItem
+from modules.integrations import service as integrations_service
+from modules.integrations.schemas import TenantIntegrationRead
 from modules.platform_admin import service as platform_service
 from modules.platform_admin.models import SupportAccessGrant
 from modules.platform_admin.schemas import (
@@ -277,6 +279,33 @@ async def get_tenant_incidents_for_support(
     return [
         incidents_service.to_incident_list_item(incident, fc, ac) for incident, fc, ac in rows
     ]
+
+
+@router.get("/tenants/{tenant_id}/integrations", response_model=list[TenantIntegrationRead])
+async def get_tenant_integrations_for_support(
+    tenant_id: uuid.UUID,
+    ctx: SupportAccessContext = Depends(require_support_access_grant()),
+    db: AsyncSession = Depends(get_db),
+) -> list[TenantIntegrationRead]:
+    """Milestone 20: the third and last grant-gated drill-down, completing
+    the trilogy of workspace-snapshot summary tiles (findings, incidents,
+    integrations) each now having a real drill-down. Reuses
+    `integrations_service.list_tenant_integrations` and
+    `to_tenant_integration_read` verbatim, the same mapping the
+    tenant-facing `GET /api/integrations` uses."""
+    integrations = await integrations_service.list_tenant_integrations(db, tenant_id=tenant_id)
+    await audit_service.record(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=f"platform:{ctx.user.email}",
+        action="platform.support_access_used",
+        target_type="tenant",
+        target_id=str(tenant_id),
+        context={"view": "integrations"},
+    )
+    await db.commit()
+    return [integrations_service.to_tenant_integration_read(ti) for ti in integrations]
 
 
 @router.post(
