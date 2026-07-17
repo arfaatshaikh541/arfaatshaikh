@@ -13,6 +13,7 @@ class DomainRead(BaseModel):
     verification_method: str | None
     verification_token: str | None
     verification_file_url: str
+    dns_txt_record_name: str
     verified_at: datetime | None
     created_at: datetime
 

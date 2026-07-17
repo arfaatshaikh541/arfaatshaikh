@@ -1,15 +1,26 @@
 """Tests for modules.attack_surface. The `verify_domain` HTTP-file check
 makes a real outbound request, so success/failure paths are exercised
 against a real local HTTP server (not a mock) rather than faking the
-network call — the whole point of the mechanism is that it's real."""
+network call — the whole point of the mechanism is that it's real. The
+Milestone 27 DNS TXT check gets the same treatment: a real local DNS
+server, answering real UDP DNS TXT queries via dnspython's async
+resolver — the actual protocol, just not the live public internet
+(raw external DNS queries are network-blocked in the environment these
+tests run in, confirmed directly during Milestone 27's implementation;
+see modules.attack_surface.service's module docstring)."""
 
 from __future__ import annotations
 
+import socket
 import threading
 import uuid
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import dns.asyncresolver
+import dns.message
+import dns.rcode
+import dns.rrset
 import pytest
 
 from core.errors import ConflictError, NotFoundError, ValidationAppError
@@ -48,6 +59,49 @@ def _local_well_known_server(body: str, *, status: int = 200):
     finally:
         server.shutdown()
         thread.join()
+
+
+@contextmanager
+def _local_dns_txt_server(txt_value: str | None):
+    """Serves a single TXT record from a real local UDP DNS server for the
+    duration of the `with` block — a real DNS protocol exchange (real
+    query, real wire-format response via dnspython), just against a
+    loopback server standing in for a live one, the same reasoning
+    `_local_well_known_server` above uses for HTTP. `txt_value=None`
+    simulates NXDOMAIN (no record at all)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    stop = threading.Event()
+
+    def serve():
+        sock.settimeout(0.2)
+        while not stop.is_set():
+            try:
+                data, addr = sock.recvfrom(512)
+            except TimeoutError:
+                continue
+            request = dns.message.from_wire(data)
+            response = dns.message.make_response(request)
+            if txt_value is not None:
+                qname = request.question[0].name
+                rrset = dns.rrset.from_text(qname, 60, "IN", "TXT", f'"{txt_value}"')
+                response.answer.append(rrset)
+            else:
+                response.set_rcode(dns.rcode.NXDOMAIN)
+            sock.sendto(response.to_wire(), addr)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        resolver = dns.asyncresolver.Resolver(configure=False)
+        resolver.nameservers = ["127.0.0.1"]
+        resolver.port = port
+        yield resolver
+    finally:
+        stop.set()
+        thread.join()
+        sock.close()
 
 
 async def _make_tenant(session, name: str) -> uuid.UUID:
@@ -204,6 +258,71 @@ async def test_verify_domain_fails_when_status_is_not_200(db):
 
     assert verified_now is False
     assert "HTTP 404" in message
+
+
+async def test_verify_domain_dns_txt_succeeds_when_token_is_present(db):
+    tenant_id = await _make_tenant(db, "Attack Surface DNS Ok Co")
+    domain = await attack_surface_service.add_domain(db, tenant_id=tenant_id, domain="dns-verify-ok.invalid")
+    await db.commit()
+    await set_tenant_context(db, tenant_id)
+
+    with _local_dns_txt_server(domain.verification_token) as resolver:
+        record, verified_now, message = await attack_surface_service.verify_domain(
+            db, tenant_id=tenant_id, domain_id=domain.id, method="dns_txt", resolver=resolver
+        )
+
+    assert verified_now is True
+    assert record.is_verified is True
+    assert record.verification_method == "dns_txt"
+    assert record.verified_at is not None
+    assert "verified" in message.lower()
+
+
+async def test_verify_domain_dns_txt_fails_when_token_is_wrong(db):
+    tenant_id = await _make_tenant(db, "Attack Surface DNS Wrong Co")
+    domain = await attack_surface_service.add_domain(
+        db, tenant_id=tenant_id, domain="dns-verify-wrong.invalid"
+    )
+    await db.commit()
+    await set_tenant_context(db, tenant_id)
+
+    with _local_dns_txt_server("this-is-not-the-right-token") as resolver:
+        record, verified_now, message = await attack_surface_service.verify_domain(
+            db, tenant_id=tenant_id, domain_id=domain.id, method="dns_txt", resolver=resolver
+        )
+
+    assert verified_now is False
+    assert record.is_verified is False
+    assert "did not contain" in message
+
+
+async def test_verify_domain_dns_txt_fails_when_no_record_exists(db):
+    tenant_id = await _make_tenant(db, "Attack Surface DNS Missing Co")
+    domain = await attack_surface_service.add_domain(
+        db, tenant_id=tenant_id, domain="dns-verify-missing.invalid"
+    )
+    await db.commit()
+    await set_tenant_context(db, tenant_id)
+
+    with _local_dns_txt_server(None) as resolver:
+        record, verified_now, message = await attack_surface_service.verify_domain(
+            db, tenant_id=tenant_id, domain_id=domain.id, method="dns_txt", resolver=resolver
+        )
+
+    assert verified_now is False
+    assert "No TXT record found" in message
+
+
+async def test_verify_domain_unknown_method_is_rejected(db):
+    tenant_id = await _make_tenant(db, "Attack Surface Bad Method Co")
+    domain = await attack_surface_service.add_domain(db, tenant_id=tenant_id, domain="bad-method.invalid")
+    await db.commit()
+    await set_tenant_context(db, tenant_id)
+
+    with pytest.raises(ValidationAppError, match="Unknown verification method"):
+        await attack_surface_service.verify_domain(
+            db, tenant_id=tenant_id, domain_id=domain.id, method="carrier_pigeon"
+        )
 
 
 async def test_verify_domain_without_a_token_raises_validation_error(db):

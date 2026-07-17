@@ -90,14 +90,14 @@ class TenantDomain(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     finally verifies these; this table stayed dormant since Milestone 1
     (schema only, no service/routes) until then.
 
-    Verification is HTTP-file based (`GET https://{domain}/.well-known/
-    gridkeep-verification.txt` must contain `verification_token`) rather
-    than the DNS TXT this docstring originally named as the mechanism —
-    a deliberate substitution, not a shortcut: raw DNS queries are
-    network-blocked in the environment this was built in, and unlike a
-    mock connector's demo data, faking a real ownership check would
-    defeat its actual security purpose rather than just simulate it.
-    DNS TXT and email verification remain reasonable future methods."""
+    Two verification methods exist, either of which sets `is_verified`:
+    HTTP file (`GET https://{domain}/.well-known/gridkeep-verification.txt`
+    must contain `verification_token`, added in Milestone 11) and DNS TXT
+    (`_gridkeep-verification.{domain}` TXT record must contain
+    `verification_token`, added in Milestone 27, once real local-DNS
+    testing proved practical — see `modules.attack_surface.service`'s
+    docstring for why DNS TXT wasn't the first method built). Email
+    verification remains a reasonable future method."""
 
     __tablename__ = "tenant_domains"
     __table_args__ = (UniqueConstraint("domain", name="uq_tenant_domains_domain"),)

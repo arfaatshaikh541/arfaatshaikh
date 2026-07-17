@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import TenantContext, get_tenant_db, require_csrf, require_permission, require_tenant_write
 from modules.attack_surface import service as attack_surface_service
 from modules.attack_surface.schemas import AddDomainRequest, DomainRead, VerifyDomainResult
-from modules.attack_surface.service import verification_file_url
+from modules.attack_surface.service import dns_txt_record_name, verification_file_url
 from modules.audit import service as audit_service
 from modules.tenancy.models import TenantDomain
 
@@ -23,6 +23,7 @@ def _to_domain_read(domain: TenantDomain) -> DomainRead:
         verification_method=domain.verification_method,
         verification_token=domain.verification_token,
         verification_file_url=verification_file_url(domain.domain),
+        dns_txt_record_name=dns_txt_record_name(domain.domain),
         verified_at=domain.verified_at,
         created_at=domain.created_at,
     )
@@ -65,12 +66,13 @@ async def add_domain(
 )
 async def verify_domain(
     domain_id: uuid.UUID,
+    method: str = Query(default="http_file"),
     ctx: TenantContext = Depends(require_permission("assets.manage")),
     db: AsyncSession = Depends(get_tenant_db),
 ) -> VerifyDomainResult:
     require_tenant_write(ctx)
     domain, verified_now, message = await attack_surface_service.verify_domain(
-        db, tenant_id=ctx.tenant_id, domain_id=domain_id
+        db, tenant_id=ctx.tenant_id, domain_id=domain_id, method=method
     )
     if verified_now:
         await audit_service.record(
@@ -81,7 +83,7 @@ async def verify_domain(
             action="attack_surface.domain_verified",
             target_type="tenant_domain",
             target_id=str(domain.id),
-            context={"domain": domain.domain},
+            context={"domain": domain.domain, "method": method},
         )
     response = VerifyDomainResult(domain=_to_domain_read(domain), verified_now=verified_now, message=message)
     await db.commit()
