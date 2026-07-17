@@ -15,6 +15,7 @@ from core.deps import (
     require_permission,
     require_tenant_write,
 )
+from core.email import send_email
 from core.errors import NotFoundError
 from modules.audit import service as audit_service
 from modules.identity.models import User
@@ -93,12 +94,16 @@ async def invite_member(
     )
     await db.commit()
     # Invitation tokens are bearer credentials — never returned in an API
-    # response body. Dispatched via the (dev-only) simulated email adapter.
-    logger.info(
-        "email_dispatch_simulated",
-        template="invitation",
+    # response body, only emailed to the invited address.
+    send_email(
         to=payload.email,
-        invitation_token=raw_token,
+        subject="You've been invited to GRIDKEEP",
+        body=(
+            f"{ctx.user.full_name} has invited you to join their organisation on GRIDKEEP "
+            f"as {payload.role_name}.\n\n"
+            "Use this invitation token to accept:\n\n"
+            f"{raw_token}"
+        ),
     )
     return {"status": "ok", "invitation_id": str(invitation.id)}
 

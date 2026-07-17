@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.deps import AuthContext, get_auth_context, require_csrf
+from core.email import send_email
 from core.middleware import login_rate_limiter
 from core.security import generate_csrf_token
 from db.session import get_db
@@ -365,7 +366,16 @@ async def forgot_password(
     if user is not None and user.is_active:
         token = await identity_service.issue_password_reset_token(db, user)
         await db.commit()
-        logger.info("email_dispatch_simulated", template="password_reset", to=user.email, token=token)
+        send_email(
+            to=user.email,
+            subject="Reset your GRIDKEEP password",
+            body=(
+                "We received a request to reset your GRIDKEEP password.\n\n"
+                "Use this token to choose a new password:\n\n"
+                f"{token}\n\n"
+                "If you did not request this, you can ignore this message."
+            ),
+        )
     return {"status": "ok"}
 
 

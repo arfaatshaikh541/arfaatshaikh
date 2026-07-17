@@ -8,6 +8,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.email import send_email
 from core.errors import ConflictError, NotFoundError
 from core.security import hash_password
 from db.session import AsyncSessionLocal, set_tenant_context
@@ -100,11 +101,15 @@ async def onboard_tenant(request: OnboardingRequest) -> OnboardingResponse:
 
             verification_token = await issue_email_verification_token(session, user)
 
-        logger.info(
-            "email_dispatch_simulated",
-            template="email_verification",
+        send_email(
             to=user.email,
-            verification_token=verification_token,
+            subject="Verify your GRIDKEEP account",
+            body=(
+                f"Welcome to GRIDKEEP, {user.full_name}.\n\n"
+                "Confirm your email address with this verification token:\n\n"
+                f"{verification_token}\n\n"
+                "If you did not request this account, you can ignore this message."
+            ),
         )
 
         return OnboardingResponse(

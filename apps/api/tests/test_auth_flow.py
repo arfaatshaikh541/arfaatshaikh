@@ -23,6 +23,23 @@ async def test_onboarding_creates_trial_owner(client, db):
     assert body["tenant_slug"] == "riverside-clinic"
 
 
+async def test_onboarding_sends_real_verification_email(client, db, sent_emails):
+    await client.post(
+        "/api/tenancy/onboarding",
+        json={
+            "organisation_name": "Verify Co",
+            "full_name": "Val Verify",
+            "email": "val@verify-co.example",
+            "password": "Verify-Owner-Pass1!",
+        },
+    )
+    assert len(sent_emails) == 1
+    message = sent_emails[0]
+    assert message["To"] == "val@verify-co.example"
+    assert "verif" in message["Subject"].lower()
+    assert "Val Verify" in message.get_content()
+
+
 async def test_login_before_verification_is_rejected(client, db):
     resp = await client.post(
         "/api/tenancy/onboarding",
@@ -96,12 +113,28 @@ async def test_password_reset_flow(client, db):
     assert new_login.status_code == 200
 
 
-async def test_forgot_password_does_not_leak_account_existence(client, db):
+async def test_forgot_password_does_not_leak_account_existence(client, db, sent_emails):
     resp_existing = await client.post(
         "/api/auth/forgot-password", json={"email": "nobody-registered@example.com"}
     )
     assert resp_existing.status_code == 200
     assert resp_existing.json() == {"status": "ok"}
+    assert sent_emails == []  # unregistered address — no real email dispatched
+
+
+async def test_forgot_password_sends_real_email_for_known_account(client, db, sent_emails):
+    await onboard_verified_owner(
+        client, db, org_name="Forgot Co", full_name="Owner Forgot",
+        email="owner@forgot-co.example", password="Forgot-Pass1!",
+    )
+    sent_emails.clear()  # discard the onboarding verification email; isolate the reset email
+    resp = await client.post("/api/auth/forgot-password", json={"email": "owner@forgot-co.example"})
+    assert resp.status_code == 200
+
+    assert len(sent_emails) == 1
+    message = sent_emails[0]
+    assert message["To"] == "owner@forgot-co.example"
+    assert "reset" in message["Subject"].lower()
 
 
 async def test_invitation_accept_flow(client, db):

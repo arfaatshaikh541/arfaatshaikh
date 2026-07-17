@@ -42,6 +42,7 @@ dev = [
   "psycopg[binary]==3.2.3",
   "setuptools>=83.0.0",
   "pip-audit==2.10.1",
+  "aiosmtpd==1.4.6",
 ]
 
 [tool.setuptools]

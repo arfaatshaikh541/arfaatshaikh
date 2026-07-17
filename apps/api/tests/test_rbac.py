@@ -5,7 +5,7 @@ from tests.helpers import login, onboard_verified_owner
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-async def test_executive_viewer_cannot_manage_users(client, db):
+async def test_executive_viewer_cannot_manage_users(client, db, sent_emails):
     """Executive Viewer only has reporting/view permissions — verifies the
     default role-permission mapping actually withholds `users.manage`."""
     await onboard_verified_owner(
@@ -20,12 +20,16 @@ async def test_executive_viewer_cannot_manage_users(client, db):
 
     from db.session import AsyncSessionLocal, set_tenant_context
 
+    sent_emails.clear()  # discard the onboarding verification email
     invite_resp = await client.post(
         "/api/users/invitations",
         json={"email": "exec@rbac-co.example", "role_name": "executive_viewer"},
         headers={"X-CSRF-Token": owner_csrf},
     )
     assert invite_resp.status_code == 200
+
+    assert len(sent_emails) == 1  # Milestone 28: real invitation email, not a log line
+    assert sent_emails[0]["To"] == "exec@rbac-co.example"
 
     async with AsyncSessionLocal() as session:
         await set_tenant_context(session, uuid.UUID(tenant_id))

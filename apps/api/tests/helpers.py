@@ -1,8 +1,9 @@
 """Test-only helpers. Where a token is deliberately never returned over
 HTTP (invitation/reset/verification tokens — see modules/identity and
 modules/permissions), tests reach into the service layer directly to
-obtain the raw token, exactly as the (currently log-based, dev-only) email
-adapter would have delivered it to a real inbox."""
+obtain the raw token rather than parsing it out of the real dispatched
+email (see the `sent_emails` fixture in conftest.py for tests that do
+want to assert on the email itself)."""
 
 from __future__ import annotations
 
@@ -59,11 +60,11 @@ async def invite_and_accept_member(
     role_name: str,
 ) -> dict:
     """Invites a second member with a specific tenant role and accepts on
-    their behalf — the invitation token is never returned over HTTP, so
-    this reaches into the service layer to re-issue a known raw token,
-    exactly as the (log-based, dev-only) email adapter would have
-    delivered it to a real inbox. Does not log the inviter out; the
-    caller decides when to switch sessions."""
+    their behalf — the invitation token is never returned over HTTP (it is
+    genuinely emailed, see `core/email.py`), so this reaches into the
+    service layer to re-issue a known raw token rather than parsing it out
+    of the dispatched email. Does not log the inviter out; the caller
+    decides when to switch sessions."""
     import uuid
 
     from core.security import generate_opaque_token, hash_token

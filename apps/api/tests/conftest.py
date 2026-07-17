@@ -3,7 +3,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 import uuid
+from email import message_from_bytes
+from email import policy as email_policy
+from email.message import EmailMessage
 from pathlib import Path
 
 import pytest
@@ -31,6 +35,7 @@ os.environ.setdefault(
     "DATABASE_MIGRATION_URL", "postgresql+psycopg://gridkeep:gridkeep@localhost:5432/gridkeep_test"
 )
 os.environ.setdefault("VAULT_LOCAL_MASTER_KEY", "test-only-master-key-do-not-use-elsewhere-00000")
+os.environ.setdefault("EVIDENCE_STORAGE_ROOT", tempfile.mkdtemp(prefix="gridkeep-evidence-test-"))
 
 sys.path.insert(0, str(API_ROOT))
 
@@ -39,10 +44,53 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 import main as app_main  # noqa: E402
+from core.config import settings  # noqa: E402
 from core.middleware import login_rate_limiter  # noqa: E402
 from db import models_registry  # noqa: F401,E402
 from db.session import AsyncSessionLocal, get_engine  # noqa: E402
 from seed.bootstrap import run_bootstrap  # noqa: E402
+
+
+class _CapturingSMTPHandler:
+    """Real SMTP handler (aiosmtpd) that records every message it receives.
+
+    Milestone 28 replaced the `email_dispatch_simulated` log-line stand-in
+    with a genuine `smtplib` client (`core/email.py`). Rather than mock
+    that client in tests, this starts one real local SMTP server for the
+    whole test session — bound to the same `mail_capture_host`/
+    `mail_capture_port` production would point at Mailhog — so every route
+    that sends email (onboarding, invitations, password reset) is exercised
+    against a real wire-protocol SMTP exchange, same pattern as the local
+    HTTP (M11) and DNS (M27) test servers."""
+
+    def __init__(self) -> None:
+        self.messages: list[EmailMessage] = []
+
+    async def handle_DATA(self, server, session, envelope):  # noqa: N802
+        self.messages.append(message_from_bytes(envelope.content, policy=email_policy.default))
+        return "250 Message accepted for delivery"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _smtp_capture():
+    from aiosmtpd.controller import Controller
+
+    handler = _CapturingSMTPHandler()
+    controller = Controller(handler, hostname=settings.mail_capture_host, port=settings.mail_capture_port)
+    controller.start()
+    yield handler
+    controller.stop()
+
+
+@pytest.fixture(autouse=True)
+def _clear_sent_emails(_smtp_capture):
+    _smtp_capture.messages.clear()
+    yield
+
+
+@pytest.fixture
+def sent_emails(_smtp_capture) -> list[EmailMessage]:
+    return _smtp_capture.messages
 
 
 @pytest.fixture(scope="session", autouse=True)
