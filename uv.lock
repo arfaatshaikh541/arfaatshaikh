@@ -10,6 +10,7 @@ resolution-markers = [
 [manifest]
 members = [
     "gridkeep-api",
+    "gridkeep-connector-sdk",
     "gridkeep-worker",
 ]
 
@@ -612,6 +613,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "email-validator" },
     { name = "fastapi" },
+    { name = "gridkeep-connector-sdk" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -643,6 +645,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=43.0.0" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gridkeep-connector-sdk", editable = "packages/connector-sdk" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
     { name = "pydantic", specifier = ">=2.9.0" },
     { name = "pydantic-settings", specifier = ">=2.5.0" },
@@ -664,18 +667,26 @@ dev = [
 ]
 
 [[package]]
+name = "gridkeep-connector-sdk"
+version = "0.1.0"
+source = { editable = "packages/connector-sdk" }
+
+[[package]]
 name = "gridkeep-worker"
 version = "0.1.0"
 source = { editable = "apps/worker" }
 dependencies = [
     { name = "celery" },
     { name = "gridkeep-api" },
+    { name = "gridkeep-connector-sdk" },
     { name = "redis" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
 
@@ -683,12 +694,15 @@ dev = [
 requires-dist = [
     { name = "celery", specifier = ">=5.4.0" },
     { name = "gridkeep-api", editable = "apps/api" },
+    { name = "gridkeep-connector-sdk", editable = "packages/connector-sdk" },
     { name = "redis", specifier = ">=5.0.8" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "mypy", specifier = ">=1.11.0" },
     { name = "pytest", specifier = ">=8.3.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "ruff", specifier = ">=0.6.9" },
 ]
 

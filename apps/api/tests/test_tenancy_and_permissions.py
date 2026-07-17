@@ -39,7 +39,8 @@ async def test_create_tenant_grants_owner_full_permissions(client, smtp_capture)
 
     wallet_resp = await client.get("/usage/wallet")
     assert wallet_resp.status_code == 200
-    assert wallet_resp.json()["balance"] == 0.0
+    # New tenants receive the trial plan's monthly_credit_grant immediately.
+    assert wallet_resp.json()["balance"] == 250.0
 
     sub_resp = await client.get("/billing/subscription")
     assert sub_resp.status_code == 200

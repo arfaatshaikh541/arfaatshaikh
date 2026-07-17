@@ -2,6 +2,7 @@
 
 import { Card } from "@gridkeep/ui";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import type { Subscription, WalletBalance } from "@/lib/types";
@@ -48,9 +49,9 @@ export default function DashboardPage() {
       <Card>
         <h2 className="mb-2 text-lg font-medium">Getting started</h2>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Lead-discovery campaigns arrive in a later milestone. For now, invite your team from the{" "}
-          <strong>Team</strong> page and review your plan and credit history under{" "}
-          <strong>Usage &amp; Billing</strong>.
+          Start a <Link href="/campaigns" className="font-medium text-brand-700 hover:underline dark:text-brand-400">lead-discovery campaign</Link>,
+          invite your team from the <strong>Team</strong> page, and review your plan and credit
+          history under <strong>Usage &amp; Billing</strong>.
         </p>
       </Card>
     </div>

@@ -6,6 +6,14 @@ metadata is required.
 
 from app.core.db import Base  # noqa: F401
 from app.modules.audit.models import AuditLog, PlatformAuditLog  # noqa: F401
+from app.modules.campaign_jobs.models import CampaignJob, CampaignTask  # noqa: F401
+from app.modules.campaigns.models import (  # noqa: F401
+    Campaign,
+    CampaignError,
+    CampaignEvent,
+    CampaignFilter,
+    CampaignUsageEstimate,
+)
 from app.modules.identity.models import (  # noqa: F401
     EmailVerificationToken,
     PasswordResetToken,

@@ -9,6 +9,7 @@ import { useSession } from "@/lib/session";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/campaigns", label: "Campaigns" },
   { href: "/team", label: "Team" },
   { href: "/usage", label: "Usage & Billing" },
   { href: "/audit", label: "Audit Log" },
@@ -38,19 +39,22 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`rounded-md px-3 py-2 text-sm font-medium ${
-                pathname === item.href
-                  ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`rounded-md px-3 py-2 text-sm font-medium ${
+                  isActive
+                    ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
           <p className="truncate px-2 text-xs text-slate-500 dark:text-slate-400">{session?.user.email}</p>

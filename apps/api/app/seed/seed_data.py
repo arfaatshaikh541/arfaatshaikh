@@ -52,11 +52,11 @@ DEMO_TENANT_USERS = [
 PLATFORM_DEMO_USER = ("platform-admin@gridkeep-platform-demo.local", "Piper Platform-Admin (Demo)")
 
 SUBSCRIPTION_PLANS = [
-    # key, name, description, monthly_price_usd, monthly_credit_grant, max_team_members
-    ("trial", "Trial", "14-day trial plan (GRIDKEEP Platform Demo)", 0, 250, 3),
-    ("starter", "Starter", "Entry commercial plan", 199, 1000, 10),
-    ("growth", "Growth", "Growth commercial plan", 599, 5000, 25),
-    ("scale", "Scale", "Scale commercial plan", 1499, 20000, 100),
+    # key, name, description, monthly_price_usd, monthly_credit_grant, max_team_members, max_concurrent_campaigns
+    ("trial", "Trial", "14-day trial plan (GRIDKEEP Platform Demo)", 0, 250, 3, 1),
+    ("starter", "Starter", "Entry commercial plan", 199, 1000, 10, 2),
+    ("growth", "Growth", "Growth commercial plan", 599, 5000, 25, 5),
+    ("scale", "Scale", "Scale commercial plan", 1499, 20000, 100, 20),
 ]
 
 
@@ -100,22 +100,56 @@ async def seed_platform_roles(
     return role_ids
 
 
-async def seed_subscription_plans(session) -> dict[str, SubscriptionPlan]:
-    max_team_members_feature = (
-        await session.execute(select(Feature).where(Feature.key == "max_team_members"))
+async def _get_or_create_feature(session, *, key: str, name: str, description: str) -> Feature:
+    feature = (
+        await session.execute(select(Feature).where(Feature.key == key))
     ).scalar_one_or_none()
-    if max_team_members_feature is None:
-        max_team_members_feature = Feature(
-            key="max_team_members",
-            name="Maximum team members",
-            description="Cap on active tenant memberships",
-            value_type="limit",
-        )
-        session.add(max_team_members_feature)
+    if feature is None:
+        feature = Feature(key=key, name=name, description=description, value_type="limit")
+        session.add(feature)
         await session.flush()
+    return feature
+
+
+async def _ensure_plan_feature(session, *, plan_id, feature_id, value: dict) -> None:
+    existing = (
+        await session.execute(
+            select(PlanFeature).where(
+                PlanFeature.plan_id == plan_id, PlanFeature.feature_id == feature_id
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        session.add(PlanFeature(plan_id=plan_id, feature_id=feature_id, value=value))
+        await session.flush()
+    elif existing.value != value:
+        existing.value = value
+
+
+async def seed_subscription_plans(session) -> dict[str, SubscriptionPlan]:
+    max_team_members_feature = await _get_or_create_feature(
+        session,
+        key="max_team_members",
+        name="Maximum team members",
+        description="Cap on active tenant memberships",
+    )
+    max_concurrent_campaigns_feature = await _get_or_create_feature(
+        session,
+        key="max_concurrent_campaigns",
+        name="Maximum concurrent campaigns",
+        description="Cap on campaigns simultaneously queued/running/paused for a tenant",
+    )
 
     plans: dict[str, SubscriptionPlan] = {}
-    for key, name, description, price, credit_grant, max_members in SUBSCRIPTION_PLANS:
+    for (
+        key,
+        name,
+        description,
+        price,
+        credit_grant,
+        max_members,
+        max_campaigns,
+    ) in SUBSCRIPTION_PLANS:
         plan = (
             await session.execute(select(SubscriptionPlan).where(SubscriptionPlan.key == key))
         ).scalar_one_or_none()
@@ -130,14 +164,21 @@ async def seed_subscription_plans(session) -> dict[str, SubscriptionPlan]:
             session.add(plan)
             await session.flush()
 
-            session.add(
-                PlanFeature(
-                    plan_id=plan.id,
-                    feature_id=max_team_members_feature.id,
-                    value={"limit": max_members},
-                )
-            )
-            await session.flush()
+        # Always ensured, not just on first creation: a plan seeded by an
+        # earlier milestone's run of this script needs newly-added features
+        # (like max_concurrent_campaigns, added in Milestone 2) backfilled.
+        await _ensure_plan_feature(
+            session,
+            plan_id=plan.id,
+            feature_id=max_team_members_feature.id,
+            value={"limit": max_members},
+        )
+        await _ensure_plan_feature(
+            session,
+            plan_id=plan.id,
+            feature_id=max_concurrent_campaigns_feature.id,
+            value={"limit": max_campaigns},
+        )
         plans[key] = plan
     return plans
 

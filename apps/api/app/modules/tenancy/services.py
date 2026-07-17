@@ -36,7 +36,7 @@ from app.modules.permissions.catalog import TENANT_ROLE_DEFAULTS
 from app.modules.subscriptions import repositories as sub_repo
 from app.modules.tenancy import repositories as repo
 from app.modules.tenancy.models import Invitation, Membership, Tenant
-from app.modules.usage.services import ensure_wallet
+from app.modules.usage.services import ensure_wallet, grant_credits
 
 
 def _slugify(name: str) -> str:
@@ -113,6 +113,14 @@ async def create_tenant_for_user(session: AsyncSession, *, user: User, tenant_na
             current_period_start=now,
             current_period_end=now + timedelta(days=14),
         )
+        if trial_plan.monthly_credit_grant > 0:
+            await grant_credits(
+                session,
+                tenant_id=tenant.id,
+                amount=float(trial_plan.monthly_credit_grant),
+                type_="grant_recurring",
+                reference=f"plan:{trial_plan.key}:initial_grant",
+            )
 
     await record_audit_event(
         session,

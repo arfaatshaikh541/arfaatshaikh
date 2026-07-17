@@ -81,3 +81,102 @@ export type AuditLogEntry = {
   metadata: Record<string, unknown>;
   created_at: string;
 };
+
+export type CampaignStatus =
+  | "draft"
+  | "estimating"
+  | "ready"
+  | "queued"
+  | "running"
+  | "pausing"
+  | "paused"
+  | "cancelling"
+  | "cancelled"
+  | "completed"
+  | "partially_completed"
+  | "failed";
+
+export type Campaign = {
+  id: string;
+  name: string;
+  source_key: string;
+  status: CampaignStatus;
+  result_limit: number;
+  created_at: string;
+};
+
+export type CampaignFilter = {
+  industry: string;
+  category: string | null;
+  subcategory: string | null;
+  country: string;
+  region: string | null;
+  city: string;
+  area: string | null;
+  radius_km: number | null;
+  min_rating: number | null;
+  min_reviews: number | null;
+  must_have_phone: boolean;
+  website_requirement: string;
+  business_status: string | null;
+};
+
+export type CampaignDetail = Campaign & {
+  filter: CampaignFilter;
+  estimated_credits: number | null;
+  estimated_results: number | null;
+};
+
+export type CreateCampaignRequest = {
+  name: string;
+  source_key: string;
+  result_limit: number;
+  industry: string;
+  category?: string | null;
+  subcategory?: string | null;
+  country: string;
+  region?: string | null;
+  city: string;
+  area?: string | null;
+  radius_km?: number | null;
+  min_rating?: number | null;
+  min_reviews?: number | null;
+  must_have_phone: boolean;
+  website_requirement: string;
+  business_status?: string | null;
+};
+
+export type CampaignEstimate = {
+  campaign_id: string;
+  estimated_credits: number;
+  estimated_results: number;
+  calculated_at: string;
+  available_balance: number;
+};
+
+export type CampaignProgress = {
+  campaign_id: string;
+  status: CampaignStatus;
+  job_status: string | null;
+  total_tasks: number;
+  succeeded_tasks: number;
+  failed_tasks: number;
+  pending_tasks: number;
+  businesses_found: number;
+};
+
+export type CampaignEvent = {
+  id: string;
+  event_type: string;
+  from_status: string | null;
+  to_status: string | null;
+  message: string | null;
+  created_at: string;
+};
+
+export type CampaignErrorEntry = {
+  id: string;
+  error_type: string;
+  message: string;
+  created_at: string;
+};

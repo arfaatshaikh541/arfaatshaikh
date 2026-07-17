@@ -17,6 +17,23 @@ def get_redis() -> Redis:
     return _redis
 
 
+async def reset_redis_connection() -> None:
+    """Closes and forgets the cached client so the next `get_redis()` call
+    opens a fresh connection bound to the caller's current event loop.
+
+    redis-py's asyncio connections are bound to the event loop that opened
+    them, just like asyncpg's are (see `app.core.db`). The API serves every
+    request on one long-lived loop, so this is never called there. The
+    worker starts a brand new loop per Celery task invocation (see
+    `worker.async_utils.run_db_task`), so it must call this after every task
+    or the next task's loop inherits a connection tied to a closed one.
+    """
+    global _redis
+    if _redis is not None:
+        await _redis.aclose()
+        _redis = None
+
+
 async def enforce_rate_limit(key: str, max_attempts: int, window_seconds: int) -> None:
     """Raises RateLimitedError if `key` has been hit more than `max_attempts`
     times within `window_seconds`. Uses a simple INCR + EXPIRE fixed window,

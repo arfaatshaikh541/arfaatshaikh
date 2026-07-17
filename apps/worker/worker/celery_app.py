@@ -5,14 +5,22 @@ The worker imports and runs the exact same domain services as the API
 worker` depends on `gridkeep-api` as a uv workspace member so both
 processes share one source of truth.
 
-Milestone 1 ships a single real, useful scheduled task
-(`expire_stale_reservations` - see `worker.tasks`) tied to the credit-
-ledger foundation. Campaign/enrichment/export/CRM tasks are Milestone 2+
-work; the named queues below are declared now so the routing scheme is
-fixed from the start, but only `queue.maintenance` is actually consumed
-until those milestones land.
+Milestone 1 shipped `expire_stale_reservations` (credit-ledger
+maintenance). Milestone 2 adds `run_campaign_task` (campaign page
+fan-out against the mock connector) on `queue.search`. Enrichment/export/
+CRM tasks are Milestone 4+ work; those queue names are declared for a
+fixed routing scheme but nothing consumes them yet.
 """
 
+# Must be imported before any ORM operation runs in this process: it pulls
+# in every model module so SQLAlchemy's mapper configuration step can
+# resolve cross-module string FK targets (e.g. Campaign.tenant_id's
+# ForeignKey("tenants.id")) - without it, only whatever models the task
+# modules happen to import directly are registered, and any FK pointing
+# at a table outside that set fails with NoReferencedTableError the first
+# time a query touches it (this bit us for real - see the Milestone 2
+# session transcript).
+from app.core import model_registry  # noqa: F401,E402
 from app.core.config import get_settings
 from celery import Celery
 
@@ -22,7 +30,7 @@ celery_app = Celery(
     "gridkeep",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["worker.tasks"],
+    include=["worker.tasks", "worker.campaign_tasks"],
 )
 
 celery_app.conf.update(
@@ -34,6 +42,7 @@ celery_app.conf.update(
     task_default_queue="queue.maintenance",
     task_routes={
         "worker.tasks.expire_stale_reservations": {"queue": "queue.maintenance"},
+        "worker.campaign_tasks.run_campaign_task": {"queue": "queue.search"},
     },
 )
 

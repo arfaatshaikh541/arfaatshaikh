@@ -4,12 +4,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+# Ensures every model module is registered (and cross-module string FK
+# targets like Campaign.tenant_id -> "tenants.id" are resolvable) before
+# any request touches the ORM, regardless of which routers happen to
+# import which model modules. See worker/celery_app.py for the same
+# requirement on the worker side, and the ADR-0007-adjacent bug this
+# guards against.
+from app.core import model_registry  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.modules.audit.routes import router as audit_router
+from app.modules.campaigns.routes import router as campaigns_router
 from app.modules.identity.routes import router as identity_router
 from app.modules.platform_admin.routes import router as platform_admin_router
 from app.modules.subscriptions.routes import router as subscriptions_router
@@ -48,6 +56,7 @@ register_exception_handlers(app)
 
 app.include_router(identity_router)
 app.include_router(tenancy_router)
+app.include_router(campaigns_router)
 app.include_router(usage_router)
 app.include_router(subscriptions_router)
 app.include_router(audit_router)

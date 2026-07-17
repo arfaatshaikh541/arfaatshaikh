@@ -26,6 +26,7 @@ been set on that connection. Casting '' straight to ::uuid throws a hard
 error instead of the intended safe-default-deny; NULLIF converts '' to
 NULL first so the comparison is simply false (deny) instead of erroring.
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -65,7 +66,9 @@ PLATFORM_BYPASS = "current_setting('app.platform_bypass', true) = 'true'"
 USING_CLAUSE_STRICT = f"tenant_id = {CURRENT_TENANT_UUID} OR {PLATFORM_BYPASS}"
 CHECK_CLAUSE_STRICT = USING_CLAUSE_STRICT
 
-USING_CLAUSE_NULLABLE = f"tenant_id = {CURRENT_TENANT_UUID} OR tenant_id IS NULL OR {PLATFORM_BYPASS}"
+USING_CLAUSE_NULLABLE = (
+    f"tenant_id = {CURRENT_TENANT_UUID} OR tenant_id IS NULL OR {PLATFORM_BYPASS}"
+)
 CHECK_CLAUSE_NULLABLE = f"tenant_id = {CURRENT_TENANT_UUID} OR {PLATFORM_BYPASS}"
 
 

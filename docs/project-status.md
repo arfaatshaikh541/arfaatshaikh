@@ -1,7 +1,7 @@
 # GRIDKEEP Lead Intelligence — Project Status
 
 ## Current milestone
-**Milestone 1: Secure SaaS Foundation** — implementation complete, pending your review/approval to proceed to Milestone 2.
+**Milestone 2: Campaign and Job Engine** — implementation complete, pending your review/approval to proceed to Milestone 3.
 
 ## Completed work
 
@@ -37,6 +37,37 @@
 - **Frontend**: `pnpm lint` (ESLint 9 flat config) and `pnpm typecheck` (`tsc --noEmit`, strict mode) both clean.
 - **End-to-end**: a 12-step Playwright script (headless Chromium) drove the actual `next dev` server against the actual `uvicorn` API server through register → verify → login → onboarding → create workspace → dashboard → invite teammate → usage page → audit log → logout → protected-route redirect. All 12 checks pass. This is not scripted against mocks — it is the real stack, and it is what surfaced the session-cache bug described below.
 
+## Milestone 2 completed work
+
+### Connector SDK (`packages/connector-sdk`, new uv workspace member)
+- Provider-neutral `BaseConnector` ABC (`estimate_cost`, `search`, `health_check`), `SearchQuery`/`SearchPage`/`BusinessRecord` dataclasses, a connector error taxonomy (`ConnectorAuthError`/`ConnectorQuotaError`/`ConnectorRateLimitError`/`ConnectorTransientError`/`ConnectorPermanentError`), and a string-keyed registry (`connector_sdk.registry.get_connector`).
+- `MockConnector` — **clearly labeled fictional data**, deterministically generated from a hash of the query + page number (so the same query always returns the same sample businesses), priced at 1 credit per result. This is the only connector Milestone 2 ships; real provider connectors (Google Places, etc.) are later-milestone work.
+
+### Campaign domain (`apps/api/app/modules/campaigns`, `app/modules/campaign_jobs`)
+- `Campaign`, `CampaignFilter`, `CampaignUsageEstimate`, `CampaignEvent` (append-only status-change log), `CampaignError` (append-only per-task error log), `CampaignJob`, `CampaignTask` — RLS-enabled and FORCE'd like every Milestone 1 tenant-owned table; entity count deliberately consolidated from the original architecture's larger list (ADR-0008).
+- A 12-status state machine (`draft → estimating → ready → queued → running → {pausing, cancelling, completed, partially_completed, failed}`, `pausing → paused`, `paused → {queued, cancelling}`, `cancelling → cancelled`) with a single writer (`state_machine.transition`) that rejects illegal transitions and records every transition to `CampaignEvent`.
+- Services: `create_campaign`, `compute_estimate` (free, no credits reserved), `launch_campaign` (checks the `max_concurrent_campaigns` entitlement server-side, reserves credits via the Milestone 1 two-phase reservation ledger, creates the job + first task), `pause_campaign`, `resume_campaign`, `cancel_campaign` (synchronously finalizes and releases/commits the reservation when cancelling from `paused`, since there's no in-flight task for a worker to observe the cancel on — see `_finalize_cancelled_synchronously`), `delete_campaign`, `get_progress`.
+- Full HTTP surface (`/campaigns`, `.../estimate`, `.../launch`, `.../pause`, `.../resume`, `.../cancel`, `.../progress`, `.../events`, `.../errors`) — every route requires a specific permission (`campaigns.view`/`.create`/`.start`/`.pause`/`.cancel`/`.delete`) via the same `require_permission` dependency chain as Milestone 1, tenant context flows entirely server-side (never trusted from the client), never exposes connector credentials to the browser (there are none for the mock connector, and the pattern generalizes).
+
+### Celery task chain (`apps/worker/worker/campaign_tasks.py`)
+- One Celery task per page (`run_campaign_task`), chained by having each successful page enqueue the next one — not a single long-running task, so pause/cancel/retry all operate between pages, never mid-page.
+- **Idempotent**: `lock_task_for_processing` only transitions a task `pending → running`; a duplicate at-least-once Celery delivery for an already-claimed task is a no-op.
+- **Per-tenant concurrency limit**: a Redis-backed TTL'd slot pool (`campaign_jobs/concurrency.py`, 2 slots/tenant) rather than a raw counter, so a crashed worker's held slot self-heals via TTL expiry instead of leaking forever.
+- **Retries**: transient/rate-limit connector errors retry with exponential backoff (up to 8 attempts) before permanently failing the task; auth/quota/permanent connector errors fail immediately, no wasted retries.
+- **Pause/cancel responsiveness**: the campaign's status is checked both immediately after claiming a task (before any connector call) and immediately after a page succeeds — whichever check first observes `pausing`/`cancelling` finalizes the campaign instead of running/enqueuing another page.
+- **Credit reconciliation**: on completion, cancellation, or permanent failure, the reservation taken at launch is committed for the *actual* number of businesses found (never the estimate) or released if none were found — auditable via the same `CreditTransaction` ledger from Milestone 1.
+- The API and worker are a strict producer/consumer pair: `apps/api` publishes via a plain Celery client (`app.core.celery_client`) using `send_task` by string name, and cannot import `apps/worker`'s task functions — only the worker depends on the API package, never the reverse.
+
+### Frontend (`apps/web`)
+- `/campaigns` — campaign list plus a create-and-estimate form (industry/location/rating/review-count/phone/website filters, result limit), clearly labeled as using the mock connector.
+- `/campaigns/[id]` — detail view with estimate/launch/pause/resume/cancel/delete actions gated by campaign status, a live-polling progress panel (2s interval while non-terminal, stops automatically once the campaign reaches a terminal status), an error list, and a full status-change history timeline.
+- `packages/ui`'s existing `Button`/`Card`/`Banner`/`TextField` components and the established react-hook-form + zod form pattern were reused as-is — no new UI primitives were needed.
+
+### Tests
+- **Backend (`apps/api/tests/test_campaign_engine.py`, 10 tests)**: state-machine illegal-transition rejection, credit reservation on launch, the `max_concurrent_campaigns` entitlement blocking a second concurrent campaign, pause/cancel status-precondition enforcement, the paused-cancel synchronous-reservation-release path, permission enforcement for a read-only role, unknown-connector rejection, and the `lock_task_for_processing`/`acquire_tenant_slot`/`release_tenant_slot` idempotency and concurrency primitives directly.
+- **Worker (`apps/worker/tests/test_campaign_tasks.py`, 5 tests, new test package)**: a full multi-page campaign run to completion with correct credit reconciliation, duplicate-task-delivery idempotency, pause stopping the chain between pages with the reservation left open, and cancel both with no progress (full release) and with partial progress (partial commit, partial release) — driving the actual `_run_campaign_task_async` coroutine directly rather than mocking it.
+- **Live end-to-end verification** (not part of the checked-in suite, done by hand against the real running stack): a full browser session (Playwright + real Chromium) through register → verify → onboarding → create campaign → estimate → launch → live progress polling → completion, and a separate httpx-based script exercising pause→resume and cancel-with-no-progress/cancel-with-partial-progress against the live API, worker, Postgres, and Redis. This is how the two real bugs below were found — they did not show up in isolated unit-style testing.
+
 ## Acceptance criteria (from the approved architecture)
 
 | Criterion | Status |
@@ -51,44 +82,58 @@
 | Invitations work | ✅ Backend tests + live Playwright run |
 | Tenant switching works | ✅ Backend tests |
 | Role enforcement works | ✅ Backend tests (permission-denied paths verified, not just happy path) |
-| Entitlements work | ✅ Backend tests (`max_team_members` limit blocks the 4th invite) |
-| Credit transactions work | ✅ Backend tests + a live Celery/Redis dispatch of the expiry sweep |
+| Entitlements work | ✅ Backend tests (`max_team_members` and `max_concurrent_campaigns` limits both verified) |
+| Credit transactions work | ✅ Backend tests + a live Celery/Redis dispatch of the expiry sweep and the full campaign reserve/commit/release cycle |
 | Tenant isolation tests pass | ✅ Including a raw-DB-role RLS bypass attempt |
 | Platform roles remain separated | ✅ DB-level composite FK + trigger, not just app code |
 | Audit records are created | ✅ Backend tests + live Playwright run |
-| Backend tests pass | ✅ 25/25 |
+| Campaigns can be created, filtered, estimated | ✅ Backend + worker tests, live Playwright run |
+| Campaigns launch and reserve credits server-side | ✅ Backend tests, live E2E |
+| Background job processing works (page fan-out) | ✅ Worker tests, live Celery/Redis dispatch to completion |
+| Pause/resume/cancel all work, including mid-run | ✅ Worker tests + live httpx E2E for both zero-progress and partial-progress cancel |
+| Task retries and idempotency work | ✅ Worker tests (duplicate delivery no-op); retry backoff logic implemented, exercised implicitly (no connector-error injection test yet — see unresolved risks) |
+| Per-tenant concurrency limits enforced | ✅ Backend tests (slot exhaustion/release directly) |
+| Every score/estimate is explainable | ✅ `EstimateResponse` exposes `estimated_credits`/`estimated_results`/`calculated_at`; lead *scoring* itself is a later milestone |
+| Backend tests pass | ✅ 35/35 (api) + 5/5 (worker) = 40/40 |
 | Frontend lint passes | ✅ |
 | Frontend type checking passes | ✅ |
-| Production builds pass | ✅ `next build` succeeds; API has no separate "build" step (Python) |
+| Production builds pass | ✅ `next build` succeeds; API/worker have no separate "build" step (Python) |
 
 ## Architecture decisions
-See `docs/adr/0001` through `0007`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling with TypeScript pinned to 5.7.3 over the just-released 7.0, campaign-level credit-reservation granularity deferred to Milestone 2, MFA scaffolded only, no billing provider selected yet, and a documented RLS ordering rule + `platform_bypass` escape-hatch pattern discovered and fixed during this milestone.
+See `docs/adr/0001` through `0009`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), and a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009).
 
 ## Known limitations
 
 1. **Docker Compose stack not verified end-to-end in this build environment.** This session's outbound network egress policy blocks Docker Hub image pulls (`production.cloudfront.docker.com` returns a 403 policy denial), so `docker compose up` could not be run here. All verification instead ran the same services natively: PostgreSQL 16 and Redis were already installed in this sandbox and used directly; the FastAPI app, Celery worker, and Next.js dev server were run directly via `uv run` / `pnpm dev`. The `docker-compose.yml` and Dockerfiles are believed correct (they mirror the exact configuration verified natively) but **you should run `docker compose up` yourself before relying on it** — that is the one meaningful gap between "verified" and "should work."
 2. **MFA is scaffolded, not enrollable** (ADR-0005) — by design, per your approval.
 3. **No billing provider integration** (ADR-0006) — by design, per your approval; plans/credits are seed data today.
-4. **RLS discipline is manual today.** The ordering rule in ADR-0007 (`set_tenant_context` before any RLS-protected query) is not enforced by a linter or CI check — a future service function could reintroduce the same class of bug if the rule isn't followed. A CI check for "every new tenant-owned table has a matching RLS migration" and a code-review checklist item for the ordering rule are recommended before Milestone 10's security audit, but are not built yet.
-5. **No CI/CD pipeline yet.** GitHub Actions workflows (lint/test/build/scan on push) are not part of Milestone 1's approved scope and have not been created.
-6. **Object storage (MinIO) is configured but unexercised.** Milestone 1 has no file-storage feature (exports are Milestone 7), so the S3 client configuration exists in `core/config.py` but was never actually connected to in this milestone's verification.
+4. **RLS discipline is manual today.** The ordering rule in ADR-0007 (`set_tenant_context` before any RLS-protected query) is not enforced by a linter or CI check — a future service function could reintroduce the same class of bug if the rule isn't followed. Milestone 2's worker code hit the exact same class of bug again (`worker.campaign_tasks._run_campaign_task_async`'s first lookup needed `set_platform_bypass` before its first read, same as ADR-0007's examples) before being fixed — this remains a manual-discipline risk, not an automated one.
+5. **No CI/CD pipeline yet.** GitHub Actions workflows (lint/test/build/scan on push) have not been created.
+6. **Object storage (MinIO) is configured but unexercised.** No file-storage feature exists yet (exports are a later milestone), so the S3 client configuration exists in `core/config.py` but was never actually connected to in verification.
 7. **Frontend uses hand-written types** (`apps/web/lib/types.ts`), not OpenAPI-generated ones — reasonable at this API-surface size; `packages/shared-types` is reserved for generated types later (see its README).
+8. **Only one connector exists (`mock`).** It returns clearly-labeled, deterministic fictional data for testing the campaign engine's mechanics — no real lead-discovery provider (Google Places, etc.) is wired up yet; that is later-milestone scope.
+9. **No automated test exercises a real connector error path** (auth/quota/rate-limit/permanent failure and the retry backoff that follows). The retry/backoff logic in `run_campaign_task` is implemented and was reasoned through carefully, but `MockConnector` never actually raises those errors, so nothing forces it to run. A fault-injecting test connector (or a flag on `MockConnector` to simulate failures) is recommended as an early follow-up.
+10. **The dev sandbox's own long-running processes (Postgres, Redis, the SMTP capture server, the Celery worker, the API/web dev servers) were repeatedly reaped during idle gaps in this session** and had to be restarted more than once mid-verification. This is a property of this particular sandboxed environment, not the application, but it's worth knowing if you see "connection refused" locally after leaving a dev environment idle — check that all four services are actually still running before assuming something is broken.
 
 ## Unresolved risks
 
-- **Connection-pool GUC leakage class of bug** (ADR-0007): fixed everywhere it was found by manual audit during this milestone, but the codebase has no automated guard against a *future* service function making the same mistake. Recommend a lightweight integration test pattern (assert a fresh session with no context set returns zero rows for every RLS table) be added as a standing regression test in an early Milestone 2 task, not deferred indefinitely.
-- **Single shared Postgres instance**: no read replica, no connection-pool sizing exercise under load. Fine at Milestone 1 scale; a real concern once Milestone 2's campaign engine adds background write load.
+- **Connection-pool GUC leakage class of bug** (ADR-0007): fixed everywhere it was found by manual audit, but the codebase has no automated guard against a *future* service function making the same mistake — and Milestone 2 proved this risk is real by reintroducing it once (see limitation #4 above). Recommend a lightweight integration test pattern (assert a fresh session with no context set returns zero rows for every RLS table) as a standing regression test.
+- **Per-task event-loop isolation** (ADR-0009): the worker's `run_db_task` helper is the only thing preventing every new Celery task from silently inheriting a previous task's closed-loop database/Redis connections. Like the RLS ordering rule, this is a discipline documented in an ADR and a code comment, not something a linter enforces — a future task added via a bare `asyncio.run(...)` instead of `run_db_task` would reintroduce exactly this bug, and it would only surface once a worker process handles a second task (not on first use), making it easy to miss in a quick manual check.
+- **Single shared Postgres instance**: no read replica, no connection-pool sizing exercise under real background-job write load now that the campaign engine exists. A real concern once campaign volume grows.
 - **Rate limiting is IP/account-keyed only**, no distributed abuse detection. Adequate for now.
+- **No connector-error-path test coverage** (see limitation #9) — the retry/backoff/permanent-failure logic is implemented but not exercised by an automated test that actually triggers those code paths.
 
 ## Pending approvals
-None outstanding from the original architecture response — all 8 items listed under "architecture decisions requiring approval" were approved when you sent `APPROVE MILESTONE 1`. ADR-0007 documents a decision made *during* implementation (the RLS ordering fix) that didn't exist at architecture-review time; it doesn't require separate approval since it's a bug fix to already-approved behavior (tenant isolation must work correctly), but it's called out here for transparency per rule #15 (explain major architecture decisions before/as they're made).
+None outstanding. Milestone 2's scope (campaign/job engine, per the original architecture) was implemented as previously directed. ADR-0008 (entity consolidation) and ADR-0009 (worker event-loop isolation) document decisions/fixes made *during* implementation that didn't exist at architecture-review time; neither requires separate approval — 0008 is a scope-preserving simplification within Milestone 2's already-approved feature set, and 0009 is a bug fix to already-approved behavior (the task chain must actually work correctly) — but both are called out here for transparency.
 
 ## Next action
-Awaiting your review of Milestone 1. When ready, send `APPROVE MILESTONE 2` to begin the Campaign and Job Engine milestone (campaigns, filters, search areas, source selection, estimates, credit reservations wired to real campaign creation, state machine, background task processing, progress tracking, pause/cancel, retries, idempotency, per-tenant concurrency limits, mock connector).
+Awaiting your review of Milestone 2. When ready, let me know how you'd like to proceed to Milestone 3.
 
 ---
 
 ## Complete file inventory (created or modified in Milestone 1)
+
+See the **Milestone 2 file inventory** below for everything added/changed since Milestone 1 shipped.
 
 ### Root
 `package.json`, `pnpm-workspace.yaml`, `pyproject.toml`, `.gitignore`, `.env.example`, `docker-compose.yml`
@@ -128,3 +173,44 @@ Awaiting your review of Milestone 1. When ready, send `APPROVE MILESTONE 2` to b
 
 ### Docs
 `docs/project-status.md`, `docs/adr/0001` through `0007`
+
+---
+
+## Complete file inventory (created or modified in Milestone 2)
+
+### Root
+`pyproject.toml` (workspace members + ruff `src` list updated for `packages/connector-sdk`)
+
+### New package — `packages/connector-sdk`
+`pyproject.toml`, `connector_sdk/{__init__,errors,types,base,mock,registry}.py`
+
+### Backend — `apps/api`
+`pyproject.toml` (added `gridkeep-connector-sdk` dependency),
+`app/main.py` (registered `campaigns_router`; defensive `model_registry` import),
+`app/core/{celery_client,rate_limit}.py` (new producer-only Celery client; added `reset_redis_connection` for worker use),
+`app/core/model_registry.py` (import campaign/job models),
+`app/modules/campaigns/{models,repositories,schemas,services,state_machine,routes}.py` (new module),
+`app/modules/campaign_jobs/{models,repositories,concurrency}.py` (new module),
+`app/modules/tenancy/services.py` (fixed: new tenants now receive the trial plan's `monthly_credit_grant` at creation — a real bug found via live E2E testing, not a Milestone 2 feature per se),
+`app/seed/seed_data.py` (added `max_concurrent_campaigns` plan feature to all 4 plans),
+`alembic/versions/43cc58f21f97_*.py` (campaign engine tables + RLS),
+`tests/test_campaign_engine.py` (new, 10 tests),
+`tests/test_tenancy_and_permissions.py` (updated one assertion for the credit-grant fix above)
+
+### Worker — `apps/worker`
+`pyproject.toml` (added `gridkeep-connector-sdk` dependency, `pytest-asyncio`/`mypy` dev deps, pytest config),
+`worker/celery_app.py` (registered `campaign_tasks`, routing, `model_registry` import),
+`worker/campaign_tasks.py` (new — the page-fan-out task chain),
+`worker/async_utils.py` (new — `run_db_task`, the per-task event-loop isolation fix, ADR-0009),
+`worker/tasks.py` (switched to `run_db_task`),
+`tests/conftest.py` (new test package), `tests/test_campaign_tasks.py` (new, 5 tests)
+
+### Frontend — `apps/web`
+`lib/types.ts` (added `Campaign`/`CampaignFilter`/`CampaignDetail`/`CreateCampaignRequest`/`CampaignEstimate`/`CampaignProgress`/`CampaignEvent`/`CampaignErrorEntry`),
+`app/(tenant)/_components/TenantShell.tsx` (added the Campaigns nav item; fixed active-nav-highlight to match nested routes),
+`app/(tenant)/dashboard/page.tsx` (updated the stale "campaigns arrive in a later milestone" copy),
+`app/(tenant)/campaigns/page.tsx` (new — list + create-and-estimate form),
+`app/(tenant)/campaigns/[id]/page.tsx` (new — detail view, live progress polling, actions, history)
+
+### Docs
+`docs/project-status.md`, `docs/adr/0008-campaign-entity-consolidation.md` (new), `docs/adr/0009-worker-per-task-event-loop-isolation.md` (new)
