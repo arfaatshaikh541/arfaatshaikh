@@ -3445,7 +3445,135 @@ redis-server start` before the test suite could run.
   direction (e.g. a specific module to deepen, hardening work like the rate limiter or CI scanning, or a new
   feature area).
 
-## Next Action
+## Milestone 22 — Next Action
 
 Awaiting your direction on Milestone 23 — there is no obvious next breadcrumb this time, so a specific
 instruction would help more than another inferred default.
+
+## Milestone 23: Redis-Backed Rate Limiter
+
+**Scope chosen without a specific user instruction** — the user's "Continue" arrived without picking from
+the candidates Milestone 22 listed (rate limiter, CI scanning, MFA backup codes, Docker Compose
+verification, drill-down pager UI). Consistent with this session's established rhythm of proceeding on a
+stated default rather than blocking, and since no single fallback had been pre-committed this time, the
+most concretely-scoped candidate was chosen: `InMemorySlidingWindowLimiter`'s own docstring, unchanged since
+Milestone 1, named its own replacement outright — "Multi-instance production deployments must back this
+with Redis (INCR + EXPIRE per window) — the interface below (`check`) is the seam for that swap." This
+closes the oldest-standing item on the Unresolved Risks list, carried since Milestone 1 across all 22 prior
+milestones.
+
+### Backend (`apps/api`)
+- **`core.middleware.InMemorySlidingWindowLimiter` replaced outright by `RedisRateLimiter`**, not kept
+  alongside it — nothing else in the codebase referenced the old class (confirmed by grep before deleting
+  it), so there was no reason to leave dead code behind.
+- **Algorithm changed from a true sliding window to a fixed window (`INCR` + `EXPIRE`)** — a deliberate
+  simplification, not an oversight: it's the exact technique the original docstring named, needs no Lua
+  scripting or sorted-set bookkeeping, and is the standard building block for this in Redis. The tradeoff
+  (a client can get up to `2 × limit` requests through across a window boundary) is documented in the new
+  class's own docstring and called out below rather than left implicit.
+- **Reused the existing `redis` dependency and `settings.redis_url`** — already present for Celery's
+  broker/backend, so no new dependency was added. The rate limiter uses `redis.asyncio.Redis.from_url(...)`
+  directly rather than going through Celery at all; the two are unrelated Redis clients against the same
+  instance.
+- **Keys are prefixed `ratelimit:`** so a test-only `reset_all()` (scan-and-delete by that prefix) can clear
+  limiter state between tests without a blanket `FLUSHDB` that would also wipe Celery's broker/backend data
+  sharing the same Redis instance.
+- **All three call sites in `modules.identity.routes`** (`login`'s per-IP and per-account checks,
+  `forgot_password`'s per-email check) changed from `login_rate_limiter.check(...)` to
+  `await login_rate_limiter.check(...)`, since the Redis-backed `check` is necessarily async where the
+  in-memory one wasn't.
+- **`tests/conftest.py`'s `_reset_rate_limiter` fixture** became an async `pytest_asyncio.fixture`, calling
+  `await login_rate_limiter.reset_all()` instead of clearing an in-memory dict directly.
+
+## Milestone 23 — Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|---|:-:|---|
+| Rate limiting still works for a single instance (unchanged external behavior) | ✅ | `test_rate_limiting_on_login` (existing test, unmodified) still passes — 15 failed logins still trip a 429 |
+| Rate-limit state is now shared across separate processes, not per-process | ✅ | New `test_rate_limiter_state_is_shared_across_separate_processes` (two independent `RedisRateLimiter` instances backed by the same Redis, proven to share one counter); live-verified against two real `uvicorn` processes on ports 8000/8001 |
+| A legitimate login is unaffected once outside the rate-limit window | ✅ | Live-verified: the demo tenant owner logged in successfully (`200`, valid `csrf_token`) immediately after the limiter test cleared its key |
+| Redis keys use real TTLs matching the configured window | ✅ | Live-verified via `redis-cli keys "ratelimit:*"` / `ttl` — `ratelimit:login-ip:127.0.0.1` observed with a live-counting TTL under 60s |
+| No regressions elsewhere | ✅ | Full `pytest -q` suite (230/230, up from 229 — one new test) passes |
+| Backend tests pass | ✅ | **230/230** passing, `ruff check .` clean |
+
+## Milestone 23 — Test Results (as actually executed in this session)
+
+```
+apps/api: pytest -q                   → 230 passed
+apps/api: ruff check .                → All checks passed
+```
+
+No frontend code changed this milestone (the rate limiter is entirely server-side, with no schema or
+response-shape change visible to any client), so the frontend lint/typecheck/vitest/build suite was judged
+unnecessary — stated explicitly rather than silently skipped.
+
+Manual, real end-to-end verification performed against a live Postgres/Redis stack: started two independent
+`uvicorn` processes on ports 8000 and 8001 (standing in for two horizontally-scaled API instances — they
+share nothing in Python process memory), both pointed at the same `REDIS_URL`. Sent repeated failed-login
+requests split across both ports for the same client IP: instance A handled 6 requests, then instance B
+handled 2 more (8 combined) before hitting a small pre-existing count already in the bucket from an earlier
+check, and instance B's 3rd request in that batch correctly returned `429 rate_limited` — the combined
+cross-process count, not either process's own local count, is what tripped the limiter. Confirmed via
+`redis-cli keys`/`ttl` that the real `ratelimit:login-ip:127.0.0.1` key existed with a live TTL. Cleared the
+test key afterward and confirmed a real demo-tenant login still succeeds normally. This is the load-bearing
+proof for this milestone: the exact failure mode the in-memory limiter had (each of N horizontally-scaled
+instances independently allowing up to the configured limit, for an effective `N × limit` combined) is now
+provably closed.
+
+## Milestone 23 — Architecture Decisions (made or refined during implementation)
+
+- **Fixed-window (`INCR`+`EXPIRE`) over a Redis-sorted-set sliding window** — the simpler of the two standard
+  Redis rate-limiting patterns, and the one the original Milestone 1 docstring specifically named. A true
+  sliding window would need `ZADD`/`ZREMRANGEBYSCORE`/`ZCARD` and doesn't meaningfully improve security
+  posture for this use case (login-attempt throttling, not billing-grade metering) enough to justify the
+  extra complexity.
+- **No fallback path if Redis is unreachable** — the app already requires Redis for Celery in every
+  environment this runs in (local dev, CI, and the documented Docker Compose stack), so the rate limiter
+  inherits an existing infrastructure dependency rather than adding a new hard requirement. If Redis is down,
+  login requests fail outright rather than silently disabling rate limiting — judged the safer failure mode
+  for a security control.
+- **Kept the old class's exact `check(key, *, limit, window_seconds)` shape**, only changing it from sync to
+  async — minimizes the diff at the three call sites and keeps the interface self-documenting rather than
+  redesigning it while also changing its backing store.
+
+## Milestone 23 — Known Limitations
+
+- **Fixed-window boundary effect**: a client can send up to `limit` requests just before a window boundary
+  and another `limit` just after, getting up to `2 × limit` through in a short span. Documented in the
+  `RedisRateLimiter` docstring itself, not just here. A sorted-set sliding window would close this if it's
+  ever judged worth the added complexity.
+- **No per-tenant or per-role rate-limit override** — the three limits (`rate_limit_login_per_minute`,
+  `rate_limit_login_per_hour_per_account`, and the hardcoded `5`/hour on forgot-password) are global
+  `Settings` values, same as before this milestone. Not a regression, but also not improved here.
+- **No frontend automated tests were added** — this milestone touched no frontend code.
+
+## Milestone 23 — Unresolved Risks
+
+- Carried over from Milestones 1-22 (no dependency/container/secret scanning in CI, Docker Compose still
+  unverified end-to-end, the scoring formulas' simplicity, the inherent stakes of unattended action
+  execution, the evidence permission-per-target design, the control-scoring weights, the
+  cross-cutting-permission decisions, the widened-RLS-by-data-value pattern, the threat-intel
+  confidence-to-severity thresholds, the HTTP-file domain-verification substitution, the terminal-`archived`
+  tenant status, the hardcoded MFA admin-role set, MFA backup/recovery codes, the
+  RLS-silently-no-ops-without-tenant-context hazard, no pager UI beyond a 100-row cap on the three
+  grant-gated drill-downs) — none were touched this milestone and remain open.
+- **The in-memory rate limiter, carried since Milestone 1, is now resolved** — removed from this list.
+- **The fixed-window boundary effect** (new this milestone — see Known Limitations above) is a small,
+  understood, deliberate tradeoff.
+- **No obvious next breadcrumb is currently named**, same as after Milestone 22. CI dependency/secret
+  scanning is the next most concretely-actionable candidate on the remaining list (it, too, has an
+  identifiable, scoped shape: add `pip-audit`/`npm audit`/a container-scanning step to
+  `.github/workflows/ci.yml`), but this is a real recommendation, not a claim that it's the only option.
+
+## Milestone 23 — Pending Approvals
+
+- This Milestone 23 implementation is ready for your review. Nothing further is pending my side — the
+  acceptance checklist above is complete, tests pass, and the live cross-process proof is the strongest
+  verification this session has done for a non-user-facing infrastructure change.
+- If you'd like a default proposed again rather than an open question, CI dependency/secret scanning is the
+  next-most-concrete remaining candidate (see Unresolved Risks above) and would be the default absent other
+  direction.
+
+## Next Action
+
+Awaiting your review or direction for Milestone 24.
