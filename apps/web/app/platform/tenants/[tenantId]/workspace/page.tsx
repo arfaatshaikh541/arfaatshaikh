@@ -44,14 +44,20 @@ export default function TenantWorkspaceSnapshotPage() {
 
   const findingsQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "findings"],
-    queryFn: () => apiClient.get<FindingListItem[]>(`/api/platform/tenants/${tenantId}/findings`),
+    queryFn: () =>
+      apiClient.get<FindingListItem[]>(`/api/platform/tenants/${tenantId}/findings`, {
+        limit: "100",
+      }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
 
   const incidentsQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "incidents"],
-    queryFn: () => apiClient.get<IncidentListItem[]>(`/api/platform/tenants/${tenantId}/incidents`),
+    queryFn: () =>
+      apiClient.get<IncidentListItem[]>(`/api/platform/tenants/${tenantId}/incidents`, {
+        limit: "100",
+      }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
@@ -59,7 +65,9 @@ export default function TenantWorkspaceSnapshotPage() {
   const integrationsQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "integrations"],
     queryFn: () =>
-      apiClient.get<TenantIntegrationRead[]>(`/api/platform/tenants/${tenantId}/integrations`),
+      apiClient.get<TenantIntegrationRead[]>(`/api/platform/tenants/${tenantId}/integrations`, {
+        limit: "100",
+      }),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
