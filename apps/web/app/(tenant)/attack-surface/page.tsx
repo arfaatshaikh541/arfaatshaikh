@@ -25,6 +25,7 @@ export default function AttackSurfacePage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [busyDomainId, setBusyDomainId] = useState<string | null>(null);
   const [verifyMessages, setVerifyMessages] = useState<Record<string, string>>({});
+  const [methodByDomain, setMethodByDomain] = useState<Record<string, "http_file" | "dns_txt">>({});
 
   const domainsQuery = useQuery({
     queryKey: ["attack-surface", "domains"],
@@ -62,8 +63,11 @@ export default function AttackSurfacePage() {
     setServerError(null);
     setBusyDomainId(domainId);
     try {
+      const method = methodByDomain[domainId] ?? "http_file";
       const result = await apiClient.post<VerifyDomainResult>(
         `/api/attack-surface/domains/${domainId}/verify`,
+        undefined,
+        { method },
       );
       setVerifyMessages((prev) => ({ ...prev, [domainId]: result.message }));
       refresh();
@@ -156,15 +160,49 @@ export default function AttackSurfacePage() {
                 </div>
 
                 {!domain.is_verified ? (
-                  <div className="mt-3 flex flex-col gap-1 text-sm text-ink-500">
-                    <p>
-                      Publish a file at{" "}
-                      <code className="rounded bg-surface-800 px-1.5 py-0.5 text-ink-700">
-                        {domain.verification_file_url}
-                      </code>{" "}
-                      containing:
-                    </p>
-                    <code className="rounded bg-surface-800 px-1.5 py-0.5 text-ink-700">
+                  <div className="mt-3 flex flex-col gap-2 text-sm text-ink-500">
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`method-${domain.id}`}
+                          checked={(methodByDomain[domain.id] ?? "http_file") === "http_file"}
+                          onChange={() =>
+                            setMethodByDomain((prev) => ({ ...prev, [domain.id]: "http_file" }))
+                          }
+                        />
+                        HTTP file
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="radio"
+                          name={`method-${domain.id}`}
+                          checked={(methodByDomain[domain.id] ?? "http_file") === "dns_txt"}
+                          onChange={() =>
+                            setMethodByDomain((prev) => ({ ...prev, [domain.id]: "dns_txt" }))
+                          }
+                        />
+                        DNS TXT record
+                      </label>
+                    </div>
+                    {(methodByDomain[domain.id] ?? "http_file") === "http_file" ? (
+                      <p>
+                        Publish a file at{" "}
+                        <code className="rounded bg-surface-800 px-1.5 py-0.5 text-ink-700">
+                          {domain.verification_file_url}
+                        </code>{" "}
+                        containing:
+                      </p>
+                    ) : (
+                      <p>
+                        Add a DNS TXT record at{" "}
+                        <code className="rounded bg-surface-800 px-1.5 py-0.5 text-ink-700">
+                          {domain.dns_txt_record_name}
+                        </code>{" "}
+                        containing:
+                      </p>
+                    )}
+                    <code className="w-fit rounded bg-surface-800 px-1.5 py-0.5 text-ink-700">
                       {domain.verification_token}
                     </code>
                   </div>

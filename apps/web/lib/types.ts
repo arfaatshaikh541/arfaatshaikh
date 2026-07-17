@@ -468,6 +468,7 @@ export interface DomainRead {
   verification_method: string | null;
   verification_token: string | null;
   verification_file_url: string;
+  dns_txt_record_name: string;
   verified_at: string | null;
   created_at: string;
 }
