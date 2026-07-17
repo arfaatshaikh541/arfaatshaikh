@@ -7,7 +7,12 @@ import { useParams } from "next/navigation";
 
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { FindingListItem, IncidentListItem, TenantWorkspaceSnapshotRead } from "@/lib/types";
+import type {
+  FindingListItem,
+  IncidentListItem,
+  TenantIntegrationRead,
+  TenantWorkspaceSnapshotRead,
+} from "@/lib/types";
 
 const INCIDENT_STATUS_TONE: Record<string, "positive" | "warning" | "neutral"> = {
   declared: "warning",
@@ -16,6 +21,12 @@ const INCIDENT_STATUS_TONE: Record<string, "positive" | "warning" | "neutral"> =
   resolved: "positive",
   closed: "positive",
 };
+
+function integrationStatusTone(status: string): "positive" | "warning" | "neutral" {
+  if (status === "connected") return "positive";
+  if (status === "disconnected") return "neutral";
+  return "warning";
+}
 
 export default function TenantWorkspaceSnapshotPage() {
   const params = useParams<{ tenantId: string }>();
@@ -41,6 +52,14 @@ export default function TenantWorkspaceSnapshotPage() {
   const incidentsQuery = useQuery({
     queryKey: ["platform", "tenants", tenantId, "incidents"],
     queryFn: () => apiClient.get<IncidentListItem[]>(`/api/platform/tenants/${tenantId}/incidents`),
+    enabled: canRequest && !snapshotQuery.isError,
+    retry: false,
+  });
+
+  const integrationsQuery = useQuery({
+    queryKey: ["platform", "tenants", tenantId, "integrations"],
+    queryFn: () =>
+      apiClient.get<TenantIntegrationRead[]>(`/api/platform/tenants/${tenantId}/integrations`),
     enabled: canRequest && !snapshotQuery.isError,
     retry: false,
   });
@@ -193,6 +212,43 @@ export default function TenantWorkspaceSnapshotPage() {
           </table>
         ) : (
           <p className="text-sm text-ink-500">No incidents.</p>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader title={`Integrations (${integrationsQuery.data?.length ?? 0})`} />
+        {integrationsQuery.data && integrationsQuery.data.length > 0 ? (
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-surface-border text-ink-500">
+                <th className="py-2 pr-4 font-medium">Provider</th>
+                <th className="py-2 pr-4 font-medium">Label</th>
+                <th className="py-2 pr-4 font-medium">Status</th>
+                <th className="py-2 font-medium">Last synced</th>
+              </tr>
+            </thead>
+            <tbody>
+              {integrationsQuery.data.map((integration) => (
+                <tr key={integration.id} className="border-b border-surface-border/50">
+                  <td className="py-2 pr-4 text-ink-900">{integration.provider_name}</td>
+                  <td className="py-2 pr-4 text-ink-700">{integration.label}</td>
+                  <td className="py-2 pr-4">
+                    <StatusBadge
+                      label={integration.status}
+                      tone={integrationStatusTone(integration.status)}
+                    />
+                  </td>
+                  <td className="py-2 text-ink-500">
+                    {integration.last_synced_at
+                      ? new Date(integration.last_synced_at).toLocaleString()
+                      : "Never"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-ink-500">No integrations.</p>
         )}
       </Card>
     </div>
