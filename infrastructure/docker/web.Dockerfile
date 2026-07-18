@@ -19,6 +19,12 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* variables are inlined into the client bundle at build
+# time — setting this only in docker-compose.yml's runtime `environment:`
+# (as opposed to `build.args`) would have no effect on what actually
+# ships to the browser. Must be a build ARG, not a runtime ENV alone.
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN pnpm --filter @gridkeep/web build
 
 FROM base AS runtime

@@ -4339,8 +4339,57 @@ layout, applied consistently.
 actual mount configuration, and `seed/bootstrap.py`'s real import graph, not verified with a live
 `docker build`/`docker compose up` in this sandbox.
 
+### A full, proactive Docker audit — not just reacting to the next reported error
+
+Asked explicitly to "find all the errors with Docker," rather than wait for a fifth one-at-a-time report.
+This pass read every Dockerfile and the compose file line by line, cross-checked every `COPY` source and
+every bind-mount target against what's actually on disk, and — new this pass — **a real Docker daemon
+was actually started in this sandbox** (`dockerd`, run directly; the CLI and Compose plugin were already
+present) to get real validation instead of only static reading.
+
+**Two more real bugs found and fixed:**
+
+5. **`NEXT_PUBLIC_API_BASE_URL` was only ever set in `docker-compose.yml`'s runtime `environment:` block**
+   for the `web` service. Next.js inlines `NEXT_PUBLIC_*` variables into the client bundle at `next build`
+   time — a runtime environment variable on the running container has zero effect on JS already shipped to
+   the browser. This was silently masked because `lib/api-client.ts`'s fallback default
+   (`http://localhost:8000`) happens to match the intended value, but it would break silently and
+   confusingly the moment anyone changed that value for a real deployment. Fixed: `web.Dockerfile` now
+   declares `ARG NEXT_PUBLIC_API_BASE_URL` and sets it as an `ENV` before `RUN pnpm --filter @gridkeep/web
+   build`; `docker-compose.yml` passes it via `build.args` instead of `environment`.
+6. **Evidence file storage (Milestone 28) defaulted to writing under `/app`** in the `api` container — the
+   same directory the dev bind mount (`./apps/api:/app`) replaces wholesale at container start. Whether
+   writes there succeed depends on the host directory's filesystem permissions matching the container's
+   UID 1000 user, which isn't guaranteed. Fixed: added a dedicated `gridkeep_evidence_storage` named
+   volume mounted at `/data/evidence-storage`, set `EVIDENCE_STORAGE_ROOT` to that path for the `api`
+   service — the same separation-of-concerns pattern Postgres/Redis/MinIO's own data already uses in this
+   file, rather than mixing runtime-uploaded binary files into the bind-mounted source tree.
+
+**One structural gap closed**: **no `.dockerignore` existed anywhere in the repo.** `web.Dockerfile`'s
+build stage does `COPY . .` — without a `.dockerignore`, that sends the host's actual `node_modules/`
+(among other things) into the build context, which would silently overwrite the correctly Linux-built
+`node_modules` from that same Dockerfile's own `deps` stage with whatever's on the host — a well-known
+class of Next.js Docker failure (native `@next/swc-*` binding mismatches) that only surfaces at container
+*runtime*, not at build time, making it unusually hard to diagnose after the fact. Added a repo-root
+`.dockerignore` excluding `node_modules/`, `.venv/`, `.git/`, and the same build-artifact/cache directories
+`.gitignore` already excludes from version control.
+
+**What the real daemon confirmed, and what it couldn't**: `docker compose config --quiet` — full schema
+and interpolation validation, no image pull required — passed with **zero errors across all seven
+services**, including confirming the new `web` build-arg and `api` volume changes render exactly as
+intended. Actually building any image was not possible: pulling `python:3.11-slim`, `node:20-slim`, and
+even `hello-world`/`alpine:3.20` (tested directly to rule out anything image-specific) all failed
+identically with the outbound proxy's `production.cloudfront.docker.com: 403 (policy denial)` — Docker
+Hub registry pulls are blocked by this sandbox's network policy, the same structural category of
+restriction that's blocked GitHub release downloads since Milestone 25. This is a materially more precise
+finding than every prior milestone's "no Docker daemon available" — the daemon runs fine; it's outbound
+registry access specifically that's walled off. That distinction is corrected here rather than left as a
+stale, imprecise claim now that it's been directly re-verified.
+
 ## Next Action
 
-Milestone 28 complete. Docker Compose's `web` build fixed pending the user's retry confirmation — this is
-real user-driven end-to-end verification finally happening on the one item every prior milestone could
-only disclose as unverified, not test.
+Milestone 28 complete. Docker Compose is now fully audited, not just reactively patched: six real bugs
+found and fixed across `web.Dockerfile`, `api.Dockerfile`, and `docker-compose.yml`, plus a `.dockerignore`
+added to close a structural gap. `docker compose config --quiet` passes clean. Actually building the images
+still can't be completed in this sandbox — confirmed to be a registry-pull network-policy block, not a
+config or code error — so full end-to-end confirmation still depends on the user's own retry.

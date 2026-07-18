@@ -69,6 +69,13 @@ services:
       MAIL_CAPTURE_HOST: mail-capture
       MAIL_CAPTURE_PORT: "1025"
       VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
+      # Outside /app deliberately — /app is replaced wholesale by the
+      # ./apps/api bind mount below at container start, so anything
+      # written under it depends on the host directory's permissions
+      # matching the container's UID 1000 user. A dedicated named volume
+      # avoids that entirely, same pattern as postgres/redis/minio's data
+      # below.
+      EVIDENCE_STORAGE_ROOT: /data/evidence-storage
     ports:
       - "8000:8000"
     command: >
@@ -77,6 +84,7 @@ services:
              uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./apps/api:/app
+      - gridkeep_evidence_storage:/data/evidence-storage
 
   worker:
     build:
@@ -123,13 +131,18 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/web.Dockerfile
+      # NEXT_PUBLIC_* values are inlined into the client bundle at build
+      # time by Next.js — a runtime `environment:` entry here would be a
+      # no-op for anything already shipped to the browser. Must be a
+      # build arg so it's baked in before `next build` runs.
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     depends_on:
       - api
-    environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     ports:
       - "3000:3000"
 
 volumes:
   gridkeep_postgres_data:
   gridkeep_object_storage:
+  gridkeep_evidence_storage:

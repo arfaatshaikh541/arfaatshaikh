@@ -48,12 +48,15 @@ docker compose up
 Brings up Postgres, Redis, MinIO (object storage), Mailhog (mail capture), the API (auto-migrates and
 seeds the platform catalogue on start), the worker, Celery Beat, and the web app.
 
-> **Note:** this compose file was syntax-validated (`docker compose config`) but never run end-to-end in
-> the environment it was built in (no Docker daemon available there). The first real attempt (by a user)
-> hit a genuine bug in `web.Dockerfile` — a missing `pnpm-lock.yaml` copy plus two COPY lines referencing
-> `package.json` files that never existed for `connector-sdk`/`shared-types`. Fixed; see
-> `docs/project-status.md`'s "Post-Milestone 28" section for the root cause. Still worth a fresh
-> `docker compose up` before you rely on it — this file has now been exercised for real exactly once.
+> **Note:** the first real attempts to run this (by a user) found and fixed six real bugs across
+> `web.Dockerfile`, `api.Dockerfile`, and `docker-compose.yml` — see `docs/project-status.md`'s
+> "Post-Milestone 28" sections for the full root-cause writeup. A subsequent proactive audit added a
+> repo-root `.dockerignore` (none existed) and ran `docker compose config --quiet` against a real,
+> directly-started Docker daemon — full schema/interpolation validation passes clean across all seven
+> services. Actually building the images still hasn't been possible in the environment this was built in:
+> confirmed directly that Docker Hub registry pulls are blocked by that environment's network policy
+> (not a config or code problem), so a real `docker compose up` has still only ever been exercised by a
+> user, not by this build's own sandbox. Worth a fresh run before you rely on it.
 
 ### Option B — run services directly
 

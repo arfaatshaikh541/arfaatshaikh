@@ -1,0 +1,61 @@
+# Applies to every image built from this repo root (see each Dockerfile's
+# `context: .` in docker-compose.yml). Critically excludes node_modules —
+# without this, `COPY . .` in web.Dockerfile's build stage would overwrite
+# the correctly Linux-built node_modules from its own `deps` stage with
+# whatever's on the host (macOS/Windows-native binaries for things like
+# @next/swc-*), producing native-binding mismatch failures that only show
+# up at container runtime, not at build time.
+
+# Node
+node_modules/
+**/node_modules/
+.pnpm-store/
+.next/
+**/.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+**/*.egg-info/
+.eggs/
+.venv/
+**/.venv/
+venv/
+.pytest_cache/
+**/.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Env — real secrets never belong in a build context
+.env
+.env.local
+.env.*.local
+
+# VCS / editors / OS
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+
+# Logs / local data / test artifacts
+*.log
+logs/
+infrastructure/docker/volumes/
+apps/api/var/
+*.sqlite3
+*.rdb
+coverage/
+test-results/
+playwright-report/
