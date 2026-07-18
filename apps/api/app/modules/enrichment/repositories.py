@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ResourceNotFoundError
@@ -88,3 +88,45 @@ async def list_evidence_for_enrichment(
 ) -> list[EnrichmentEvidence]:
     stmt = select(EnrichmentEvidence).where(EnrichmentEvidence.enrichment_id == enrichment_id)
     return list((await session.execute(stmt)).scalars().all())
+
+
+# WhatsApp/social-profile detector types (see worker.crawler.detectors) -
+# the export's WhatsApp/Facebook/Instagram/LinkedIn URL columns
+# (Milestone 7) read exactly these, never anything inferred.
+SOCIAL_DETECTOR_TYPES = ("whatsapp", "social_facebook", "social_instagram", "social_linkedin")
+
+
+async def list_social_evidence_for_businesses(
+    session: AsyncSession, business_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, dict[str, EnrichmentEvidence]]:
+    """{business_id: {detector_type: EnrichmentEvidence}} - only from each
+    business's most recent *completed* enrichment run, batched for export
+    generation the same way `businesses.repositories.
+    list_latest_source_records_for_businesses` batches source records."""
+    if not business_ids:
+        return {}
+    ranked = (
+        select(
+            BusinessEnrichment.id,
+            BusinessEnrichment.business_id,
+            func.row_number()
+            .over(
+                partition_by=BusinessEnrichment.business_id,
+                order_by=BusinessEnrichment.created_at.desc(),
+            )
+            .label("rn"),
+        ).where(
+            BusinessEnrichment.business_id.in_(business_ids),
+            BusinessEnrichment.status == "completed",
+        )
+    ).subquery()
+    latest_enrichment_ids = select(ranked.c.id).where(ranked.c.rn == 1)
+
+    stmt = select(EnrichmentEvidence).where(
+        EnrichmentEvidence.enrichment_id.in_(latest_enrichment_ids),
+        EnrichmentEvidence.detector_type.in_(SOCIAL_DETECTOR_TYPES),
+    )
+    result: dict[uuid.UUID, dict[str, EnrichmentEvidence]] = {}
+    for evidence in (await session.execute(stmt)).scalars().all():
+        result.setdefault(evidence.business_id, {})[evidence.detector_type] = evidence
+    return result

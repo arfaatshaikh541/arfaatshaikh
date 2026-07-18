@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ResourceNotFoundError
@@ -93,6 +93,63 @@ async def get_latest_campaign_id_for_business(
         .limit(1)
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def list_latest_source_records_for_businesses(
+    session: AsyncSession, business_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, BusinessSourceRecord]:
+    """One row per business - its most recently collected source record
+    (a business rediscovered by a later campaign, or merged from another
+    business's own history, may have several) - for export's Source/
+    Source URL/Date Collected columns (Milestone 7)."""
+    if not business_ids:
+        return {}
+    ranked = (
+        select(
+            BusinessSourceRecord.id,
+            BusinessSourceRecord.business_id,
+            func.row_number()
+            .over(
+                partition_by=BusinessSourceRecord.business_id,
+                order_by=BusinessSourceRecord.collected_at.desc(),
+            )
+            .label("rn"),
+        ).where(BusinessSourceRecord.business_id.in_(business_ids))
+    ).subquery()
+    latest_ids = select(ranked.c.id).where(ranked.c.rn == 1)
+    stmt = select(BusinessSourceRecord).where(BusinessSourceRecord.id.in_(latest_ids))
+    return {
+        record.business_id: record for record in (await session.execute(stmt)).scalars().all()
+    }
+
+
+async def list_latest_campaign_ids_for_businesses(
+    session: AsyncSession, business_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Batched form of `get_latest_campaign_id_for_business`, for the
+    export task's Campaign Summary sheet (Milestone 7) - which campaign
+    most recently (re)discovered each exported business."""
+    if not business_ids:
+        return {}
+    ranked = (
+        select(
+            BusinessSourceRecord.business_id,
+            BusinessSourceRecord.campaign_id,
+            func.row_number()
+            .over(
+                partition_by=BusinessSourceRecord.business_id,
+                order_by=BusinessSourceRecord.collected_at.desc(),
+            )
+            .label("rn"),
+        ).where(
+            BusinessSourceRecord.business_id.in_(business_ids),
+            BusinessSourceRecord.campaign_id.is_not(None),
+        )
+    ).subquery()
+    stmt = select(ranked.c.business_id, ranked.c.campaign_id).where(ranked.c.rn == 1)
+    return {
+        business_id: campaign_id for business_id, campaign_id in (await session.execute(stmt)).all()
+    }
 
 
 async def get_duplicate_candidate(

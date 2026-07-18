@@ -5,7 +5,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ApiError, api } from "@/lib/api";
-import { LEAD_STATUSES, type LeadListResponse, type SavedView } from "@/lib/types";
+import {
+  LEAD_STATUSES,
+  type ExportFormat,
+  type ExportRecord,
+  type LeadListResponse,
+  type SavedView,
+} from "@/lib/types";
 
 const PAGE_SIZE = 25;
 
@@ -74,6 +80,20 @@ function buildQuery(filters: FilterState, page: number): string {
   return params.toString();
 }
 
+function toExportFilters(filters: FilterState) {
+  return {
+    status: filters.status ? [filters.status] : undefined,
+    tag: filters.tag || undefined,
+    category: filters.category || undefined,
+    city: filters.city || undefined,
+    min_score: filters.minScore ? Number(filters.minScore) : undefined,
+    max_score: filters.maxScore ? Number(filters.maxScore) : undefined,
+    search: filters.search || undefined,
+    sort_by: filters.sortBy,
+    sort_dir: filters.sortDir,
+  };
+}
+
 export default function LeadsPage() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
@@ -84,6 +104,8 @@ export default function LeadsPage() {
   const [bulkTag, setBulkTag] = useState("");
   const [newViewName, setNewViewName] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   const queryString = useMemo(() => buildQuery(filters, page), [filters, page]);
 
@@ -151,6 +173,41 @@ export default function LeadsPage() {
     setBulkTag("");
   };
 
+  const handleExportSelected = async () => {
+    setActionError(null);
+    setExportNotice(null);
+    setPending("export selected");
+    try {
+      await api.post<ExportRecord>("/exports", {
+        format: exportFormat,
+        lead_ids: Array.from(selected),
+      });
+      setExportNotice(`Export of ${selected.size} lead(s) started.`);
+      setSelected(new Set());
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not start export.");
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const handleExportAllMatching = async () => {
+    setActionError(null);
+    setExportNotice(null);
+    setPending("export all");
+    try {
+      await api.post<ExportRecord>("/exports", {
+        format: exportFormat,
+        filters: toExportFilters(filters),
+      });
+      setExportNotice("Export of all leads matching your current filters started.");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not start export.");
+    } finally {
+      setPending(null);
+    }
+  };
+
   const applySavedView = (view: SavedView) => {
     const f = view.filters as Partial<Record<keyof FilterState, string>>;
     setFilters({
@@ -187,6 +244,15 @@ export default function LeadsPage() {
 
       {leadsQuery.isError && <Banner tone="info">You don&apos;t have permission to view leads.</Banner>}
       {actionError && <Banner tone="error">{actionError}</Banner>}
+      {exportNotice && (
+        <Banner tone="success">
+          {exportNotice}{" "}
+          <Link href="/exports" className="underline">
+            View exports
+          </Link>
+          .
+        </Banner>
+      )}
 
       {!leadsQuery.isError && (
         <>
@@ -316,6 +382,29 @@ export default function LeadsPage() {
                 Save view
               </Button>
             </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Export format
+                </label>
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="xlsx">XLSX</option>
+                  <option value="csv">CSV</option>
+                </select>
+              </div>
+              <Button
+                variant="secondary"
+                isLoading={pending === "export all"}
+                onClick={handleExportAllMatching}
+              >
+                Export all matching filters
+              </Button>
+            </div>
           </Card>
 
           {selected.size > 0 && (
@@ -369,6 +458,18 @@ export default function LeadsPage() {
                       Apply
                     </Button>
                   </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Export
+                  </label>
+                  <Button
+                    variant="secondary"
+                    isLoading={pending === "export selected"}
+                    onClick={handleExportSelected}
+                  >
+                    Export selected ({exportFormat.toUpperCase()})
+                  </Button>
                 </div>
               </div>
             </Card>

@@ -32,3 +32,11 @@ def enqueue_business_enrichment(enrichment_id: str) -> None:
         args=[enrichment_id],
         queue="queue.enrichment",
     )
+
+
+def enqueue_export(export_id: str) -> None:
+    _celery_client.send_task(
+        "worker.export_tasks.run_export",
+        args=[export_id],
+        queue="queue.export",
+    )

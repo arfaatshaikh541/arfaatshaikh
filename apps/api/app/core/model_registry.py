@@ -21,6 +21,7 @@ from app.modules.campaigns.models import (  # noqa: F401
     CampaignUsageEstimate,
 )
 from app.modules.enrichment.models import BusinessEnrichment, EnrichmentEvidence  # noqa: F401
+from app.modules.exports.models import Export, ExportError  # noqa: F401
 from app.modules.identity.models import (  # noqa: F401
     EmailVerificationToken,
     PasswordResetToken,

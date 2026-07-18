@@ -17,6 +17,13 @@ async def get_user_by_id(session: AsyncSession, user_id: uuid.UUID) -> User | No
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def list_users_by_ids(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, User]:
+    if not user_ids:
+        return {}
+    stmt = select(User).where(User.id.in_(user_ids))
+    return {user.id: user for user in (await session.execute(stmt)).scalars().all()}
+
+
 async def create_user(
     session: AsyncSession,
     *,

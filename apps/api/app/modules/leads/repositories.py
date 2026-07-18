@@ -331,6 +331,149 @@ async def get_tags_for_leads(
 
 
 # ---------------------------------------------------------------------------
+# Batched lookups for export generation (Milestone 7) - each of these takes
+# a whole page of lead ids and returns one query's worth of results, the
+# same "batch, don't N+1" discipline `get_tags_for_leads` above already
+# established in Milestone 6.
+# ---------------------------------------------------------------------------
+
+
+async def list_leads_for_export(
+    session: AsyncSession, *, tenant_id: uuid.UUID, lead_ids: list[uuid.UUID]
+) -> list[LeadListRow]:
+    """Same shape as `list_leads`'s rows, for an explicit id set rather
+    than a filtered/paginated view - used when an export's selection is
+    an explicit bulk-selected list of lead ids. Silently drops ids that
+    don't resolve to a canonical (non-merged-away), tenant-owned lead;
+    the caller (`exports` module) is responsible for recording that gap
+    as an `ExportError` rather than failing the whole export."""
+    if not lead_ids:
+        return []
+    latest_score = _latest_score_subquery()
+    stmt = (
+        select(Lead, Business, latest_score.c.total_score)
+        .join(Business, Business.id == Lead.business_id)
+        .outerjoin(latest_score, latest_score.c.lead_id == Lead.id)
+        .where(
+            Lead.tenant_id == tenant_id,
+            Lead.id.in_(lead_ids),
+            Business.merged_into_id.is_(None),
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        LeadListRow(lead=lead, business=business, latest_score=score)
+        for lead, business, score in rows
+    ]
+
+
+async def list_all_lead_ids_matching_filters(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    filters: LeadListFilters,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+) -> list[uuid.UUID]:
+    """The unpaginated id list for "export everything matching my current
+    filters" - reuses `list_leads`'s own filter-building by asking for a
+    page large enough to cover realistic tenant scale rather than
+    duplicating the filter predicates here. A tenant with more leads than
+    this would need real keyset pagination in the export task itself,
+    which Milestone 7 does not yet implement (see docs/adr/0015)."""
+    rows, _total = await list_leads(
+        session,
+        tenant_id=tenant_id,
+        filters=filters,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        page=1,
+        page_size=50_000,
+    )
+    return [row.lead.id for row in rows]
+
+
+async def get_latest_scores_for_leads(
+    session: AsyncSession, lead_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, LeadScore]:
+    if not lead_ids:
+        return {}
+    ranked = (
+        select(
+            LeadScore.id,
+            LeadScore.lead_id,
+            func.row_number()
+            .over(partition_by=LeadScore.lead_id, order_by=LeadScore.calculated_at.desc())
+            .label("rn"),
+        ).where(LeadScore.lead_id.in_(lead_ids))
+    ).subquery()
+    latest_ids = select(ranked.c.id).where(ranked.c.rn == 1)
+    stmt = select(LeadScore).where(LeadScore.id.in_(latest_ids))
+    return {score.lead_id: score for score in (await session.execute(stmt)).scalars().all()}
+
+
+async def get_opportunities_for_leads(
+    session: AsyncSession, lead_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[LeadOpportunity]]:
+    if not lead_ids:
+        return {}
+    stmt = (
+        select(LeadOpportunity)
+        .where(LeadOpportunity.lead_id.in_(lead_ids))
+        .order_by(LeadOpportunity.confidence.desc())
+    )
+    result: dict[uuid.UUID, list[LeadOpportunity]] = {}
+    for opportunity in (await session.execute(stmt)).scalars().all():
+        result.setdefault(opportunity.lead_id, []).append(opportunity)
+    return result
+
+
+async def get_recommendations_for_leads(
+    session: AsyncSession, lead_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[LeadRecommendation]]:
+    if not lead_ids:
+        return {}
+    stmt = (
+        select(LeadRecommendation)
+        .where(LeadRecommendation.lead_id.in_(lead_ids))
+        .order_by(LeadRecommendation.confidence.desc())
+    )
+    result: dict[uuid.UUID, list[LeadRecommendation]] = {}
+    for recommendation in (await session.execute(stmt)).scalars().all():
+        result.setdefault(recommendation.lead_id, []).append(recommendation)
+    return result
+
+
+async def get_open_assignments_for_leads(
+    session: AsyncSession, lead_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, LeadAssignment]:
+    if not lead_ids:
+        return {}
+    stmt = select(LeadAssignment).where(
+        LeadAssignment.lead_id.in_(lead_ids), LeadAssignment.unassigned_at.is_(None)
+    )
+    return {a.lead_id: a for a in (await session.execute(stmt)).scalars().all()}
+
+
+async def get_latest_notes_for_leads(
+    session: AsyncSession, lead_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[LeadNote]]:
+    """All notes per lead (not just the latest) - the export's Notes
+    column joins them chronologically rather than dropping all but one,
+    since discarding a rep's earlier notes would silently lose real
+    human-authored content."""
+    if not lead_ids:
+        return {}
+    stmt = (
+        select(LeadNote).where(LeadNote.lead_id.in_(lead_ids)).order_by(LeadNote.created_at.asc())
+    )
+    result: dict[uuid.UUID, list[LeadNote]] = {}
+    for note in (await session.execute(stmt)).scalars().all():
+        result.setdefault(note.lead_id, []).append(note)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Status history
 # ---------------------------------------------------------------------------
 

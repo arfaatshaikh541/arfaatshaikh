@@ -11,9 +11,11 @@ fan-out) on `queue.search`. Milestone 4 adds `run_business_enrichment`
 (website crawl + detectors) on its own `queue.enrichment` - kept separate
 from `queue.search` so a backlog of enrichment crawls (which are much
 slower than a mock/API-based search page) never starves campaign
-processing, and vice versa. Export/CRM tasks are later-milestone work;
-those queue names are declared for a fixed routing scheme but nothing
-consumes them yet.
+processing, and vice versa. Milestone 7 adds `run_export` (XLSX/CSV
+generation + object storage upload) on its own `queue.export`, same
+isolation reasoning - a large export shouldn't starve campaign or
+enrichment throughput. `queue.crm_push` remains declared but unconsumed
+until Milestone 8.
 """
 
 # Must be imported before any ORM operation runs in this process: it pulls
@@ -34,7 +36,12 @@ celery_app = Celery(
     "gridkeep",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["worker.tasks", "worker.campaign_tasks", "worker.enrichment_tasks"],
+    include=[
+        "worker.tasks",
+        "worker.campaign_tasks",
+        "worker.enrichment_tasks",
+        "worker.export_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -48,6 +55,7 @@ celery_app.conf.update(
         "worker.tasks.expire_stale_reservations": {"queue": "queue.maintenance"},
         "worker.campaign_tasks.run_campaign_task": {"queue": "queue.search"},
         "worker.enrichment_tasks.run_business_enrichment": {"queue": "queue.enrichment"},
+        "worker.export_tasks.run_export": {"queue": "queue.export"},
     },
 )
 

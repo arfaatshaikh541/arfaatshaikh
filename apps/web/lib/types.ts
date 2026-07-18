@@ -371,3 +371,30 @@ export type LeadListFilterState = {
   sort_by?: string;
   sort_dir?: string;
 };
+
+export type ExportFormat = "xlsx" | "csv";
+export type ExportStatus = "pending" | "processing" | "completed" | "failed";
+
+export type ExportRecord = {
+  id: string;
+  format: ExportFormat;
+  status: ExportStatus;
+  row_count: number | null;
+  error_count: number;
+  file_size_bytes: number | null;
+  requested_by_user_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type ExportListResponse = {
+  exports: ExportRecord[];
+};
+
+export type ExportDownload = {
+  url: string;
+  expires_in_seconds: number;
+  filename: string;
+};

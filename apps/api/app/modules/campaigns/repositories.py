@@ -48,6 +48,15 @@ async def list_campaigns_for_tenant(session: AsyncSession, tenant_id: uuid.UUID)
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def list_campaigns_by_ids(
+    session: AsyncSession, campaign_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, Campaign]:
+    if not campaign_ids:
+        return {}
+    stmt = select(Campaign).where(Campaign.id.in_(campaign_ids))
+    return {c.id: c for c in (await session.execute(stmt)).scalars().all()}
+
+
 async def count_active_campaigns_for_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> int:
     stmt = select(Campaign).where(
         Campaign.tenant_id == tenant_id,
