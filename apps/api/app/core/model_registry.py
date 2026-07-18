@@ -6,7 +6,12 @@ metadata is required.
 
 from app.core.db import Base  # noqa: F401
 from app.modules.audit.models import AuditLog, PlatformAuditLog  # noqa: F401
-from app.modules.businesses.models import Business, BusinessSourceRecord  # noqa: F401
+from app.modules.businesses.models import (  # noqa: F401
+    Business,
+    BusinessDuplicateCandidate,
+    BusinessMergeHistory,
+    BusinessSourceRecord,
+)
 from app.modules.campaign_jobs.models import CampaignJob, CampaignTask  # noqa: F401
 from app.modules.campaigns.models import (  # noqa: F401
     Campaign,
@@ -21,6 +26,12 @@ from app.modules.identity.models import (  # noqa: F401
     PasswordResetToken,
     Session,
     User,
+)
+from app.modules.leads.models import (  # noqa: F401
+    Lead,
+    LeadOpportunity,
+    LeadRecommendation,
+    LeadScore,
 )
 from app.modules.permissions.models import (  # noqa: F401
     Permission,

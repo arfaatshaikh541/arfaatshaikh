@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 
 from app.core.db import AsyncSessionLocal, set_platform_bypass, set_tenant_context
 from app.core.logging import configure_logging, get_logger
+from app.modules.businesses import dedup as businesses_dedup
 from app.modules.businesses import repositories as businesses_repo
 from app.modules.campaign_jobs import repositories as jobs_repo
 from app.modules.campaign_jobs.concurrency import acquire_tenant_slot, release_tenant_slot
@@ -228,12 +229,18 @@ async def _run_campaign_task_async(task_id_str: str) -> None:
             # data every downstream feature (enrichment, dedup, the lead
             # workspace) reads from.
             for business_record in page.businesses:
-                await businesses_repo.upsert_business_from_discovery(
+                business = await businesses_repo.upsert_business_from_discovery(
                     session,
                     tenant_id=tenant_id,
                     campaign_id=campaign.id,
                     record=business_record.to_dict(),
                 )
+                # Milestone 5: check this (re)discovered business against
+                # the tenant's other businesses for duplicates, auto-
+                # merging a high-confidence match or recording a
+                # candidate for human review otherwise - see
+                # app.modules.businesses.dedup and docs/adr/0013.
+                await businesses_dedup.process_new_business_for_duplicates(session, business)
 
             # AsyncSessionLocal is autoflush=False (see app.core.db), and the
             # finalize branches below read this task's own just-set status/

@@ -140,8 +140,19 @@ async def test_completed_campaign_persists_individual_business_rows(migrator_ses
 
     async with session_factory() as session:
         businesses = await businesses_repo.list_businesses_for_campaign(session, campaign.id)
-        assert len(businesses) == 45
-        assert len({b.id for b in businesses}) == 45  # no duplicates
+        # Up to 45 distinct canonical businesses, not necessarily exactly
+        # 45: the mock connector's limited (10 adjective x 10 suffix) name
+        # pool can, by chance, generate two "different" fake businesses
+        # that share the exact same generated name and (derived from it)
+        # website domain - when that happens, Milestone 5's dedup engine
+        # correctly merges them into one canonical row (a real domain
+        # match, not a test bug - see docs/adr/0013). So the invariant to
+        # check is "no duplicates and no two canonical businesses share a
+        # domain," not a hardcoded count.
+        assert 1 <= len(businesses) <= 45
+        assert len({b.id for b in businesses}) == len(businesses)  # no duplicate rows
+        domains = [b.canonical_domain for b in businesses if b.canonical_domain]
+        assert len(domains) == len(set(domains))  # dedup left no domain collisions
 
         sample = businesses[0]
         assert sample.name
@@ -158,9 +169,9 @@ async def test_completed_campaign_persists_individual_business_rows(migrator_ses
 async def test_rediscovering_the_same_business_updates_the_existing_row(migrator_session):
     """Running a second campaign with identical filters (the mock
     connector is deterministic - same query, same page number, same
-    synthetic businesses) must refresh the same 45 Business rows, not
-    create 90 - discovery upserts by (tenant, source, source_native_id),
-    it does not blindly insert."""
+    synthetic businesses) must refresh the same canonical Business rows,
+    not create a second full set - discovery upserts by (tenant, source,
+    source_native_id), it does not blindly insert."""
     session_factory = async_sessionmaker(bind=migrator_session.bind, expire_on_commit=False)
     tenant, campaign_a, job_a, _task_a = await _setup_and_launch_campaign(
         migrator_session, result_limit=45
@@ -188,13 +199,16 @@ async def test_rediscovering_the_same_business_updates_the_existing_row(migrator
         )
         second_ids = {b.id for b in businesses_after_second}
 
-        assert len(second_ids) == 45
-        # Same 45 rows rediscovered, not 45 new ones.
+        # Same rows rediscovered, not a second, duplicate set of new ones.
         assert second_ids == first_ids
 
-        stmt = select(func.count()).select_from(Business).where(Business.tenant_id == tenant.id)
+        stmt = (
+            select(func.count())
+            .select_from(Business)
+            .where(Business.tenant_id == tenant.id, Business.merged_into_id.is_(None))
+        )
         total_business_rows = (await session.execute(stmt)).scalar_one()
-        assert total_business_rows == 45
+        assert total_business_rows == len(first_ids)
     session_factory = async_sessionmaker(bind=migrator_session.bind, expire_on_commit=False)
     _tenant, _campaign, job, first_task = await _setup_and_launch_campaign(
         migrator_session, result_limit=45

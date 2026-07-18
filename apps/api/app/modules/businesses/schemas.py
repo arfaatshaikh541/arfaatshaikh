@@ -27,6 +27,7 @@ class BusinessResponse(BaseModel):
     review_count: int | None
     business_status: str | None
     field_provenance: dict
+    merged_into_id: uuid.UUID | None
     created_at: datetime
 
     @classmethod
@@ -53,5 +54,6 @@ class BusinessResponse(BaseModel):
             review_count=business.review_count,
             business_status=business.business_status,
             field_provenance=business.field_provenance,
+            merged_into_id=business.merged_into_id,
             created_at=business.created_at,
         )

@@ -1,7 +1,7 @@
 # GRIDKEEP Lead Intelligence — Project Status
 
 ## Current milestone
-**Milestone 4: Website Enrichment** — implementation complete, including a real Business persistence layer that Milestone 2 was missing and Milestone 4 needed as a prerequisite (see the Milestone 4 section below and ADR-0011). One caveat carried over from Milestone 3's pattern: the SSRF-safe crawler has not been exercised against a real external website in this sandbox (its own egress policy blocks general internet access) — see ADR-0012 and **Known limitations**. Pending your review before proceeding to Milestone 5.
+**Milestone 5: Deduplication and Lead Intelligence** — implementation complete. A synchronous, priority-ordered deduplication engine (identifier → domain → phone → name+address → conservative fuzzy matching) runs inline at discovery time, auto-merging high-confidence matches and queuing everything else for human review; merges are soft, field-combining, and precisely undoable. An explainable, versioned lead-scoring engine (the architecture's own 7-factor/100-point worked example), evidence-based opportunity detection, and a data-driven (non-restaurant-specific) recommended-services rule table round out the milestone. See ADR-0013 for the full design. No live-verification gap this time — everything here is pure computation and database logic, fully exercised against real Postgres. Pending your review before proceeding to Milestone 6.
 
 ## Completed work
 
@@ -116,6 +116,34 @@ Milestone 2's task chain only ever stored discovery results as an opaque per-pag
 ### ⚠️ What was not verified
 **No live crawl was made against a real external website.** This sandbox's egress policy blocks general internet access (confirmed directly — both a raw request to a real domain and this crawler's own direct-IP-connect strategy were rejected by the proxy with policy-level 403s, the same class of restriction Milestone 3 hit for the Google Places API). SSRF-blocking is verified against real DNS resolution; fetch mechanics, crawl orchestration, and the full enrichment pipeline are verified against a real Postgres database with a mocked HTTP transport. See ADR-0012 and **Known limitations** for what's needed to close this gap before relying on this crawler against real business websites in production.
 
+## Milestone 5 completed work
+
+### Deduplication (`apps/api/app/modules/businesses/dedup.py`, `normalize.py`)
+- `Business.merged_into_id` (new, self-referential composite FK, same-tenant-enforced), `BusinessDuplicateCandidate`, `BusinessMergeHistory` — the deferred-from-Milestone-4 entities ADR-0011 explicitly reserved room for.
+- **Matching**, checked in the architecture's exact priority order (identifier → domain → phone → name+address → conservative fuzzy), stopping at the first tier with a hit: `google_place_id` equality, `canonical_domain` equality, a new indexed `normalized_phone` column equality, exact name+address match (same-city-scoped), and a stdlib-`difflib`-based fuzzy name similarity check (also same-city-scoped, `SequenceMatcher.ratio() >= 0.88`).
+- **One confidence threshold** (`AUTO_MERGE_CONFIDENCE_THRESHOLD = 0.85`) decides auto-merge vs. human review — all four exact tiers score above it (1.00/0.95/0.90/0.88); fuzzy matching's confidence is deliberately capped (`similarity × 0.75`, max 0.75) so it can *never* reach the threshold, structurally guaranteeing "never silently merge uncertain records."
+- **Merges are soft, field-combining, and precisely reversible**: the losing `Business` row is never deleted, only marked `merged_into_id`; its source records/enrichment/evidence are reassigned onto the winner with the exact moved row IDs recorded in `BusinessMergeHistory.moved_records`; fields the loser knows with strictly higher confidence fill gaps or replace lower-confidence values on the winner (reusing Milestone 4's `field_provenance` "never overwrite higher-confidence data silently" rule), with the winner's pre-merge value recorded in `field_changes` for exact undo.
+- `BusinessDuplicateCandidate` rows are deduplicated by pair (smaller UUID always in slot `a`), never re-proposed once rejected, and upgraded in place if a stronger match type is found for the same still-pending pair later.
+- Runs **synchronously, inline** in `worker.campaign_tasks` right after each discovery upsert — deliberately not a background job (unlike enrichment's real network crawl, matching here is cheap indexed-equality/bounded-scan work against data already in Postgres).
+- New endpoints: `GET /businesses/{id}/duplicates`, `GET /businesses/{id}/merge-history`, `GET /duplicate-candidates` (tenant-wide, filterable by status), `POST /duplicate-candidates/{id}/confirm`, `POST /duplicate-candidates/{id}/reject`, `POST /merges/{id}/undo` — the review/merge/undo actions reuse the pre-existing `leads.edit` permission.
+
+### Lead scoring and intelligence (`apps/api/app/modules/leads/`)
+- `Lead` (thin wrapper around a canonical Business, `status` defaulting to `"new"` — the full status workflow is Milestone 6's job), `LeadScore` (append-only/versioned, `algorithm_version = "v1"`, a `factors` JSONB breakdown), `LeadOpportunity`, `LeadRecommendation`.
+- **The scoring algorithm is the architecture's own worked example**, replicated almost exactly: 7 factors summing to 100 (category+location match /20, business status+reviews /15, contact availability /15, commercial opportunity /20, WhatsApp presence /10, enrichment confidence /10, freshness /10), each with a real-value-derived explanation string and an evidence dict — never an unexplained number.
+- **Opportunity detection never invents a problem** — every opportunity is a direct 1:1 read of an `EnrichmentEvidence` row, a direct `Business` field observation (`no_website`, `low_review_activity`), or a whole-crawl absence check (`missing_social_links`), each with an `evidence_reference` pointing at exactly what was observed.
+- **Recommended services are a data-driven rule table** (`OPPORTUNITY_RECOMMENDATIONS`), keyed by generic opportunity types, not restaurant-specific branches — satisfying the architecture's explicit "do not hardcode restaurants into core architecture" requirement directly.
+- Re-scoring **replaces** stale opportunities/recommendations (upsert-by-type, delete what's no longer detected) rather than accumulating duplicates across runs, while a lead's `LeadScore` history is preserved (a new row every time, never overwritten).
+- Runs **synchronously, in-request** (`POST /businesses/{id}/score`) — pure computation over already-persisted data, no network call, so no background job is warranted (new permission `leads.score`).
+
+### Tests
+- **`apps/api/tests/test_deduplication.py`** (20 tests) — every match tier's true-positive case (auto-merges correctly), the architecture's explicitly required false-positive guard (a conservative fuzzy match creates a candidate, never auto-merges) and false-negative guards (dissimilar names in the same city produce no match; matching names in *different* cities produce no match, proving the city-scoping works as intended), cross-tenant isolation, full merge mechanics (field combination by confidence, source-record/enrichment/evidence reassignment), undo-merge (exact reversal, double-undo rejected), and the candidate review workflow (confirm performs the merge, reject leaves both distinct and is never re-proposed, reviewing an already-reviewed candidate is rejected).
+- **`apps/api/tests/test_lead_scoring.py`** (9 tests) — no-website opportunity detection, score bounds/factor-sum invariants, category+location matching with and without an originating campaign filter, evidence-derived missing-signal opportunities (and that a *positive* signal like `contact_email` never itself becomes an opportunity), low-review-activity detection, re-scoring reusing the same `Lead` while appending score history, re-scoring replacing (not accumulating) stale opportunities, and recommendation confidence correctly averaging across its supporting opportunities.
+- **`apps/worker/tests/test_campaign_tasks.py`** — two Milestone 4 tests updated (not weakened): a real data collision was found by the suite itself once dedup went live (the mock connector's limited 10×10 name-word-pool can, across 45 draws, produce two "different" fake businesses sharing the same generated name/domain — a genuine domain match, correctly auto-merged), so the hardcoded "exactly 45 rows" assertions were replaced with the real invariants ("no duplicate rows," "no two canonical businesses share a domain," "re-discovery never creates new rows") — see ADR-0013's Consequences section for the full account.
+- Full monorepo verification: 64/64 (api) + 52/52 (worker) + 22/22 (connector-sdk) = 138/138 passing; ruff and mypy clean across all three packages; `alembic check` reports no drift.
+
+### ⚠️ What was not verified
+Nothing new here — unlike Milestones 3 and 4, this milestone has no external-network or third-party-API dependency to flag. Every code path (matching, merging, undo, scoring, opportunity detection, recommendation mapping) is pure computation and database logic, and all of it is exercised directly against a real, separate Postgres test database — there is no mocked-vs-live gap to carry forward.
+
 ## Acceptance criteria (from the approved architecture)
 
 | Criterion | Status |
@@ -141,8 +169,8 @@ Milestone 2's task chain only ever stored discovery results as an opaque per-pag
 | Pause/resume/cancel all work, including mid-run | ✅ Worker tests + live httpx E2E for both zero-progress and partial-progress cancel |
 | Task retries and idempotency work | ✅ Worker tests (duplicate delivery no-op); retry backoff logic implemented, exercised implicitly (no connector-error injection test yet — see unresolved risks) |
 | Per-tenant concurrency limits enforced | ✅ Backend tests (slot exhaustion/release directly) |
-| Every score/estimate is explainable | ✅ `EstimateResponse` exposes `estimated_credits`/`estimated_results`/`calculated_at`; lead *scoring* itself is a later milestone |
-| Backend tests pass | ✅ 35/35 (api) + 52/52 (worker) + 22/22 (connector-sdk) = 109/109 |
+| Every score/estimate is explainable | ✅ `EstimateResponse` exposes `estimated_credits`/`estimated_results`/`calculated_at`; `LeadScore.factors` exposes per-factor score/max/explanation/evidence — see Milestone 5 below |
+| Backend tests pass | ✅ 64/64 (api) + 52/52 (worker) + 22/22 (connector-sdk) = 138/138 |
 | Frontend lint passes | ✅ |
 | Frontend type checking passes | ✅ |
 | Production builds pass | ✅ `next build` succeeds; API/worker have no separate "build" step (Python) |
@@ -156,9 +184,17 @@ Milestone 2's task chain only ever stored discovery results as an opaque per-pag
 | Website enrichment: technical opportunity detection | ✅ Missing mobile viewport, weak page metadata, outdated copyright year, missing contact form/method/booking/ordering/WhatsApp — all detector-tested |
 | Website enrichment: evidence storage | ✅ `EnrichmentEvidence` stores source URL, detector type, structured result, confidence, collection timestamp, supporting snippet per the architecture's exact requirement |
 | Website enrichment: live crawl against a real external website | ⚠️ **Not verified** — this sandbox's egress policy blocks general internet access (same class of gap as Milestone 3's Google API key) — see ADR-0012 |
+| Deduplication: identifier/domain/phone/address matching | ✅ Each tier's true-positive case tested against real Postgres; all auto-merge above the 0.85 confidence threshold |
+| Deduplication: conservative fuzzy matching | ✅ Never auto-merges (confidence capped below the auto-merge threshold by construction); tested |
+| Deduplication: duplicate candidates, merge history, undo merge | ✅ Candidates created for every below-threshold match; every merge reversible via recorded `moved_records`/`field_changes`; tested (including double-undo rejection) |
+| Deduplication: false-positive/false-negative test scenarios | ✅ Explicitly tested — see `test_deduplication.py` in the Milestone 5 section below |
+| Lead scoring: explainable, versioned scoring engine | ✅ 7-factor/100-point algorithm (`algorithm_version="v1"`), append-only history, every factor carries an explanation + evidence |
+| Lead scoring: confidence scoring | ✅ Every match/opportunity/recommendation carries a real, evidence-derived confidence value |
+| Lead scoring: opportunity detection, recommended services | ✅ Evidence-based only (never fabricated); data-driven, industry-neutral recommendation rule table |
+| Lead scoring: scoring explanations | ✅ `LeadScore.factors` — plain-language explanation + evidence dict per factor |
 
 ## Architecture decisions
-See `docs/adr/0001` through `0012`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009), the Google Places connector's design plus its explicit live-verification gap (0010), the Business entity consolidation and the Milestone 2 persistence gap it fixes (0011), and the SSRF-safe crawler's design plus its own explicit live-verification gap (0012).
+See `docs/adr/0001` through `0013`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009), the Google Places connector's design plus its explicit live-verification gap (0010), the Business entity consolidation and the Milestone 2 persistence gap it fixes (0011), the SSRF-safe crawler's design plus its own explicit live-verification gap (0012), and the deduplication engine's confidence-threshold design plus the explainable lead-scoring algorithm (0013).
 
 ## Known limitations
 
@@ -175,6 +211,10 @@ See `docs/adr/0001` through `0012`. Summary: shared-schema+RLS multi-tenancy, se
 11. **The dev sandbox's own long-running processes (Postgres, Redis, the SMTP capture server, the Celery worker, the API/web dev servers) were repeatedly reaped during idle gaps in this session** and had to be restarted more than once mid-verification. This is a property of this particular sandboxed environment, not the application, but it's worth knowing if you see "connection refused" locally after leaving a dev environment idle — check that all four services are actually still running before assuming something is broken.
 12. **The SSRF-safe crawler has never crawled a real external website (Milestone 4, ADR-0012).** This sandbox's egress policy blocks general internet access outright — confirmed directly (a raw request to a real domain and this crawler's own direct-IP-connect strategy were both rejected by the proxy with policy-level 403s). SSRF-blocking itself is verified against real DNS resolution (not mocked); fetch mechanics and the full crawl/detector/enrichment pipeline are verified against a real Postgres database with a mocked HTTP transport. **Before relying on this crawler against real business websites**, smoke-test it against a small set of real, known-safe external sites from an environment without this sandbox's restrictive egress policy.
 13. **No frontend UI exists yet for triggering enrichment or viewing evidence.** Milestone 4's scope (per the original architecture) is backend-only (crawler, detectors, evidence storage); `POST /businesses/{id}/enrich` and the evidence/enrichment-status endpoints exist and are tested, but nothing in `apps/web` calls them yet — a `/campaigns/[id]` business list with an "Enrich" action is natural follow-up UI work, not part of this milestone's own line items.
+14. **No frontend UI exists yet for reviewing duplicate candidates, merging/undoing merges, or viewing a lead's score/opportunities/recommendations (Milestone 5).** Same pattern as #13 — this milestone's scope is backend-only per the original architecture; the endpoints exist and are tested, but nothing in `apps/web` calls them yet. Natural Milestone 6 (Lead Workspace) follow-up work.
+15. **Deduplication never merges more than one pair per discovery event (ADR-0013, by design, not a bug).** If three or more businesses are genuinely the same real place, the first (re)discovery resolves the strongest pair it finds; the remaining pairs converge over subsequent (re)discoveries rather than all at once. With only `mock` and `google_places` as sources today, a true 3+-way real-world collision is unlikely in practice, but worth knowing about at higher connector diversity (Milestone 8's CSV import / other connectors).
+16. **Fuzzy name matching's same-city scoping means a genuine duplicate discovered with inconsistent city data (e.g. "Dubai" vs "Dubai, UAE" typos, or a business whose city field is simply missing) will not be matched or flagged at all** — no candidate, no merge. This is the conservative-by-design tradeoff working as intended (avoiding false positives across city boundaries) but does mean some real duplicates with messy location data go undetected until enrichment or a future connector supplies cleaner city data.
+17. **Lead scoring's `category_and_location_match` factor only looks at the most recently (re)discovering campaign's filter** (`get_latest_campaign_id_for_business`). A business discovered by two campaigns with different target categories/locations is scored against whichever discovered it most recently, not an aggregate — a reasonable v1 simplification, not incorrect, but worth knowing if a business's score seems to shift after being picked up by a second, differently-targeted campaign.
 
 ## Unresolved risks
 
@@ -186,12 +226,14 @@ See `docs/adr/0001` through `0012`. Summary: shared-schema+RLS multi-tenancy, se
 - **Rate limiting is IP/account-keyed only**, no distributed abuse detection. Adequate for now.
 - **No connector-error-path test coverage through the worker's own retry loop** (see limitation #10) — `GooglePlacesConnector` itself is tested to raise the right error types, but nothing yet drives `run_campaign_task`'s retry/backoff/permanent-failure handling end-to-end with an injected failure.
 - **`Business.field_provenance` is JSONB, not a normalized table (ADR-0011).** Fine for every current read pattern (always "the whole provenance record for this business"), but a future feature needing to query/filter provenance across businesses by field or source would need it moved into a real table at that point.
+- **The mock connector's limited name-generation word pool can produce coincidental cross-business collisions (see the Milestone 5 section's test-fix note and ADR-0013's Consequences).** Not a risk in the real system (real business names/domains essentially never collide by chance), but worth remembering if a future test against `mock` data shows an unexpected merge — check whether it's a genuine word-pool collision before assuming a dedup bug.
+- **No connector diversity yet to exercise cross-source deduplication for real.** Both existing sources (`mock`, `google_places`) already dedup within themselves via `BusinessSourceRecord`'s own (tenant, source, source_native_id) upsert key (Milestone 4) — Milestone 5's dedup engine is what actually gets exercised when the *same* real business is discovered through *two different sources* (e.g. Google Places and a future CSV import), which cannot happen yet with only one real-data source in the system. The matching logic itself is fully tested against directly-constructed same-tenant business pairs (see `test_deduplication.py`), just not yet proven against a genuine two-source real-world collision.
 
 ## Pending approvals
-None outstanding. Milestone 4's scope (website enrichment, per the original architecture) was implemented under the standing "Proceed" instruction, including the Business persistence prerequisite it surfaced along the way. ADR-0011 documents that prerequisite's design; ADR-0012 documents the crawler's SSRF-safety design and, explicitly, its unresolved live-crawl-verification gap — same pattern as ADR-0010 for Milestone 3, called out here for transparency rather than requiring separate approval, since it's the recommended default path when general internet access isn't available in this environment.
+None outstanding. Milestone 5's scope (deduplication and lead intelligence, per the original architecture) was implemented under the standing "Proceed"-equivalent instruction ("Milestone 5"). ADR-0013 documents the full design — the confidence-threshold auto-merge/candidate-review rule, the soft-and-reversible merge mechanics, and the explainable scoring algorithm — and is called out here for transparency, same pattern as ADR-0008/0009/0011/0012 for prior milestones.
 
 ## Next action
-Awaiting your review of Milestone 4. When ready, let me know how you'd like to proceed — including whether you'd like Milestone 5 (Deduplication and Lead Intelligence) started next, per the original architecture's milestone order.
+Awaiting your review of Milestone 5. When ready, let me know how you'd like to proceed — including whether you'd like Milestone 6 (Lead Workspace) started next, per the original architecture's milestone order.
 
 ---
 
@@ -324,3 +366,31 @@ See the **Milestone 2 file inventory** below for everything added/changed since 
 
 ### Docs
 `docs/project-status.md`, `docs/adr/0011-business-entity-consolidation.md` (new), `docs/adr/0012-crawler-ssrf-safety.md` (new)
+
+---
+
+## Complete file inventory (created or modified in Milestone 5)
+
+### Backend — `apps/api` (new deduplication + leads modules)
+`app/modules/businesses/normalize.py` (new — shared name/phone/address/domain normalization, split out to avoid a circular import between `repositories.py` and the new `dedup.py`),
+`app/modules/businesses/dedup.py` (new — matching, auto-merge/candidate decision, merge, undo),
+`app/modules/businesses/models.py` (added `Business.merged_into_id` + composite self-FK, `BusinessDuplicateCandidate`, `BusinessMergeHistory`; added indexes on `city`/`google_place_id`; renamed `_DISCOVERY_FIELDS` to public `DISCOVERY_FIELDS`),
+`app/modules/businesses/repositories.py` (added dedup-supporting queries: duplicate-candidate/merge-history lookups, `get_latest_campaign_id_for_business`; `list_businesses_for_campaign` now filters `merged_into_id IS NULL`; `upsert_business_from_discovery` now also sets `normalized_phone`),
+`app/modules/businesses/schemas.py` (added `merged_into_id` to `BusinessResponse`),
+`app/modules/businesses/routes.py` (added `duplicates_router`/`merges_router`; new endpoints: `POST /businesses/{id}/score`, `GET /businesses/{id}/lead`, `GET /businesses/{id}/duplicates`, `GET /businesses/{id}/merge-history`, `GET /duplicate-candidates`, `POST /duplicate-candidates/{id}/confirm`, `POST /duplicate-candidates/{id}/reject`, `POST /merges/{id}/undo`),
+`app/modules/leads/{models,repositories,schemas,scoring,routes}.py` (new module — `Lead`, `LeadScore`, `LeadOpportunity`, `LeadRecommendation`, the scoring engine, and read-only lead/score/opportunity/recommendation endpoints),
+`app/modules/permissions/catalog.py` (added `leads.score` permission, granted to Administrator/Campaign Manager/Sales Manager; merge/candidate-review actions reuse the existing `leads.edit`),
+`app/core/model_registry.py` (registered the six new models),
+`app/main.py` (registered `duplicates_router`/`merges_router`/`leads_router`),
+`alembic/versions/01a4e2835a3e_*.py` (new — `business_duplicate_candidates`, `business_merge_history`, `leads`, `lead_scores`, `lead_opportunities`, `lead_recommendations` tables + RLS; `businesses.merged_into_id`/`normalized_phone` columns + new indexes)
+
+### Worker — `apps/worker`
+`worker/campaign_tasks.py` (calls `businesses_dedup.process_new_business_for_duplicates` right after each discovery upsert),
+`tests/test_campaign_tasks.py` (two Milestone 4 tests updated to assert the real invariants instead of a hardcoded count that a legitimate mock-data domain collision now breaks — see ADR-0013)
+
+### Tests
+`apps/api/tests/test_deduplication.py` (new, 20 tests),
+`apps/api/tests/test_lead_scoring.py` (new, 9 tests)
+
+### Docs
+`docs/project-status.md`, `docs/adr/0013-deduplication-and-lead-scoring.md` (new)

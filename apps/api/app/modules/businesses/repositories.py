@@ -5,11 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ResourceNotFoundError
-from app.modules.businesses.models import Business, BusinessSourceRecord
+from app.modules.businesses.models import (
+    Business,
+    BusinessDuplicateCandidate,
+    BusinessMergeHistory,
+    BusinessSourceRecord,
+)
+from app.modules.businesses.normalize import canonical_domain, normalize_phone
 
 # Fields copied directly from a connector's BusinessRecord onto Business at
 # discovery time. `email` is deliberately excluded - see models.py.
-_DISCOVERY_FIELDS = (
+DISCOVERY_FIELDS = (
     "name",
     "category",
     "address",
@@ -54,12 +60,124 @@ async def get_source_record_by_native_id(
 async def list_businesses_for_campaign(
     session: AsyncSession, campaign_id: uuid.UUID
 ) -> list[Business]:
+    """Only canonical (non-merged-away) businesses - a business that lost a
+    Milestone 5 dedup merge is still reachable via `get_business` (its
+    history is never deleted), but it should stop appearing in normal
+    listings once `merged_into_id` points somewhere else."""
     stmt = (
         select(Business)
         .join(BusinessSourceRecord, BusinessSourceRecord.business_id == Business.id)
-        .where(BusinessSourceRecord.campaign_id == campaign_id)
+        .where(BusinessSourceRecord.campaign_id == campaign_id, Business.merged_into_id.is_(None))
         .distinct()
         .order_by(Business.name)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_latest_campaign_id_for_business(
+    session: AsyncSession, business_id: uuid.UUID
+) -> uuid.UUID | None:
+    """The most recently (re)discovering campaign - used by lead scoring
+    to compare a business against the filter that originally targeted it
+    (category/location match). A merge (Milestone 5) can reassign source
+    records from more than one original campaign onto the same winner
+    Business, so this deliberately picks the most recent one rather than
+    an arbitrary one."""
+    stmt = (
+        select(BusinessSourceRecord.campaign_id)
+        .where(
+            BusinessSourceRecord.business_id == business_id,
+            BusinessSourceRecord.campaign_id.is_not(None),
+        )
+        .order_by(BusinessSourceRecord.collected_at.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_duplicate_candidate(
+    session: AsyncSession, candidate_id: uuid.UUID
+) -> BusinessDuplicateCandidate | None:
+    stmt = select(BusinessDuplicateCandidate).where(BusinessDuplicateCandidate.id == candidate_id)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_duplicate_candidate_or_raise(
+    session: AsyncSession, candidate_id: uuid.UUID
+) -> BusinessDuplicateCandidate:
+    candidate = await get_duplicate_candidate(session, candidate_id)
+    if candidate is None:
+        raise ResourceNotFoundError("Duplicate candidate not found.")
+    return candidate
+
+
+async def get_duplicate_candidate_by_pair(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    business_id_a: uuid.UUID,
+    business_id_b: uuid.UUID,
+) -> BusinessDuplicateCandidate | None:
+    stmt = select(BusinessDuplicateCandidate).where(
+        BusinessDuplicateCandidate.tenant_id == tenant_id,
+        BusinessDuplicateCandidate.business_id_a == business_id_a,
+        BusinessDuplicateCandidate.business_id_b == business_id_b,
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def list_duplicate_candidates_for_business(
+    session: AsyncSession, business_id: uuid.UUID
+) -> list[BusinessDuplicateCandidate]:
+    stmt = (
+        select(BusinessDuplicateCandidate)
+        .where(
+            (BusinessDuplicateCandidate.business_id_a == business_id)
+            | (BusinessDuplicateCandidate.business_id_b == business_id)
+        )
+        .order_by(BusinessDuplicateCandidate.confidence.desc())
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_duplicate_candidates(
+    session: AsyncSession, *, tenant_id: uuid.UUID, status: str | None = "pending"
+) -> list[BusinessDuplicateCandidate]:
+    stmt = select(BusinessDuplicateCandidate).where(
+        BusinessDuplicateCandidate.tenant_id == tenant_id
+    )
+    if status is not None:
+        stmt = stmt.where(BusinessDuplicateCandidate.status == status)
+    stmt = stmt.order_by(BusinessDuplicateCandidate.confidence.desc())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_merge_history(
+    session: AsyncSession, merge_history_id: uuid.UUID
+) -> BusinessMergeHistory | None:
+    stmt = select(BusinessMergeHistory).where(BusinessMergeHistory.id == merge_history_id)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_merge_history_or_raise(
+    session: AsyncSession, merge_history_id: uuid.UUID
+) -> BusinessMergeHistory:
+    merge_history = await get_merge_history(session, merge_history_id)
+    if merge_history is None:
+        raise ResourceNotFoundError("Merge history record not found.")
+    return merge_history
+
+
+async def list_merge_history_for_business(
+    session: AsyncSession, business_id: uuid.UUID
+) -> list[BusinessMergeHistory]:
+    stmt = (
+        select(BusinessMergeHistory)
+        .where(
+            (BusinessMergeHistory.winner_business_id == business_id)
+            | (BusinessMergeHistory.loser_business_id == business_id)
+        )
+        .order_by(BusinessMergeHistory.created_at.desc())
     )
     return list((await session.execute(stmt)).scalars().all())
 
@@ -74,7 +192,7 @@ async def upsert_business_from_discovery(
     """Creates or refreshes a Business from one connector search result.
 
     A connector's own current response is treated as authoritative for the
-    discovery-owned fields (`_DISCOVERY_FIELDS`) on every (re)discovery -
+    discovery-owned fields (`DISCOVERY_FIELDS`) on every (re)discovery -
     there is no cross-source merge logic yet (that is Milestone 5's
     deduplication step); this only ever writes fields sourced from the
     *same* source_native_id, never blends data from a different source
@@ -114,7 +232,7 @@ async def upsert_business_from_discovery(
         existing_source_record = source_record
 
     provenance = dict(business.field_provenance)
-    for field_name in _DISCOVERY_FIELDS:
+    for field_name in DISCOVERY_FIELDS:
         value = record.get(field_name)
         if value is None:
             continue
@@ -130,16 +248,8 @@ async def upsert_business_from_discovery(
     if source == "google_places":
         business.google_place_id = source_native_id
     if business.website:
-        business.canonical_domain = _canonical_domain(business.website)
+        business.canonical_domain = canonical_domain(business.website)
+    if business.phone:
+        business.normalized_phone = normalize_phone(business.phone)
 
     return business
-
-
-def _canonical_domain(url: str) -> str | None:
-    from urllib.parse import urlparse
-
-    try:
-        netloc = urlparse(url if "//" in url else f"//{url}").netloc.lower()
-    except ValueError:
-        return None
-    return netloc.removeprefix("www.") or None
