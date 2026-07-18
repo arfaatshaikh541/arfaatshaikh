@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.celery_client import enqueue_campaign_task
 from app.core.db import get_db
 from app.dependencies import TenantContext, require_permission
+from app.modules.businesses import repositories as businesses_repo
+from app.modules.businesses.schemas import BusinessResponse
 from app.modules.campaigns import repositories as repo
 from app.modules.campaigns import services, state_machine
 from app.modules.campaigns.schemas import (
@@ -187,3 +189,13 @@ async def list_errors(
         )
         for e in errors
     ]
+
+
+@router.get("/{campaign_id}/businesses", response_model=list[BusinessResponse])
+async def list_businesses(
+    campaign_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_permission("leads.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    businesses = await businesses_repo.list_businesses_for_campaign(db, campaign_id)
+    return [BusinessResponse.from_model(b) for b in businesses]

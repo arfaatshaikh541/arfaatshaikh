@@ -24,3 +24,11 @@ def enqueue_campaign_task(task_id: str) -> None:
     _celery_client.send_task(
         "worker.campaign_tasks.run_campaign_task", args=[task_id], queue="queue.search"
     )
+
+
+def enqueue_business_enrichment(enrichment_id: str) -> None:
+    _celery_client.send_task(
+        "worker.enrichment_tasks.run_business_enrichment",
+        args=[enrichment_id],
+        queue="queue.enrichment",
+    )

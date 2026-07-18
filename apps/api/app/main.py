@@ -17,6 +17,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.modules.audit.routes import router as audit_router
+from app.modules.businesses.routes import router as businesses_router
 from app.modules.campaigns.routes import router as campaigns_router
 from app.modules.identity.routes import router as identity_router
 from app.modules.platform_admin.routes import router as platform_admin_router
@@ -57,6 +58,7 @@ register_exception_handlers(app)
 app.include_router(identity_router)
 app.include_router(tenancy_router)
 app.include_router(campaigns_router)
+app.include_router(businesses_router)
 app.include_router(usage_router)
 app.include_router(subscriptions_router)
 app.include_router(audit_router)

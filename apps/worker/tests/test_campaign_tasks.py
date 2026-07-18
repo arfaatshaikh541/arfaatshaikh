@@ -19,6 +19,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from app.modules.businesses import repositories as businesses_repo
+from app.modules.businesses.models import Business
 from app.modules.campaign_jobs import repositories as jobs_repo
 from app.modules.campaigns import services as campaign_services
 from app.modules.campaigns import state_machine
@@ -27,35 +29,41 @@ from app.modules.subscriptions import repositories as sub_repo
 from app.modules.tenancy import repositories as tenancy_repo
 from app.modules.usage import repositories as usage_repo
 from app.modules.usage.services import get_available_balance, grant_credits
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.campaign_tasks import _run_campaign_task_async
 
 pytestmark = pytest.mark.asyncio
 
 
-async def _setup_and_launch_campaign(session, *, result_limit: int):
-    tenant = await tenancy_repo.create_tenant(
-        session, name="Worker Test Co", slug=f"wt-{uuid.uuid4().hex[:10]}"
-    )
-    # A tenant only gets max_concurrent_campaigns (and every other plan
-    # entitlement) once it has a subscription row - real onboarding
-    # (`create_tenant_for_user`) assigns the trial plan automatically, but
-    # these tests create the tenant directly via the repository, so that
-    # has to be done here too.
-    trial_plan = await sub_repo.get_plan_by_key(session, "trial")
-    assert trial_plan is not None, "seed_subscription_plans must have seeded the trial plan"
-    now = datetime.now(UTC)
-    await sub_repo.create_tenant_subscription(
-        session,
-        tenant_id=tenant.id,
-        plan_id=trial_plan.id,
-        current_period_start=now,
-        current_period_end=now + timedelta(days=14),
-    )
-    await grant_credits(
-        session, tenant_id=tenant.id, amount=1000.0, type_="grant_recurring", reference="test:grant"
-    )
-    await session.commit()
+async def _setup_and_launch_campaign(session, *, result_limit: int, tenant=None):
+    if tenant is None:
+        tenant = await tenancy_repo.create_tenant(
+            session, name="Worker Test Co", slug=f"wt-{uuid.uuid4().hex[:10]}"
+        )
+        # A tenant only gets max_concurrent_campaigns (and every other plan
+        # entitlement) once it has a subscription row - real onboarding
+        # (`create_tenant_for_user`) assigns the trial plan automatically,
+        # but these tests create the tenant directly via the repository, so
+        # that has to be done here too.
+        trial_plan = await sub_repo.get_plan_by_key(session, "trial")
+        assert trial_plan is not None, "seed_subscription_plans must have seeded the trial plan"
+        now = datetime.now(UTC)
+        await sub_repo.create_tenant_subscription(
+            session,
+            tenant_id=tenant.id,
+            plan_id=trial_plan.id,
+            current_period_start=now,
+            current_period_end=now + timedelta(days=14),
+        )
+        await grant_credits(
+            session,
+            tenant_id=tenant.id,
+            amount=1000.0,
+            type_="grant_recurring",
+            reference="test:grant",
+        )
+        await session.commit()
 
     payload = CreateCampaignRequest(
         name="Worker Test Campaign",
@@ -119,7 +127,74 @@ async def test_full_campaign_completes_via_task_chain(migrator_session):
         assert available == 1000.0 - 45.0
 
 
-async def test_duplicate_task_delivery_is_idempotent(migrator_session):
+async def test_completed_campaign_persists_individual_business_rows(migrator_session):
+    """Each discovered business becomes its own addressable Business row
+    (not just a JSON blob in CampaignTask.result_snapshot) - the
+    foundation Milestone 4's enrichment attaches to. See docs/adr/0011."""
+    session_factory = async_sessionmaker(bind=migrator_session.bind, expire_on_commit=False)
+    _tenant, campaign, job, _first_task = await _setup_and_launch_campaign(
+        migrator_session, result_limit=45
+    )
+
+    await _drive_chain_to_completion(session_factory, job.id)
+
+    async with session_factory() as session:
+        businesses = await businesses_repo.list_businesses_for_campaign(session, campaign.id)
+        assert len(businesses) == 45
+        assert len({b.id for b in businesses}) == 45  # no duplicates
+
+        sample = businesses[0]
+        assert sample.name
+        assert sample.website is not None
+        assert sample.canonical_domain is not None
+        # The mock connector has no email field at all - discovery must
+        # never invent one (only Milestone 4's enrichment ever sets it).
+        assert sample.email is None
+        assert "name" in sample.field_provenance
+        assert sample.field_provenance["name"]["source"] == "mock"
+        assert sample.field_provenance["name"]["confidence"] == 1.0
+
+
+async def test_rediscovering_the_same_business_updates_the_existing_row(migrator_session):
+    """Running a second campaign with identical filters (the mock
+    connector is deterministic - same query, same page number, same
+    synthetic businesses) must refresh the same 45 Business rows, not
+    create 90 - discovery upserts by (tenant, source, source_native_id),
+    it does not blindly insert."""
+    session_factory = async_sessionmaker(bind=migrator_session.bind, expire_on_commit=False)
+    tenant, campaign_a, job_a, _task_a = await _setup_and_launch_campaign(
+        migrator_session, result_limit=45
+    )
+    await _drive_chain_to_completion(session_factory, job_a.id)
+
+    async with session_factory() as session:
+        businesses_after_first = await businesses_repo.list_businesses_for_campaign(
+            session, campaign_a.id
+        )
+        first_ids = {b.id for b in businesses_after_first}
+
+    # A second campaign for the same tenant with identical filters - the
+    # helper always builds the same query, so the mock connector's
+    # deterministic seed reproduces the exact same 45 source_native_ids.
+    async with session_factory() as second_setup_session:
+        _tenant, campaign_b, job_b, _task_b = await _setup_and_launch_campaign(
+            second_setup_session, result_limit=45, tenant=tenant
+        )
+    await _drive_chain_to_completion(session_factory, job_b.id)
+
+    async with session_factory() as session:
+        businesses_after_second = await businesses_repo.list_businesses_for_campaign(
+            session, campaign_b.id
+        )
+        second_ids = {b.id for b in businesses_after_second}
+
+        assert len(second_ids) == 45
+        # Same 45 rows rediscovered, not 45 new ones.
+        assert second_ids == first_ids
+
+        stmt = select(func.count()).select_from(Business).where(Business.tenant_id == tenant.id)
+        total_business_rows = (await session.execute(stmt)).scalar_one()
+        assert total_business_rows == 45
     session_factory = async_sessionmaker(bind=migrator_session.bind, expire_on_commit=False)
     _tenant, _campaign, job, first_task = await _setup_and_launch_campaign(
         migrator_session, result_limit=45

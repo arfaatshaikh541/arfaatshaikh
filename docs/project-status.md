@@ -1,7 +1,7 @@
 # GRIDKEEP Lead Intelligence — Project Status
 
 ## Current milestone
-**Milestone 3: Google Places Connector** — implementation complete, with one significant caveat: it has not been verified against the real Google API (no credentials were available — see the Milestone 3 section below and **Known limitations**). Pending your review, and ideally a real API key, before proceeding to Milestone 4.
+**Milestone 4: Website Enrichment** — implementation complete, including a real Business persistence layer that Milestone 2 was missing and Milestone 4 needed as a prerequisite (see the Milestone 4 section below and ADR-0011). One caveat carried over from Milestone 3's pattern: the SSRF-safe crawler has not been exercised against a real external website in this sandbox (its own egress policy blocks general internet access) — see ADR-0012 and **Known limitations**. Pending your review before proceeding to Milestone 5.
 
 ## Completed work
 
@@ -81,6 +81,41 @@
 ### ⚠️ What was not verified
 **No live call was made against the real Google Places API.** No Google Cloud API key was available in this environment. Everything above about Google's actual request/response contract is implemented from Google's published API documentation and tested against mocked HTTP responses shaped to match that documentation — genuine test coverage of this connector's own logic, but not proof that a real call to Google's servers succeeds. See ADR-0010 and **Known limitations** below for what's needed to close this gap, and please read it before pointing a real campaign at this connector.
 
+## Milestone 4 completed work
+
+### Prerequisite fix: real Business persistence (`apps/api/app/modules/businesses`)
+Milestone 2's task chain only ever stored discovery results as an opaque per-page JSON blob (`CampaignTask.result_snapshot`) — there was no addressable `Business` row anywhere for Milestone 4's enrichment to attach to. This gap was found and fixed as part of this milestone, not deferred:
+- `Business` — one row per real-world business, consolidating six of the original architecture's Business Data Model entities (`BusinessIdentifier`/`Category`/`Location`/`Contact`/`Website`/`SocialProfile`) into columns, plus a `field_provenance` JSONB column recording, per field, its source/source-record/confidence/collected-at (never a fabricated placeholder for a field the source didn't provide). See ADR-0011 for the full reasoning, including why `BusinessSnapshot`/`BusinessMergeHistory` are deliberately deferred to Milestone 5.
+- `BusinessSourceRecord` — one row per (tenant, source, source-native-id) discovery event, uniquely keyed so re-discovering the same business (e.g. the same Google place ID found by a second campaign) updates the existing record and resolves to the same `Business` row rather than creating a duplicate.
+- `upsert_business_from_discovery` (`app.modules.businesses.repositories`) is now called from `worker.campaign_tasks` for every discovered business, alongside (not replacing) the existing `result_snapshot` audit copy.
+- `Business.email` is structurally enrichment-only: discovery's own field list (`_DISCOVERY_FIELDS`) excludes it, since neither `MockConnector` nor `GooglePlacesConnector` return an email at all — there is no code path by which discovery could fabricate one.
+- New endpoints: `GET /businesses/{id}`, `GET /campaigns/{id}/businesses` (permission `leads.view`).
+
+### Safe website crawler (`apps/worker/worker/crawler`)
+- `safety.safe_get` — the one function every crawl request goes through. Scheme allowlist (http/https only); resolve-and-validate always runs first against real DNS, rejecting private/loopback/link-local (covers cloud metadata endpoints)/multicast/reserved/unspecified addresses for both IPv4 and IPv6; connects to the literal validated IP (not by hostname) to defend against DNS rebinding, except when an environment proxy is configured, in which case it connects by hostname through that trusted proxy (an HTTP CONNECT tunnel needs the real hostname — this sandbox's own mandatory egress proxy rejects raw-IP tunnels); redirects are followed manually, one hop at a time, with the same checks re-applied to every target, capped at 5 hops; response body is streamed with a hard 5 MB cap enforced per chunk, not after full download; strict connect/read timeouts. See ADR-0012 for the full design and its proxy-aware tradeoff.
+- `robots.RobotsChecker` — fetches and parses `robots.txt` through the same `safe_get`, defaulting to "everything allowed" if it's unreachable.
+- `fetcher.crawl_site` — a bounded, same-domain crawl of a fixed candidate page set (homepage, `/contact`, `/contact-us`, `/about`, `/about-us`, `/booking`, `/reservations`, `/order`, `/menu`, `/services`), capped at 6 pages, respecting robots.txt and a per-domain minimum request interval (1.5s, or robots.txt's own `Crawl-delay` if longer). Scheme/reachability is probed via `/robots.txt` specifically (not the homepage), so the crawler's very first request to a site is never a real content page fetched before robots rules are loaded, and the homepage isn't fetched twice.
+- `detectors` — pure functions over one page's parsed HTML (BeautifulSoup): contact email (mailto: links preferred over regex-matched plain text), phone (tel: links), WhatsApp links, booking-platform links (Calendly/OpenTable/Resy/Square Appointments/Acuity/Setmore), ordering-platform links (Uber Eats/DoorDash/Grubhub/Toast/ChowNow/Square Online), Facebook/Instagram/LinkedIn business links, missing mobile viewport, weak page metadata (short title / no description), outdated copyright year, missing contact form. Every detector reports only what it genuinely found on that specific page — never an inferred or fabricated value.
+
+### Enrichment pipeline (`apps/worker/worker/enrichment_tasks.py`, `apps/api/app/modules/enrichment`)
+- `BusinessEnrichment` (one row per crawl run: status, pages crawled, timestamps, error message) and `EnrichmentEvidence` (one row per detector finding: detector type, exact source URL, structured result, confidence, collection timestamp, supporting snippet) — satisfying the architecture's explicit evidence-storage requirement.
+- `run_business_enrichment` (Celery task, its own `queue.enrichment` queue, separate from `queue.search` so a backlog of one never starves the other) crawls the business's website, runs every detector against every crawled page, and persists the result. Whole-crawl "missing X" signals (`missing_whatsapp`, `missing_online_booking`, `missing_online_ordering`, `missing_contact_method`) are computed here — not by any single detector — since they're claims about the *entire* crawl, and are only ever recorded when the site was genuinely reachable (an unreachable site gets `website_unavailable` instead of five claims about content nobody saw).
+- The single highest-confidence `contact_email` finding across the whole crawl becomes `Business.email`, with its own provenance entry (`source: "enrichment"`) — the only place this field is ever written.
+- New endpoints: `POST /businesses/{id}/enrich` (permission `leads.enrich`, new permission granted to Administrator/Campaign Manager/Sales Manager), `GET /businesses/{id}/enrichment`, `GET /businesses/{id}/evidence`.
+- Follows the ADR-0009 per-task event-loop isolation rule a third time (after `GooglePlacesConnector` and now this crawler) — no cached `httpx.AsyncClient` at module/instance scope anywhere in the crawler or the task.
+
+### Tests
+- **`apps/worker/tests/test_crawler_detectors.py`** (20 tests) — pure-function tests against static HTML fixtures, no network.
+- **`apps/worker/tests/test_crawler_safety.py`** (13 tests) — SSRF-blocking tests use **real DNS resolution**, no mocking, against real blocked targets (`127.0.0.1`, `localhost`, the `169.254.169.254` metadata address, a private `10.x` address, `file://`, `ftp://`); fetch-mechanics tests (redirects, redirect-to-unsafe-target blocking, size cap, status handling) use an injected `httpx.MockTransport` against `example.com` used purely as a DNS target.
+- **`apps/worker/tests/test_crawler_fetcher.py`** (8 tests) — `crawl_site` orchestration: candidate-path fetching, page-count cap, robots.txt disallow enforcement, missing-robots.txt default-allow, unreachable-host handling, https→http fallback with `ssl_failure` flagging, no-duplicate-URL-visits.
+- **`apps/worker/tests/test_enrichment_tasks.py`** (5 tests) — the full pipeline driven directly against real Postgres with a mocked crawl transport: successful run persisting evidence and setting `Business.email`, no-website immediate failure, unreachable-site producing only `website_unavailable`, `missing_contact_method` firing correctly when genuinely absent, duplicate-delivery no-op for a non-pending enrichment.
+- **`apps/worker/tests/test_campaign_tasks.py`** (now 6 tests) — two new tests added: a completed campaign persists individual, deduplicated `Business` rows (not just JSON blobs), and re-discovering the same businesses via a second campaign updates the existing rows rather than duplicating them.
+- A genuine, real-DNS test of `safe_get` blocking every SSRF target class was also run ad hoc against live targets before being checked into the suite above, to confirm the resolver-based defense works against real network resolution, not just its own mocked assumptions about `ipaddress` behavior.
+- While writing `test_crawler_fetcher.py`, a real duplicate-request bug was found and fixed: `_probe_scheme` originally probed scheme/reachability by fetching the homepage (`/`), which meant the homepage was fetched twice per crawl (once to probe, once as the first real candidate page) and, worse, fetched once *before* robots.txt was even loaded — ignoring a potential `Disallow: /`. Fixed by probing via `/robots.txt` instead, which is always exempt from robots-compliance rules by definition and settles both problems at once.
+
+### ⚠️ What was not verified
+**No live crawl was made against a real external website.** This sandbox's egress policy blocks general internet access (confirmed directly — both a raw request to a real domain and this crawler's own direct-IP-connect strategy were rejected by the proxy with policy-level 403s, the same class of restriction Milestone 3 hit for the Google Places API). SSRF-blocking is verified against real DNS resolution; fetch mechanics, crawl orchestration, and the full enrichment pipeline are verified against a real Postgres database with a mocked HTTP transport. See ADR-0012 and **Known limitations** for what's needed to close this gap before relying on this crawler against real business websites in production.
+
 ## Acceptance criteria (from the approved architecture)
 
 | Criterion | Status |
@@ -107,7 +142,7 @@
 | Task retries and idempotency work | ✅ Worker tests (duplicate delivery no-op); retry backoff logic implemented, exercised implicitly (no connector-error injection test yet — see unresolved risks) |
 | Per-tenant concurrency limits enforced | ✅ Backend tests (slot exhaustion/release directly) |
 | Every score/estimate is explainable | ✅ `EstimateResponse` exposes `estimated_credits`/`estimated_results`/`calculated_at`; lead *scoring* itself is a later milestone |
-| Backend tests pass | ✅ 35/35 (api) + 5/5 (worker) + 22/22 (connector-sdk) = 62/62 |
+| Backend tests pass | ✅ 35/35 (api) + 52/52 (worker) + 22/22 (connector-sdk) = 109/109 |
 | Frontend lint passes | ✅ |
 | Frontend type checking passes | ✅ |
 | Production builds pass | ✅ `next build` succeeds; API/worker have no separate "build" step (Python) |
@@ -115,9 +150,15 @@
 | Google Places: quota management, API usage measurement | ✅ Error-taxonomy mapping for quota/rate-limit responses; `api_calls_made` counter — not exercised against real quota behavior |
 | Google Places: source attribution, business normalization | ✅ Mocked tests verify no fabricated fields; real-data shape not confirmed live |
 | Google Places: provider health checks, mocked adapter tests | ✅ `health_check()` implemented; 22 mocked-adapter tests, all passing |
+| Website enrichment: safe crawler, SSRF protection, robots handling | ✅ Real-DNS-verified SSRF blocking (loopback/private/link-local/metadata addresses, disallowed schemes); robots.txt respected, defaulting to allow when unreachable |
+| Website enrichment: rate limiting, page limits | ✅ Per-domain minimum request interval (or robots.txt's `Crawl-delay` if longer); hard 6-page-per-site cap; hard 5 MB response-size cap |
+| Website enrichment: contact/WhatsApp/booking/ordering/social extraction | ✅ Detector tests against static HTML fixtures; mocked-transport pipeline tests confirm end-to-end extraction into `EnrichmentEvidence` and `Business.email` |
+| Website enrichment: technical opportunity detection | ✅ Missing mobile viewport, weak page metadata, outdated copyright year, missing contact form/method/booking/ordering/WhatsApp — all detector-tested |
+| Website enrichment: evidence storage | ✅ `EnrichmentEvidence` stores source URL, detector type, structured result, confidence, collection timestamp, supporting snippet per the architecture's exact requirement |
+| Website enrichment: live crawl against a real external website | ⚠️ **Not verified** — this sandbox's egress policy blocks general internet access (same class of gap as Milestone 3's Google API key) — see ADR-0012 |
 
 ## Architecture decisions
-See `docs/adr/0001` through `0010`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009), and the Google Places connector's design plus its explicit live-verification gap (0010).
+See `docs/adr/0001` through `0012`. Summary: shared-schema+RLS multi-tenancy, server-side sessions, `uv`/`pnpm` tooling, campaign-level credit-reservation granularity, MFA scaffolded only, no billing provider selected yet, a documented RLS ordering rule + `platform_bypass` escape-hatch pattern (0007), campaign entity consolidation vs. the original architecture's larger entity list (0008), a documented per-task event-loop isolation rule for the worker's async DB/Redis clients (0009), the Google Places connector's design plus its explicit live-verification gap (0010), the Business entity consolidation and the Milestone 2 persistence gap it fixes (0011), and the SSRF-safe crawler's design plus its own explicit live-verification gap (0012).
 
 ## Known limitations
 
@@ -132,21 +173,25 @@ See `docs/adr/0001` through `0010`. Summary: shared-schema+RLS multi-tenancy, se
 9. **`google_places` is not exposed in the frontend campaign-creation form.** Only `mock` is offered there today — deliberate, per ADR-0010, since offering a connector that can only fail without a real key would be poor UX, not a missing feature.
 10. **No automated test exercises a real connector error path end-to-end through the worker's retry logic** (auth/quota/rate-limit/permanent failure and the retry backoff that follows). Milestone 3's mocked-adapter tests verify `GooglePlacesConnector` itself raises the right error type for each Google API error shape, but nothing yet drives `worker.campaign_tasks.run_campaign_task`'s actual retry/backoff loop end-to-end with an injected connector failure. A fault-injecting test connector (or a flag on `MockConnector` to simulate failures) is recommended as an early follow-up.
 11. **The dev sandbox's own long-running processes (Postgres, Redis, the SMTP capture server, the Celery worker, the API/web dev servers) were repeatedly reaped during idle gaps in this session** and had to be restarted more than once mid-verification. This is a property of this particular sandboxed environment, not the application, but it's worth knowing if you see "connection refused" locally after leaving a dev environment idle — check that all four services are actually still running before assuming something is broken.
+12. **The SSRF-safe crawler has never crawled a real external website (Milestone 4, ADR-0012).** This sandbox's egress policy blocks general internet access outright — confirmed directly (a raw request to a real domain and this crawler's own direct-IP-connect strategy were both rejected by the proxy with policy-level 403s). SSRF-blocking itself is verified against real DNS resolution (not mocked); fetch mechanics and the full crawl/detector/enrichment pipeline are verified against a real Postgres database with a mocked HTTP transport. **Before relying on this crawler against real business websites**, smoke-test it against a small set of real, known-safe external sites from an environment without this sandbox's restrictive egress policy.
+13. **No frontend UI exists yet for triggering enrichment or viewing evidence.** Milestone 4's scope (per the original architecture) is backend-only (crawler, detectors, evidence storage); `POST /businesses/{id}/enrich` and the evidence/enrichment-status endpoints exist and are tested, but nothing in `apps/web` calls them yet — a `/campaigns/[id]` business list with an "Enrich" action is natural follow-up UI work, not part of this milestone's own line items.
 
 ## Unresolved risks
 
-- **`google_places` has never been called live (ADR-0010) — the single biggest open risk carried forward from this milestone.** Everything about this connector's correctness against Google's real API rests on documentation-reasoning plus mocked-HTTP tests, not a live call. Treat it as unverified until a real key is supplied and a manual smoke test is run — do not launch a real tenant's campaign against it first.
+- **`google_places` has never been called live (ADR-0010).** Everything about this connector's correctness against Google's real API rests on documentation-reasoning plus mocked-HTTP tests, not a live call. Treat it as unverified until a real key is supplied and a manual smoke test is run — do not launch a real tenant's campaign against it first.
+- **The website enrichment crawler has never crawled a real external website (ADR-0012) — the equivalent open risk for this milestone.** Same shape of gap as the Google Places connector: correct by documentation-reasoning and mocked-transport tests, not by a live crawl. If a real website's actual behavior (redirect chains through a CDN, unusual robots.txt syntax, a non-UTF-8 encoding, a slow server near the timeout boundary) differs from what the mocked tests anticipate, it will only surface on first live use.
 - **Connection-pool GUC leakage class of bug** (ADR-0007): fixed everywhere it was found by manual audit, but the codebase has no automated guard against a *future* service function making the same mistake — and Milestone 2 proved this risk is real by reintroducing it once (see limitation #4 above). Recommend a lightweight integration test pattern (assert a fresh session with no context set returns zero rows for every RLS table) as a standing regression test.
-- **Per-task event-loop isolation** (ADR-0009): the worker's `run_db_task` helper is the only thing preventing every new Celery task from silently inheriting a previous task's closed-loop database/Redis/HTTP connections — now proven to matter a third time by `GooglePlacesConnector`'s own per-call-client discipline (ADR-0010). Like the RLS ordering rule, this is a discipline documented in ADRs and code comments, not something a linter enforces — a future async client added the naive way (a cached instance-scoped `httpx.AsyncClient`, a persistent connection of any kind) would reintroduce exactly this bug, and it would only surface once a worker process handles a second task, making it easy to miss in a quick manual check.
+- **Per-task event-loop isolation** (ADR-0009): the worker's `run_db_task` helper is the only thing preventing every new Celery task from silently inheriting a previous task's closed-loop database/Redis/HTTP connections — now proven to matter a third time by the crawler's own per-fetch-client discipline (ADR-0012), after `GooglePlacesConnector` (ADR-0010). Like the RLS ordering rule, this is a discipline documented in ADRs and code comments, not something a linter enforces — a future async client added the naive way (a cached instance-scoped `httpx.AsyncClient`, a persistent connection of any kind) would reintroduce exactly this bug, and it would only surface once a worker process handles a second task, making it easy to miss in a quick manual check.
 - **Single shared Postgres instance**: no read replica, no connection-pool sizing exercise under real background-job write load now that the campaign engine exists. A real concern once campaign volume grows.
 - **Rate limiting is IP/account-keyed only**, no distributed abuse detection. Adequate for now.
 - **No connector-error-path test coverage through the worker's own retry loop** (see limitation #10) — `GooglePlacesConnector` itself is tested to raise the right error types, but nothing yet drives `run_campaign_task`'s retry/backoff/permanent-failure handling end-to-end with an injected failure.
+- **`Business.field_provenance` is JSONB, not a normalized table (ADR-0011).** Fine for every current read pattern (always "the whole provenance record for this business"), but a future feature needing to query/filter provenance across businesses by field or source would need it moved into a real table at that point.
 
 ## Pending approvals
-None outstanding. Milestone 3's scope (Google Places connector, per the original architecture) was implemented as previously directed, after you declined to provide a real API key when asked — implementation proceeded with mocked-adapter verification only, as flagged at the time. ADR-0010 documents this connector's design and, explicitly, its unresolved live-verification gap; it doesn't require separate approval since it's the recommended default path when no credentials are available, but is called out here for transparency, same as ADR-0008/0009 were for Milestone 2.
+None outstanding. Milestone 4's scope (website enrichment, per the original architecture) was implemented under the standing "Proceed" instruction, including the Business persistence prerequisite it surfaced along the way. ADR-0011 documents that prerequisite's design; ADR-0012 documents the crawler's SSRF-safety design and, explicitly, its unresolved live-crawl-verification gap — same pattern as ADR-0010 for Milestone 3, called out here for transparency rather than requiring separate approval, since it's the recommended default path when general internet access isn't available in this environment.
 
 ## Next action
-Awaiting your review of Milestone 3 — and ideally a real Google Cloud API key with the Places API (New) enabled, so the one open gap (live verification) can actually be closed before Milestone 4. When ready, let me know how you'd like to proceed.
+Awaiting your review of Milestone 4. When ready, let me know how you'd like to proceed — including whether you'd like Milestone 5 (Deduplication and Lead Intelligence) started next, per the original architecture's milestone order.
 
 ---
 
@@ -250,3 +295,32 @@ See the **Milestone 2 file inventory** below for everything added/changed since 
 
 ### Docs
 `docs/project-status.md`, `docs/adr/0010-google-places-connector.md` (new)
+
+---
+
+## Complete file inventory (created or modified in Milestone 4)
+
+### Backend — `apps/api` (new Business persistence + enrichment modules)
+`app/modules/businesses/{models,repositories,schemas,routes}.py` (new),
+`app/modules/enrichment/{models,repositories,schemas}.py` (new),
+`app/modules/campaigns/routes.py` (added `GET /campaigns/{id}/businesses`),
+`app/modules/permissions/catalog.py` (added `leads.enrich` permission, granted to Administrator/Campaign Manager/Sales Manager),
+`app/core/celery_client.py` (added `enqueue_business_enrichment`),
+`app/core/model_registry.py` (registered the four new models),
+`app/main.py` (registered `businesses_router`),
+`alembic/versions/3d4875d6ea04_*.py` (new — `businesses`, `business_source_records`, `business_enrichments`, `enrichment_evidence` tables + RLS)
+
+### Worker — `apps/worker` (new crawler + enrichment task)
+`worker/crawler/{safety,robots,fetcher,detectors}.py` (new),
+`worker/enrichment_tasks.py` (new — the `run_business_enrichment` Celery task),
+`worker/campaign_tasks.py` (now also persists a `Business`/`BusinessSourceRecord` per discovered result, alongside the existing `result_snapshot`),
+`worker/celery_app.py` (registered `worker.enrichment_tasks`, routed to the new `queue.enrichment`),
+`pyproject.toml` (added `beautifulsoup4` dependency),
+`tests/test_crawler_detectors.py` (new, 20 tests),
+`tests/test_crawler_safety.py` (new, 13 tests),
+`tests/test_crawler_fetcher.py` (new, 8 tests),
+`tests/test_enrichment_tasks.py` (new, 5 tests),
+`tests/test_campaign_tasks.py` (2 new tests for Business-row persistence and re-discovery upsert behavior)
+
+### Docs
+`docs/project-status.md`, `docs/adr/0011-business-entity-consolidation.md` (new), `docs/adr/0012-crawler-ssrf-safety.md` (new)

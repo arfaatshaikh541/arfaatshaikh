@@ -6,10 +6,14 @@ worker` depends on `gridkeep-api` as a uv workspace member so both
 processes share one source of truth.
 
 Milestone 1 shipped `expire_stale_reservations` (credit-ledger
-maintenance). Milestone 2 adds `run_campaign_task` (campaign page
-fan-out against the mock connector) on `queue.search`. Enrichment/export/
-CRM tasks are Milestone 4+ work; those queue names are declared for a
-fixed routing scheme but nothing consumes them yet.
+maintenance). Milestone 2 added `run_campaign_task` (campaign page
+fan-out) on `queue.search`. Milestone 4 adds `run_business_enrichment`
+(website crawl + detectors) on its own `queue.enrichment` - kept separate
+from `queue.search` so a backlog of enrichment crawls (which are much
+slower than a mock/API-based search page) never starves campaign
+processing, and vice versa. Export/CRM tasks are later-milestone work;
+those queue names are declared for a fixed routing scheme but nothing
+consumes them yet.
 """
 
 # Must be imported before any ORM operation runs in this process: it pulls
@@ -30,7 +34,7 @@ celery_app = Celery(
     "gridkeep",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["worker.tasks", "worker.campaign_tasks"],
+    include=["worker.tasks", "worker.campaign_tasks", "worker.enrichment_tasks"],
 )
 
 celery_app.conf.update(
@@ -43,6 +47,7 @@ celery_app.conf.update(
     task_routes={
         "worker.tasks.expire_stale_reservations": {"queue": "queue.maintenance"},
         "worker.campaign_tasks.run_campaign_task": {"queue": "queue.search"},
+        "worker.enrichment_tasks.run_business_enrichment": {"queue": "queue.enrichment"},
     },
 )
 

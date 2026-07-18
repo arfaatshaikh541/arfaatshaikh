@@ -8,6 +8,7 @@ dependencies = [
     "gridkeep-connector-sdk",
     "celery>=5.4.0",
     "redis>=5.0.8",
+    "beautifulsoup4>=4.12.0",
 ]
 
 [tool.uv.sources]
