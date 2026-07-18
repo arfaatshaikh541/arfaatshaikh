@@ -29,9 +29,14 @@ from app.modules.identity.models import (  # noqa: F401
 )
 from app.modules.leads.models import (  # noqa: F401
     Lead,
+    LeadAssignment,
+    LeadNote,
     LeadOpportunity,
     LeadRecommendation,
     LeadScore,
+    LeadStatusHistory,
+    LeadTag,
+    SavedLeadView,
 )
 from app.modules.permissions.models import (  # noqa: F401
     Permission,

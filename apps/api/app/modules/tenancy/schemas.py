@@ -40,3 +40,11 @@ class InvitationResponse(BaseModel):
 
 class AcceptInvitationRequest(BaseModel):
     token: str
+
+
+class MemberResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    full_name: str
+    role_id: uuid.UUID
+    role_name: str

@@ -21,6 +21,7 @@ from app.modules.tenancy.schemas import (
     CreateTenantRequest,
     InvitationResponse,
     InviteMemberRequest,
+    MemberResponse,
     RoleResponse,
     SwitchTenantRequest,
     TenantResponse,
@@ -74,6 +75,24 @@ async def list_roles(
 ):
     roles = await perm_repo.list_roles_for_tenant(db, ctx.tenant_id)
     return [RoleResponse(id=r.id, name=r.name, description=r.description) for r in roles]
+
+
+@router.get("/tenants/members", response_model=list[MemberResponse])
+async def list_members(
+    ctx: TenantContext = Depends(require_permission("users.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await repo.list_active_members_for_tenant(db, ctx.tenant_id)
+    return [
+        MemberResponse(
+            user_id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role_id=role.id,
+            role_name=role.name,
+        )
+        for _membership, user, role in rows
+    ]
 
 
 @router.post("/tenants/invitations", response_model=InvitationResponse)

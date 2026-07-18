@@ -10,6 +10,7 @@ import { useSession } from "@/lib/session";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/campaigns", label: "Campaigns" },
+  { href: "/leads", label: "Leads" },
   { href: "/team", label: "Team" },
   { href: "/usage", label: "Usage & Billing" },
   { href: "/audit", label: "Audit Log" },

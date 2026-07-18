@@ -30,6 +30,21 @@ higher confidence than the winner currently has fills in on the winner
 `repositories.upsert_business_from_discovery`), and exactly what changed
 is recorded in `BusinessMergeHistory.field_changes` so undo can restore
 the winner's prior values precisely.
+
+**Milestone 6 addendum: `Lead` rows follow their `Business` on merge, if
+that can be done unambiguously.** If only the loser has a `Lead`, it is
+reassigned onto the winner (`Lead.business_id = winner.id`) - since every
+`LeadScore`/`LeadOpportunity`/`LeadRecommendation`/`LeadNote`/`LeadTag`/
+`LeadStatusHistory`/`LeadAssignment` row keys off `lead_id`, not
+`business_id`, moving the one `Lead` row carries its entire history along
+for free, fully reversible the same way as everything else here. If
+*both* businesses already have a `Lead` (both discovered independently,
+scored/noted/tagged before ever being recognized as duplicates), this
+merge deliberately does **not** attempt to reconcile two independent
+sets of human-authored history into one - the loser's `Lead` is left
+exactly as it is, simply excluded from `leads.repositories.list_leads`
+(which joins through `Business.merged_into_id IS NULL`) rather than
+silently deleted or blended. See docs/adr/0014.
 """
 
 import uuid
@@ -57,6 +72,7 @@ from app.modules.businesses.normalize import (
     normalize_phone,
 )
 from app.modules.enrichment.models import BusinessEnrichment, EnrichmentEvidence
+from app.modules.leads.models import Lead
 
 # Priority order, highest confidence (strongest signal) first - matches
 # the architecture's own "deduplicate in this priority" list exactly.
@@ -274,6 +290,20 @@ async def merge_businesses(
 
     loser.merged_into_id = winner.id
 
+    # Milestone 6: move the loser's Lead onto the winner, only if the
+    # winner doesn't already have one - see module docstring for why the
+    # both-have-a-Lead case is deliberately left alone rather than
+    # reconciled here.
+    moved_lead_id: str | None = None
+    loser_lead_stmt = select(Lead).where(Lead.business_id == loser.id)
+    loser_lead = (await session.execute(loser_lead_stmt)).scalar_one_or_none()
+    if loser_lead is not None:
+        winner_lead_stmt = select(Lead).where(Lead.business_id == winner.id)
+        winner_lead = (await session.execute(winner_lead_stmt)).scalar_one_or_none()
+        if winner_lead is None:
+            loser_lead.business_id = winner.id
+            moved_lead_id = str(loser_lead.id)
+
     merge_history = BusinessMergeHistory(
         tenant_id=winner.tenant_id,
         winner_business_id=winner.id,
@@ -285,6 +315,7 @@ async def merge_businesses(
             "source_records": [str(r.id) for r in source_records],
             "enrichments": [str(r.id) for r in enrichments],
             "evidence": [str(r.id) for r in evidence_rows],
+            "lead": moved_lead_id,
         },
         field_changes=field_changes,
     )
@@ -325,6 +356,11 @@ async def undo_merge(
         evidence_stmt = select(EnrichmentEvidence).where(EnrichmentEvidence.id.in_(evidence_ids))
         for evidence in (await session.execute(evidence_stmt)).scalars().all():
             evidence.business_id = loser.id
+    if moved.get("lead"):
+        lead_stmt = select(Lead).where(Lead.id == uuid.UUID(moved["lead"]))
+        moved_lead = (await session.execute(lead_stmt)).scalar_one_or_none()
+        if moved_lead is not None:
+            moved_lead.business_id = loser.id
 
     if merge_history.field_changes:
         winner_provenance = dict(winner.field_provenance)

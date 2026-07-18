@@ -4,6 +4,8 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.identity.models import User
+from app.modules.permissions.models import Role
 from app.modules.tenancy.models import Invitation, Membership, Tenant, TenantSettings
 
 
@@ -12,6 +14,23 @@ async def get_active_memberships_for_user(
 ) -> list[Membership]:
     stmt = select(Membership).where(Membership.user_id == user_id, Membership.status == "active")
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_active_members_for_tenant(
+    session: AsyncSession, tenant_id: uuid.UUID
+) -> list[tuple[Membership, User, Role]]:
+    """Active memberships joined with the user and role they need
+    displayed - the assignment picker (Milestone 6's Lead Workspace) is
+    the first caller, but this is generic enough for any future
+    "who's on this team" UI."""
+    stmt = (
+        select(Membership, User, Role)
+        .join(User, User.id == Membership.user_id)
+        .join(Role, Role.id == Membership.role_id)
+        .where(Membership.tenant_id == tenant_id, Membership.status == "active")
+        .order_by(User.full_name)
+    )
+    return [(m, u, r) for m, u, r in (await session.execute(stmt)).all()]
 
 
 async def get_membership(

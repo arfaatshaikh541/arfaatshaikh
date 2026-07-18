@@ -30,14 +30,34 @@ already established in Milestone 4 (see docs/adr/0011, docs/adr/0013).
 unlike score factors, opportunities/recommendations accumulate as
 independent facts about a lead (detected once, potentially referenced by
 several recommendations, and a human may eventually want to review/
-dismiss one without touching the others - a later Milestone 6 concern
-this schema already accommodates), a shape JSONB does not represent well.
+dismiss one without touching the others), a shape JSONB does not
+represent well.
+
+Milestone 6 (Lead Workspace) adds `assigned_to_user_id` directly on
+`Lead` (the current assignment - a fast column for list filtering/
+sorting, the same "current state on the parent row" pattern `Campaign.
+status` already uses) plus four new tables: `LeadAssignment` and
+`LeadStatusHistory` are append-only audit trails (the same shape as
+`CampaignEvent`) recording every assignment/status change, who made it,
+and when; `LeadNote` is a plain 1:many; `LeadTag` is a plain string tag
+applied to a lead (no separate tag-vocabulary table - nothing here asks
+for tag metadata/renaming/color, just applying and filtering by tags);
+`SavedLeadView` stores a named, reusable filter/sort/column-selection
+state, visible tenant-wide like everything else in this schema.
+
+Lead status deliberately has **no transition state machine** (unlike
+`state_machine.py`'s explicit campaign-status graph) - the architecture
+gives Lead an enumerated status list but no transition rules, and real
+sales workflows are non-linear (a rep can move a lead back to
+"reviewed" from "contacted," or straight from "new" to "do_not_contact").
+`services.change_status` validates only that the target is one of
+`LEAD_STATUSES`, not that the transition is "legal" - see docs/adr/0014.
 """
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKeyConstraint, Numeric, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -79,6 +99,11 @@ class Lead(Base, UUIDPKMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     business_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), default="new", nullable=False, index=True)
+    # Current assignment (fast column for list filtering/sorting) - the
+    # full history of who was assigned when lives in LeadAssignment.
+    assigned_to_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class LeadScore(Base, UUIDPKMixin, TimestampMixin):
@@ -158,3 +183,116 @@ class LeadRecommendation(Base, UUIDPKMixin, TimestampMixin):
     # never empty, per "recommendations must be evidence-based."
     supporting_opportunity_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
     recommended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LeadAssignment(Base, UUIDPKMixin, TimestampMixin):
+    """One row per assignment event (append-only) - `unassigned_at` is set
+    when this assignment is superseded by a later one or explicitly
+    cleared, so "who was this lead assigned to on date X" stays
+    answerable. `Lead.assigned_to_user_id` is always the assignment with
+    `unassigned_at IS NULL`, if any."""
+
+    __tablename__ = "lead_assignments"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            name="fk_lead_assignments_tenant_lead",
+            ondelete="CASCADE",
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    lead_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    assigned_to_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    assigned_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    unassigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LeadStatusHistory(Base, UUIDPKMixin, TimestampMixin):
+    __tablename__ = "lead_status_history"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            name="fk_lead_status_history_tenant_lead",
+            ondelete="CASCADE",
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    lead_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    from_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    changed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+
+class LeadNote(Base, UUIDPKMixin, TimestampMixin):
+    __tablename__ = "lead_notes"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            name="fk_lead_notes_tenant_lead",
+            ondelete="CASCADE",
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    lead_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    body: Mapped[str] = mapped_column(String(4000), nullable=False)
+
+
+class LeadTag(Base, UUIDPKMixin, TimestampMixin):
+    __tablename__ = "lead_tags"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "lead_id", "tag", name="uq_lead_tags_tenant_lead_tag"),
+        ForeignKeyConstraint(
+            ["tenant_id", "lead_id"],
+            ["leads.tenant_id", "leads.id"],
+            name="fk_lead_tags_tenant_lead",
+            ondelete="CASCADE",
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    lead_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    tag: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class SavedLeadView(Base, UUIDPKMixin, TimestampMixin):
+    """A named, reusable filter/sort/column-selection state for the lead
+    list - `filters` mirrors the same query-parameter shape
+    `repositories.list_leads` accepts, so applying a saved view is just
+    replaying its stored filters. Visible tenant-wide (like every other
+    entity in this schema), but only its creator (or anyone with
+    `leads.edit`) may delete it - enforced in the service layer, not by a
+    DB constraint, since "who may delete" is a permission question, not a
+    data-integrity one."""
+
+    __tablename__ = "saved_lead_views"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_saved_lead_views_tenant_name"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    filters: Mapped[dict] = mapped_column(JSONB, nullable=False)

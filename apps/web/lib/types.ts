@@ -180,3 +180,194 @@ export type CampaignErrorEntry = {
   message: string;
   created_at: string;
 };
+
+export type Business = {
+  id: string;
+  name: string;
+  category: string | null;
+  subcategory: string | null;
+  address: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  area: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  canonical_domain: string | null;
+  google_place_id: string | null;
+  google_maps_url: string | null;
+  rating: number | null;
+  review_count: number | null;
+  business_status: string | null;
+  field_provenance: Record<string, unknown>;
+  merged_into_id: string | null;
+  created_at: string;
+};
+
+export type Member = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role_id: string;
+  role_name: string;
+};
+
+export const LEAD_STATUSES = [
+  "new",
+  "reviewed",
+  "qualified",
+  "unqualified",
+  "assigned",
+  "contacted",
+  "interested",
+  "converted",
+  "do_not_contact",
+  "archived",
+] as const;
+
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+
+export type Lead = {
+  id: string;
+  business_id: string;
+  status: LeadStatus;
+  assigned_to_user_id: string | null;
+  created_at: string;
+};
+
+export type ScoreFactor = {
+  key: string;
+  label: string;
+  score: number;
+  max_score: number;
+  explanation: string;
+  evidence: Record<string, unknown>;
+};
+
+export type LeadScore = {
+  id: string;
+  algorithm_version: string;
+  total_score: number;
+  max_score: number;
+  factors: ScoreFactor[];
+  calculated_at: string;
+};
+
+export type LeadOpportunity = {
+  id: string;
+  opportunity_type: string;
+  confidence: number;
+  evidence_reference: Record<string, unknown>;
+  detected_at: string;
+};
+
+export type LeadRecommendation = {
+  id: string;
+  recommendation_type: string;
+  confidence: number;
+  supporting_opportunity_ids: string[];
+  recommended_at: string;
+};
+
+export type NoteEntry = {
+  id: string;
+  author_user_id: string | null;
+  body: string;
+  created_at: string;
+};
+
+export type StatusHistoryEntry = {
+  id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_user_id: string | null;
+  changed_at: string;
+  note: string | null;
+};
+
+export type AssignmentEntry = {
+  id: string;
+  assigned_to_user_id: string;
+  assigned_by_user_id: string | null;
+  assigned_at: string;
+  unassigned_at: string | null;
+};
+
+export type DuplicateCandidate = {
+  id: string;
+  business_id_a: string;
+  business_id_b: string;
+  match_type: string;
+  confidence: number;
+  matched_fields: Record<string, unknown>;
+  status: string;
+  reviewed_at: string | null;
+};
+
+export type LeadListItem = {
+  lead_id: string;
+  business_id: string;
+  business_name: string;
+  category: string | null;
+  city: string | null;
+  country: string | null;
+  area: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  rating: number | null;
+  review_count: number | null;
+  business_status: string | null;
+  status: LeadStatus;
+  assigned_to_user_id: string | null;
+  score: number | null;
+  tags: string[];
+  created_at: string;
+};
+
+export type LeadListResponse = {
+  items: LeadListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type LeadDetail = {
+  lead: Lead;
+  business_id: string;
+  latest_score: LeadScore | null;
+  opportunities: LeadOpportunity[];
+  recommendations: LeadRecommendation[];
+  notes: NoteEntry[];
+  tags: string[];
+  status_history: StatusHistoryEntry[];
+  assignment_history: AssignmentEntry[];
+  duplicate_candidates: DuplicateCandidate[];
+};
+
+export type SavedView = {
+  id: string;
+  name: string;
+  created_by_user_id: string | null;
+  filters: Record<string, unknown>;
+  created_at: string;
+};
+
+export type LeadListFilterState = {
+  status?: string[];
+  assigned_to_user_id?: string;
+  unassigned_only?: boolean;
+  tag?: string;
+  category?: string;
+  city?: string;
+  country?: string;
+  area?: string;
+  min_score?: number;
+  max_score?: number;
+  search?: string;
+  sort_by?: string;
+  sort_dir?: string;
+};
