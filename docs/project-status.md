@@ -4393,3 +4393,30 @@ found and fixed across `web.Dockerfile`, `api.Dockerfile`, and `docker-compose.y
 added to close a structural gap. `docker compose config --quiet` passes clean. Actually building the images
 still can't be completed in this sandbox — confirmed to be a registry-pull network-policy block, not a
 config or code error — so full end-to-end confirmation still depends on the user's own retry.
+
+### A real bug from actually creating a workspace: emails carried a bare token, not a link
+
+The user ran the full stack for real (via the manual local-dev path, not Docker — see the live-verification
+note above) and onboarded a new workspace. The verification email arrived with just the raw token as text,
+not a clickable link — even though `apps/web`'s `/verify-email`, `/reset-password`, and
+`/accept-invitation` pages all read their token from a `?token=` query parameter and act on it
+automatically (`/verify-email` even auto-submits on page load). Milestone 28's `send_email()` call sites
+never built that URL; they only interpolated the bare token into the message body. A real user hitting this
+on the very first live email is exactly the kind of gap live usage catches that a unit test asserting
+"the token appears somewhere in the body" does not.
+
+**Root cause**: none of `modules/tenancy/service.py` (onboarding verification), `modules/permissions/routes.py`
+(invitations), or `modules/identity/routes.py` (password reset) had access to the frontend's origin — there
+was no dedicated setting for it, only `cors_allow_origins` (a list meant for CORS validation, not a
+canonical single URL for link-building).
+
+**Fix**: added `app_base_url` to `core/config.py` (defaults to `http://localhost:3000`, matching the
+frontend's own default), and all three email bodies now include a real clickable link
+(`{app_base_url}/verify-email?token=...`, `/reset-password?token=...`, `/accept-invitation?token=...`)
+instead of a bare token. `docker-compose.yml`'s `api` service gained a matching `APP_BASE_URL` environment
+variable alongside its existing `NEXT_PUBLIC_API_BASE_URL` counterpart on the `web` service. Strengthened
+the three existing email-content tests (`test_onboarding_sends_real_verification_email`,
+`test_forgot_password_sends_real_email_for_known_account`,
+`test_executive_viewer_cannot_manage_users`) to assert the real link is present, not just that the body
+contains some text — locking in the fix rather than leaving it only manually verified. Full suite:
+**248/248 passing**, `ruff check .` clean.

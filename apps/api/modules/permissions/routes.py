@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.deps import (
     TenantContext,
     get_tenant_context,
@@ -95,14 +96,15 @@ async def invite_member(
     await db.commit()
     # Invitation tokens are bearer credentials — never returned in an API
     # response body, only emailed to the invited address.
+    invitation_link = f"{settings.app_base_url}/accept-invitation?token={raw_token}"
     send_email(
         to=payload.email,
         subject="You've been invited to GRIDKEEP",
         body=(
             f"{ctx.user.full_name} has invited you to join their organisation on GRIDKEEP "
             f"as {payload.role_name}.\n\n"
-            "Use this invitation token to accept:\n\n"
-            f"{raw_token}"
+            "Open this link to accept:\n\n"
+            f"{invitation_link}"
         ),
     )
     return {"status": "ok", "invitation_id": str(invitation.id)}

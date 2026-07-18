@@ -366,13 +366,14 @@ async def forgot_password(
     if user is not None and user.is_active:
         token = await identity_service.issue_password_reset_token(db, user)
         await db.commit()
+        reset_link = f"{settings.app_base_url}/reset-password?token={token}"
         send_email(
             to=user.email,
             subject="Reset your GRIDKEEP password",
             body=(
                 "We received a request to reset your GRIDKEEP password.\n\n"
-                "Use this token to choose a new password:\n\n"
-                f"{token}\n\n"
+                "Open this link to choose a new password:\n\n"
+                f"{reset_link}\n\n"
                 "If you did not request this, you can ignore this message."
             ),
         )

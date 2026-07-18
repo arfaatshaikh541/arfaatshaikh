@@ -38,6 +38,7 @@ async def test_onboarding_sends_real_verification_email(client, db, sent_emails)
     assert message["To"] == "val@verify-co.example"
     assert "verif" in message["Subject"].lower()
     assert "Val Verify" in message.get_content()
+    assert "http://localhost:3000/verify-email?token=" in message.get_content()
 
 
 async def test_login_before_verification_is_rejected(client, db):
@@ -135,6 +136,7 @@ async def test_forgot_password_sends_real_email_for_known_account(client, db, se
     message = sent_emails[0]
     assert message["To"] == "owner@forgot-co.example"
     assert "reset" in message["Subject"].lower()
+    assert "http://localhost:3000/reset-password?token=" in message.get_content()
 
 
 async def test_invitation_accept_flow(client, db):

@@ -39,6 +39,15 @@ class Settings(BaseSettings):
 
     cors_allow_origins: list[str] = Field(default=["http://localhost:3000"])
 
+    # The frontend's own origin, used to build clickable links in emails
+    # (verify-email, reset-password, accept-invitation all read their
+    # token from a `?token=` query param). Deliberately separate from
+    # `cors_allow_origins` — that's a list for CORS validation, this is a
+    # single canonical URL for link-building, and the two could
+    # legitimately differ (e.g. multiple allowed CORS origins in a
+    # multi-domain deployment, but one canonical link target).
+    app_base_url: str = Field(default="http://localhost:3000")
+
     rate_limit_login_per_minute: int = Field(default=10)
     rate_limit_login_per_hour_per_account: int = Field(default=20)
 

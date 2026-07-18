@@ -30,6 +30,7 @@ async def test_executive_viewer_cannot_manage_users(client, db, sent_emails):
 
     assert len(sent_emails) == 1  # Milestone 28: real invitation email, not a log line
     assert sent_emails[0]["To"] == "exec@rbac-co.example"
+    assert "http://localhost:3000/accept-invitation?token=" in sent_emails[0].get_content()
 
     async with AsyncSessionLocal() as session:
         await set_tenant_context(session, uuid.UUID(tenant_id))

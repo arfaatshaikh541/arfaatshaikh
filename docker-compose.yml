@@ -65,6 +65,11 @@ services:
       DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
       REDIS_URL: redis://redis:6379/0
       CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+      # Used to build clickable links in emails (verify-email,
+      # reset-password, accept-invitation) — must match wherever the
+      # browser actually reaches the web service, same value the web
+      # service itself uses for NEXT_PUBLIC_API_BASE_URL's counterpart.
+      APP_BASE_URL: http://localhost:3000
       OBJECT_STORAGE_ENDPOINT: http://object-storage:9000
       MAIL_CAPTURE_HOST: mail-capture
       MAIL_CAPTURE_PORT: "1025"
