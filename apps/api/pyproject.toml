@@ -25,6 +25,7 @@ dependencies = [
   "structlog==24.4.0",
   "pyotp==2.10.0",
   "dnspython==2.8.0",
+  "hvac==2.4.0",
   # Not on an index — installed separately via
   # `pip install -e ../../packages/connector-sdk` (see README) before this
   # package. Declared here so the dependency is documented, not resolved

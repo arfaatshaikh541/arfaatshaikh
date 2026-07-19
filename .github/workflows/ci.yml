@@ -45,6 +45,21 @@ jobs:
       - name: Install API dependencies
         working-directory: apps/api
         run: pip install -e ".[dev]"
+      - name: Install HashiCorp Vault CLI
+        # Milestone 32 (finding C-02): tests/security/test_vault_adapters.py
+        # proves HashiCorpVaultAdapter against a REAL local `vault server
+        # -dev` process (started by that test module itself, not this
+        # step) — a mock would only prove the adapter calls hvac correctly,
+        # not that its request/response handling matches Vault's actual
+        # API. Without this binary on PATH, that whole test module
+        # self-skips (see its own `pytestmark`) rather than failing, which
+        # would silently stop proving anything in CI — this step is what
+        # keeps that proof real.
+        run: |
+          curl -sSL -o /tmp/vault.zip https://releases.hashicorp.com/vault/1.17.6/vault_1.17.6_linux_amd64.zip
+          unzip -o /tmp/vault.zip -d /tmp/vault-bin
+          sudo mv /tmp/vault-bin/vault /usr/local/bin/vault
+          vault version
       - name: Ruff lint
         working-directory: apps/api
         run: ruff check .

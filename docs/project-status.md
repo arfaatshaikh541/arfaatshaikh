@@ -1,17 +1,15 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-19 (Milestone 32 implementation)
+Last updated: 2026-07-19 (Milestone 33 implementation)
 
 ## Current Milestone
 
-**Milestone 32: Platform-Admin Separation and Support Access** — implementation complete. Fourth milestone
-of the production security hardening programme. Closes a new finding, **P-02**, surfaced during this
-milestone's own design work rather than the original audit: platform accounts — the single
-highest-blast-radius account type in the system, able to view or modify any tenant's data and suspend or
-archive any tenant outright — had no MFA requirement at all, and none of their disruptive actions required
-step-up re-verification the way tenant-side equivalents already do. **C-02 remains open**, tracked for
-Milestone 5 — this milestone does not touch it. See that milestone's section below for the full closeout
-summary. Milestones 1 through 31 are complete and merged; their sections below are preserved as-is.
+**Milestone 33: Credential Vault, KMS, Secrets, and Connector Security** — implementation complete. Fifth
+milestone of the production security hardening programme. Closes **finding C-02** — the last of the
+original audit's two Critical findings, both now mitigated. A real production credential-vault adapter
+(HashiCorp Vault Transit engine) replaces the local envelope-encryption stand-in that `get_vault_adapter()`
+returned unconditionally regardless of environment. See that milestone's section below for the full
+closeout summary. Milestones 1 through 32 are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -4910,9 +4908,95 @@ clean. Frontend: `pnpm exec eslint`, `pnpm exec tsc --noEmit`, and `pnpm exec vi
 - **M-01, M-02, L-01** — open, Milestones 6, 10, and (opportunistically, still not implemented) 2
   respectively — unchanged from Milestone 31's accounting.
 
+## Milestone 33 — Credential Vault, KMS, Secrets, and Connector Security
+
+Fifth milestone of the production security hardening programme. Closes **finding C-02**: `get_vault_adapter()`
+was hardcoded to always return `LocalEnvelopeVaultAdapter` — a development-only stand-in whose master key
+is a literal string committed to this repository — regardless of environment. `core/config.py`'s own
+comment pointed at `modules/credential_vault/adapters/production.py`, which did not exist. With Milestone
+31 (C-01) already closed, this was the audit's last open Critical finding.
+
+### Fix — a real production adapter, backed by HashiCorp Vault's Transit engine
+
+New `modules/credential_vault/adapters/hashicorp_vault.py:HashiCorpVaultAdapter` satisfies the same
+`VaultAdapter` interface (`encrypt`/`decrypt`/`current_key_version`) the local adapter already does, but
+never holds, derives, or persists any key material itself — every call is a real request to Vault's
+Transit secrets engine (encryption-as-a-service), which performs AES-256-GCM under a key Vault generates,
+stores, and rotates, and which this adapter can never extract (`exportable=false`, Vault's own default).
+HashiCorp Vault was chosen over a specific cloud KMS (AWS/GCP/Azure) because it's the one option
+`adapters/base.py`'s own docstring lists that isn't tied to a single cloud provider — this codebase's only
+current deployment target (self-hosted docker-compose) has no cloud account to bind a KMS to regardless.
+
+Vault's own ciphertext format (`vault:v<N>:<base64>`) is self-describing — it already carries its key
+version and nonce — so `EncryptedSecret.nonce`/`.wrapped_dek` (meaningful for the local adapter's own
+DEK-wrapping scheme) stay `b""` for this adapter; the whole opaque token lives in `.ciphertext`. No schema
+or migration change was needed: `IntegrationCredential`'s `ciphertext`/`nonce`/`wrapped_dek`/`key_version`
+columns are already generic `bytea`/`int`.
+
+`modules/credential_vault/service.py:get_vault_adapter()` now selects between the two adapters based on the
+new `core/config.py` setting `vault_adapter` (`local` | `vault`) — an environment-driven wiring decision,
+never an application-logic branch, matching `adapters/base.py`'s own stated design principle. `core/config.py`'s
+fail-closed validator refuses to boot with `environment=production` and `vault_adapter` still `local`, or
+`vault` without both `vault_hashicorp_addr`/`vault_hashicorp_token` set — three independent checks, since a
+deployment could get any one of the three wrong without the other two catching it.
+
+### A deliberate least-privilege boundary: the application never mounts secrets engines
+
+`HashiCorpVaultAdapter.__init__` self-provisions its own named Transit key on first use (idempotent —
+verified against a real server, not assumed from documentation — the same create-or-converge pattern
+migration `34016597f04f` uses for the `gridkeep_app` Postgres role). It deliberately does **not** enable
+the Transit secrets engine mount itself: `sys/mounts/*` is Vault's own admin-level capability, materially
+more privileged than creating one named key within an already-mounted engine, and a real deployment's
+application token should never hold it — a compromised application token with `sys/mounts` capability
+could reconfigure Vault's entire engine topology, not just misuse its own credentials. Enabling the mount
+and issuing a token scoped to a policy covering only `transit/{keys,encrypt,decrypt}/<key-name>` is
+documented as an ops-side provisioning step in `docs/deployment-production.md`'s new "Provisioning
+HashiCorp Vault" section, including the exact policy text.
+
+### New error class and Compose wiring
+
+New `core/errors.VaultUnavailableError` (503) — the failure mode a real deployment hits when Vault is
+sealed, unreachable, or the configured token has expired; distinct from a validation error (this isn't the
+request's fault) and distinct from the fail-closed boot-time checks above (this is a *runtime* failure of
+an otherwise-correctly-configured adapter). `docker-compose.production.yml`'s api/worker/beat services now
+require `VAULT_ADAPTER`/`VAULT_HASHICORP_ADDR`/`VAULT_HASHICORP_TOKEN` as `${VAR:?message}`, verified with
+`docker compose config` both for a fully-configured overlay and for the loud, specific failure when
+`VAULT_ADAPTER` is left unset.
+
+### Tests — verified against a real local Vault server, not a mock
+
+New `tests/security/test_vault_adapters.py` (7 cases) starts an actual `vault server -dev` process as a
+module-scoped fixture (the same real-local-server pattern `tests/conftest.py` already uses for SMTP,
+Milestone 28) — a genuinely running Vault instance, not `moto` or a hand-rolled stub, so the adapter's
+request/response handling is proven against Vault's real API, not an assumption about it. Covers: a real
+encrypt/decrypt round-trip; that the persisted ciphertext never contains the plaintext as a substring;
+correct key-version reporting on a fresh key; that a tampered ciphertext is rejected by Vault's own
+AES-256-GCM authentication (not this codebase's own crypto, since this adapter never touches raw key
+material to verify anything locally); that a wrong token and a genuinely unreachable server both raise
+`VaultUnavailableError` rather than crashing with an unrelated exception type or hanging; and that
+constructing a second adapter instance against an already-provisioned key is safe. The module self-skips
+(not fails) when no `vault` binary is on `PATH`, so the rest of the suite stays runnable without it — CI
+installs the binary explicitly (`.github/workflows/ci.yml`) so this proof runs there too, not only locally.
+
+`tests/security/test_production_config.py` gained a case in the existing dev-default parametrize list
+(`vault_adapter="local"` refused in production) and a new two-case parametrize test for the missing-Vault-config
+checks; its shared `_production_safe_kwargs()` baseline now includes the three new fields.
+
+**Full backend suite: 287/287 passing** (up from 277 — 10 new tests), `ruff check .` clean. No frontend
+changes this milestone — credential handling is entirely a backend/infrastructure concern; nothing about
+how the tenant-facing integration-credential UI works changes.
+
+### What remains open after this milestone
+
+Both of the original audit's Critical findings (C-01, C-02) are now mitigated. Remaining:
+
+- **M-01, M-02, L-01** — open, Milestones 6, 10, and (opportunistically, still not implemented) 2
+  respectively — unchanged from Milestone 32's accounting.
+- **P-02** (platform-admin MFA/step-up, Milestone 32) — mitigated, same external-audit caveat as everything
+  else in this register.
+
 ## Next Action
 
-Milestone 32 complete and awaiting the user's explicit approval before Milestone 5 (Credential Vault, KMS,
-Secrets, and Connector Security) begins, per the hardening programme's "one milestone at a time, do not
-begin the next without approval" working rule. Milestone 5 closes finding C-02, the audit's remaining
-Critical finding.
+Milestone 33 complete and awaiting the user's explicit approval before Milestone 6 (API, Browser, and
+Application-Layer Hardening) begins, per the hardening programme's "one milestone at a time, do not begin
+the next without approval" working rule.

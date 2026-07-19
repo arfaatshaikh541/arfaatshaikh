@@ -81,13 +81,30 @@ class Settings(BaseSettings):
     # session cookies without the Secure attribute.
     allow_insecure_cookies_for_local_dev: bool = Field(default=False)
 
-    # Master key for the LOCAL credential-vault envelope-encryption adapter.
-    # A real secrets-manager-backed adapter for production is a tracked,
-    # not-yet-built follow-on (see docs/security-findings-register.md,
-    # finding C-02) — until it exists, production deployments must at
-    # minimum set this to a real, securely-generated value. The
-    # fail-closed check below refuses to boot on the shipped default.
+    # Master key for the LOCAL credential-vault envelope-encryption adapter
+    # — dormant whenever `vault_adapter="vault"` (see below), but still
+    # validated in production regardless of which adapter is selected,
+    # since a later switch back to "local" shouldn't silently un-mask a
+    # stale shipped key nobody ever got around to rotating.
     vault_local_master_key: str = Field(default=_DEV_VAULT_MASTER_KEY)
+
+    # Milestone 32 (finding C-02): which VaultAdapter implementation
+    # `modules/credential_vault/service.py:get_vault_adapter` constructs —
+    # an environment-driven wiring decision, never an application-logic
+    # branch (architecture §11). "local" is the Milestone 1 envelope-
+    # encryption adapter (dev/test only, no real key-management backing
+    # it); "vault" is the real production adapter, backed by HashiCorp
+    # Vault's Transit secrets engine (encryption-as-a-service — the
+    # application never holds or derives key material itself). HashiCorp
+    # Vault over a specific cloud KMS (AWS/GCP/Azure) because it's the one
+    # option in architecture §11's list not tied to a single cloud
+    # provider, matching this codebase's actual deployment target
+    # (self-hosted docker-compose, no cloud account to bind a KMS to).
+    vault_adapter: str = Field(default="local")
+    vault_hashicorp_addr: str = Field(default="")
+    vault_hashicorp_token: str = Field(default="")
+    vault_hashicorp_transit_key_name: str = Field(default="gridkeep-credential-vault")
+    vault_hashicorp_mount_point: str = Field(default="transit")
 
     cors_allow_origins: list[str] = Field(default=["http://localhost:3000"])
 
@@ -125,6 +142,14 @@ class Settings(BaseSettings):
         allowed = {"development", "staging", "production", "test"}
         if v not in allowed:
             raise ValueError(f"environment must be one of {allowed}")
+        return v
+
+    @field_validator("vault_adapter")
+    @classmethod
+    def _validate_vault_adapter(cls, v: str) -> str:
+        allowed = {"local", "vault"}
+        if v not in allowed:
+            raise ValueError(f"vault_adapter must be one of {allowed}")
         return v
 
     @model_validator(mode="after")
@@ -176,6 +201,18 @@ class Settings(BaseSettings):
                 "ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV is true — this flag exists only for local "
                 "development over plain HTTP and must never be set in production (finding H-02)."
             )
+        if self.vault_adapter == "local":
+            problems.append(
+                "VAULT_ADAPTER is still \"local\" — the local envelope-encryption adapter has no "
+                "real key-management backing it and must never be used in production. Set "
+                "VAULT_ADAPTER=vault and configure VAULT_HASHICORP_ADDR/VAULT_HASHICORP_TOKEN for a "
+                "real HashiCorp Vault Transit-engine deployment (finding C-02)."
+            )
+        elif self.vault_adapter == "vault":
+            if not self.vault_hashicorp_addr:
+                problems.append("VAULT_HASHICORP_ADDR must be set when VAULT_ADAPTER=vault.")
+            if not self.vault_hashicorp_token:
+                problems.append("VAULT_HASHICORP_TOKEN must be set when VAULT_ADAPTER=vault.")
 
         if problems:
             raise ValueError(

@@ -38,6 +38,11 @@ def _production_safe_kwargs() -> dict:
         object_storage_access_key="a-real-access-key",
         object_storage_secret_key="a-real-secret-key",
         allow_insecure_cookies_for_local_dev=False,
+        # Milestone 32 (finding C-02): the real production credential-vault
+        # adapter, required alongside every other field above.
+        vault_adapter="vault",
+        vault_hashicorp_addr="https://vault.example.com:8200",
+        vault_hashicorp_token="s.a-real-vault-token-value",
     )
 
 
@@ -77,6 +82,10 @@ def test_non_production_settings_ignore_every_dev_default():
         ("cors_allow_origins", ["http://localhost:3000"], "CORS_ALLOW_ORIGINS"),
         ("redis_url", "redis://localhost:6379/0", "REDIS_URL"),
         ("allow_insecure_cookies_for_local_dev", True, "ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV"),
+        # Milestone 32 (finding C-02): the local envelope-encryption
+        # adapter has no real key management and must never be selected
+        # in production.
+        ("vault_adapter", "local", "VAULT_ADAPTER"),
     ],
 )
 def test_app_refuses_to_start_in_production_with_a_dev_default(
@@ -84,6 +93,27 @@ def test_app_refuses_to_start_in_production_with_a_dev_default(
 ):
     kwargs = _production_safe_kwargs()
     kwargs[field] = bad_value
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(_env_file=None, **kwargs)
+    assert expected_message_fragment in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "field, expected_message_fragment",
+    [
+        ("vault_hashicorp_addr", "VAULT_HASHICORP_ADDR"),
+        ("vault_hashicorp_token", "VAULT_HASHICORP_TOKEN"),
+    ],
+)
+def test_app_refuses_to_start_in_production_with_vault_adapter_missing_config(
+    field: str, expected_message_fragment: str
+):
+    """Milestone 32 (finding C-02): selecting VAULT_ADAPTER=vault correctly
+    is not enough on its own — the adapter still needs somewhere to
+    connect and a real credential to connect with, checked independently
+    of the "still local" refusal above."""
+    kwargs = _production_safe_kwargs()
+    kwargs[field] = ""
     with pytest.raises(ValidationError) as exc_info:
         Settings(_env_file=None, **kwargs)
     assert expected_message_fragment in str(exc_info.value)

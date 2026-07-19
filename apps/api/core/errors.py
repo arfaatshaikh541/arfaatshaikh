@@ -78,6 +78,18 @@ class ConflictError(AppError):
     status_code = status.HTTP_409_CONFLICT
 
 
+class VaultUnavailableError(AppError):
+    """Hardening-programme Milestone 5 (finding C-02): the production
+    credential-vault adapter talks to an external service (HashiCorp
+    Vault's Transit engine) over the network — unlike the local adapter's
+    in-process key derivation, that call can fail for reasons entirely
+    outside the request itself (Vault sealed, unreachable, misconfigured
+    token). 503 signals "retry later," not "this request was invalid."""
+
+    code = "vault_unavailable"
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+
 def _envelope(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"error": {"code": code, "message": message, "details": details or {}}}
 

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings as app_settings
 from core.errors import NotFoundError
 from modules.credential_vault.adapters.base import EncryptedSecret, VaultAdapter
+from modules.credential_vault.adapters.hashicorp_vault import HashiCorpVaultAdapter
 from modules.credential_vault.adapters.local import LocalEnvelopeVaultAdapter
 from modules.credential_vault.models import IntegrationCredential
 
@@ -17,9 +18,15 @@ from modules.credential_vault.models import IntegrationCredential
 @lru_cache
 def get_vault_adapter() -> VaultAdapter:
     """Environment-driven adapter selection — never an application-logic
-    branch. Production deployments point this at a secrets-manager-backed
-    adapter satisfying the same VaultAdapter interface (architecture §11);
-    that adapter is out of scope for Milestone 1."""
+    branch (architecture §11). Milestone 32 (finding C-02): production
+    deployments must set `VAULT_ADAPTER=vault` (enforced at boot by
+    `core/config.py`'s fail-closed validator), which selects the real
+    HashiCorp Vault Transit-engine adapter instead of the local
+    envelope-encryption stand-in. `lru_cache` means the adapter — and, for
+    `HashiCorpVaultAdapter`, its one-time Vault connection and transit-key
+    provisioning — is constructed exactly once per process."""
+    if app_settings.vault_adapter == "vault":
+        return HashiCorpVaultAdapter(app_settings)
     return LocalEnvelopeVaultAdapter(app_settings)
 
 

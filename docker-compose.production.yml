@@ -36,10 +36,13 @@
 #     postgres/redis/object-storage still share one Compose network) —
 #     that is explicitly Milestone 33's scope, tracked separately rather
 #     than folded in here.
-#   - It does not add a secrets-manager-backed credential vault adapter —
-#     VAULT_LOCAL_MASTER_KEY below still uses the local envelope-encryption
-#     adapter, just with a real key instead of the shipped default. The
-#     KMS-backed adapter is finding C-02, tracked for its own milestone.
+#   - It does not run a HashiCorp Vault server itself — VAULT_HASHICORP_ADDR
+#     below must point at wherever Vault actually runs (a managed cluster,
+#     a separately-operated self-hosted instance), the same way this file
+#     already treats TLS termination and the database as external
+#     infrastructure it configures a connection to rather than provisions.
+#     See docs/deployment-production.md for the Vault-side setup (enabling
+#     the transit secrets engine, the policy VAULT_HASHICORP_TOKEN needs).
 
 services:
   postgres:
@@ -71,6 +74,19 @@ services:
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?CORS_ALLOW_ORIGINS must be set to the real production origin(s), e.g. ["https://app.example.com"]}
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL must be set to the real production frontend origin}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+      # Milestone 32 (finding C-02): the local envelope-encryption adapter
+      # above is refused at boot in production regardless of this value —
+      # VAULT_ADAPTER must be "vault", selecting the real HashiCorp Vault
+      # Transit-engine adapter. VAULT_HASHICORP_TOKEN's policy needs write
+      # on `transit/keys/<VAULT_HASHICORP_TRANSIT_KEY_NAME>` (this service
+      # self-provisions the key on first use, the same idempotent
+      # create-or-converge pattern migration 34016597f04f uses for the
+      # gridkeep_app Postgres role) plus encrypt/decrypt/read on the same
+      # key path — never `sys/mounts` capability; enabling the transit
+      # engine itself is an ops-side setup step (docs/deployment-production.md).
+      VAULT_ADAPTER: ${VAULT_ADAPTER:?VAULT_ADAPTER must be set to "vault" for production — the local adapter has no real key management}
+      VAULT_HASHICORP_ADDR: ${VAULT_HASHICORP_ADDR:?VAULT_HASHICORP_ADDR must point at the real production Vault server}
+      VAULT_HASHICORP_TOKEN: ${VAULT_HASHICORP_TOKEN:?VAULT_HASHICORP_TOKEN must be set to a real token scoped to the transit key policy}
       # Compose merges `environment:` maps key-by-key (unlike `ports`/
       # `volumes`, it is NOT reset by simply omitting it here) — the base
       # file's dev-only ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "true" would
@@ -97,6 +113,12 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database, connecting as the least-privilege gridkeep_app role — never a superuser}
       DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default superuser credentials}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+      # Milestone 32 (finding C-02): same required Vault wiring as the api
+      # service above — worker tasks (e.g. integration credential rotation)
+      # decrypt through the same adapter.
+      VAULT_ADAPTER: ${VAULT_ADAPTER:?VAULT_ADAPTER must be set to "vault" for production — the local adapter has no real key management}
+      VAULT_HASHICORP_ADDR: ${VAULT_HASHICORP_ADDR:?VAULT_HASHICORP_ADDR must point at the real production Vault server}
+      VAULT_HASHICORP_TOKEN: ${VAULT_HASHICORP_TOKEN:?VAULT_HASHICORP_TOKEN must be set to a real token scoped to the transit key policy}
     volumes: !reset []
 
   beat:
@@ -105,6 +127,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database, connecting as the least-privilege gridkeep_app role — never a superuser}
       DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default superuser credentials}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+      # beat never itself calls the vault adapter (it only schedules tasks
+      # onto Redis), but Settings' fail-closed validator still requires
+      # this be set — kept for parity/consistency with the other services
+      # rather than because this process's own code path needs it.
+      VAULT_ADAPTER: ${VAULT_ADAPTER:?VAULT_ADAPTER must be set to "vault" for production — the local adapter has no real key management}
+      VAULT_HASHICORP_ADDR: ${VAULT_HASHICORP_ADDR:?VAULT_HASHICORP_ADDR must point at the real production Vault server}
+      VAULT_HASHICORP_TOKEN: ${VAULT_HASHICORP_TOKEN:?VAULT_HASHICORP_TOKEN must be set to a real token scoped to the transit key policy}
     volumes: !reset []
 
   web:
