@@ -388,6 +388,28 @@ export type LeadDetail = {
   duplicate_candidates: DuplicateCandidate[];
 };
 
+export type EnrichmentStatus = "pending" | "running" | "completed" | "failed";
+
+export type Enrichment = {
+  id: string;
+  business_id: string;
+  status: EnrichmentStatus;
+  pages_crawled: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+};
+
+export type EnrichmentEvidence = {
+  id: string;
+  detector_type: string;
+  source_url: string;
+  structured_result: Record<string, unknown>;
+  confidence: number;
+  supporting_snippet: string | null;
+  collected_at: string;
+};
+
 export type SavedView = {
   id: string;
   name: string;

@@ -8,10 +8,14 @@ import { ApiError, api } from "@/lib/api";
 import {
   LEAD_STATUSES,
   type Business,
+  type Enrichment,
+  type EnrichmentEvidence,
   type IntegrationListResponse,
   type LeadDetail,
   type Member,
 } from "@/lib/types";
+
+const ENRICHMENT_ACTIVE_STATUSES = new Set(["pending", "running"]);
 
 function StatBox({ label, value }: { label: string; value: string | number }) {
   return (
@@ -54,6 +58,22 @@ export default function LeadDetailPage() {
     queryKey: ["business", businessId],
     queryFn: () => api.get<Business>(`/businesses/${businessId}`),
     enabled: Boolean(businessId),
+  });
+
+  const enrichmentQuery = useQuery<Enrichment | null>({
+    queryKey: ["business", businessId, "enrichment"],
+    queryFn: () => api.get<Enrichment | null>(`/businesses/${businessId}/enrichment`),
+    enabled: Boolean(businessId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && ENRICHMENT_ACTIVE_STATUSES.has(status) ? 2000 : false;
+    },
+  });
+
+  const evidenceQuery = useQuery<EnrichmentEvidence[]>({
+    queryKey: ["business", businessId, "evidence"],
+    queryFn: () => api.get<EnrichmentEvidence[]>(`/businesses/${businessId}/evidence`),
+    enabled: Boolean(businessId) && enrichmentQuery.data?.status === "completed",
   });
 
   const membersQuery = useQuery<Member[]>({
@@ -111,6 +131,15 @@ export default function LeadDetailPage() {
     runAction("add tag", async () => {
       await api.post(`/leads/${leadId}/tags`, { tag: tagInput.trim() });
       setTagInput("");
+    });
+  };
+
+  const handleEnrich = () => {
+    if (!businessId) return;
+    runAction("enrich website", async () => {
+      await api.post(`/businesses/${businessId}/enrich`);
+      queryClient.invalidateQueries({ queryKey: ["business", businessId, "enrichment"] });
+      queryClient.invalidateQueries({ queryKey: ["business", businessId, "evidence"] });
     });
   };
 
@@ -173,6 +202,98 @@ export default function LeadDetailPage() {
           </div>
           {business.address && (
             <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{business.address}</p>
+          )}
+        </Card>
+      )}
+
+      {business && (
+        <Card>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Website enrichment</h2>
+            {enrichmentQuery.data && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize dark:bg-slate-800">
+                {enrichmentQuery.data.status}
+              </span>
+            )}
+          </div>
+          {!business.website ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              This business has no website on file, so it can&apos;t be crawled.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Crawls the business&apos;s website for contact methods, booking/ordering links,
+                social profiles, and technical opportunities (missing mobile viewport, weak page
+                metadata, etc.), recording each finding as evidence.
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  isLoading={pending === "enrich website"}
+                  disabled={
+                    !enrichmentQuery.data
+                      ? false
+                      : ENRICHMENT_ACTIVE_STATUSES.has(enrichmentQuery.data.status)
+                  }
+                  onClick={handleEnrich}
+                >
+                  {enrichmentQuery.data ? "Re-enrich website" : "Enrich website"}
+                </Button>
+                {enrichmentQuery.data?.completed_at && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Last run {new Date(enrichmentQuery.data.completed_at).toLocaleString()} ·{" "}
+                    {enrichmentQuery.data.pages_crawled} page
+                    {enrichmentQuery.data.pages_crawled === 1 ? "" : "s"} crawled
+                  </p>
+                )}
+              </div>
+              {enrichmentQuery.data?.status === "failed" && enrichmentQuery.data.error_message && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  {enrichmentQuery.data.error_message}
+                </p>
+              )}
+              {enrichmentQuery.data?.status === "completed" && (
+                <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                  <h3 className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Evidence ({evidenceQuery.data?.length ?? 0})
+                  </h3>
+                  {evidenceQuery.data && evidenceQuery.data.length > 0 ? (
+                    <ul className="flex flex-col gap-2 text-sm">
+                      {evidenceQuery.data.map((e) => (
+                        <li key={e.id} className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/50">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium capitalize">
+                              {e.detector_type.replace(/_/g, " ")}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Confidence {(e.confidence * 100).toFixed(0)}%
+                            </p>
+                          </div>
+                          <a
+                            href={e.source_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-brand-600 hover:underline"
+                          >
+                            {e.source_url}
+                          </a>
+                          {e.supporting_snippet && (
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {e.supporting_snippet}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No signals found on this crawl.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </Card>
       )}
