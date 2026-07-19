@@ -20,6 +20,22 @@ async def get_plan_by_key(session: AsyncSession, key: str) -> SubscriptionPlan |
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def list_active_plans(session: AsyncSession) -> list[SubscriptionPlan]:
+    stmt = (
+        select(SubscriptionPlan)
+        .where(SubscriptionPlan.is_active.is_(True))
+        .order_by(SubscriptionPlan.monthly_price_usd)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_plan_by_stripe_price_id(
+    session: AsyncSession, stripe_price_id: str
+) -> SubscriptionPlan | None:
+    stmt = select(SubscriptionPlan).where(SubscriptionPlan.stripe_price_id == stripe_price_id)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def create_tenant_subscription(
     session: AsyncSession,
     *,
@@ -48,6 +64,40 @@ async def get_active_subscription(
         TenantSubscription.tenant_id == tenant_id, TenantSubscription.status == "active"
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_subscription_for_tenant(
+    session: AsyncSession, tenant_id: uuid.UUID
+) -> TenantSubscription | None:
+    """Unlike `get_active_subscription`, returns the tenant's subscription
+    row regardless of its current `status` - needed by the billing webhook
+    handler, which must find and update the existing row even when Stripe
+    is reporting it's no longer active."""
+    stmt = select(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def update_tenant_subscription_plan(
+    session: AsyncSession,
+    subscription: TenantSubscription,
+    *,
+    plan_id: uuid.UUID,
+    status: str,
+    current_period_start,
+    current_period_end,
+) -> TenantSubscription:
+    """Mutates the tenant's single subscription row in place - there is
+    exactly one `TenantSubscription` per tenant (seeded once at tenant
+    creation; see `app.seed.seed_data`/`app.modules.tenancy.services`),
+    the same "current-state columns mutated in place, a separate table is
+    the audit trail" pattern `Export`/`CampaignJob` already use. Here,
+    `BillingEvent` is that audit trail."""
+    subscription.plan_id = plan_id
+    subscription.status = status
+    subscription.current_period_start = current_period_start
+    subscription.current_period_end = current_period_end
+    await session.flush()
+    return subscription
 
 
 async def get_plan_features(session: AsyncSession, plan_id: uuid.UUID) -> dict[str, dict]:

@@ -8,9 +8,30 @@ from app.dependencies import TenantContext, require_permission
 from app.modules.entitlements.service import resolve_entitlements
 from app.modules.subscriptions import repositories as repo
 from app.modules.subscriptions.models import SubscriptionPlan
-from app.modules.subscriptions.schemas import SubscriptionResponse
+from app.modules.subscriptions.schemas import PlanListResponse, PlanResponse, SubscriptionResponse
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+
+@router.get("/plans", response_model=PlanListResponse)
+async def list_plans(
+    _ctx: TenantContext = Depends(require_permission("billing.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    plans = await repo.list_active_plans(db)
+    return PlanListResponse(
+        plans=[
+            PlanResponse(
+                key=p.key,
+                name=p.name,
+                description=p.description,
+                monthly_price_usd=float(p.monthly_price_usd),
+                monthly_credit_grant=p.monthly_credit_grant,
+                checkout_available=bool(p.stripe_price_id),
+            )
+            for p in plans
+        ]
+    )
 
 
 @router.get("/subscription", response_model=SubscriptionResponse)

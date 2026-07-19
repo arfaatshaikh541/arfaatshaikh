@@ -12,3 +12,16 @@ class SubscriptionResponse(BaseModel):
     current_period_start: datetime
     current_period_end: datetime
     entitlements: dict
+
+
+class PlanResponse(BaseModel):
+    key: str
+    name: str
+    description: str
+    monthly_price_usd: float
+    monthly_credit_grant: int
+    checkout_available: bool
+
+
+class PlanListResponse(BaseModel):
+    plans: list[PlanResponse]

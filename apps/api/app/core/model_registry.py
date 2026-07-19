@@ -6,6 +6,12 @@ metadata is required.
 
 from app.core.db import Base  # noqa: F401
 from app.modules.audit.models import AuditLog, PlatformAuditLog  # noqa: F401
+from app.modules.billing.models import (  # noqa: F401
+    BillingCustomer,
+    BillingEvent,
+    BillingSubscription,
+    InvoiceRecord,
+)
 from app.modules.businesses.models import (  # noqa: F401
     Business,
     BusinessDuplicateCandidate,

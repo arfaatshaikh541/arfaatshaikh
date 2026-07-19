@@ -17,6 +17,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.modules.audit.routes import router as audit_router
+from app.modules.billing.routes import router as billing_router
 from app.modules.businesses.routes import duplicates_router, merges_router
 from app.modules.businesses.routes import router as businesses_router
 from app.modules.campaigns.routes import router as campaigns_router
@@ -74,6 +75,7 @@ app.include_router(integrations_router)
 app.include_router(csv_import_router)
 app.include_router(usage_router)
 app.include_router(subscriptions_router)
+app.include_router(billing_router)
 app.include_router(audit_router)
 app.include_router(platform_admin_router)
 

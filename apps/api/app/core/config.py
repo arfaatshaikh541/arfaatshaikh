@@ -67,6 +67,16 @@ class Settings(BaseSettings):
     rate_limit_login_per_minute: int = 5
     rate_limit_login_per_hour_per_account: int = 20
 
+    # Billing (Stripe) - empty by default, same pattern as
+    # `google_places_api_key`: nothing in this codebase fabricates a
+    # working billing integration without real credentials supplied.
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    billing_portal_return_url: str = "http://localhost:3000/billing"
+    billing_checkout_success_url: str = "http://localhost:3000/billing?checkout=success"
+    billing_checkout_cancel_url: str = "http://localhost:3000/billing?checkout=cancelled"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]

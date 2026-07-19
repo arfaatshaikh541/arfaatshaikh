@@ -37,6 +37,14 @@ class SubscriptionPlan(Base, UUIDPKMixin, TimestampMixin):
     monthly_price_usd: Mapped[float] = mapped_column(Numeric(10, 2), default=0, nullable=False)
     monthly_credit_grant: Mapped[int] = mapped_column(default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # The real Stripe Price id this plan maps to - set by ops from a real
+    # Stripe dashboard/account, never fabricated here. NULL until
+    # configured, which is what it is in this project's seed data (no
+    # real Stripe account exists in this environment - see ADR-0017).
+    # Checkout for a plan with no price id configured fails clearly
+    # rather than silently proceeding, the same "don't auto-create a
+    # missing S3 bucket" discipline ADR-0015 established.
+    stripe_price_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class PlanFeature(Base, UUIDPKMixin, TimestampMixin):

@@ -72,6 +72,46 @@ export type Subscription = {
   entitlements: Record<string, unknown>;
 };
 
+export type CheckoutSessionResponse = {
+  checkout_url: string;
+};
+
+export type PortalSessionResponse = {
+  portal_url: string;
+};
+
+export type Invoice = {
+  id: string;
+  stripe_invoice_id: string;
+  status: string;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
+  hosted_invoice_url: string | null;
+  invoice_pdf_url: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  paid_at: string | null;
+  created_at: string;
+};
+
+export type InvoiceListResponse = {
+  invoices: Invoice[];
+};
+
+export type Plan = {
+  key: string;
+  name: string;
+  description: string;
+  monthly_price_usd: number;
+  monthly_credit_grant: number;
+  checkout_available: boolean;
+};
+
+export type PlanListResponse = {
+  plans: Plan[];
+};
+
 export type AuditLogEntry = {
   id: string;
   actor_user_id: string | null;
