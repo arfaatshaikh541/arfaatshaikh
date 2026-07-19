@@ -26,6 +26,7 @@ from app.modules.billing import repositories as billing_repo
 from app.modules.identity.repositories import get_user_by_id
 from app.modules.subscriptions import repositories as subscriptions_repo
 from app.modules.tenancy.repositories import get_tenant_by_id
+from app.modules.usage.services import grant_credits
 
 logger = get_logger("gridkeep.billing")
 
@@ -334,3 +335,62 @@ async def _handle_invoice_event(
         period_end=_from_unix(invoice.get("period_end")),
         paid_at=_from_unix(paid_at_ts),
     )
+    if invoice["status"] == "paid":
+        await _grant_recurring_credits_for_invoice(session, tenant_id=tenant_id, invoice=invoice)
+
+
+async def _grant_recurring_credits_for_invoice(
+    session: AsyncSession, *, tenant_id: uuid.UUID, invoice: dict
+) -> None:
+    """Grants the invoice's plan its `monthly_credit_grant` for this
+    billing period - the recurring counterpart to the one-time grant
+    `tenancy.services.create_tenant` makes at signup (see docs/adr/0021).
+
+    Every paid subscription invoice grants credits, including a brand new
+    subscription's first invoice - not just `billing_reason ==
+    "subscription_cycle"` renewals - since each paid invoice represents
+    one billing period this plan's stipend is owed for, and a tenant's
+    Milestone-1 initial grant is for the *trial* plan specifically, not
+    whatever plan they actually check out for.
+
+    Idempotent per Stripe invoice id, not just per Stripe event id: the
+    outer `handle_webhook_event` already dedupes by `event.id`, but that
+    guard alone has a gap - a crash between granting credits here and
+    persisting that event's `BillingEvent` row would let a genuinely
+    redelivered event (Stripe warns this can arrive under a *different*
+    event id for the same invoice) re-grant. `credit_grant_applied_at` on
+    the locked `InvoiceRecord` row is the real idempotency key.
+    """
+    if not invoice.get("subscription"):
+        return  # one-off invoice, not a subscription billing cycle
+    line_items = (invoice.get("lines") or {}).get("data") or []
+    if not line_items:
+        logger.warning(
+            "billing_webhook_invoice_paid_no_line_items", stripe_invoice_id=invoice["id"]
+        )
+        return
+    price_id = (line_items[0].get("price") or {}).get("id")
+    if not price_id:
+        logger.warning(
+            "billing_webhook_invoice_paid_no_price_id", stripe_invoice_id=invoice["id"]
+        )
+        return
+    plan = await subscriptions_repo.get_plan_by_stripe_price_id(session, price_id)
+    if plan is None or plan.monthly_credit_grant <= 0:
+        return  # no plan configured for this price, or this plan grants nothing
+
+    locked_invoice = await billing_repo.get_invoice_by_stripe_id_for_update(
+        session, invoice["id"]
+    )
+    if locked_invoice is None or locked_invoice.credit_grant_applied_at is not None:
+        return  # already granted for this invoice, or the row vanished (shouldn't happen)
+
+    await grant_credits(
+        session,
+        tenant_id=tenant_id,
+        amount=float(plan.monthly_credit_grant),
+        type_="grant_recurring",
+        reference=f"stripe_invoice:{invoice['id']}",
+    )
+    locked_invoice.credit_grant_applied_at = datetime.now(UTC)
+    await session.flush()

@@ -115,6 +115,21 @@ async def get_invoice_by_stripe_id(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def get_invoice_by_stripe_id_for_update(
+    session: AsyncSession, stripe_invoice_id: str
+) -> InvoiceRecord | None:
+    """Locks the row (SELECT ... FOR UPDATE) so two concurrent webhook
+    deliveries for the same invoice serialize on this row instead of both
+    reading `credit_grant_applied_at` as unset and double-granting - see
+    `billing.services._grant_recurring_credits_for_invoice`."""
+    stmt = (
+        select(InvoiceRecord)
+        .where(InvoiceRecord.stripe_invoice_id == stripe_invoice_id)
+        .with_for_update()
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def upsert_invoice_record(
     session: AsyncSession,
     *,

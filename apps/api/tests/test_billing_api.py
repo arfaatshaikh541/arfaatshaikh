@@ -314,6 +314,179 @@ async def _tenant_id_from_row(email: str) -> str:
     return str(tenant_id)
 
 
+async def _wallet_balance(tenant_id: str) -> float:
+    engine = create_async_engine(migrator_asyncpg_url())
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text("SELECT balance FROM credit_wallets WHERE tenant_id = :t"), {"t": tenant_id}
+        )
+        balance = result.scalar_one()
+    await engine.dispose()
+    return float(balance)
+
+
+async def _credit_grant_count_for_reference(reference: str) -> int:
+    engine = create_async_engine(migrator_asyncpg_url())
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT count(*) FROM credit_transactions "
+                "WHERE reference = :reference AND type = 'grant_recurring'"
+            ),
+            {"reference": reference},
+        )
+        count = result.scalar_one()
+    await engine.dispose()
+    return int(count)
+
+
+def _invoice_paid_event(
+    *, event_id: str, invoice_id: str, tenant_id: str, subscription: str | None, price_id: str | None
+) -> dict:
+    now = int(time.time())
+    return {
+        "id": event_id,
+        "object": "event",
+        "type": "invoice.paid",
+        "data": {
+            "object": {
+                "id": invoice_id,
+                "object": "invoice",
+                "customer": "cus_fake_recurring",
+                "subscription": subscription,
+                "status": "paid",
+                "amount_due": 19900,
+                "amount_paid": 19900,
+                "currency": "usd",
+                "hosted_invoice_url": None,
+                "invoice_pdf": None,
+                "period_start": now,
+                "period_end": now + 30 * 24 * 3600,
+                "status_transitions": {"paid_at": now},
+                "metadata": {"tenant_id": tenant_id},
+                "lines": {
+                    "data": (
+                        [{"price": {"id": price_id}}] if price_id is not None else []
+                    )
+                },
+            }
+        },
+    }
+
+
+async def _post_signed_webhook(client, event: dict):
+    payload_bytes = json.dumps(event).encode()
+    return await client.post(
+        "/billing/webhook",
+        content=payload_bytes,
+        headers={
+            "stripe-signature": _sign_stripe_payload(payload_bytes, TEST_WEBHOOK_SECRET),
+            "content-type": "application/json",
+        },
+    )
+
+
+async def test_webhook_invoice_paid_grants_recurring_credits_for_configured_plan(
+    client, smtp_capture, monkeypatch
+):
+    """Milestone 13 (ADR-0021): closes the "no recurring credit grant on
+    subscription renewal" gap - a paid subscription invoice for a
+    configured plan grants that plan's `monthly_credit_grant`, on top of
+    the tenant's one-time trial grant already made at signup."""
+    _enable_stripe(monkeypatch)
+    await _register_owner_and_create_tenant(
+        client, smtp_capture, email="billing-recurring-grant@example.com", tenant_name="Recurring Grant Co"
+    )
+    tenant_id = await _tenant_id_from_row("billing-recurring-grant@example.com")
+    await _set_plan_stripe_price_id("starter", "price_starter_fake")
+    balance_before = await _wallet_balance(tenant_id)
+
+    event = _invoice_paid_event(
+        event_id="evt_recurring_grant_1",
+        invoice_id="in_recurring_grant_1",
+        tenant_id=tenant_id,
+        subscription="sub_recurring_grant_1",
+        price_id="price_starter_fake",
+    )
+    resp = await _post_signed_webhook(client, event)
+    assert resp.status_code == 200, resp.text
+
+    balance_after = await _wallet_balance(tenant_id)
+    assert balance_after == balance_before + 1000.0  # starter plan's monthly_credit_grant
+    assert await _credit_grant_count_for_reference("stripe_invoice:in_recurring_grant_1") == 1
+
+
+async def test_webhook_invoice_paid_redelivered_under_a_different_event_id_does_not_double_grant(
+    client, smtp_capture, monkeypatch
+):
+    """Stripe's own docs warn a business event can be redelivered under a
+    genuinely different event id for the same object - the outer
+    `handle_webhook_event` event-id dedup alone would not catch this, so
+    the credit grant must be idempotent on the *invoice* id instead (see
+    `InvoiceRecord.credit_grant_applied_at`)."""
+    _enable_stripe(monkeypatch)
+    await _register_owner_and_create_tenant(
+        client, smtp_capture, email="billing-recurring-grant-dup@example.com", tenant_name="Dup Grant Co"
+    )
+    tenant_id = await _tenant_id_from_row("billing-recurring-grant-dup@example.com")
+    await _set_plan_stripe_price_id("starter", "price_starter_fake_dup")
+    balance_before = await _wallet_balance(tenant_id)
+
+    first_event = _invoice_paid_event(
+        event_id="evt_recurring_grant_dup_1",
+        invoice_id="in_recurring_grant_dup_1",
+        tenant_id=tenant_id,
+        subscription="sub_recurring_grant_dup_1",
+        price_id="price_starter_fake_dup",
+    )
+    second_event = _invoice_paid_event(
+        event_id="evt_recurring_grant_dup_2",  # different event id
+        invoice_id="in_recurring_grant_dup_1",  # same invoice id
+        tenant_id=tenant_id,
+        subscription="sub_recurring_grant_dup_1",
+        price_id="price_starter_fake_dup",
+    )
+
+    resp1 = await _post_signed_webhook(client, first_event)
+    assert resp1.status_code == 200, resp1.text
+    resp2 = await _post_signed_webhook(client, second_event)
+    assert resp2.status_code == 200, resp2.text
+
+    balance_after = await _wallet_balance(tenant_id)
+    assert balance_after == balance_before + 1000.0  # granted exactly once, not twice
+    assert await _credit_grant_count_for_reference("stripe_invoice:in_recurring_grant_dup_1") == 1
+
+
+async def test_webhook_invoice_paid_with_no_configured_price_grants_nothing(
+    client, smtp_capture, monkeypatch
+):
+    """A paid invoice whose price isn't mapped to any `SubscriptionPlan`
+    (an unconfigured/unknown price) must not crash the webhook and must
+    not fabricate a grant - it's simply not actionable."""
+    _enable_stripe(monkeypatch)
+    await _register_owner_and_create_tenant(
+        client, smtp_capture, email="billing-recurring-grant-unknown@example.com", tenant_name="Unknown Price Co"
+    )
+    tenant_id = await _tenant_id_from_row("billing-recurring-grant-unknown@example.com")
+    balance_before = await _wallet_balance(tenant_id)
+
+    event = _invoice_paid_event(
+        event_id="evt_recurring_grant_unknown_1",
+        invoice_id="in_recurring_grant_unknown_1",
+        tenant_id=tenant_id,
+        subscription="sub_recurring_grant_unknown_1",
+        price_id="price_not_configured_anywhere",
+    )
+    resp = await _post_signed_webhook(client, event)
+    assert resp.status_code == 200, resp.text
+
+    balance_after = await _wallet_balance(tenant_id)
+    assert balance_after == balance_before
+    assert (
+        await _credit_grant_count_for_reference("stripe_invoice:in_recurring_grant_unknown_1") == 0
+    )
+
+
 def _build_subscription_event(*, event_id: str, tenant_id: str, price_id: str, status: str = "active") -> dict:
     now = int(time.time())
     return {

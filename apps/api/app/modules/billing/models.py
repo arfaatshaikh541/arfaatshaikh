@@ -115,3 +115,17 @@ class InvoiceRecord(Base, UUIDPKMixin, TimestampMixin):
     period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set the moment this invoice's recurring credit grant (see
+    # billing.services._grant_recurring_credits_for_invoice) has been
+    # applied - never unset once written. This is the idempotency guard
+    # for that grant: Stripe's own event-id dedup (BillingEvent) is not
+    # by itself sufficient, since a crash between granting credits and
+    # persisting the BillingEvent row would let a redelivered event (a
+    # genuinely different event id for the same invoice, which Stripe's
+    # own docs warn can happen) re-grant. Locked via
+    # get_invoice_by_stripe_id_for_update before being read-then-set, so
+    # two concurrent deliveries for the same invoice can't race each
+    # other into a double grant either.
+    credit_grant_applied_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
