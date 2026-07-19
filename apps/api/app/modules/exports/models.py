@@ -74,12 +74,24 @@ class Export(Base, UUIDPKMixin, TimestampMixin):
     file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # When the underlying object becomes eligible for storage cleanup -
-    # informational only in Milestone 7 (no cleanup job consumes it yet);
-    # download URLs are always signed fresh per-request with their own,
-    # much shorter TTL (see app.core.storage.presigned_download_url).
+    # When the underlying object becomes eligible for storage cleanup - set
+    # to `completed_at + settings.export_retention_days` when the export
+    # finishes (worker.export_tasks). Consumed by the periodic
+    # `worker.export_cleanup_tasks.cleanup_expired_exports` sweep
+    # (Milestone 14, docs/adr/0022), which deletes the object once this
+    # passes. Download URLs are always signed fresh per-request with their
+    # own, much shorter TTL (see app.core.storage.presigned_download_url) -
+    # unrelated to this field.
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    # Set once the cleanup sweep has deleted the underlying object - never
+    # unset. `object_key` is deliberately left in place after this (the
+    # Export row remains a complete audit record of what was exported and
+    # when its file was removed); `get_download_url` must refuse to
+    # presign a URL for a key that no longer exists once this is set.
+    storage_deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ExportError(Base, UUIDPKMixin, TimestampMixin):

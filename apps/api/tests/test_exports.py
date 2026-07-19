@@ -202,6 +202,36 @@ async def test_download_url_succeeds_once_completed(monkeypatch):
         await engine.dispose()
 
 
+async def test_download_url_raises_conflict_once_storage_has_been_cleaned_up():
+    """Milestone 14 (ADR-0022): once the retention sweep has deleted an
+    export's underlying object, `get_download_url` must not presign a URL
+    for a key that no longer exists - it must surface a clear error
+    instead."""
+    engine, Session = _session_factory()
+    try:
+        async with Session() as session:
+            tenant = await _make_tenant(session)
+            await set_tenant_context(session, tenant.id)
+            export = Export(
+                tenant_id=tenant.id,
+                requested_by_user_id=None,
+                format="xlsx",
+                status="completed",
+                selection={"mode": "lead_ids", "lead_ids": []},
+                object_key="tenants/x/exports/y/export.xlsx",
+                row_count=0,
+                storage_deleted_at=datetime.now(UTC),
+            )
+            session.add(export)
+            await session.flush()
+            await session.commit()
+
+            with pytest.raises(ConflictError):
+                await exports_services.get_download_url(session, export)
+    finally:
+        await engine.dispose()
+
+
 async def test_export_ids_matching_filters_excludes_merged_away_business():
     engine, Session = _session_factory()
     try:

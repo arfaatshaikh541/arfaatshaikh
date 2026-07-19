@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     s3_bucket_name: str = "gridkeep-local"
     s3_region: str = "us-east-1"
     s3_use_ssl: bool = False
+    # How long a completed export's underlying file stays in object storage
+    # before the maintenance sweep (worker.export_cleanup_tasks) deletes it.
+    # Not specified anywhere in the captured architecture - a reasonable
+    # operational default, not a fabricated requirement - so it is a real,
+    # documented, changeable setting rather than a hardcoded constant.
+    export_retention_days: int = 30
 
     # Mail
     smtp_host: str = "localhost"

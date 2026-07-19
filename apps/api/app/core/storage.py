@@ -66,6 +66,16 @@ def download_bytes(*, key: str) -> bytes:
     return response["Body"].read()
 
 
+def delete_object(*, key: str) -> None:
+    """Deletes the object at `key`. S3's `DeleteObject` is idempotent by
+    design - deleting an already-absent key succeeds silently rather than
+    raising - so callers (the export retention sweep) don't need their own
+    already-deleted special case."""
+    settings = get_settings()
+    client = get_s3_client()
+    client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+
+
 def presigned_download_url(*, key: str, filename: str, expires_in_seconds: int = 900) -> str:
     """Generated fresh on every call rather than stored - a stored
     presigned URL would eventually expire and become dead data. Signing

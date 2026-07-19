@@ -21,6 +21,10 @@ Milestone 2, unconsumed until now), and `run_csv_import` on `queue.search`
 the same class of work (turning raw external data into `Business` rows
 via the same upsert/dedup pipeline `run_campaign_task` already uses), not
 a new source of isolation pressure that would justify its own queue.
+Milestone 14 adds `cleanup_expired_exports_task` - object-storage
+retention cleanup, the same `queue.maintenance` queue and periodic-sweep
+shape as `expire_stale_reservations`, not a new queue (it is maintenance
+work, not a request-serving task competing for throughput).
 """
 
 # Must be imported before any ORM operation runs in this process: it pulls
@@ -48,6 +52,7 @@ celery_app = Celery(
         "worker.export_tasks",
         "worker.integration_tasks",
         "worker.csv_import_tasks",
+        "worker.export_cleanup_tasks",
     ],
 )
 
@@ -65,6 +70,7 @@ celery_app.conf.update(
         "worker.export_tasks.run_export": {"queue": "queue.export"},
         "worker.integration_tasks.push_lead_to_integration": {"queue": "queue.crm_push"},
         "worker.csv_import_tasks.run_csv_import": {"queue": "queue.search"},
+        "worker.export_cleanup_tasks.cleanup_expired_exports": {"queue": "queue.maintenance"},
     },
 )
 

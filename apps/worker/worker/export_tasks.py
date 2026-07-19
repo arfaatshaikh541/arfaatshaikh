@@ -18,8 +18,9 @@ accurate row/error count, never silently drops rows without saying so.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+from app.core.config import get_settings
 from app.core.db import AsyncSessionLocal, set_platform_bypass, set_tenant_context
 from app.core.logging import configure_logging, get_logger
 from app.core.storage import object_key_for_export, upload_bytes
@@ -96,6 +97,7 @@ async def _run_export_async(export_id_str: str) -> None:
         )
 
         now = _utcnow()
+        retention_days = get_settings().export_retention_days
         await exports_repo.mark_completed(
             session,
             export,
@@ -104,7 +106,7 @@ async def _run_export_async(export_id_str: str) -> None:
             file_size_bytes=file_size,
             row_count=len(rows),
             error_count=len(resolution_errors),
-            expires_at=None,
+            expires_at=now + timedelta(days=retention_days),
         )
         await session.commit()
 

@@ -88,6 +88,29 @@ async def mark_failed(
     await session.flush()
 
 
+async def list_expired_uncleaned_exports(session: AsyncSession, *, now: datetime) -> list[Export]:
+    """Cross-tenant query used only by the maintenance sweep task
+    (`worker.export_cleanup_tasks`), which runs under `set_platform_bypass`
+    - the same shape as `usage.repositories.list_expired_pending_
+    reservations` - since the whole point is finding stale exports across
+    every tenant, not one at a time."""
+    stmt = select(Export).where(
+        Export.status == "completed",
+        Export.expires_at.is_not(None),
+        Export.expires_at < now,
+        Export.storage_deleted_at.is_(None),
+        Export.object_key.is_not(None),
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def mark_storage_deleted(
+    session: AsyncSession, export: Export, *, deleted_at: datetime
+) -> None:
+    export.storage_deleted_at = deleted_at
+    await session.flush()
+
+
 async def create_export_error(
     session: AsyncSession,
     *,
