@@ -89,6 +89,38 @@ async def reset_database():
 
 
 @pytest_asyncio.fixture
+async def real_celery_task_isolation():
+    """Required by any test that drives a real Celery-wrapped task through
+    `worker.async_utils.run_db_task` (which opens a brand new event loop
+    per call via `asyncio.run(...)` - see that module's own docstring),
+    rather than calling a task's underlying `_run_..._async` coroutine
+    directly the way most of this suite's tests do.
+
+    Ordinary tests call `_run_..._async` directly inside their own
+    `async def test_...`, sharing pytest-asyncio's session-scoped loop -
+    so the production `app.core.db.engine`/`app.core.rate_limit`'s cached
+    redis client accumulate connections bound to *that* loop across the
+    whole test session, since nothing in that style of test ever disposes
+    them. The first real `run_db_task` call in the process then tries to
+    gracefully close those connections from an unrelated, brand new loop
+    in its own `finally: engine.dispose(); reset_redis_connection()`
+    cleanup - the same cross-event-loop `RuntimeError` `worker.async_
+    utils`'s own docstring exists to prevent, just one layer removed (a
+    stale pooled connection rather than a stale single client).
+
+    Requesting this fixture disposes both while still running on the
+    session loop that actually owns whatever is currently pooled, so the
+    next real `run_db_task` call starts from a clean pool instead of
+    inheriting connections from a different loop entirely."""
+    from app.core.db import engine
+    from app.core.rate_limit import reset_redis_connection
+
+    await engine.dispose()
+    await reset_redis_connection()
+    yield
+
+
+@pytest_asyncio.fixture
 async def migrator_session():
     """A raw, RLS-bypassing session for setting up fixture data (creating
     tenants/campaigns/jobs/tasks directly) the same way the API's own tests

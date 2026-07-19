@@ -186,6 +186,17 @@ def run_business_enrichment(self, enrichment_id: str) -> None:
         error = exc  # `except ... as exc` unbinds exc when this block exits;
         # the lambda below is a deferred closure, so it must capture a
         # plain local name instead (see worker.retry's own docstring).
+        if self.request.retries < self.max_retries:
+            # About to actually retry (see docs/adr/0023, which found and
+            # fixed the identical bug in worker.campaign_tasks first): the
+            # crawl happens after `enrichment.status = "running"` was
+            # already committed, and nothing resets it back afterwards.
+            # The duplicate-delivery guard above (`if enrichment.status !=
+            # "pending": return`) only ever proceeds from `pending`, so
+            # without this, the real retried delivery would find the
+            # enrichment still `running` and silently no-op instead of
+            # ever re-attempting the crawl.
+            run_db_task(_reset_enrichment_to_pending_for_retry(enrichment_id))
         retry_or_finalize(
             self,
             exc=exc,
@@ -194,6 +205,19 @@ def run_business_enrichment(self, enrichment_id: str) -> None:
             task_name="run_business_enrichment",
             task_id=enrichment_id,
         )
+
+
+async def _reset_enrichment_to_pending_for_retry(enrichment_id_str: str) -> None:
+    enrichment_id = uuid.UUID(enrichment_id_str)
+    async with AsyncSessionLocal() as session:
+        await set_platform_bypass(session)
+        enrichment = await enrichment_repo.get_enrichment(session, enrichment_id)
+        if enrichment is None:
+            return
+        await set_tenant_context(session, enrichment.tenant_id)
+        if enrichment.status == "running":
+            enrichment.status = "pending"
+        await session.commit()
 
 
 async def _finalize_failed_after_error(enrichment_id_str: str, message: str) -> None:

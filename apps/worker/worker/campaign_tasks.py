@@ -297,6 +297,17 @@ def run_campaign_task(self, task_id: str) -> None:
         error = exc  # `except ... as exc` unbinds exc when this block exits;
         # the lambda below is a deferred closure, so it must capture a
         # plain local name instead (see worker.retry's own docstring).
+        if self.request.retries < self.max_retries:
+            # About to actually retry (see docs/adr/0023): the connector
+            # call happens after `lock_task_for_processing` already
+            # claimed this task pending -> running, and nothing resets it
+            # back afterwards. `lock_task_for_processing` only ever
+            # reclaims a task from `pending`, so without this, the real
+            # retried delivery below would find the task still `running`
+            # and silently no-op instead of ever re-attempting the
+            # connector call - the retry budget would burn down doing
+            # nothing, not actually retrying.
+            run_db_task(_reset_task_to_pending_for_retry(task_id))
         retry_or_finalize(
             self,
             exc=exc,
@@ -307,6 +318,19 @@ def run_campaign_task(self, task_id: str) -> None:
             task_name="run_campaign_task",
             task_id=task_id,
         )
+
+
+async def _reset_task_to_pending_for_retry(task_id_str: str) -> None:
+    task_id = uuid.UUID(task_id_str)
+    async with AsyncSessionLocal() as session:
+        await set_platform_bypass(session)
+        task = await jobs_repo.get_task(session, task_id)
+        if task is None:
+            return
+        await set_tenant_context(session, task.tenant_id)
+        if task.status == "running":
+            task.status = "pending"
+        await session.commit()
 
 
 async def _finalize_task_permanently_failed(
