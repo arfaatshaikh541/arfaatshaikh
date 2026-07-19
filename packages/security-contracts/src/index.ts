@@ -84,6 +84,10 @@ export const SUPPORT_ACCESS_STATUSES = [
 
 export type SupportAccessStatus = (typeof SUPPORT_ACCESS_STATUSES)[number];
 
+export const ACCOUNT_RECOVERY_STATUSES = ["pending", "approved", "denied"] as const;
+
+export type AccountRecoveryStatus = (typeof ACCOUNT_RECOVERY_STATUSES)[number];
+
 export const MODULES = [
   "asset_inventory",
   "attack_surface",

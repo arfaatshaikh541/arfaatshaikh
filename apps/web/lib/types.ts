@@ -581,3 +581,19 @@ export interface TenantWorkspaceSnapshotRead {
   connected_integrations_count: number;
   access_expires_at: string;
 }
+
+// --- Hardening-programme Milestone 2: account recovery ---
+
+export interface AccountRecoveryRequestRead {
+  id: string;
+  status: string;
+  created_at: string;
+}
+
+export interface PendingAccountRecoveryRequestRead {
+  id: string;
+  user_email: string;
+  user_full_name: string;
+  reason: string;
+  created_at: string;
+}

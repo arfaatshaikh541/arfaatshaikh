@@ -47,6 +47,17 @@ MFA_CHALLENGE_TOKEN_TTL = timedelta(minutes=10)
 STEP_UP_TTL_SECONDS = 300
 MFA_TOTP_ISSUER = "GRIDKEEP"
 
+# Hardening-programme Milestone 2 (finding H-01): after this many wrong
+# TOTP/backup-code guesses against a single challenge token, the token is
+# treated as invalid for the rest of its natural TTL — closing the
+# previously-unlimited brute-force window against a 6-digit (10^6) TOTP
+# space. `modules.identity.routes.verify_login_mfa` additionally rate-limits
+# requests against the same token via Redis before this is ever reached —
+# two independent layers, not a redundant one: the Redis limiter throttles
+# request *volume* fast and cheaply; this counter is the durable,
+# DB-persisted backstop that survives even if Redis state were lost.
+MFA_CHALLENGE_MAX_FAILED_ATTEMPTS = 5
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -432,7 +443,14 @@ async def consume_mfa_challenge_token(
     """Milestone 24: accepts either a TOTP `code` or a `backup_code` (not
     both, but exactly one is required) — the login-challenge is the one
     place a backup code is actually usable, since it exists precisely for
-    "I no longer have my authenticator device"."""
+    "I no longer have my authenticator device".
+
+    Hardening-programme Milestone 2 (finding H-01): a wrong guess now
+    increments `token_row.failed_attempts`, and a token at or past
+    `MFA_CHALLENGE_MAX_FAILED_ATTEMPTS` is treated identically to an
+    expired one — same generic message, so a locked-out attacker learns
+    nothing distinguishing "too many wrong guesses" from "the 10-minute
+    window simply passed"."""
     if not code and not backup_code:
         raise InvalidCredentialsError("Incorrect verification code.")
 
@@ -442,6 +460,8 @@ async def consume_mfa_challenge_token(
     )
     token_row = result.scalar_one_or_none()
     if token_row is None or token_row.used_at is not None or token_row.expires_at <= _now():
+        raise AuthenticationError("This sign-in attempt has expired. Please sign in again.")
+    if token_row.failed_attempts >= MFA_CHALLENGE_MAX_FAILED_ATTEMPTS:
         raise AuthenticationError("This sign-in attempt has expired. Please sign in again.")
 
     user_result = await session.execute(select(User).where(User.id == token_row.user_id))
@@ -455,6 +475,8 @@ async def consume_mfa_challenge_token(
     else:
         verified = await _consume_backup_code(session, user, backup_code)
     if not verified:
+        token_row.failed_attempts += 1
+        await session.flush()
         raise InvalidCredentialsError("Incorrect verification code.")
 
     token_row.used_at = _now()

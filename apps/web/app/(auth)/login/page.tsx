@@ -162,6 +162,12 @@ export default function LoginPage() {
         >
           {useBackupCode ? "Use your authenticator app instead" : "Lost your device? Use a backup code"}
         </button>
+        <Link
+          href={`/recovery-request?token=${encodeURIComponent(mfaChallengeToken)}`}
+          className="mt-1 block text-xs text-ink-500 hover:text-ink-700"
+        >
+          Lost your backup codes too? Request account recovery
+        </Link>
       </AuthShell>
     );
   }

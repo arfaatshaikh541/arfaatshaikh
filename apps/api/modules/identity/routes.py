@@ -7,16 +7,28 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
-from core.deps import AuthContext, get_auth_context, require_csrf
+from core.deps import (
+    AuthContext,
+    TenantContext,
+    get_auth_context,
+    get_tenant_db,
+    require_csrf,
+    require_permission,
+    require_step_up,
+)
 from core.email import send_email
 from core.middleware import login_rate_limiter
 from core.security import generate_csrf_token
 from db.session import get_db
 from modules.audit import service as audit_service
+from modules.identity import recovery_service
 from modules.identity import service as identity_service
 from modules.identity.models import User
 from modules.identity.schemas import (
     AcceptInvitationRequest,
+    AccountRecoveryRequestCreate,
+    AccountRecoveryRequestRead,
+    DenyAccountRecoveryRequest,
     ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
@@ -30,6 +42,7 @@ from modules.identity.schemas import (
     MfaRegenerateBackupCodesRequest,
     MfaRequiredResponse,
     MfaVerifyLoginRequest,
+    PendingAccountRecoveryRequestRead,
     ResetPasswordRequest,
     StepUpRequest,
     StepUpResponse,
@@ -188,6 +201,17 @@ async def verify_login_mfa(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
+    # Hardening-programme Milestone 2 (finding H-01): keyed by the challenge
+    # token itself (not IP/account, which /api/auth/login already
+    # rate-limits) — this is what closes the previously-unlimited window to
+    # brute-force a 6-digit TOTP code against one specific, already-issued
+    # token. `MFA_CHALLENGE_TOKEN_TTL` is reused as the window so the limit
+    # and the token's own lifetime can't drift apart.
+    await login_rate_limiter.check(
+        f"mfa-verify:{payload.mfa_challenge_token}",
+        limit=identity_service.MFA_CHALLENGE_MAX_FAILED_ATTEMPTS,
+        window_seconds=int(identity_service.MFA_CHALLENGE_TOKEN_TTL.total_seconds()),
+    )
     user = await identity_service.consume_mfa_challenge_token(
         db, payload.mfa_challenge_token, code=payload.code, backup_code=payload.backup_code
     )
@@ -444,3 +468,104 @@ async def accept_invitation(
         active_membership_id=membership.id,
         csrf_token=csrf_token,
     )
+
+
+# ---------------------------------------------------------------- account recovery --
+#
+# Hardening-programme Milestone 2: the self-service MFA-lockout recovery
+# path Milestone 24's backup codes don't fully close. `request_account_
+# recovery` is deliberately unauthenticated (only a valid MFA challenge
+# token is required) — a locked-out user has no session by definition.
+# The remaining three routes are ordinary tenant-admin actions gated by
+# `users.manage`, the same permission `/api/users/invitations` already
+# requires.
+
+
+@router.post("/recovery/request", response_model=AccountRecoveryRequestRead)
+async def request_account_recovery(
+    payload: AccountRecoveryRequestCreate, db: AsyncSession = Depends(get_db)
+) -> AccountRecoveryRequestRead:
+    request = await recovery_service.request_recovery(
+        db, mfa_challenge_token=payload.mfa_challenge_token, reason=payload.reason
+    )
+    from sqlalchemy import select
+
+    user = (await db.execute(select(User).where(User.id == request.user_id))).scalar_one()
+    await audit_service.record(
+        db,
+        tenant_id=None,
+        actor_user_id=user.id,
+        actor_label=user.email,
+        action="auth.recovery_requested",
+        target_type="account_recovery_request",
+        target_id=str(request.id),
+    )
+    await db.commit()
+    return AccountRecoveryRequestRead(id=request.id, status=request.status, created_at=request.created_at)
+
+
+@router.get("/recovery/pending", response_model=list[PendingAccountRecoveryRequestRead])
+async def list_pending_account_recovery_requests(
+    ctx: TenantContext = Depends(require_permission("users.manage")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> list[PendingAccountRecoveryRequestRead]:
+    rows = await recovery_service.list_pending_requests_for_tenant(db, tenant_id=ctx.tenant_id)
+    return [
+        PendingAccountRecoveryRequestRead(
+            id=req.id,
+            user_email=user.email,
+            user_full_name=user.full_name,
+            reason=req.reason,
+            created_at=req.created_at,
+        )
+        for req, user in rows
+    ]
+
+
+@router.post(
+    "/recovery/{request_id}/approve",
+    dependencies=[Depends(require_csrf), Depends(require_step_up())],
+)
+async def approve_account_recovery(
+    request_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_permission("users.manage")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> dict:
+    request = await recovery_service.approve_recovery_request(
+        db, request_id=request_id, approver_user_id=ctx.user.id, tenant_id=ctx.tenant_id
+    )
+    await audit_service.record(
+        db,
+        tenant_id=ctx.tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+        action="auth.recovery_approved",
+        target_type="account_recovery_request",
+        target_id=str(request.id),
+    )
+    await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/recovery/{request_id}/deny", dependencies=[Depends(require_csrf)])
+async def deny_account_recovery(
+    request_id: uuid.UUID,
+    payload: DenyAccountRecoveryRequest,
+    ctx: TenantContext = Depends(require_permission("users.manage")),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> dict:
+    request = await recovery_service.deny_recovery_request(
+        db, request_id=request_id, approver_user_id=ctx.user.id, tenant_id=ctx.tenant_id
+    )
+    await audit_service.record(
+        db,
+        tenant_id=ctx.tenant_id,
+        actor_user_id=ctx.user.id,
+        actor_label=ctx.user.email,
+        action="auth.recovery_denied",
+        target_type="account_recovery_request",
+        target_id=str(request.id),
+        context={"reason": payload.reason},
+    )
+    await db.commit()
+    return {"status": "ok"}

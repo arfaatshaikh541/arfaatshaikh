@@ -128,3 +128,31 @@ class StepUpRequest(BaseModel):
 class StepUpResponse(BaseModel):
     status: str
     step_up_expires_at: datetime
+
+
+class AccountRecoveryRequestCreate(BaseModel):
+    """Reachable only with a valid, unexpired `mfa_challenge_token` — see
+    `recovery_service.request_recovery`. `reason` is shown to the
+    reviewing admin verbatim; it is not itself proof of anything, just
+    context for the human decision the approval step requires."""
+
+    mfa_challenge_token: str
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class AccountRecoveryRequestRead(BaseModel):
+    id: uuid.UUID
+    status: str
+    created_at: datetime
+
+
+class PendingAccountRecoveryRequestRead(BaseModel):
+    id: uuid.UUID
+    user_email: str
+    user_full_name: str
+    reason: str
+    created_at: datetime
+
+
+class DenyAccountRecoveryRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)

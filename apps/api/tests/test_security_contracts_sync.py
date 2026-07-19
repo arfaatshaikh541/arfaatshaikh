@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from core.security_contracts import (
+    ACCOUNT_RECOVERY_STATUSES,
     AUTOMATION_MODES,
     DEFAULT_PLATFORM_ROLE_PERMISSIONS,
     MODULES,
@@ -57,6 +58,10 @@ def test_tenant_statuses_match():
 
 def test_support_access_statuses_match():
     assert _extract_ts_array("SUPPORT_ACCESS_STATUSES") == list(SUPPORT_ACCESS_STATUSES)
+
+
+def test_account_recovery_statuses_match():
+    assert _extract_ts_array("ACCOUNT_RECOVERY_STATUSES") == list(ACCOUNT_RECOVERY_STATUSES)
 
 
 def test_modules_match():

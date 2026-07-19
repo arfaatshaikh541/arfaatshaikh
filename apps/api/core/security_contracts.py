@@ -63,6 +63,8 @@ TENANT_STATUSES: tuple[str, ...] = ("trial", "active", "read_only", "suspended",
 
 SUPPORT_ACCESS_STATUSES: tuple[str, ...] = ("pending", "active", "expired", "revoked")
 
+ACCOUNT_RECOVERY_STATUSES: tuple[str, ...] = ("pending", "approved", "denied")
+
 MODULES: tuple[str, ...] = (
     "asset_inventory",
     "attack_surface",

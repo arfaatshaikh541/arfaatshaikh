@@ -147,6 +147,72 @@ async def test_mfa_verify_login_with_wrong_code_is_rejected(client, db):
     assert verify_resp.status_code == 401
 
 
+async def test_mfa_verify_login_rate_limited_after_five_wrong_attempts(client, db):
+    """Hardening-programme Milestone 2 (finding H-01): before this, nothing
+    stopped unlimited guesses against a single challenge token for its
+    whole 10-minute TTL. The 6th consecutive wrong attempt against the
+    same token must now be rejected as rate-limited (429), not just
+    another wrong-code 401."""
+    ctx = await _connected_owner(client, db, org="MFA Brute Force Co", email="owner@mfa-brute-force.example")
+    await _enroll_and_confirm_mfa(client, ctx["csrf_token"])
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+
+    login_resp = await login(client, "owner@mfa-brute-force.example", "Owner-Pass1!")
+    challenge_token = login_resp.json()["mfa_challenge_token"]
+
+    for _ in range(5):
+        resp = await client.post(
+            "/api/auth/mfa/verify-login", json={"mfa_challenge_token": challenge_token, "code": "000000"}
+        )
+        assert resp.status_code == 401
+
+    sixth_attempt = await client.post(
+        "/api/auth/mfa/verify-login", json={"mfa_challenge_token": challenge_token, "code": "000000"}
+    )
+    assert sixth_attempt.status_code == 429
+
+
+async def test_mfa_challenge_token_locked_out_after_max_failed_attempts_even_with_the_correct_code(
+    client, db
+):
+    """Isolates the DB-persisted `failed_attempts` counter from the Redis
+    rate limiter above — with the same threshold, the rate limiter would
+    always fire first in a real 6-in-a-row sequence, so this test drives
+    the counter directly to prove the service-layer lockout is a real,
+    independent backstop: even the genuinely correct code is refused once
+    the token has accumulated too many failures, not just further wrong
+    guesses."""
+    from sqlalchemy import select
+
+    from core.security import hash_token
+    from modules.identity.models import MfaChallengeToken
+
+    ctx = await _connected_owner(
+        client, db, org="MFA Lockout Backstop Co", email="owner@mfa-lockout-backstop.example"
+    )
+    secret = await _enroll_and_confirm_mfa(client, ctx["csrf_token"])
+    await client.post("/api/auth/logout", headers={"X-CSRF-Token": ctx["csrf_token"]})
+
+    login_resp = await login(client, "owner@mfa-lockout-backstop.example", "Owner-Pass1!")
+    challenge_token = login_resp.json()["mfa_challenge_token"]
+
+    async with AsyncSessionLocal() as session:
+        token_row = (
+            await session.execute(
+                select(MfaChallengeToken).where(MfaChallengeToken.token_hash == hash_token(challenge_token))
+            )
+        ).scalar_one()
+        token_row.failed_attempts = 5
+        await session.commit()
+
+    verify_resp = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": challenge_token, "code": pyotp.TOTP(secret).now()},
+    )
+    assert verify_resp.status_code == 401
+    assert "expired" in verify_resp.json()["error"]["message"].lower()
+
+
 async def test_disable_mfa_requires_the_correct_code(client, db):
     ctx = await _connected_owner(client, db, org="MFA Disable Co", email="owner@mfa-disable.example")
     secret = await _enroll_and_confirm_mfa(client, ctx["csrf_token"])
