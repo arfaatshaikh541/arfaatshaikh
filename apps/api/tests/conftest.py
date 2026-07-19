@@ -36,6 +36,14 @@ os.environ.setdefault(
 )
 os.environ.setdefault("VAULT_LOCAL_MASTER_KEY", "test-only-master-key-do-not-use-elsewhere-00000")
 os.environ.setdefault("EVIDENCE_STORAGE_ROOT", tempfile.mkdtemp(prefix="gridkeep-evidence-test-"))
+# Milestone 29: cookies are Secure-by-default now (core/config.py); the
+# `client` fixture below talks to the app over a plain `http://testserver`
+# ASGI transport, where a Secure cookie would never round-trip back to the
+# server on a subsequent request, breaking every test that logs in once and
+# makes further authenticated calls. This is the same explicit, narrowly
+# named opt-out `docker-compose.yml` sets for local dev — not a weakening
+# of what's actually being tested.
+os.environ.setdefault("ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV", "true")
 
 sys.path.insert(0, str(API_ROOT))
 

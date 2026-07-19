@@ -1,0 +1,102 @@
+# Production overlay for docker-compose.yml — Milestone 29.
+#
+# This file does NOT stand alone. Apply it on top of the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml config
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+#
+# What this changes from the base (development) file:
+#
+#   - api/worker/beat run with ENVIRONMENT=production, which makes
+#     core.config.Settings._validate_production_safety a hard boot-time
+#     gate: those containers refuse to start unless every credential below
+#     has been overridden with a real value — not the development default
+#     still present in docker-compose.yml. Every REQUIRED value below uses
+#     Compose's `${VAR:?message}` syntax, so `docker compose config` itself
+#     fails loudly, before any container starts, if the real deployment
+#     hasn't set it.
+#   - postgres/redis/object-storage no longer publish any port to the host
+#     (`!reset []` — verified against this exact Compose version to
+#     actually strip the base file's `ports:` list, not just add nothing
+#     to it). Nothing outside the compose network can reach them directly;
+#     only api/worker/beat, already on that network, can.
+#   - api/worker/beat drop the `./apps/api:...` bind mounts the dev file
+#     uses for live-reload — a production container runs the image it was
+#     built as, not whatever happens to be on the host filesystem at
+#     `docker compose up` time. `uvicorn` drops `--reload` for the same
+#     reason.
+#
+# What this file deliberately does NOT do:
+#
+#   - It does not terminate TLS or provide a reverse proxy for api/web.
+#     Something in front of this stack (a cloud load balancer, nginx,
+#     Caddy) has to do that — see docs/deployment-production.md for what's
+#     required there before this overlay is usable for real traffic.
+#   - It does not change network segmentation (api/web/worker/beat and
+#     postgres/redis/object-storage still share one Compose network) —
+#     that is explicitly Milestone 33's scope, tracked separately rather
+#     than folded in here.
+#   - It does not add a secrets-manager-backed credential vault adapter —
+#     VAULT_LOCAL_MASTER_KEY below still uses the local envelope-encryption
+#     adapter, just with a real key instead of the shipped default. The
+#     KMS-backed adapter is finding C-02, tracked for its own milestone.
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set to a real, securely-generated value for production}
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  object-storage:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set to a real value for production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set to a real, securely-generated value for production}
+    ports: !reset []
+
+  api:
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?CORS_ALLOW_ORIGINS must be set to the real production origin(s), e.g. ["https://app.example.com"]}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL must be set to the real production frontend origin}
+      VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+      # Compose merges `environment:` maps key-by-key (unlike `ports`/
+      # `volumes`, it is NOT reset by simply omitting it here) — the base
+      # file's dev-only ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "true" would
+      # otherwise survive into this "production" config untouched. Settings
+      # itself refuses to boot with this combination (core/config.py), but
+      # this overlay should not rely on that as its only defense — it must
+      # be explicitly false here so this file's own merged output is
+      # correct on inspection, not just safe by accident.
+      ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "false"
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m seed.bootstrap &&
+             uvicorn main:app --host 0.0.0.0 --port 8000"
+    volumes: !reset
+      - gridkeep_evidence_storage:/data/evidence-storage
+
+  worker:
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+    volumes: !reset []
+
+  beat:
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
+    volumes: !reset []
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL must be set to the real production API origin}

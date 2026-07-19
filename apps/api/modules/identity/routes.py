@@ -71,13 +71,21 @@ async def _compute_mfa_enrollment_required(
         db, tenant_id=active.tenant_id, role_name=active.role_name, user=user
     )
 
-_SESSION_COOKIE_KW = dict(httponly=True, samesite="lax", secure=False, path="/")
-_CSRF_COOKIE_KW = dict(httponly=False, samesite="lax", secure=False, path="/")
+_SESSION_COOKIE_KW = dict(httponly=True, samesite="lax", path="/")
+_CSRF_COOKIE_KW = dict(httponly=False, samesite="lax", path="/")
 
 
 def _cookie_secure_kwargs(base: dict) -> dict:
+    """Milestone 29 (finding H-02): cookies are `Secure` by default in
+    every environment. The previous behaviour (`secure=settings.is_production`)
+    meant a deployment that simply forgot to set `ENVIRONMENT=production`
+    silently shipped session/CSRF cookies without the `Secure` attribute.
+    The only way to get an insecure cookie now is the explicit,
+    narrowly-named `allow_insecure_cookies_for_local_dev` opt-out, which
+    `core.config.Settings` itself refuses to allow when `environment` is
+    ever `production`."""
     kw = dict(base)
-    kw["secure"] = settings.is_production
+    kw["secure"] = not settings.allow_insecure_cookies_for_local_dev
     return kw
 
 

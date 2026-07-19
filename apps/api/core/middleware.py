@@ -16,6 +16,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        # Milestone 29 (finding H-02): sent unconditionally, in every
+        # environment. Browsers only ever honour Strict-Transport-Security
+        # when it arrives over an actual HTTPS connection, so this is inert
+        # (not misleading) over the plain-HTTP connections local dev and the
+        # test suite use — the previous state was that no HSTS header
+        # existed at all, leaving a real TLS deployment with zero downgrade
+        # protection unless a reverse proxy happened to add one.
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'none'; frame-ancestors 'none'",

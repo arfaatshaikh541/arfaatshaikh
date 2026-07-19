@@ -1,13 +1,17 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-17 (Milestone 28 implementation)
+Last updated: 2026-07-19 (Milestone 29 implementation)
 
 ## Current Milestone
 
-**Milestone 28: Real Evidence File Storage + Real Email Dispatch** — implementation complete. This was the
-fifth and last of five closable items identified from the user's "run all tests, tell me what's remaining,
-and complete the project" instruction; see that milestone's section below for the full closeout summary.
-Milestones 1 through 27 are complete and merged; their sections below are preserved as-is.
+**Milestone 29: Security Baseline and Production Configuration** — implementation complete. First
+milestone of the production security hardening programme, itself commissioned after an independent
+security audit found two Critical and two High findings (see `docs/security-findings-register.md`).
+Milestone 1 of that programme closes finding H-02; Critical findings C-01 and C-02 remain open, tracked
+for Milestones 3 and 5 of the programme respectively — this milestone does not claim to have fixed them,
+and nothing below should be read as implying it has. See that milestone's section below for the full
+closeout summary. Milestones 1 through 28 are complete and merged; their sections below are preserved
+as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -4420,3 +4424,165 @@ the three existing email-content tests (`test_onboarding_sends_real_verification
 `test_executive_viewer_cannot_manage_users`) to assert the real link is present, not just that the body
 contains some text — locking in the fix rather than leaving it only manually verified. Full suite:
 **248/248 passing**, `ruff check .` clean.
+
+## Milestone 29 — Security Baseline and Production Configuration
+
+Commissioned after an independent security audit (`docs/security-findings-register.md`) that treated every
+prior milestone's claims, tests, and documentation as unverified until directly checked — an approach that
+found two Critical findings the deck and prior status notes had both, in good faith, gotten wrong. This is
+Milestone 1 of a 14-milestone production-hardening programme; it closes **finding H-02** only. **C-01
+(Row-Level Security bypassed by an unrestricted superuser role) and C-02 (no production credential-vault
+adapter) remain open** — this milestone does not touch either, and nothing below should be read as having
+fixed them. They are scoped to Milestones 3 and 5 of the programme.
+
+### What H-02 actually was
+
+Three separate pieces of security-relevant behaviour — the session/CSRF cookies' `Secure` attribute, the
+`Strict-Transport-Security` header, and (already correct, unaffected here) `/api/docs` exposure — all
+depended on `ENVIRONMENT` being set to the literal string `"production"`, with `environment` defaulting to
+`"development"` and no check anywhere refusing to boot if a real deployment forgot to set it. A
+production deployment that simply omitted `ENVIRONMENT=production` would silently ship session cookies
+without `Secure`, with no HSTS header at all, and no warning of either.
+
+### Fix — fail-closed at boot, not at request time
+
+`apps/api/core/config.py`: `Settings` gained a `model_validator(mode="after")` that runs once, when the
+process's single `Settings` instance is constructed (`settings = get_settings()`, at import time — so a
+misconfigured production deployment fails to import `core.config` at all, and therefore fails to start).
+It refuses to construct a `Settings` object with `environment="production"` while any of the following
+still carries the value this repository ships as its development default: `VAULT_LOCAL_MASTER_KEY`,
+`OBJECT_STORAGE_ACCESS_KEY`/`SECRET_KEY`, `DATABASE_URL`/`DATABASE_MIGRATION_URL` (checked for the literal
+`gridkeep:gridkeep@` dev credential), `CORS_ALLOW_ORIGINS` (checked for a `localhost`/`127.0.0.1` origin),
+`REDIS_URL` (same check), or the new `ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV` flag (see below) being true.
+Every problem found is collected and reported together in one `ValidationError`, not one-at-a-time, so a
+real first deployment attempt gets a complete list to fix rather than a fix-and-retry loop.
+
+The vestigial, entirely-unused `debug: bool = Field(default=True)` field (never read anywhere else in the
+codebase — confirmed by a repo-wide grep before removing it) was deleted rather than left as a misleading,
+insecure-by-default setting sitting unused in a security-sensitive file.
+
+### Fix — cookies are `Secure` by default in every environment now, not just `production`
+
+`modules/identity/routes.py`: `_cookie_secure_kwargs` previously computed `secure=settings.is_production` —
+correct in intent, but fail-*open*: forgetting to set `ENVIRONMENT=production` silently produced an
+insecure cookie with no error anywhere. It now computes `secure=not settings.allow_insecure_cookies_for_local_dev`
+— cookies are `Secure` unless a developer explicitly opts out for local HTTP development, and the new
+config validator refuses to allow that opt-out to be set in `production` at all. This inverts the previous
+"insecure unless you remember to flip the switch" default to "secure unless you explicitly, narrowly opt
+out" — the fail-closed direction the hardening programme's working rules require.
+
+Local development and the test suite both need the explicit opt-out to keep working, since neither serves
+the app over real HTTPS: `docker-compose.yml`'s `api` service now sets
+`ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "true"`, and `apps/api/tests/conftest.py` sets the same env var by
+default for the same reason — the `client` fixture talks to the app over a plain `http://testserver` ASGI
+transport, where httpx's cookie jar would otherwise refuse to send a `Secure` cookie back on the next
+request in the same test, breaking every test that logs in once and makes further authenticated calls.
+This is a scoping decision, not a weakening of what gets tested — `test_security_headers.py` (below)
+separately proves the *default* behaviour (no opt-out) by monkeypatching the setting off for one test only
+and inspecting the real `Set-Cookie` header text.
+
+### Fix — HSTS sent unconditionally
+
+`core/middleware.py`'s `SecurityHeadersMiddleware` now always sends `Strict-Transport-Security:
+max-age=63072000; includeSubDomains`, plus `X-Permitted-Cross-Domain-Policies: none`. Browsers only ever
+honour HSTS when it arrives over a real HTTPS connection, so sending it unconditionally is inert (not
+misleading) over the plain-HTTP connections local dev and the test suite use — the previous state was that
+the header didn't exist at all, leaving a real TLS deployment with zero downgrade protection unless a
+reverse proxy happened to add one independently.
+
+### New: `docker-compose.production.yml` — a verified, not just written, production overlay
+
+A Compose overlay applied on top of `docker-compose.yml` (`docker compose -f docker-compose.yml -f
+docker-compose.production.yml ...`), rather than a duplicate standalone file — avoids the two files drifting
+apart over time. It sets `ENVIRONMENT=production` on `api`/`worker`/`beat`; strips host port publishing
+from `postgres`/`redis`/`object-storage` entirely (nothing outside the Compose network can reach them
+directly); drops the dev-only `./apps/api:...` bind mounts from `api`/`worker`/`beat` (a production
+container should run the image it was built as, not whatever's on the host filesystem at `up` time); and
+requires every credential (`POSTGRES_PASSWORD`, `MINIO_ROOT_USER`/`PASSWORD`, `DATABASE_URL`,
+`DATABASE_MIGRATION_URL`, `CORS_ALLOW_ORIGINS`, `APP_BASE_URL`, `VAULT_LOCAL_MASTER_KEY`,
+`NEXT_PUBLIC_API_BASE_URL`) via Compose's `${VAR:?message}` syntax, so `docker compose config` itself fails
+with a specific, actionable message before any container starts if the real deployment hasn't set one.
+
+None of this was assumed to work — it was verified against the real Docker Compose v5.1.1 available in
+this sandbox (the same real daemon discovered and used in Milestone 28's Docker audit):
+
+- `ports: !reset []` was tested in isolation first, against a throwaway base/override file pair, to confirm
+  it actually strips a base file's published ports in a merge (Compose's default merge behaviour for
+  `environment:`-style maps and `ports:`/`volumes:`-style sequences differs — sequences are *appended* by
+  default, not replaced, unless `!reset` is used) — confirmed empirically before relying on it in the real
+  file.
+- `${VAR:?message}` was similarly tested in isolation: confirmed it fails `docker compose config` with the
+  exact custom message when unset, and passes through cleanly when set.
+- The real file was then run both ways against the real `docker-compose.yml`: missing a required variable
+  produces the expected `required variable ... is missing a value` error; with every variable set, the
+  merged config was inspected in full and confirmed correct — `ENVIRONMENT: production`, no `ports:` key
+  on `postgres`/`redis`/`object-storage`, `api`'s `volumes:` reduced to just the `gridkeep_evidence_storage`
+  named volume, `worker`/`beat`'s dev bind mounts gone, and `uvicorn`'s `--reload` flag dropped from `api`'s
+  command.
+- **This process caught a real bug in the overlay before it ever reached a running container**: Compose
+  merges `environment:` maps key-by-key, not by replacement, so the base file's new
+  `ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "true"` silently survived into the first draft of the "production"
+  merged config untouched. The `Settings` fail-closed validator would have caught this at boot (defense in
+  depth working as intended), but the overlay itself should not depend on that as its only backstop — fixed
+  by explicitly setting `ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "false"` in the overlay's `api` environment
+  block, then re-verified the merged config reflects it. Logged as finding P-01 in the findings register —
+  a real, if minor, example of exactly the "verify, don't assume" discipline this whole programme is built
+  around, catching an issue in the programme's own first deliverable.
+
+### New: `docs/deployment-production.md`, `docs/security-findings-register.md`
+
+The deployment runbook documents every required production variable, where to source a real value for
+each, the first-boot sequence, and — as an explicit, first-class section, not a footnote — exactly what
+this repository does *not* provide (TLS termination/reverse proxy, full network segmentation, a real
+secrets-manager vault adapter, a least-privilege database role) so a deployer doesn't mistake "the compose
+file boots" for "this is production-ready."
+
+The findings register formalizes the tracking scheme this whole programme's working rules require: every
+finding from the original audit, this milestone's own H-02 fix, and the P-01 finding this milestone's own
+verification work surfaced, each with a status of open/mitigated/accepted/transferred and a note explaining
+what "mitigated" does and doesn't mean yet (internally verified only, pending Milestone 14's independent
+audit — never represented as "fixed" without that qualifier).
+
+### Tests
+
+New: `apps/api/tests/security/test_production_config.py` (12 cases, including 6 parametrized) — constructs
+real `Settings` instances directly (never the process-wide singleton, which stays locked to
+`environment=test` for the rest of the suite) with an explicit, exhaustive kwargs baseline so each test is
+correct regardless of what the ambient process environment already has set; covers every individual
+fail-closed check firing, non-production environments being unaffected even with every dev-shaped value
+present, and the aggregate-error-message behaviour (every problem reported at once). New:
+`apps/api/tests/security/test_security_headers.py` (4 cases) — real HTTP round trips through the `client`
+fixture asserting the HSTS/security headers are present on an actual response, and — the more important
+pair — that a real login's `Set-Cookie` header literally contains `Secure`/`HttpOnly` when the local-dev
+opt-out is off (via a scoped `monkeypatch`), and literally omits `Secure` when it's on (the suite's normal,
+ambient configuration) — proving the *default* reaches the wire, not just that a helper function computes
+the right boolean in isolation.
+
+**Full suite: 261/264 passing**, `ruff check .` clean (all 16 new tests pass). The three failures are
+**pre-existing and unrelated to this milestone's changes** — `git diff --stat` against
+`test_attack_surface.py` and `modules/attack_surface/` confirms neither was touched. All three are
+corroborating, independent evidence for finding C-01 (documented in full in the findings register): with a
+real Postgres role built the same way `docker-compose.yml`/CI build it (`initdb -U gridkeep`, a superuser),
+`test_audit.py`'s two append-only tests observe an UPDATE/DELETE succeeding where `FORCE ROW LEVEL
+SECURITY`'s missing policy should silently deny it, and `test_attack_surface.py`'s cross-tenant
+domain-claim test catches `modules/attack_surface/service.py:add_domain` taking the wrong error-message
+branch because its own docstring's RLS assumption doesn't hold for this role. None of the three were
+"fixed" here — patching them before Milestone 3 actually closes C-01 would paper over the real cause rather
+than address it, which the working rules for this programme explicitly rule out.
+
+### What remains open after this milestone
+
+- **C-01** (RLS bypassed by superuser role) — open, Milestone 3.
+- **C-02** (no production vault adapter) — open, Milestone 5. This milestone's fail-closed check only
+  refuses the *shipped default key specifically*; it does not build the real secrets-manager-backed
+  adapter the codebase's comments have referenced since Milestone 1.
+- **H-01** (no rate limit on MFA verification) — open, Milestone 2.
+- **M-01, M-02** — open, Milestones 6 and 10 respectively.
+- Network segmentation, least-privilege DB role, and TLS termination are explicitly documented in
+  `docs/deployment-production.md` as not yet provided by this repository.
+
+## Next Action
+
+Milestone 29 complete and awaiting the user's review before Milestone 2 (Authentication, Sessions, MFA,
+and Account Recovery) begins, per the hardening programme's explicit "one milestone at a time, do not
+begin the next without approval" working rule.

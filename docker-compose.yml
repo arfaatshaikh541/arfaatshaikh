@@ -74,6 +74,13 @@ services:
       MAIL_CAPTURE_HOST: mail-capture
       MAIL_CAPTURE_PORT: "1025"
       VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
+      # Milestone 29: cookies are Secure-by-default in every environment now
+      # (core/config.py, modules/identity/routes.py) — local dev serves the
+      # API over plain http://localhost, where a browser will refuse to
+      # ever send a Secure cookie back, breaking every authenticated flow.
+      # This explicit opt-out is what keeps the dev stack usable; the app
+      # refuses to boot with this set true under ENVIRONMENT=production.
+      ALLOW_INSECURE_COOKIES_FOR_LOCAL_DEV: "true"
       # Outside /app deliberately — /app is replaced wholesale by the
       # ./apps/api bind mount below at container start, so anything
       # written under it depends on the host directory's permissions
