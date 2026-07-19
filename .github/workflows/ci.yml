@@ -1,0 +1,259 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.8.17"
+  NODE_VERSION: "20"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  api:
+    name: API (lint, typecheck, test, migration check)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      # Same role/database split every developer sets up locally (see
+      # infrastructure/scripts/setup-local-db.sh's own docstring) -
+      # reused here rather than duplicated, so CI and local dev can never
+      # drift into testing against a differently-configured database.
+      - name: Set up database roles and databases
+        env:
+          PGPASSWORD: postgres
+          PSQL_CMD: psql -h localhost -U postgres
+        run: bash infrastructure/scripts/setup-local-db.sh
+
+      - name: Sync dependencies
+        working-directory: apps/api
+        run: uv sync
+
+      - name: Ruff (lint)
+        working-directory: apps/api
+        run: uv run ruff check .
+
+      - name: mypy
+        working-directory: apps/api
+        run: uv run mypy app
+
+      - name: Apply migrations to the dev database
+        working-directory: apps/api
+        env:
+          DATABASE_URL_SYNC: postgresql+psycopg://gridkeep_migrator:gridkeep_migrator_dev_password@localhost:5432/gridkeep
+        run: uv run alembic upgrade head
+
+      # Confirms every model change already has a matching migration -
+      # the same check run by hand at the end of every milestone in this
+      # project's history, now enforced automatically.
+      - name: alembic check (no undeclared model/migration drift)
+        working-directory: apps/api
+        env:
+          DATABASE_URL_SYNC: postgresql+psycopg://gridkeep_migrator:gridkeep_migrator_dev_password@localhost:5432/gridkeep
+        run: uv run alembic check
+
+      - name: pytest
+        working-directory: apps/api
+        run: uv run pytest -q
+
+  worker:
+    name: Worker (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up database roles and databases
+        env:
+          PGPASSWORD: postgres
+          PSQL_CMD: psql -h localhost -U postgres
+        run: bash infrastructure/scripts/setup-local-db.sh
+
+      # The worker's own tests apply migrations themselves via the same
+      # `apply_migrations` autouse fixture apps/api's tests use - both
+      # packages point Alembic at apps/api/alembic, so no separate
+      # migration step is needed here.
+      - name: Sync dependencies (api, needed for migrations)
+        working-directory: apps/api
+        run: uv sync
+
+      - name: Sync dependencies (worker)
+        working-directory: apps/worker
+        run: uv sync
+
+      - name: Ruff (lint)
+        working-directory: apps/worker
+        run: uv run ruff check .
+
+      - name: mypy
+        working-directory: apps/worker
+        run: uv run mypy worker
+
+      - name: pytest
+        working-directory: apps/worker
+        run: uv run pytest -q
+
+  connector-sdk:
+    name: connector-sdk (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Sync dependencies
+        working-directory: packages/connector-sdk
+        run: uv sync
+
+      - name: Ruff (lint)
+        working-directory: packages/connector-sdk
+        run: uv run ruff check .
+
+      - name: mypy
+        working-directory: packages/connector-sdk
+        run: uv run mypy connector_sdk
+
+      - name: pytest
+        working-directory: packages/connector-sdk
+        run: uv run pytest -q
+
+  web:
+    name: Web (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        working-directory: apps/web
+        run: pnpm lint
+
+      - name: TypeScript
+        working-directory: apps/web
+        run: pnpm typecheck
+
+      - name: Next.js build
+        working-directory: apps/web
+        run: pnpm build
+
+  security-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    # Advisory, not a merge gate: a scanner flagging a transitive CVE with
+    # no available fix yet (common for pre-1.0 or slow-moving ecosystem
+    # packages) shouldn't block every PR - the point is visibility in the
+    # workflow run, not an automatic block on every new advisory.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: pip-audit (api)
+        working-directory: apps/api
+        run: |
+          uv export --no-hashes --no-header --no-dev --no-emit-workspace -o /tmp/requirements-api.txt
+          uvx pip-audit --strict -r /tmp/requirements-api.txt
+
+      - name: pip-audit (worker)
+        working-directory: apps/worker
+        run: |
+          uv export --no-hashes --no-header --no-dev --no-emit-workspace -o /tmp/requirements-worker.txt
+          uvx pip-audit --strict -r /tmp/requirements-worker.txt
+
+      - name: pip-audit (connector-sdk)
+        working-directory: packages/connector-sdk
+        run: |
+          uv export --no-hashes --no-header --no-dev --no-emit-workspace -o /tmp/requirements-connector-sdk.txt
+          uvx pip-audit --strict -r /tmp/requirements-connector-sdk.txt
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: pnpm audit --audit-level high
