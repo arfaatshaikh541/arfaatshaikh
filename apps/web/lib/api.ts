@@ -77,5 +77,38 @@ export const api = {
   get: <T>(path: string) => apiRequest<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "POST", body }),
   put: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PUT", body }),
+  patch: <T>(path: string, body?: unknown) => apiRequest<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 };
+
+/**
+ * Multipart file upload - deliberately not routed through `apiRequest`,
+ * which always sets `Content-Type: application/json` and JSON-encodes
+ * the body. A `FormData` body needs the browser to set its own
+ * `multipart/form-data` boundary automatically, which only happens if no
+ * `Content-Type` header is set manually at all.
+ */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const headers: Record<string, string> = {};
+  const csrfToken = readCookie("gridkeep_csrf");
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const errorBody = data?.error ?? { code: "unknown_error", message: "An unexpected error occurred." };
+    throw new ApiError(errorBody.message, errorBody.code, response.status, errorBody.request_id);
+  }
+
+  return data as T;
+}

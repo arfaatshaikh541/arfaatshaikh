@@ -3,10 +3,13 @@
 `boto3` has no async client, but neither call this module makes is a
 blocking network operation in practice where it matters: `object_key_for`
 is pure string formatting, and `presigned_download_url` signs a URL
-locally without any request to the object store. The one genuinely
-blocking operation - `upload_bytes` - is only ever called from the
-Celery export task (`worker.export_tasks`), never from an API request
-handler, so it never risks blocking the event loop.
+locally without any request to the object store. The genuinely blocking
+operations - `upload_bytes` and `download_bytes` - are only ever called
+from Celery tasks (`worker.export_tasks`, `worker.csv_import_tasks`) or,
+for `upload_bytes`, the CSV-import preview step (a small, one-shot
+upload inline in the request - see `csv_import.services.preview_csv`),
+never from a hot API request path, so neither risks blocking the event
+loop in practice.
 
 Bucket provisioning is deliberately not this module's job: a real S3
 deployment's bucket is created by infrastructure/ops, not application
@@ -54,6 +57,13 @@ def upload_bytes(*, key: str, data: bytes, content_type: str) -> int:
         ContentType=content_type,
     )
     return len(data)
+
+
+def download_bytes(*, key: str) -> bytes:
+    settings = get_settings()
+    client = get_s3_client()
+    response = client.get_object(Bucket=settings.s3_bucket_name, Key=key)
+    return response["Body"].read()
 
 
 def presigned_download_url(*, key: str, filename: str, expires_in_seconds: int = 900) -> str:

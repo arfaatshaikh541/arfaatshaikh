@@ -40,3 +40,19 @@ def enqueue_export(export_id: str) -> None:
         args=[export_id],
         queue="queue.export",
     )
+
+
+def enqueue_integration_delivery(delivery_id: str) -> None:
+    _celery_client.send_task(
+        "worker.integration_tasks.push_lead_to_integration",
+        args=[delivery_id],
+        queue="queue.crm_push",
+    )
+
+
+def enqueue_csv_import(csv_import_id: str) -> None:
+    _celery_client.send_task(
+        "worker.csv_import_tasks.run_csv_import",
+        args=[csv_import_id],
+        queue="queue.search",
+    )

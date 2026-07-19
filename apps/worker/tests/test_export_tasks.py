@@ -10,11 +10,12 @@ Celery broker" approach `test_enrichment_tasks.py` already established.
 
 No real MinIO/S3 server is available in this sandbox (no Docker daemon,
 no installable MinIO binary - see docs/adr/0015's live-verification
-section), so `moto`'s `ThreadedMotoServer` stands in: a genuine local HTTP
-server that implements real S3 API semantics, bound to a random port and
-pointed at via `S3_ENDPOINT_URL` - `boto3` (via `app.core.storage`)
-cannot tell the difference from a real bucket, since it is a real,
-un-mocked HTTP round trip against a real (if in-memory) S3 implementation.
+section), so the shared `moto_s3` fixture (conftest.py) stands in: a
+genuine local HTTP server that implements real S3 API semantics, bound to
+a random port and pointed at via `S3_ENDPOINT_URL` - `boto3` (via
+`app.core.storage`) cannot tell the difference from a real bucket, since
+it is a real, un-mocked HTTP round trip against a real (if in-memory) S3
+implementation.
 """
 
 import csv
@@ -22,7 +23,6 @@ import io
 import uuid
 from datetime import UTC, datetime
 
-import boto3
 import pytest
 from app.core.config import get_settings
 from app.modules.businesses import repositories as businesses_repo
@@ -34,38 +34,11 @@ from app.modules.identity.models import User
 from app.modules.leads import repositories as leads_repo
 from app.modules.leads import scoring
 from app.modules.tenancy import repositories as tenancy_repo
-from moto.server import ThreadedMotoServer
 from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker import export_tasks as et
 
 pytestmark = pytest.mark.asyncio
-
-
-@pytest.fixture
-def moto_s3(monkeypatch):
-    server = ThreadedMotoServer(port=0, verbose=False)
-    server.start()
-    host, port = server.get_host_and_port()
-    endpoint_url = f"http://{host}:{port}"
-
-    monkeypatch.setenv("S3_ENDPOINT_URL", endpoint_url)
-    get_settings.cache_clear()
-
-    client = boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id="test",
-        aws_secret_access_key="test",
-        region_name=get_settings().s3_region,
-    )
-    client.create_bucket(Bucket=get_settings().s3_bucket_name)
-
-    try:
-        yield client
-    finally:
-        server.stop()
-        get_settings.cache_clear()
 
 
 async def _make_tenant(session):

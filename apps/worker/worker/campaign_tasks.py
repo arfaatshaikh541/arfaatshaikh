@@ -34,7 +34,6 @@ from app.modules.campaigns import repositories as campaigns_repo
 from app.modules.campaigns import state_machine
 from app.modules.campaigns.services import build_search_query
 from app.modules.usage.services import commit_reservation
-from celery.exceptions import MaxRetriesExceededError
 from connector_sdk import (
     ConnectorAuthError,
     ConnectorPermanentError,
@@ -283,18 +282,35 @@ def run_campaign_task(self, task_id: str) -> None:
     try:
         run_db_task(_run_campaign_task_async(task_id))
     except _SlotUnavailable:
-        raise self.retry(countdown=15) from None
+        # Check retries-exhausted *before* calling retry() - see
+        # docs/adr/0016: Celery's retry() re-raises the original `exc`
+        # (not MaxRetriesExceededError) once retries are exhausted
+        # whenever exc= is passed, so a try/except MaxRetriesExceededError
+        # around this call never actually catches anything - it left this
+        # branch dying uncaught, with the task record stuck "pending"
+        # forever and no error recorded, if a slot never freed up.
+        if self.request.retries >= self.max_retries:
+            logger.warning("campaign_task_slot_never_freed", task_id=task_id)
+            run_db_task(
+                _finalize_task_permanently_failed(
+                    task_id,
+                    error_type="_SlotUnavailable",
+                    message="Could not acquire a per-tenant processing slot after repeated retries.",
+                )
+            )
+        else:
+            raise self.retry(countdown=15) from None
     except (ConnectorRateLimitError, ConnectorTransientError) as exc:
         backoff = min(60, 5 * (2**self.request.retries))
-        try:
-            raise self.retry(exc=exc, countdown=backoff) from exc
-        except MaxRetriesExceededError:
+        if self.request.retries >= self.max_retries:
             logger.warning("campaign_task_max_retries_exceeded", task_id=task_id, error=str(exc))
             run_db_task(
                 _finalize_task_permanently_failed(
                     task_id, error_type=type(exc).__name__, message=str(exc)
                 )
             )
+        else:
+            raise self.retry(exc=exc, countdown=backoff) from exc
 
 
 async def _finalize_task_permanently_failed(

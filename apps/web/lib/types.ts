@@ -398,3 +398,74 @@ export type ExportDownload = {
   expires_in_seconds: number;
   filename: string;
 };
+
+export type Integration = {
+  id: string;
+  name: string;
+  type: string;
+  webhook_url: string;
+  enabled: boolean;
+  created_by_user_id: string | null;
+  created_at: string;
+};
+
+export type IntegrationListResponse = {
+  integrations: Integration[];
+};
+
+export type IntegrationDeliveryStatus = "pending" | "success" | "failed";
+
+export type IntegrationDelivery = {
+  id: string;
+  integration_id: string;
+  lead_id: string | null;
+  status: IntegrationDeliveryStatus;
+  http_status_code: number | null;
+  response_snippet: string | null;
+  error_message: string | null;
+  attempt_count: number;
+  delivered_at: string | null;
+  created_at: string;
+};
+
+export type IntegrationDeliveryListResponse = {
+  deliveries: IntegrationDelivery[];
+};
+
+export type CsvImportStatus = "mapping_required" | "queued" | "processing" | "completed" | "failed";
+
+export type CsvImportPreview = {
+  id: string;
+  status: CsvImportStatus;
+  original_filename: string;
+  detected_headers: string[];
+  sample_rows: Record<string, string>[];
+  row_count: number;
+  mappable_fields: string[];
+};
+
+export type CsvImportRecord = {
+  id: string;
+  status: CsvImportStatus;
+  original_filename: string;
+  row_count: number;
+  imported_count: number;
+  error_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type CsvImportListResponse = {
+  imports: CsvImportRecord[];
+};
+
+export type CsvImportErrorEntry = {
+  row_number: number;
+  message: string;
+};
+
+export type CsvImportErrorListResponse = {
+  errors: CsvImportErrorEntry[];
+};

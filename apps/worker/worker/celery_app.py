@@ -14,8 +14,13 @@ slower than a mock/API-based search page) never starves campaign
 processing, and vice versa. Milestone 7 adds `run_export` (XLSX/CSV
 generation + object storage upload) on its own `queue.export`, same
 isolation reasoning - a large export shouldn't starve campaign or
-enrichment throughput. `queue.crm_push` remains declared but unconsumed
-until Milestone 8.
+enrichment throughput. Milestone 8 adds `push_lead_to_integration`
+(outbound webhook delivery) on its own `queue.crm_push` (declared since
+Milestone 2, unconsumed until now), and `run_csv_import` on `queue.search`
+- CSV import shares campaign discovery's queue deliberately, since it is
+the same class of work (turning raw external data into `Business` rows
+via the same upsert/dedup pipeline `run_campaign_task` already uses), not
+a new source of isolation pressure that would justify its own queue.
 """
 
 # Must be imported before any ORM operation runs in this process: it pulls
@@ -41,6 +46,8 @@ celery_app = Celery(
         "worker.campaign_tasks",
         "worker.enrichment_tasks",
         "worker.export_tasks",
+        "worker.integration_tasks",
+        "worker.csv_import_tasks",
     ],
 )
 
@@ -56,6 +63,8 @@ celery_app.conf.update(
         "worker.campaign_tasks.run_campaign_task": {"queue": "queue.search"},
         "worker.enrichment_tasks.run_business_enrichment": {"queue": "queue.enrichment"},
         "worker.export_tasks.run_export": {"queue": "queue.export"},
+        "worker.integration_tasks.push_lead_to_integration": {"queue": "queue.crm_push"},
+        "worker.csv_import_tasks.run_csv_import": {"queue": "queue.search"},
     },
 )
 

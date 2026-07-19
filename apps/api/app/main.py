@@ -20,8 +20,10 @@ from app.modules.audit.routes import router as audit_router
 from app.modules.businesses.routes import duplicates_router, merges_router
 from app.modules.businesses.routes import router as businesses_router
 from app.modules.campaigns.routes import router as campaigns_router
+from app.modules.csv_import.routes import router as csv_import_router
 from app.modules.exports.routes import router as exports_router
 from app.modules.identity.routes import router as identity_router
+from app.modules.integrations.routes import router as integrations_router
 from app.modules.leads.routes import router as leads_router
 from app.modules.leads.routes import saved_views_router
 from app.modules.platform_admin.routes import router as platform_admin_router
@@ -68,6 +70,8 @@ app.include_router(merges_router)
 app.include_router(leads_router)
 app.include_router(saved_views_router)
 app.include_router(exports_router)
+app.include_router(integrations_router)
+app.include_router(csv_import_router)
 app.include_router(usage_router)
 app.include_router(subscriptions_router)
 app.include_router(audit_router)

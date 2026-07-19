@@ -5,7 +5,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
-import { LEAD_STATUSES, type Business, type LeadDetail, type Member } from "@/lib/types";
+import {
+  LEAD_STATUSES,
+  type Business,
+  type IntegrationListResponse,
+  type LeadDetail,
+  type Member,
+} from "@/lib/types";
 
 function StatBox({ label, value }: { label: string; value: string | number }) {
   return (
@@ -35,6 +41,8 @@ export default function LeadDetailPage() {
   const [assigneeChoice, setAssigneeChoice] = useState("");
   const [noteBody, setNoteBody] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [pushIntegrationId, setPushIntegrationId] = useState("");
+  const [pushNotice, setPushNotice] = useState<string | null>(null);
 
   const detailQuery = useQuery<LeadDetail>({
     queryKey: ["lead", leadId],
@@ -52,6 +60,13 @@ export default function LeadDetailPage() {
     queryKey: ["tenant-members"],
     queryFn: () => api.get<Member[]>("/tenants/members"),
     enabled: !detailQuery.isError,
+  });
+
+  const integrationsQuery = useQuery<IntegrationListResponse>({
+    queryKey: ["integrations"],
+    queryFn: () => api.get<IntegrationListResponse>("/integrations"),
+    enabled: !detailQuery.isError,
+    retry: false,
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -102,6 +117,21 @@ export default function LeadDetailPage() {
   const handleRemoveTag = (tag: string) =>
     runAction("remove tag", () => api.delete(`/leads/${leadId}/tags/${encodeURIComponent(tag)}`));
 
+  const handlePush = async () => {
+    if (!pushIntegrationId) return;
+    setPushNotice(null);
+    setActionError(null);
+    setPending("push");
+    try {
+      await api.post(`/integrations/${pushIntegrationId}/push/${leadId}`);
+      setPushNotice("Push queued - check the Integrations page for delivery status.");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not push this lead.");
+    } finally {
+      setPending(null);
+    }
+  };
+
   if (detailQuery.isError) {
     return <Banner tone="info">You don&apos;t have permission to view this lead.</Banner>;
   }
@@ -125,6 +155,7 @@ export default function LeadDetailPage() {
         )}
       </div>
       {actionError && <Banner tone="error">{actionError}</Banner>}
+      {pushNotice && <Banner tone="success">{pushNotice}</Banner>}
 
       {business && (
         <Card>
@@ -410,6 +441,39 @@ export default function LeadDetailPage() {
               </ul>
             )}
           </Card>
+
+          {!integrationsQuery.isError && (integrationsQuery.data?.integrations.length ?? 0) > 0 && (
+            <Card>
+              <h2 className="text-lg font-medium">Push to CRM</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Sends this lead&apos;s data to a configured webhook integration.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <select
+                  value={pushIntegrationId}
+                  onChange={(e) => setPushIntegrationId(e.target.value)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="">Choose an integration…</option>
+                  {(integrationsQuery.data?.integrations ?? [])
+                    .filter((i) => i.enabled)
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  variant="secondary"
+                  isLoading={pending === "push"}
+                  disabled={!pushIntegrationId}
+                  onClick={handlePush}
+                >
+                  Push
+                </Button>
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>

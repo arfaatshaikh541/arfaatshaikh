@@ -28,7 +28,6 @@ from app.modules.exports import repositories as exports_repo
 from app.modules.exports import services as exports_services
 from app.modules.exports.data import build_export_rows
 from app.modules.exports.workbook import build_csv, build_xlsx
-from celery.exceptions import MaxRetriesExceededError
 
 from worker.async_utils import run_db_task
 from worker.celery_app import celery_app
@@ -122,10 +121,15 @@ def run_export(self, export_id: str) -> None:
         logger.warning(
             "export_task_error", export_id=export_id, error=str(exc), attempt=self.request.retries
         )
-        try:
-            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries)))
-        except MaxRetriesExceededError:
+        # Check retries-exhausted *before* calling retry() - see
+        # docs/adr/0016: Celery's retry() re-raises the original `exc`
+        # (not MaxRetriesExceededError) once retries are exhausted
+        # whenever exc= is passed, so a try/except MaxRetriesExceededError
+        # around this call never actually catches anything.
+        if self.request.retries >= self.max_retries:
             run_db_task(_finalize_failed_after_error(export_id, str(exc)))
+        else:
+            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries))) from exc
 
 
 async def _finalize_failed_after_error(export_id_str: str, message: str) -> None:

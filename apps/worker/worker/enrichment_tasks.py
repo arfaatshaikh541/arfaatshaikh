@@ -22,7 +22,6 @@ from app.core.db import AsyncSessionLocal, set_platform_bypass, set_tenant_conte
 from app.core.logging import configure_logging, get_logger
 from app.modules.businesses import repositories as businesses_repo
 from app.modules.enrichment import repositories as enrichment_repo
-from celery.exceptions import MaxRetriesExceededError
 
 from worker.async_utils import run_db_task
 from worker.celery_app import celery_app
@@ -183,10 +182,15 @@ def run_business_enrichment(self, enrichment_id: str) -> None:
             error=str(exc),
             attempt=self.request.retries,
         )
-        try:
-            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries)))
-        except MaxRetriesExceededError:
+        # Check retries-exhausted *before* calling retry() - see
+        # docs/adr/0016: Celery's retry() re-raises the original `exc`
+        # (not MaxRetriesExceededError) once retries are exhausted
+        # whenever exc= is passed, so a try/except MaxRetriesExceededError
+        # around this call never actually catches anything.
+        if self.request.retries >= self.max_retries:
             run_db_task(_finalize_failed_after_error(enrichment_id, str(exc)))
+        else:
+            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries))) from exc
 
 
 async def _finalize_failed_after_error(enrichment_id_str: str, message: str) -> None:

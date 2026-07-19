@@ -23,6 +23,7 @@ from worker.crawler.safety import (
     FetchError,
     UnsafeUrlError,
     safe_get,
+    safe_post_json,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -126,3 +127,66 @@ async def test_max_redirects_constant_is_reasonable():
     # Guards against an accidental huge/zero value silently defeating the
     # protection the "too many redirects" test above exercises.
     assert 1 <= MAX_REDIRECTS <= 10
+
+
+# --- safe_post_json (Milestone 8: outbound integration webhook delivery) ---
+# Same two-kind split as safe_get's own tests above: real-DNS SSRF-blocking
+# tests, and mocked-transport tests against example.com as a real-but-
+# intercepted DNS target.
+
+
+async def test_post_blocks_loopback_ip():
+    with pytest.raises(UnsafeUrlError):
+        await safe_post_json("http://127.0.0.1:1/webhook", json_body={"a": 1})
+
+
+async def test_post_blocks_private_rfc1918_address():
+    with pytest.raises(UnsafeUrlError):
+        await safe_post_json("http://10.0.0.5/webhook", json_body={"a": 1})
+
+
+async def test_post_blocks_disallowed_scheme():
+    with pytest.raises(UnsafeUrlError):
+        await safe_post_json("file:///etc/passwd", json_body={"a": 1})
+
+
+async def test_post_sends_json_body_and_custom_headers():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.content
+        captured["headers"] = dict(request.headers)
+        return httpx.Response(200, text="ok")
+
+    response = await safe_post_json(
+        "https://example.com/webhook",
+        json_body={"lead": {"id": "abc"}},
+        headers={"X-Gridkeep-Signature": "deadbeef"},
+        transport=httpx.MockTransport(handler),
+    )
+    assert response.status_code == 200
+    assert response.text == "ok"
+    assert captured["body"] == b'{"lead":{"id":"abc"}}'
+    assert captured["headers"]["x-gridkeep-signature"] == "deadbeef"
+    assert "user-agent" in captured["headers"]
+
+
+async def test_post_does_not_follow_redirects():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "https://example.com/elsewhere"})
+
+    response = await safe_post_json(
+        "https://example.com/webhook", json_body={}, transport=httpx.MockTransport(handler)
+    )
+    # Reported as-is, not chased - see safe_post_json's own docstring.
+    assert response.status_code == 302
+
+
+async def test_post_passes_through_5xx_without_raising():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="server error")
+
+    response = await safe_post_json(
+        "https://example.com/webhook", json_body={}, transport=httpx.MockTransport(handler)
+    )
+    assert response.status_code == 500

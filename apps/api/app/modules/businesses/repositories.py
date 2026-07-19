@@ -243,10 +243,16 @@ async def upsert_business_from_discovery(
     session: AsyncSession,
     *,
     tenant_id: uuid.UUID,
-    campaign_id: uuid.UUID,
+    campaign_id: uuid.UUID | None,
     record: dict,
 ) -> Business:
     """Creates or refreshes a Business from one connector search result.
+
+    `campaign_id` is `None` for a source with no campaign concept - a CSV
+    import (Milestone 8) feeds rows through this exact same upsert path
+    rather than a bespoke one, so a business imported from a file gets
+    the same field-provenance/re-discovery/dedup behavior a campaign-
+    discovered one already gets, for free.
 
     A connector's own current response is treated as authoritative for the
     discovery-owned fields (`DISCOVERY_FIELDS`) on every (re)discovery -

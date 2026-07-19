@@ -1,12 +1,17 @@
-"""SSRF-safe HTTP fetching for the website enrichment crawler.
+"""SSRF-safe HTTP fetching, for both the website enrichment crawler and
+(as of Milestone 8) outbound integration webhook delivery.
 
-Threat model: `Business.website` values come from a connector (Google
-Places today, eventually CSV import - see Milestone 8) and are not fully
-trusted input - a malicious or compromised source could supply a URL that
-resolves to an internal service (a cloud metadata endpoint, a database on
-localhost, an internal admin panel) instead of a real public website.
-Every enrichment page fetch goes through `safe_get` in this module, which
-refuses anything but a genuinely public HTTP(S) resource:
+Threat model: `Business.website` values come from a connector (not fully
+trusted input) and `Integration.webhook_url` is tenant-admin-supplied (a
+lower-trust source than the platform's own config) - either could name a
+URL that resolves to an internal service (a cloud metadata endpoint, a
+database on localhost, an internal admin panel) instead of the genuinely
+public endpoint the feature assumes. `safe_get` (enrichment page fetches)
+and `safe_post_json` (webhook deliveries, `worker.integration_tasks`)
+share the exact same resolve-and-validate defense below rather than each
+implementing their own copy of it - a second, independently-written SSRF
+check would be exactly the kind of duplication that drifts out of sync
+and quietly reintroduces the hole one of the two copies already closed:
 
 - **Scheme allowlist**: only `http`/`https` - no `file://`, no `ftp://`,
   no `gopher://`.
@@ -231,5 +236,80 @@ async def safe_get(
             )
     except httpx.TimeoutException as exc:
         raise FetchError(f"Timed out fetching {url}: {exc}") from exc
+    except httpx.TransportError as exc:
+        raise FetchError(f"Connection failed for {url}: {exc}") from exc
+
+
+async def safe_post_json(
+    url: str,
+    *,
+    json_body: dict,
+    headers: dict[str, str] | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> SafeResponse:
+    """POSTs `json_body` to `url` under the same resolve-and-validate SSRF
+    defense `safe_get` uses (see module docstring). Unlike `safe_get`,
+    redirects are **not** followed - a webhook receiver that redirects
+    is unusual, and blindly following a redirect on a POST silently
+    changes both the destination and (per some servers' interpretation
+    of 307/308) resends the signed body to a URL the signature was never
+    computed for; a redirect response is simply reported to the caller
+    as `SafeResponse` with its own status code, not chased."""
+    parsed = httpx.URL(url)
+    if parsed.scheme not in ALLOWED_SCHEMES:
+        raise UnsafeUrlError(f"Unsupported scheme: {parsed.scheme!r}")
+    if not parsed.host:
+        raise UnsafeUrlError("URL has no host")
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    await _resolve_safe_ip(parsed.host, port)
+
+    request_headers = {"User-Agent": USER_AGENT, **(headers or {})}
+    if transport is not None:
+        request_url = parsed
+        extensions: dict[str, object] = {}
+    elif _proxy_env_configured(parsed.scheme):
+        request_url = parsed
+        extensions = {}
+    else:
+        resolved_ip = await _resolve_safe_ip(parsed.host, port)
+        request_url = parsed.copy_with(host=resolved_ip)
+        request_headers["Host"] = parsed.host
+        extensions = {"sni_hostname": parsed.host}
+
+    timeout = httpx.Timeout(
+        connect=CONNECT_TIMEOUT_SECONDS,
+        read=READ_TIMEOUT_SECONDS,
+        write=READ_TIMEOUT_SECONDS,
+        pool=READ_TIMEOUT_SECONDS,
+    )
+    try:
+        async with (
+            httpx.AsyncClient(
+                timeout=timeout, follow_redirects=False, transport=transport
+            ) as client,
+            client.stream(
+                "POST",
+                str(request_url),
+                json=json_body,
+                headers=request_headers,
+                extensions=extensions,
+            ) as response,
+        ):
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise FetchError(f"Response from {url} exceeded {MAX_RESPONSE_BYTES} bytes")
+            text = body.decode(response.encoding or "utf-8", errors="replace")
+            return SafeResponse(
+                url=str(parsed),
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                text=text,
+                used_https=parsed.scheme == "https",
+            )
+    except httpx.TimeoutException as exc:
+        raise FetchError(f"Timed out posting to {url}: {exc}") from exc
     except httpx.TransportError as exc:
         raise FetchError(f"Connection failed for {url}: {exc}") from exc

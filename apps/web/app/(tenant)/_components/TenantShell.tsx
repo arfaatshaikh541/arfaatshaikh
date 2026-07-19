@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { href: "/campaigns", label: "Campaigns" },
   { href: "/leads", label: "Leads" },
   { href: "/exports", label: "Exports" },
+  { href: "/imports", label: "Imports" },
+  { href: "/integrations", label: "Integrations" },
   { href: "/team", label: "Team" },
   { href: "/usage", label: "Usage & Billing" },
   { href: "/audit", label: "Audit Log" },

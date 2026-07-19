@@ -29,6 +29,10 @@ os.environ.setdefault(
 os.environ.setdefault(
     "CSRF_SECRET", "test-secret-not-for-production-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
+os.environ.setdefault(
+    "CREDENTIAL_ENCRYPTION_MASTER_KEY",
+    "test-secret-not-for-production-cccccccccccccccccccccccccccccccc",
+)
 os.environ.setdefault("SMTP_HOST", "localhost")
 os.environ.setdefault("SMTP_PORT", "1025")
 
@@ -95,6 +99,43 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def moto_s3(monkeypatch):
+    """A real local S3-API server (`moto.server.ThreadedMotoServer`) - no
+    MinIO binary is installable in this sandbox (no Docker daemon, no
+    internet access to fetch one; see docs/adr/0015). Needed here (unlike
+    most API-level tests) because CSV import's upload/preview endpoint
+    uploads the file synchronously from the request handler itself (see
+    `csv_import.services.preview_csv`), not only from a background
+    Celery task the way exports' upload does."""
+    import boto3
+    from app.core.config import get_settings
+    from moto.server import ThreadedMotoServer
+
+    server = ThreadedMotoServer(port=0, verbose=False)
+    server.start()
+    host, port = server.get_host_and_port()
+    endpoint_url = f"http://{host}:{port}"
+
+    monkeypatch.setenv("S3_ENDPOINT_URL", endpoint_url)
+    get_settings.cache_clear()
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+        region_name=get_settings().s3_region,
+    )
+    client.create_bucket(Bucket=get_settings().s3_bucket_name)
+
+    try:
+        yield client
+    finally:
+        server.stop()
+        get_settings.cache_clear()
 
 
 @pytest_asyncio.fixture

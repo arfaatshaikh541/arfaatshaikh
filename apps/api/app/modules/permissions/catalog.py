@@ -98,6 +98,7 @@ TENANT_ROLE_DEFAULTS: dict[str, list[str]] = {
         "usage.view",
         "exports.view",
         "exports.create",
+        "integrations.view",
     ],
     "Sales Manager": [
         "leads.view",
@@ -109,6 +110,7 @@ TENANT_ROLE_DEFAULTS: dict[str, list[str]] = {
         "leads.score",
         "exports.view",
         "exports.create",
+        "integrations.view",
     ],
     "Sales Representative": [
         "leads.view",
