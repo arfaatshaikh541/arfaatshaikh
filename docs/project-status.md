@@ -1,16 +1,15 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-19 (Milestone 30 implementation)
+Last updated: 2026-07-19 (Milestone 31 implementation)
 
 ## Current Milestone
 
-**Milestone 30: Authentication, Sessions, MFA, and Account Recovery** — implementation complete. Second
-milestone of the production security hardening programme, itself commissioned after an independent
-security audit found two Critical and two High findings (see `docs/security-findings-register.md`). This
-milestone closes finding H-01; Critical findings C-01 and C-02 remain open, tracked for Milestones 3 and 5
-of the programme respectively — this milestone does not touch either, and nothing below should be read as
-implying it has. See that milestone's section below for the full closeout summary. Milestones 1 through 29
-are complete and merged; their sections below are preserved as-is.
+**Milestone 31: Tenant Isolation, PostgreSQL RLS, and Worker Isolation** — implementation complete. Third
+milestone of the production security hardening programme. Closes **finding C-01**, the audit's single
+most severe finding — the application's database connection was an unrestricted Postgres superuser that
+unconditionally bypassed every Row-Level Security policy in the codebase. **C-02 remains open**, tracked
+for Milestone 5 — this milestone does not touch it. See that milestone's section below for the full
+closeout summary. Milestones 1 through 30 are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -4708,10 +4707,124 @@ Fixed by adding that flag; re-verified against a fresh database.
   was scoped as an opportunistic fix for this milestone in the original programme plan but was **not**
   actually implemented — noted here rather than silently dropped; it remains open, not mitigated.
 
+## Milestone 31 — Tenant Isolation, PostgreSQL RLS, and Worker Isolation
+
+Third milestone of the production security hardening programme. Closes **finding C-01**: the application's
+own runtime database connection had, since Milestone 1, been the same Postgres role Alembic uses to run
+migrations — `gridkeep`, created via `POSTGRES_USER` on the stock `postgres` Docker image, which `initdb`
+always makes an unrestricted superuser regardless of the username chosen. Superusers unconditionally bypass
+Row-Level Security regardless of `FORCE ROW LEVEL SECURITY`, so every RLS policy this codebase has shipped
+since Milestone 1 — the entire tenant-isolation architecture — was enforcing nothing against any request
+the running application ever actually made. **C-02 remains untouched** — this milestone does not claim
+otherwise.
+
+### Fix — a second, least-privilege role for the application's own connection
+
+New migration `34016597f04f` creates `gridkeep_app`
+(`NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`) and grants it exactly what the
+application needs: `SELECT, INSERT, UPDATE, DELETE` on every table plus `USAGE`/`SELECT` on sequences
+(currently a no-op — every primary key in this schema is a Python-generated UUID, no Postgres sequence
+exists — granted anyway for any future table that might use one), and `ALTER DEFAULT PRIVILEGES` so a table
+a *later* migration creates automatically grants `gridkeep_app` the same access without its own explicit
+`GRANT`. The role is created idempotently (`CREATE` vs. `ALTER` based on a `pg_roles` existence check), so
+re-running the migration with a new `GRIDKEEP_APP_DB_PASSWORD` is also the password-rotation path.
+
+Critically, this does **not** touch how migrations themselves run: `migrations/env.py` already hard-codes
+`settings.database_migration_url` as the only URL Alembic ever uses, so there's no chicken-and-egg problem
+— the role empowered to create `gridkeep_app` (the superuser, via `DATABASE_MIGRATION_URL`) is never the
+role that connects as it. Only `DATABASE_URL` — the connection `api`, `worker`, and `beat` actually make
+every request over — changes, in `docker-compose.yml`, `docker-compose.production.yml`, and
+`.github/workflows/ci.yml`. `apps/api/tests/conftest.py`'s `DATABASE_URL` default changed the same way; its
+`_clean_tables` cleanup fixture, which needs `TRUNCATE` (a table-owner/superuser-level privilege
+`gridkeep_app` deliberately does not hold, since real request handling never needs it), now runs through a
+dedicated superuser-backed engine built from `DATABASE_MIGRATION_URL` instead of widening the app role's
+own grants purely for test-cleanup convenience.
+
+`core/config.py` gained two new fail-closed production checks alongside the existing ones (Milestone 29):
+refusing to boot if `DATABASE_URL` still contains either the `gridkeep` superuser credential or the shipped
+`gridkeep_app` development password. `docker-compose.production.yml`'s `api` service also gained a required
+`GRIDKEEP_APP_DB_PASSWORD` (`${VAR:?message}`), since it's the one service that runs `alembic upgrade head`
+and therefore the one that actually provisions/rotates the role.
+
+Celery worker tasks (`apps/worker/tasks.py`) needed **no code changes** — read in full and confirmed every
+tenant-scoped task already calls `set_tenant_context()` before querying, exactly as the architecture
+requires. The gap was purely which role that context was being checked against, not whether the application
+was setting it.
+
+### A new test asserting the connection role directly
+
+Added `test_app_db_role_is_not_a_superuser_and_cannot_bypass_rls` to
+`tests/security/test_tenant_isolation.py` — queries `pg_roles` for `current_user` and asserts
+`rolsuper is False` and `rolbypassrls is False` directly against the live connection, rather than trusting
+the configured role *name*. This is deliberately the first line of defense against ever silently
+regressing back to a superuser connection: every other RLS test in that file would still pass against a
+superuser (since they only assert application-visible behaviour), so this test exists specifically to catch
+what the audit found — a role holding the bypass attribute quietly making every one of those other tests
+meaningless.
+
+### Two tests fixed — both exposed by RLS now actually enforcing, not new bugs
+
+Fixing C-01 immediately surfaced two test failures unrelated to any defect in the code under test — both
+had been passing only because the superuser connection tolerated things the real, RLS-enforcing role
+correctly does not:
+
+1. `test_production_config.py::test_app_refuses_to_start_in_production_with_default_db_credential
+   [database_url]` asserted the literal string `"gridkeep:gridkeep"` appears in the validation error. Still
+   true for `database_migration_url`, but `database_url`'s new, more specific superuser-credential check
+   (added as part of this milestone) uses different message text — the fail-closed refusal itself fired
+   correctly throughout; only the assertion was stale. Reparametrized with the correct expected fragment
+   per field, and added a new case covering the sibling dev-app-password check.
+2. `test_account_recovery.py::test_account_recovery_cannot_be_approved_by_the_requester_themselves` calls
+   `recovery_service.approve_recovery_request` directly against a bare `AsyncSessionLocal()` session with no
+   `app.current_tenant_id` set. The superuser connection saw every `Membership` row regardless; the real
+   `gridkeep_app` connection correctly returns nothing for the visibility join the function depends on
+   without that context — which isn't a real request-path bug (the actual HTTP route always sets it via
+   `get_tenant_db`), just a test that reached the service layer more directly than a real request does.
+   Fixed by calling `set_tenant_context` before the direct service call, matching what the route already
+   does.
+
+Both are noted in `docs/security-findings-register.md` under C-01 rather than silently folded in, since
+they're direct evidence of the fix actually taking effect, not incidental cleanup.
+
+### Tests
+
+New: `test_app_db_role_is_not_a_superuser_and_cannot_bypass_rls` (above). Fixed:
+`test_app_refuses_to_start_in_production_with_default_db_credential` (reparametrized, one new case added),
+`test_account_recovery_cannot_be_approved_by_the_requester_themselves` (tenant context added).
+
+**Full backend suite: 275/275 passing** on a fresh database (up from 272/275 immediately after the role
+switch, before the two fixes above) — `ruff check .` clean. The three pre-existing, C-01-attributable
+failures documented in the findings register's "corroborating evidence" note
+(`test_audit.py`'s two append-only tests, `test_attack_surface.py`'s cross-tenant domain test) are now gone,
+exactly as predicted when Milestone 29 first surfaced them, with no changes to the tests or the code they
+exercise beyond this milestone's role switch.
+
+### The core proof: the audit's own attack, re-run and now blocked
+
+The audit's live-reproduction attack — an `INSERT` into `memberships` with a mismatched
+`app.current_tenant_id` — was re-run manually against a real Postgres cluster built the same way the
+Docker image bootstraps `gridkeep` (`initdb -U gridkeep`, matching `docker-compose.yml`'s
+`POSTGRES_USER`), using the actual migration (`34016597f04f`) to provision `gridkeep_app`:
+
+- **As `gridkeep_app`** (the new connection): `ERROR: new row violates row-level security policy for table
+  "memberships"`, transaction rolled back, zero rows committed — confirmed by a follow-up `SELECT` finding
+  no matching row.
+- **`gridkeep_app`'s own `pg_roles` row**, queried directly: `rolsuper = false`, `rolbypassrls = false`.
+- `alembic upgrade head` on a freshly created database runs the full migration chain, including
+  `34016597f04f`, cleanly end-to-end.
+
+This is the acceptance criterion the hardening programme's original milestone plan specified for this
+milestone, reproduced against the actual `docker-compose.yml`/CI role configuration — not a hand-built test
+cluster with different assumptions.
+
+### What remains open after this milestone
+
+- **C-02** (no production vault adapter) — open, Milestone 5.
+- **M-01, M-02, L-01** — open, Milestones 6, 10, and (opportunistically, still not implemented) 2
+  respectively — unchanged from Milestone 30's accounting.
+
 ## Next Action
 
-Milestone 30 complete and awaiting the user's review before Milestone 3 (Tenant Isolation, PostgreSQL RLS,
-and Worker Isolation) begins, per the hardening programme's explicit "one milestone at a time, do not begin
-the next without approval" working rule. Milestone 3 is the load-bearing milestone the rest of the
-programme depends on — it fixes C-01, the audit's most severe finding, and is the one every subsequent
-milestone's own database work assumes is already done.
+Milestone 31 complete and awaiting the user's explicit approval before Milestone 4 (Platform-Admin
+Separation and Support Access) begins, per the hardening programme's "one milestone at a time, do not begin
+the next without approval" working rule.
