@@ -59,8 +59,15 @@ services:
   api:
     environment:
       ENVIRONMENT: production
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
-      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      # Milestone 31 (finding C-01): DATABASE_URL must be the least-privilege
+      # gridkeep_app role, never the superuser DATABASE_MIGRATION_URL below
+      # connects as. GRIDKEEP_APP_DB_PASSWORD is what migration 34016597f04f
+      # reads when creating/updating that role — it must be the same
+      # password embedded in DATABASE_URL, or the app fails to authenticate
+      # the moment `alembic upgrade head` finishes.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database, connecting as the least-privilege gridkeep_app role — never a superuser}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default superuser credentials}
+      GRIDKEEP_APP_DB_PASSWORD: ${GRIDKEEP_APP_DB_PASSWORD:?GRIDKEEP_APP_DB_PASSWORD must be set to a real, securely-generated value matching the password embedded in DATABASE_URL}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?CORS_ALLOW_ORIGINS must be set to the real production origin(s), e.g. ["https://app.example.com"]}
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL must be set to the real production frontend origin}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
@@ -83,16 +90,20 @@ services:
   worker:
     environment:
       ENVIRONMENT: production
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
-      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      # Same least-privilege gridkeep_app connection as the api service
+      # above — this service never runs migrations itself, so it needs no
+      # GRIDKEEP_APP_DB_PASSWORD, only a DATABASE_URL whose password matches
+      # what the api service's migration step already set.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database, connecting as the least-privilege gridkeep_app role — never a superuser}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default superuser credentials}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
     volumes: !reset []
 
   beat:
     environment:
       ENVIRONMENT: production
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database with real, non-default credentials}
-      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default credentials}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must point at the real production database, connecting as the least-privilege gridkeep_app role — never a superuser}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?DATABASE_MIGRATION_URL must point at the real production database with real, non-default superuser credentials}
       VAULT_LOCAL_MASTER_KEY: ${VAULT_LOCAL_MASTER_KEY:?VAULT_LOCAL_MASTER_KEY must be set to a real, securely-generated value — never the repository default}
     volumes: !reset []
 

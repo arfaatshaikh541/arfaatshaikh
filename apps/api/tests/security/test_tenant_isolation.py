@@ -125,6 +125,24 @@ async def test_rls_blocks_membership_read_without_any_session_context(db):
         assert result.scalars().all() == []
 
 
+async def test_app_db_role_is_not_a_superuser_and_cannot_bypass_rls():
+    """Finding C-01: the application's own runtime connection (DATABASE_URL,
+    the gridkeep_app role since migration 34016597f04f) must never be a
+    Postgres superuser or hold BYPASSRLS — either one unconditionally
+    bypasses every RLS policy in this codebase regardless of FORCE ROW
+    LEVEL SECURITY, silently disabling every other test in this file.
+    Reproduced directly against pg_roles for the connection actually in
+    use, not assumed from the configured role name."""
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(
+                text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")
+            )
+        ).one()
+        assert row.rolsuper is False
+        assert row.rolbypassrls is False
+
+
 async def test_rls_rejects_cross_tenant_membership_insert(db):
     """A membership INSERT whose tenant_id doesn't match the session's
     app.current_tenant_id is rejected by the database itself (WITH CHECK),

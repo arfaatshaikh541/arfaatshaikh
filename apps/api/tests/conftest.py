@@ -28,11 +28,21 @@ API_ROOT = Path(__file__).resolve().parents[1]
 # import time via pydantic-settings), so this runs at module import of
 # conftest.py, which pytest always does before collecting test modules.
 os.environ.setdefault("ENVIRONMENT", "test")
+# Milestone 31 (finding C-01): the app's own runtime connection is the
+# least-privilege gridkeep_app role (created by migration 34016597f04f,
+# which runs below via `_apply_migrations`) — never the superuser
+# DATABASE_MIGRATION_URL still uses. GRIDKEEP_APP_DB_PASSWORD is read by
+# that migration when creating the role and must match the password
+# embedded in DATABASE_URL, same pattern as docker-compose.yml/ci.yml.
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+asyncpg://gridkeep:gridkeep@localhost:5432/gridkeep_test"
+    "DATABASE_URL",
+    "postgresql+asyncpg://gridkeep_app:gridkeep-app-dev-only-insecure-do-not-use-in-production@localhost:5432/gridkeep_test",
 )
 os.environ.setdefault(
     "DATABASE_MIGRATION_URL", "postgresql+psycopg://gridkeep:gridkeep@localhost:5432/gridkeep_test"
+)
+os.environ.setdefault(
+    "GRIDKEEP_APP_DB_PASSWORD", "gridkeep-app-dev-only-insecure-do-not-use-in-production"
 )
 os.environ.setdefault("VAULT_LOCAL_MASTER_KEY", "test-only-master-key-do-not-use-elsewhere-00000")
 os.environ.setdefault("EVIDENCE_STORAGE_ROOT", tempfile.mkdtemp(prefix="gridkeep-evidence-test-"))
@@ -49,14 +59,28 @@ sys.path.insert(0, str(API_ROOT))
 
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
 
 import main as app_main  # noqa: E402
 from core.config import settings  # noqa: E402
 from core.middleware import login_rate_limiter  # noqa: E402
 from db import models_registry  # noqa: F401,E402
-from db.session import AsyncSessionLocal, get_engine  # noqa: E402
+from db.session import AsyncSessionLocal  # noqa: E402
 from seed.bootstrap import run_bootstrap  # noqa: E402
+
+# Milestone 31 (finding C-01): TRUNCATE is a DDL-adjacent, administrative
+# operation the application's own gridkeep_app role deliberately does NOT
+# hold (only SELECT/INSERT/UPDATE/DELETE — see migration 34016597f04f) since
+# real request handling never needs it. `_clean_tables` below still needs
+# it for fast inter-test isolation, so it connects with the superuser
+# migration credentials instead of `db.session.get_engine()` — never
+# widening the app role's own grants just to make test cleanup convenient.
+_migration_engine = create_async_engine(
+    settings.database_migration_url.replace("postgresql+psycopg://", "postgresql+asyncpg://"),
+    poolclass=NullPool,
+    echo=False,
+)
 
 
 class _CapturingSMTPHandler:
@@ -133,7 +157,6 @@ async def _clean_tables(_bootstrap_catalog):
     idempotent) bootstrap seed after each truncate restores it cheaply
     rather than trying to hand-craft a CASCADE-free truncate order."""
     yield
-    engine = get_engine()
     tables = [
         "audit_logs",
         "support_access_grants",
@@ -175,7 +198,7 @@ async def _clean_tables(_bootstrap_catalog):
         "tenant_settings",
         "tenants",
     ]
-    async with engine.begin() as conn:
+    async with _migration_engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
     await run_bootstrap()
 

@@ -13,7 +13,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _DEV_VAULT_MASTER_KEY = "dev-only-insecure-master-key-do-not-use-in-production-00000000"
 _DEV_OBJECT_STORAGE_ACCESS_KEY = "gridkeep"
 _DEV_OBJECT_STORAGE_SECRET_KEY = "gridkeep-dev-secret"
+# The superuser credential — used only for DATABASE_MIGRATION_URL since
+# Milestone 31; never for DATABASE_URL, which the app itself connects
+# with (see _DEV_APP_DB_PASSWORD below).
 _DEV_DB_CREDENTIAL_MARKER = "gridkeep:gridkeep@"
+# Milestone 31 (finding C-01): the least-privilege role the application
+# actually connects as, and its shipped development password. Matches the
+# literal default in migration 34016597f04f — kept as an independent
+# constant (not imported across the migrations/app boundary) since a
+# migration file's contents must never change after it ships, while this
+# one is free to gain new checks.
+_DEV_APP_DB_ROLE = "gridkeep_app"
+_DEV_APP_DB_PASSWORD = "gridkeep-app-dev-only-insecure-do-not-use-in-production"
+_DEV_APP_DB_CREDENTIAL_MARKER = f"{_DEV_APP_DB_ROLE}:{_DEV_APP_DB_PASSWORD}@"
 
 
 class Settings(BaseSettings):
@@ -33,9 +45,21 @@ class Settings(BaseSettings):
 
     environment: str = Field(default="development")  # development | staging | production | test
 
+    # Milestone 31 (finding C-01): the application's own runtime connection
+    # — every tenant-facing request goes over this one, so it must be the
+    # least-privilege `gridkeep_app` role (NOSUPERUSER NOBYPASSRLS), never
+    # the migration superuser below. See migration 34016597f04f for how
+    # that role is provisioned, and docs/security-findings-register.md for
+    # why this mattered: `gridkeep`, the previous connection for both URLs,
+    # is a Postgres superuser and unconditionally bypasses every RLS policy
+    # in this codebase regardless of FORCE ROW LEVEL SECURITY.
     database_url: str = Field(
-        default="postgresql+asyncpg://gridkeep:gridkeep@localhost:5432/gridkeep"
+        default=f"postgresql+asyncpg://{_DEV_APP_DB_CREDENTIAL_MARKER}localhost:5432/gridkeep"
     )
+    # The migration/DDL connection ONLY — migrations/env.py hard-codes this
+    # as the sole URL Alembic ever uses. Deliberately still the superuser:
+    # creating roles, tables, and RLS policies needs privileges the
+    # application's own runtime role must never hold.
     database_migration_url: str = Field(
         default="postgresql+psycopg://gridkeep:gridkeep@localhost:5432/gridkeep"
     )
@@ -125,7 +149,17 @@ class Settings(BaseSettings):
         if self.object_storage_secret_key == _DEV_OBJECT_STORAGE_SECRET_KEY:
             problems.append("OBJECT_STORAGE_SECRET_KEY is still the shipped development default.")
         if _DEV_DB_CREDENTIAL_MARKER in self.database_url:
-            problems.append("DATABASE_URL still uses the development gridkeep:gridkeep credential.")
+            problems.append(
+                "DATABASE_URL still connects as the gridkeep superuser — the application's runtime "
+                "connection must be the least-privilege gridkeep_app role, never the migration "
+                "superuser (finding C-01)."
+            )
+        if _DEV_APP_DB_CREDENTIAL_MARKER in self.database_url:
+            problems.append(
+                "DATABASE_URL still uses the development gridkeep_app password — set a real, "
+                "securely-generated GRIDKEEP_APP_DB_PASSWORD before running migrations, then use "
+                "the same value here (finding C-01)."
+            )
         if _DEV_DB_CREDENTIAL_MARKER in self.database_migration_url:
             problems.append(
                 "DATABASE_MIGRATION_URL still uses the development gridkeep:gridkeep credential."

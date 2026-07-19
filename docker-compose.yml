@@ -61,8 +61,16 @@ services:
         condition: service_healthy
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      # Milestone 31 (finding C-01): the app's own runtime connection is the
+      # least-privilege gridkeep_app role (NOSUPERUSER NOBYPASSRLS), created
+      # by migration 34016597f04f — never the superuser DATABASE_MIGRATION_URL
+      # below uses. GRIDKEEP_APP_DB_PASSWORD is what that migration reads
+      # when creating/updating the role; it must match the password embedded
+      # in DATABASE_URL below, or the app will fail to authenticate after
+      # `alembic upgrade head` runs.
+      DATABASE_URL: postgresql+asyncpg://gridkeep_app:gridkeep-app-dev-only-insecure-do-not-use-in-production@postgres:5432/gridkeep
       DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
+      GRIDKEEP_APP_DB_PASSWORD: gridkeep-app-dev-only-insecure-do-not-use-in-production
       REDIS_URL: redis://redis:6379/0
       CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
       # Used to build clickable links in emails (verify-email,
@@ -107,11 +115,25 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # `service_started` (not `service_healthy` — `api` has no healthcheck)
+      # only guarantees the api container's process has launched, not that
+      # its `alembic upgrade head` step (which creates the gridkeep_app role
+      # this service connects as) has actually finished. In practice this
+      # doesn't race: nothing enqueues a task until the API is serving
+      # requests, which only happens after that same container's migrations
+      # complete. Documented rather than engineered around, since a stronger
+      # guarantee (a real healthcheck gating on migration completion) is
+      # more machinery than a local dev compose file's actual risk justifies.
       api:
         condition: service_started
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      # Milestone 31 (finding C-01): same least-privilege gridkeep_app role
+      # the api service connects as — see its environment block above for
+      # the full explanation. This service doesn't run migrations itself,
+      # so it needs no GRIDKEEP_APP_DB_PASSWORD, only a DATABASE_URL whose
+      # password already matches what the api service's migration step set.
+      DATABASE_URL: postgresql+asyncpg://gridkeep_app:gridkeep-app-dev-only-insecure-do-not-use-in-production@postgres:5432/gridkeep
       DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
       REDIS_URL: redis://redis:6379/0
       VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000
@@ -131,7 +153,11 @@ services:
         condition: service_healthy
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@postgres:5432/gridkeep
+      # `beat` only schedules tasks onto Redis — it never itself queries
+      # Postgres (the `worker` process that consumes the queue does), so
+      # this is set for consistency/parity with the other services rather
+      # than because beat's own process needs it.
+      DATABASE_URL: postgresql+asyncpg://gridkeep_app:gridkeep-app-dev-only-insecure-do-not-use-in-production@postgres:5432/gridkeep
       DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@postgres:5432/gridkeep
       REDIS_URL: redis://redis:6379/0
       VAULT_LOCAL_MASTER_KEY: dev-only-insecure-master-key-do-not-use-in-production-00000000

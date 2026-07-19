@@ -26,8 +26,15 @@ jobs:
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       ENVIRONMENT: test
-      DATABASE_URL: postgresql+asyncpg://gridkeep:gridkeep@localhost:5432/gridkeep_test
+      # Milestone 31 (finding C-01): the app's own runtime connection is the
+      # least-privilege gridkeep_app role, created by migration 34016597f04f
+      # — never the superuser DATABASE_MIGRATION_URL below still uses to run
+      # migrations. GRIDKEEP_APP_DB_PASSWORD is what that migration reads
+      # when creating the role; it must match the password embedded in
+      # DATABASE_URL, same pattern as docker-compose.yml.
+      DATABASE_URL: postgresql+asyncpg://gridkeep_app:gridkeep-app-dev-only-insecure-do-not-use-in-production@localhost:5432/gridkeep_test
       DATABASE_MIGRATION_URL: postgresql+psycopg://gridkeep:gridkeep@localhost:5432/gridkeep_test
+      GRIDKEEP_APP_DB_PASSWORD: gridkeep-app-dev-only-insecure-do-not-use-in-production
       REDIS_URL: redis://localhost:6379/0
       VAULT_LOCAL_MASTER_KEY: ci-only-master-key-do-not-use-elsewhere-000000000
     steps:
