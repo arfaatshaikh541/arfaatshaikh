@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/platform/tenants", label: "Tenants" },
   { href: "/platform/support-access", label: "Support Access" },
   { href: "/platform/audit-logs", label: "Audit Log" },
+  { href: "/platform/security", label: "Security" },
 ];
 
 export function PlatformShell({ children }: { children: ReactNode }) {

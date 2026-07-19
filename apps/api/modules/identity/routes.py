@@ -69,12 +69,21 @@ async def _compute_mfa_enrollment_required(
     memberships: list[MembershipSummary],
     active_membership_id: uuid.UUID | None,
 ) -> bool:
-    """Informational-only mirror of the real gate in
-    `core.deps.get_tenant_context` — lets the frontend redirect to MFA
-    enrollment proactively (Milestone 14) instead of only discovering the
-    block from a failed tenant API call. Nothing tenant-scoped is ever
-    actually served based on this flag; `get_tenant_context` is what
-    enforces it."""
+    """Informational-only mirror of the real gates in
+    `core.deps.get_tenant_context` and `core.deps.get_platform_context` —
+    lets the frontend redirect to MFA enrollment proactively (Milestone 14)
+    instead of only discovering the block from a failed API call. Nothing
+    tenant- or platform-scoped is ever actually served based on this flag;
+    those two dependencies are what enforce it.
+
+    Hardening-programme Milestone 4: a platform account's MFA requirement is
+    unconditional (`get_platform_context`), so it's checked first and
+    independently of any tenant membership — a platform-only user with zero
+    memberships must still see this flag flip true the moment MFA isn't
+    enabled, not just tenant admins who happen to have an active
+    membership."""
+    if user.is_platform_user and not user.mfa_enabled:
+        return True
     if active_membership_id is None:
         return False
     active = next((m for m in memberships if m.membership_id == active_membership_id), None)

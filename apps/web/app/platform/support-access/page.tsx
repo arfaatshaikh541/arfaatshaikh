@@ -29,6 +29,15 @@ export default function PlatformSupportAccessPage() {
   const [durationHours, setDurationHours] = useState(4);
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  // Milestone 4 (hardening): creating and approving a grant are both
+  // step-up-gated now (core/deps.py:require_platform_step_up) — mirrors
+  // the stepUpRunId/stepUpCode pattern the Automation page already uses
+  // for approve_action_run, generalized to whichever of the two pending
+  // actions triggered the 403 (there's only ever one at a time).
+  const [pendingStepUp, setPendingStepUp] = useState<
+    { kind: "create" } | { kind: "approve"; grant: SupportAccessGrantRead } | null
+  >(null);
+  const [stepUpCode, setStepUpCode] = useState("");
 
   const tenantsQuery = useQuery({
     queryKey: ["platform", "tenants"],
@@ -68,7 +77,11 @@ export default function PlatformSupportAccessPage() {
       setDurationHours(4);
       queryClient.invalidateQueries({ queryKey: ["platform", "support-access-grants"] });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      if (err instanceof ApiError && err.details.step_up_required) {
+        setPendingStepUp({ kind: "create" });
+      } else {
+        setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      }
     } finally {
       setIsBusy(false);
     }
@@ -84,6 +97,31 @@ export default function PlatformSupportAccessPage() {
         { tenant_id: grant.tenant_id },
       );
       queryClient.invalidateQueries({ queryKey: ["platform", "support-access-grants"] });
+    } catch (err) {
+      if (err instanceof ApiError && err.details.step_up_required) {
+        setPendingStepUp({ kind: "approve", grant });
+      } else {
+        setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const submitStepUp = async () => {
+    if (!pendingStepUp) return;
+    setError(null);
+    setIsBusy(true);
+    try {
+      await apiClient.post("/api/auth/step-up", { code: stepUpCode });
+      setStepUpCode("");
+      const action = pendingStepUp;
+      setPendingStepUp(null);
+      if (action.kind === "create") {
+        await submitRequest();
+      } else {
+        await approveGrant(action.grant);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
@@ -124,6 +162,36 @@ export default function PlatformSupportAccessPage() {
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
+
+      {pendingStepUp ? (
+        <Card>
+          <CardHeader
+            title="Re-confirm your identity"
+            description="This action requires a fresh multi-factor authentication code before it can proceed."
+          />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-ink-700" htmlFor="step-up-code">
+              Verification code
+            </label>
+            <input
+              id="step-up-code"
+              type="text"
+              inputMode="numeric"
+              value={stepUpCode}
+              onChange={(e) => setStepUpCode(e.target.value)}
+              className="h-9 w-40 rounded border border-surface-border bg-surface-800 px-3 text-sm text-ink-900"
+            />
+            <div className="flex gap-2">
+              <Button size="sm" isLoading={isBusy} onClick={submitStepUp}>
+                Confirm
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingStepUp(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {showRequestForm ? (
         <Card>

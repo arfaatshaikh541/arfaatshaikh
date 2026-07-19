@@ -254,6 +254,26 @@ async def get_platform_context(
     if not auth.user.is_platform_user or auth.user.platform_role_id is None:
         raise AuthorizationError("Platform access is required for this operation.")
 
+    # Hardening-programme Milestone 4 (Platform-Admin Separation): unlike
+    # tenant-side MFA, which is opt-in per workspace (`require_mfa_for_admins`
+    # on `TenantSecurityProfile`), MFA is unconditional here — there is no
+    # toggle and never should be. A platform account can read or modify any
+    # tenant's data (via a support-access grant it can approve for itself,
+    # net of the second-approver rule) and can suspend or archive any tenant
+    # outright, so it is the single highest-blast-radius account type in
+    # this system. Before this check, a leaked platform-admin password alone
+    # was sufficient for full cross-tenant access — reusing
+    # `MfaEnrollmentRequiredError` (Milestone 14) keeps the frontend's
+    # existing enrollment-redirect handling in one code path rather than
+    # inventing a second error shape for what is functionally the same
+    # block.
+    if not auth.user.mfa_enabled:
+        raise MfaEnrollmentRequiredError(
+            "Platform accounts must enable multi-factor authentication before using the "
+            "platform console.",
+            details={"mfa_enrollment_required": True},
+        )
+
     role_result = await db.execute(
         select(Role)
         .options(selectinload(Role.permissions).selectinload(RolePermission.permission))
@@ -275,6 +295,46 @@ def require_platform_permission(permission: str):
                 details={"required_permission": permission},
             )
         return ctx
+
+    return _checker
+
+
+def require_platform_step_up(max_age_seconds: int = 300):
+    """Hardening-programme Milestone 4 — the platform-side equivalent of
+    `require_step_up`, for actions that grant or change cross-tenant access:
+    requesting/approving a support-access grant, and changing a tenant's
+    status. Deliberately simpler than the tenant version: since
+    `get_platform_context` now makes MFA unconditional for every platform
+    account, there is no "user without MFA" bypass branch and no per-tenant
+    opt-out toggle to consult — every platform account reaching this
+    dependency already has MFA enabled, so the only question is whether
+    *this session* has recently re-proven it.
+
+    Reuses the same `/api/auth/step-up` endpoint and `Session.
+    step_up_expires_at` column `require_step_up` does — step-up freshness is
+    a property of the session, not of tenant vs. platform context."""
+
+    async def _checker(
+        token: str | None = Depends(_get_session_token),
+        db: AsyncSession = Depends(get_db),
+        _ctx: PlatformContext = Depends(get_platform_context),
+    ) -> bool:
+        if not token:
+            raise AuthenticationError("Sign in to continue.")
+        result = await db.execute(
+            select(SessionModel).where(SessionModel.token_hash == hash_token(token))
+        )
+        session_row = result.scalar_one_or_none()
+        if session_row is None:
+            raise AuthenticationError("Sign in to continue.")
+
+        now = datetime.now(UTC)
+        if session_row.step_up_expires_at is None or session_row.step_up_expires_at <= now:
+            raise AuthorizationError(
+                "Please re-confirm your identity to continue.",
+                details={"step_up_required": True},
+            )
+        return True
 
     return _checker
 

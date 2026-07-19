@@ -14,6 +14,7 @@ from core.deps import (
     require_csrf,
     require_permission,
     require_platform_permission,
+    require_platform_step_up,
     require_support_access_grant,
 )
 from db.session import get_db
@@ -69,7 +70,7 @@ async def _to_grant_reads(
 @router.post(
     "/support-access-grants",
     response_model=SupportAccessGrantRead,
-    dependencies=[Depends(require_csrf)],
+    dependencies=[Depends(require_csrf), Depends(require_platform_step_up())],
 )
 async def create_support_access_grant(
     payload: SupportAccessGrantCreateRequest,
@@ -100,7 +101,7 @@ async def create_support_access_grant(
 @router.post(
     "/support-access-grants/{grant_id}/approve",
     response_model=SupportAccessGrantRead,
-    dependencies=[Depends(require_csrf)],
+    dependencies=[Depends(require_csrf), Depends(require_platform_step_up())],
 )
 async def approve_support_access_grant(
     grant_id: uuid.UUID,
@@ -326,7 +327,9 @@ async def get_tenant_integrations_for_support(
 
 
 @router.post(
-    "/tenants/{tenant_id}/status", response_model=TenantSummaryRead, dependencies=[Depends(require_csrf)]
+    "/tenants/{tenant_id}/status",
+    response_model=TenantSummaryRead,
+    dependencies=[Depends(require_csrf), Depends(require_platform_step_up())],
 )
 async def update_tenant_status(
     tenant_id: uuid.UUID,

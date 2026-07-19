@@ -1,15 +1,17 @@
 # GRIDKEEP Cyber OS — Project Status
 
-Last updated: 2026-07-19 (Milestone 31 implementation)
+Last updated: 2026-07-19 (Milestone 32 implementation)
 
 ## Current Milestone
 
-**Milestone 31: Tenant Isolation, PostgreSQL RLS, and Worker Isolation** — implementation complete. Third
-milestone of the production security hardening programme. Closes **finding C-01**, the audit's single
-most severe finding — the application's database connection was an unrestricted Postgres superuser that
-unconditionally bypassed every Row-Level Security policy in the codebase. **C-02 remains open**, tracked
-for Milestone 5 — this milestone does not touch it. See that milestone's section below for the full
-closeout summary. Milestones 1 through 30 are complete and merged; their sections below are preserved as-is.
+**Milestone 32: Platform-Admin Separation and Support Access** — implementation complete. Fourth milestone
+of the production security hardening programme. Closes a new finding, **P-02**, surfaced during this
+milestone's own design work rather than the original audit: platform accounts — the single
+highest-blast-radius account type in the system, able to view or modify any tenant's data and suspend or
+archive any tenant outright — had no MFA requirement at all, and none of their disruptive actions required
+step-up re-verification the way tenant-side equivalents already do. **C-02 remains open**, tracked for
+Milestone 5 — this milestone does not touch it. See that milestone's section below for the full closeout
+summary. Milestones 1 through 31 are complete and merged; their sections below are preserved as-is.
 
 ## Milestone 1 — Completed Work
 
@@ -4823,8 +4825,94 @@ cluster with different assumptions.
 - **M-01, M-02, L-01** — open, Milestones 6, 10, and (opportunistically, still not implemented) 2
   respectively — unchanged from Milestone 30's accounting.
 
+## Milestone 32 — Platform-Admin Separation and Support Access
+
+Fourth milestone of the production security hardening programme. Unlike Milestones 29-31, this one closes
+a finding not in the original audit's own list: **P-02**, discovered while designing this milestone's own
+scope by reading `core/deps.py`'s platform-authentication path directly rather than assuming the existing
+support-access-grant machinery (Milestones 15-21) was sufficient protection on its own.
+
+### The gap: platform accounts had no MFA requirement and no step-up gate
+
+`core/deps.py:get_platform_context` — the dependency every `/api/platform/*` route resolves through —
+checked only `auth.user.is_platform_user` and a valid `platform_role_id`. It never checked
+`auth.user.mfa_enabled`. A platform account is the single highest-blast-radius identity in this system: it
+can request and (via a different platform admin) approve its own support-access grant to read or modify
+any tenant's data, and can suspend or archive any tenant outright with `platform.tenants.manage`. Before
+this milestone, a leaked platform-admin password with no second factor was sufficient for all of that —
+weaker authentication than an ordinary tenant admin, who at least has the opt-in `require_mfa_for_admins`
+toggle (Milestone 14). Separately, none of the three genuinely disruptive platform actions — creating a
+support-access grant, approving one, changing a tenant's status — required step-up re-verification, unlike
+their tenant-side equivalents (`approve_action_run`, account-recovery approval) which already do.
+
+### Fix — mandatory MFA, plus a platform-side step-up gate
+
+`core/deps.py:get_platform_context` now raises `MfaEnrollmentRequiredError` unconditionally when
+`mfa_enabled` is false — deliberately with no toggle: there is no tenant to configure an opt-out for on a
+platform-wide account, unlike `require_mfa_for_admins`. New `core/deps.py:require_platform_step_up` mirrors
+`require_step_up` but is built on `PlatformContext`/`get_platform_context` rather than `TenantContext`, and
+is simpler by construction: since MFA is now unconditional for every platform account reaching this
+dependency, there's no "user without MFA" bypass branch to carry over — the only question is whether *this
+session* has recently re-proven it via the same `/api/auth/step-up` endpoint and `Session.
+step_up_expires_at` column the tenant-side gate already uses. Wired via
+`dependencies=[Depends(require_csrf), Depends(require_platform_step_up())]` into
+`create_support_access_grant`, `approve_support_access_grant`, and `update_tenant_status` in
+`modules/platform_admin/routes.py`.
+
+`modules/identity/routes.py:_compute_mfa_enrollment_required` — the informational mirror `/api/auth/me` and
+`/api/auth/login` already expose so the frontend can redirect proactively (Milestone 14) — is extended to
+flag platform accounts independently of any tenant membership. It previously always returned `False` when
+`active_membership_id is None`, which is exactly the case for a pure platform-only account with zero
+tenant memberships; that account's real block (enforced server-side in `get_platform_context` regardless of
+what this flag says) was simply invisible to the frontend before this fix.
+
+### Frontend: a platform-specific enrollment path and step-up UI on the two write pages
+
+A platform-only account has no tenant membership, so it can't reach `(tenant)/settings/security` — that
+page lives under a layout that redirects anyone without `active_membership_id` to `/select-workspace`
+before ever rendering. New `app/platform/security/page.tsx` is a smaller, self-contained MFA-only card
+(enroll/confirm/regenerate-backup-codes) reusing the same `/api/auth/mfa/*` endpoints, reachable through
+`app/platform/layout.tsx`'s own new redirect (mirrors `(tenant)/layout.tsx`'s existing
+`needsMfaEnrollment` pattern, pointed at `/platform/security` instead). `app/(auth)/login/page.tsx`'s
+`finishLogin` now checks `mfa_enrollment_required` for platform users before routing to `/platform`,
+avoiding an extra redirect hop through the console the layout guard would otherwise immediately bounce them
+back out of.
+
+`app/platform/support-access/page.tsx` (create + approve) and `app/platform/tenants/page.tsx` (status
+change) both gained step-up prompts triggered by a `step_up_required` `ApiError` detail, submitting to
+`/api/auth/step-up` and then retrying the original action — the same pattern
+`app/(tenant)/automation/page.tsx` already established for `approve_action_run`, not a new one invented for
+this milestone.
+
+### Tests
+
+New in `tests/test_platform_admin.py`: `test_platform_admin_without_mfa_is_blocked_from_every_platform_route`
+(a platform account built without MFA gets `mfa_enrollment_required` on both the login response and the
+first platform route it tries) and `test_platform_disruptive_actions_require_step_up` (an MFA-enabled
+platform account with no recent step-up is refused `step_up_required` on both grant creation and tenant
+status change, independently). Every one of that file's other 36 tests was updated: `_create_platform_admin`
+now enrolls and confirms MFA directly at the service layer (not the HTTP round-trip `tests/test_mfa.py`
+uses, since these tests only need a *working* account, not to exercise enrollment itself) and returns the
+raw TOTP secret; a new `_login_platform_admin` helper completes the MFA login-challenge every platform
+login now triggers; and every call site that reaches one of the three now-step-up-gated routes calls a new
+`_step_up` helper first. The `_request_and_approve_grant` shared helper (used by 13 of those tests) now
+takes both actors' secrets and steps each of them up immediately before their own action, since the
+requester and approver are different sessions entirely.
+
+**Full backend suite: 277/277 passing** (up from 275 after Milestone 31 — 2 new tests), `ruff check .`
+clean. Frontend: `pnpm exec eslint`, `pnpm exec tsc --noEmit`, and `pnpm exec vitest run` (10/10, unaffected
+— none of the changed pages have their own component tests) all clean; `pnpm run build` succeeds with
+`/platform/security` correctly listed as a new static route.
+
+### What remains open after this milestone
+
+- **C-02** (no production vault adapter) — open, Milestone 5.
+- **M-01, M-02, L-01** — open, Milestones 6, 10, and (opportunistically, still not implemented) 2
+  respectively — unchanged from Milestone 31's accounting.
+
 ## Next Action
 
-Milestone 31 complete and awaiting the user's explicit approval before Milestone 4 (Platform-Admin
-Separation and Support Access) begins, per the hardening programme's "one milestone at a time, do not begin
-the next without approval" working rule.
+Milestone 32 complete and awaiting the user's explicit approval before Milestone 5 (Credential Vault, KMS,
+Secrets, and Connector Security) begins, per the hardening programme's "one milestone at a time, do not
+begin the next without approval" working rule. Milestone 5 closes finding C-02, the audit's remaining
+Critical finding.

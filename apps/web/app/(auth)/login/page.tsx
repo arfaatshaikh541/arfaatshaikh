@@ -60,7 +60,12 @@ export default function LoginPage() {
   const finishLogin = (result: LoginResponse) => {
     invalidateAuth();
     if (result.user.is_platform_user) {
-      router.replace("/platform");
+      // Milestone 4 (hardening): MFA is mandatory for platform accounts —
+      // checked first so a platform admin who hasn't enrolled yet lands on
+      // the platform-specific enrollment page, not the console itself
+      // (which `platform/layout.tsx` would immediately bounce them off of
+      // anyway; this just avoids the extra redirect hop).
+      router.replace(result.mfa_enrollment_required ? "/platform/security" : "/platform");
     } else if (result.mfa_enrollment_required) {
       router.replace("/settings/security");
     } else if (result.memberships.length > 1 && !result.active_membership_id) {

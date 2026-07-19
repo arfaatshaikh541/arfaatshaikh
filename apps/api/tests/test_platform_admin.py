@@ -1,8 +1,10 @@
 
+import pyotp
 import pytest
 from sqlalchemy import select
 
 from core.security import hash_password
+from modules.identity import service as identity_service
 from modules.identity.models import User
 from modules.permissions.models import Role
 from tests.helpers import login, onboard_verified_owner
@@ -10,21 +12,79 @@ from tests.helpers import login, onboard_verified_owner
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-async def _create_platform_admin(db, email: str, role_name: str = "platform_super_admin") -> None:
+async def _create_platform_admin(db, email: str, role_name: str = "platform_super_admin") -> str:
+    """Returns the raw TOTP secret so callers can compute login-challenge
+    and step-up codes. Hardening-programme Milestone 4 (Platform-Admin
+    Separation): MFA is now unconditional for platform accounts
+    (`core.deps.get_platform_context`), so every platform test fixture
+    must enroll and confirm it, or every platform route in this file
+    would 403 with `mfa_enrollment_required` before ever reaching the
+    behaviour actually under test. Enrolled directly at the service layer
+    (not the HTTP enroll/confirm round-trip `tests/test_mfa.py` uses)
+    since the tests below only need a *working* MFA-enabled account, not
+    to exercise enrollment itself."""
     role = (
         await db.execute(select(Role).where(Role.name == role_name, Role.is_platform_role.is_(True)))
     ).scalar_one()
-    db.add(
-        User(
-            email=email,
-            password_hash=hash_password("Platform-Pass1!"),
-            full_name="Platform Admin",
-            email_verified=True,
-            is_platform_user=True,
-            platform_role_id=role.id,
-        )
+    user = User(
+        email=email,
+        password_hash=hash_password("Platform-Pass1!"),
+        full_name="Platform Admin",
+        email_verified=True,
+        is_platform_user=True,
+        platform_role_id=role.id,
     )
+    db.add(user)
+    await db.flush()
+    secret, _provisioning_uri = await identity_service.enroll_mfa(db, user)
+    await identity_service.confirm_mfa_enrollment(db, user, pyotp.TOTP(secret).now())
     await db.commit()
+    return secret
+
+
+async def _login_platform_admin(client, email: str, secret: str) -> str:
+    """A platform admin created by `_create_platform_admin` always has MFA
+    enabled, so `login()` alone only reaches the MFA challenge — exactly
+    like a tenant user's login already does once MFA is on. Completes the
+    challenge and returns the resulting session's CSRF token."""
+    challenge_resp = await login(client, email, "Platform-Pass1!")
+    assert challenge_resp.status_code == 200, challenge_resp.text
+    challenge_body = challenge_resp.json()
+    assert challenge_body["mfa_required"] is True
+    verify_resp = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={"mfa_challenge_token": challenge_body["mfa_challenge_token"], "code": pyotp.TOTP(secret).now()},
+    )
+    assert verify_resp.status_code == 200, verify_resp.text
+    return verify_resp.json()["csrf_token"]
+
+
+async def _create_and_login_platform_admin(
+    client, db, email: str, role_name: str = "platform_super_admin"
+) -> tuple[str, str]:
+    """Combines `_create_platform_admin` with the full MFA-challenge login
+    it now requires. Returns (csrf_token, totp_secret) — the secret is
+    needed by any caller that goes on to hit a step-up-gated route."""
+    secret = await _create_platform_admin(db, email, role_name)
+    csrf_token = await _login_platform_admin(client, email, secret)
+    return csrf_token, secret
+
+
+async def _step_up(client, secret: str, csrf_token: str) -> None:
+    """Milestone 4: proves recent MFA re-verification for the disruptive
+    platform actions `require_platform_step_up` now gates — creating or
+    approving a support-access grant, and changing a tenant's status. The
+    platform-side equivalent of the step-up call `tests/test_mfa.py`
+    already exercises for `approve_action_run`. `step_up_expires_at`'s
+    300-second TTL comfortably covers everything a single test does after
+    one call, so tests that make several protected calls in a row (e.g. an
+    approver who both approves and later revokes) only step up once."""
+    resp = await client.post(
+        "/api/auth/step-up",
+        json={"code": pyotp.TOTP(secret).now()},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert resp.status_code == 200, resp.text
 
 
 async def test_platform_admin_can_request_approve_and_revoke_support_access(client, db):
@@ -34,10 +94,10 @@ async def test_platform_admin_can_request_approve_and_revoke_support_access(clie
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-requester@gridkeep-platform.example")
-    requester_login = await login(client, "platform-requester@gridkeep-platform.example", "Platform-Pass1!")
-    assert requester_login.status_code == 200
-    requester_csrf = requester_login.json()["csrf_token"]
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-requester@gridkeep-platform.example"
+    )
+    await _step_up(client, requester_secret, requester_csrf)
 
     grant_resp = await client.post(
         "/api/platform/support-access-grants",
@@ -63,9 +123,10 @@ async def test_platform_admin_can_request_approve_and_revoke_support_access(clie
     assert self_approve_resp.status_code == 422
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
-    await _create_platform_admin(db, "platform-approver@gridkeep-platform.example")
-    approver_login = await login(client, "platform-approver@gridkeep-platform.example", "Platform-Pass1!")
-    approver_csrf = approver_login.json()["csrf_token"]
+    approver_csrf, approver_secret = await _create_and_login_platform_admin(
+        client, db, "platform-approver@gridkeep-platform.example"
+    )
+    await _step_up(client, approver_secret, approver_csrf)
 
     approve_resp = await client.post(
         f"/api/platform/support-access-grants/{grant['id']}/approve",
@@ -105,6 +166,72 @@ async def test_non_platform_user_cannot_grant_support_access(client, db):
     assert resp.status_code == 403
 
 
+async def test_platform_admin_without_mfa_is_blocked_from_every_platform_route(client, db):
+    """Hardening-programme Milestone 4: MFA is unconditional for platform
+    accounts — a platform admin who has never enrolled it must be refused
+    before ever reaching a platform route's own permission or data-access
+    logic, not just discouraged from disruptive actions. Built with a raw
+    insert (not `_create_platform_admin`, which now always enrolls MFA)
+    specifically to exercise the pre-enrollment state."""
+    role = (
+        await db.execute(
+            select(Role).where(Role.name == "platform_super_admin", Role.is_platform_role.is_(True))
+        )
+    ).scalar_one()
+    db.add(
+        User(
+            email="platform-no-mfa@gridkeep-platform.example",
+            password_hash=hash_password("Platform-Pass1!"),
+            full_name="Platform Admin",
+            email_verified=True,
+            is_platform_user=True,
+            platform_role_id=role.id,
+        )
+    )
+    await db.commit()
+
+    login_resp = await login(client, "platform-no-mfa@gridkeep-platform.example", "Platform-Pass1!")
+    assert login_resp.status_code == 200
+    assert login_resp.json()["mfa_enrollment_required"] is True
+
+    resp = await client.get("/api/platform/tenants")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["details"]["mfa_enrollment_required"] is True
+
+
+async def test_platform_disruptive_actions_require_step_up(client, db):
+    """Milestone 4: creating a support-access grant and changing a
+    tenant's status must each independently refuse to proceed without a
+    fresh step-up, even though the account already has MFA enabled — the
+    same distinction `require_step_up` already draws tenant-side between
+    "has MFA" and "has recently re-proven it"."""
+    tenant_body = await onboard_verified_owner(
+        client, db, org_name="Step Up Required Co", full_name="Owner",
+        email="owner@step-up-required.example", password="Owner-Pass1!",
+    )
+    tenant_id = tenant_body["tenant_id"]
+
+    csrf, _secret = await _create_and_login_platform_admin(
+        client, db, "platform-no-stepup@gridkeep-platform.example"
+    )
+
+    create_resp = await client.post(
+        "/api/platform/support-access-grants",
+        json={"tenant_id": tenant_id, "reason": "Attempting without step-up", "duration_hours": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert create_resp.status_code == 403
+    assert create_resp.json()["error"]["details"]["step_up_required"] is True
+
+    status_resp = await client.post(
+        f"/api/platform/tenants/{tenant_id}/status",
+        json={"status": "suspended", "reason": "Attempting without step-up"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert status_resp.status_code == 403
+    assert status_resp.json()["error"]["details"]["step_up_required"] is True
+
+
 async def test_tenant_can_see_support_access_grants_against_it(client, db):
     tenant_body = await onboard_verified_owner(
         client, db, org_name="Visible Grant Co", full_name="Owner", email="owner@visible-grant.example",
@@ -112,9 +239,10 @@ async def test_tenant_can_see_support_access_grants_against_it(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-admin2@gridkeep-platform.example")
-    platform_login = await login(client, "platform-admin2@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-admin2@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     await client.post(
         "/api/platform/support-access-grants",
@@ -137,10 +265,22 @@ async def test_tenant_can_see_support_access_grants_against_it(client, db):
 
 
 async def test_login_response_exposes_platform_role_for_a_platform_user(client, db):
-    await _create_platform_admin(db, "platform-role-check@gridkeep-platform.example", "platform_auditor")
+    secret = await _create_platform_admin(
+        db, "platform-role-check@gridkeep-platform.example", "platform_auditor"
+    )
 
-    resp = await login(client, "platform-role-check@gridkeep-platform.example", "Platform-Pass1!")
+    challenge_resp = await login(client, "platform-role-check@gridkeep-platform.example", "Platform-Pass1!")
+    assert challenge_resp.status_code == 200
+    challenge_body = challenge_resp.json()
+    assert challenge_body["mfa_required"] is True
 
+    resp = await client.post(
+        "/api/auth/mfa/verify-login",
+        json={
+            "mfa_challenge_token": challenge_body["mfa_challenge_token"],
+            "code": pyotp.TOTP(secret).now(),
+        },
+    )
     assert resp.status_code == 200
     user = resp.json()["user"]
     assert user["is_platform_user"] is True
@@ -168,9 +308,7 @@ async def test_platform_admin_can_list_and_view_tenants(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-lister@gridkeep-platform.example")
-    platform_login = await login(client, "platform-lister@gridkeep-platform.example", "Platform-Pass1!")
-    assert platform_login.status_code == 200
+    await _create_and_login_platform_admin(client, db, "platform-lister@gridkeep-platform.example")
 
     list_resp = await client.get("/api/platform/tenants")
     assert list_resp.status_code == 200
@@ -193,9 +331,10 @@ async def test_platform_admin_can_transition_tenant_status(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-status@gridkeep-platform.example")
-    platform_login = await login(client, "platform-status@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-status@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     resp = await client.post(
         f"/api/platform/tenants/{tenant_id}/status",
@@ -213,11 +352,10 @@ async def test_invalid_tenant_status_transition_is_rejected(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-bad-transition@gridkeep-platform.example")
-    platform_login = await login(
-        client, "platform-bad-transition@gridkeep-platform.example", "Platform-Pass1!"
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-bad-transition@gridkeep-platform.example"
     )
-    platform_csrf = platform_login.json()["csrf_token"]
+    await _step_up(client, platform_secret, platform_csrf)
 
     # trial -> read_only is not a defined transition (only active/read_only
     # can reach read_only in this state machine).
@@ -236,9 +374,10 @@ async def test_archived_tenant_status_is_terminal(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-terminal@gridkeep-platform.example")
-    platform_login = await login(client, "platform-terminal@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-terminal@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     archive_resp = await client.post(
         f"/api/platform/tenants/{tenant_id}/status",
@@ -263,9 +402,10 @@ async def test_tenant_status_change_is_audit_logged_and_visible_platform_wide(cl
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-audited@gridkeep-platform.example")
-    platform_login = await login(client, "platform-audited@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-audited@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     await client.post(
         f"/api/platform/tenants/{tenant_id}/status",
@@ -297,9 +437,10 @@ async def test_platform_wide_audit_log_shows_entries_from_multiple_tenants(clien
         email="owner@multi-audit-b.example", password="Owner-Pass1!",
     )
 
-    await _create_platform_admin(db, "platform-multi-audit@gridkeep-platform.example")
-    platform_login = await login(client, "platform-multi-audit@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-multi-audit@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     for tenant_body in (tenant_a, tenant_b):
         await client.post(
@@ -324,13 +465,16 @@ async def test_platform_auditor_can_view_audit_logs_but_not_manage_tenants(clien
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-auditor-only@gridkeep-platform.example", "platform_auditor")
-    platform_login = await login(client, "platform-auditor-only@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, _secret = await _create_and_login_platform_admin(
+        client, db, "platform-auditor-only@gridkeep-platform.example", "platform_auditor"
+    )
 
     audit_resp = await client.get("/api/platform/audit-logs")
     assert audit_resp.status_code == 200
 
+    # No step-up performed — an auditor lacks `platform.tenants.manage`
+    # regardless, so this must be refused either way; not asserting which
+    # specific gate fires first keeps this test robust to that ordering.
     manage_resp = await client.post(
         f"/api/platform/tenants/{tenant_id}/status",
         json={"status": "suspended", "reason": "An auditor should not be able to do this"},
@@ -343,11 +487,9 @@ async def test_platform_auditor_can_view_audit_logs_but_not_manage_tenants(clien
 
 
 async def test_platform_support_engineer_cannot_view_audit_logs_or_manage_tenants(client, db):
-    await _create_platform_admin(
-        db, "platform-support-only@gridkeep-platform.example", "platform_support_engineer"
+    await _create_and_login_platform_admin(
+        client, db, "platform-support-only@gridkeep-platform.example", "platform_support_engineer"
     )
-    platform_login = await login(client, "platform-support-only@gridkeep-platform.example", "Platform-Pass1!")
-    assert platform_login.status_code == 200
 
     audit_resp = await client.get("/api/platform/audit-logs")
     assert audit_resp.status_code == 403
@@ -363,9 +505,10 @@ async def test_cannot_approve_a_grant_that_is_not_pending(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-req-np@gridkeep-platform.example")
-    requester_login = await login(client, "platform-req-np@gridkeep-platform.example", "Platform-Pass1!")
-    requester_csrf = requester_login.json()["csrf_token"]
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-req-np@gridkeep-platform.example"
+    )
+    await _step_up(client, requester_secret, requester_csrf)
     grant_resp = await client.post(
         "/api/platform/support-access-grants",
         json={
@@ -378,9 +521,10 @@ async def test_cannot_approve_a_grant_that_is_not_pending(client, db):
     grant_id = grant_resp.json()["id"]
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
 
-    await _create_platform_admin(db, "platform-app-np@gridkeep-platform.example")
-    approver_login = await login(client, "platform-app-np@gridkeep-platform.example", "Platform-Pass1!")
-    approver_csrf = approver_login.json()["csrf_token"]
+    approver_csrf, approver_secret = await _create_and_login_platform_admin(
+        client, db, "platform-app-np@gridkeep-platform.example"
+    )
+    await _step_up(client, approver_secret, approver_csrf)
     first_approve = await client.post(
         f"/api/platform/support-access-grants/{grant_id}/approve",
         params={"tenant_id": tenant_id},
@@ -411,9 +555,10 @@ async def test_platform_wide_support_access_grants_list_spans_multiple_tenants(c
         password="Owner-Pass1!",
     )
 
-    await _create_platform_admin(db, "platform-span@gridkeep-platform.example")
-    platform_login = await login(client, "platform-span@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, platform_secret = await _create_and_login_platform_admin(
+        client, db, "platform-span@gridkeep-platform.example"
+    )
+    await _step_up(client, platform_secret, platform_csrf)
 
     for tenant_body in (tenant_a, tenant_b):
         await client.post(
@@ -441,9 +586,9 @@ async def test_platform_auditor_cannot_request_or_list_support_access_grants(cli
         email="owner@auditor-no-support.example", password="Owner-Pass1!",
     )
 
-    await _create_platform_admin(db, "platform-auditor-ns@gridkeep-platform.example", "platform_auditor")
-    platform_login = await login(client, "platform-auditor-ns@gridkeep-platform.example", "Platform-Pass1!")
-    platform_csrf = platform_login.json()["csrf_token"]
+    platform_csrf, _secret = await _create_and_login_platform_admin(
+        client, db, "platform-auditor-ns@gridkeep-platform.example", "platform_auditor"
+    )
 
     create_resp = await client.post(
         "/api/platform/support-access-grants",
@@ -461,14 +606,25 @@ async def test_platform_auditor_cannot_request_or_list_support_access_grants(cli
 
 
 async def _request_and_approve_grant(
-    client, requester_csrf: str, tenant_id: str, approver_email: str
+    client,
+    requester_csrf: str,
+    requester_secret: str,
+    tenant_id: str,
+    approver_email: str,
+    approver_secret: str,
 ) -> tuple[dict, str]:
     """Shared setup for Milestone 16 tests: request a grant as whichever
     admin is already logged in (`requester_csrf`), then log in as a
     second, distinct platform admin to approve it — mirroring the real
     Milestone 15 workflow rather than a shortcut, since `approve_grant`
     rejects self-approval. Returns the approved grant and the approver's
-    CSRF token (the client session is left logged in as the approver)."""
+    CSRF token (the client session is left logged in as the approver).
+
+    Milestone 4: both the request and the approval are step-up-gated now,
+    so each actor proves recent MFA re-verification immediately before
+    their own action — not once at the top, since the requester and
+    approver are different sessions entirely."""
+    await _step_up(client, requester_secret, requester_csrf)
     grant_resp = await client.post(
         "/api/platform/support-access-grants",
         json={
@@ -482,8 +638,8 @@ async def _request_and_approve_grant(
     grant = grant_resp.json()
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": requester_csrf})
-    approver_login = await login(client, approver_email, "Platform-Pass1!")
-    approver_csrf = approver_login.json()["csrf_token"]
+    approver_csrf = await _login_platform_admin(client, approver_email, approver_secret)
+    await _step_up(client, approver_secret, approver_csrf)
 
     approve_resp = await client.post(
         f"/api/platform/support-access-grants/{grant['id']}/approve",
@@ -506,8 +662,7 @@ async def test_workspace_snapshot_requires_an_active_grant(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-no-grant@gridkeep-platform.example")
-    await login(client, "platform-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+    await _create_and_login_platform_admin(client, db, "platform-no-grant@gridkeep-platform.example")
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert resp.status_code == 403
@@ -521,9 +676,10 @@ async def test_workspace_snapshot_denied_while_grant_is_still_pending(client, db
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-pending-req@gridkeep-platform.example")
-    requester_login = await login(client, "platform-pending-req@gridkeep-platform.example", "Platform-Pass1!")
-    requester_csrf = requester_login.json()["csrf_token"]
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-pending-req@gridkeep-platform.example"
+    )
+    await _step_up(client, requester_secret, requester_csrf)
 
     await client.post(
         "/api/platform/support-access-grants",
@@ -542,22 +698,23 @@ async def test_workspace_snapshot_accessible_with_an_active_grant(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-snapshot-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-snapshot-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-snapshot-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-snapshot-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(db, "platform-snapshot-appr@gridkeep-platform.example")
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-snapshot-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-snapshot-appr@gridkeep-platform.example", approver_secret,
     )
 
     # Log back in as the original requester (the approver session is left
     # active by the helper) — the grant's `platform_user_id`
     # (who the access is actually for) is the requester, not the approver.
     await client.post("/api/auth/logout")
-    await login(client, "platform-snapshot-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-snapshot-req@gridkeep-platform.example", requester_secret
+    )
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert resp.status_code == 200, resp.text
@@ -578,13 +735,14 @@ async def test_workspace_snapshot_denied_after_grant_is_revoked(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-revoke-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-revoke-appr@gridkeep-platform.example")
-    requester_login = await login(client, "platform-revoke-req@gridkeep-platform.example", "Platform-Pass1!")
-    requester_csrf = requester_login.json()["csrf_token"]
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-revoke-req@gridkeep-platform.example"
+    )
+    approver_secret = await _create_platform_admin(db, "platform-revoke-appr@gridkeep-platform.example")
 
     grant, approver_csrf = await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-revoke-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-revoke-appr@gridkeep-platform.example", approver_secret,
     )
 
     # Still logged in as the approver from `_request_and_approve_grant`.
@@ -597,7 +755,7 @@ async def test_workspace_snapshot_denied_after_grant_is_revoked(client, db):
     assert revoke_resp.json()["status"] == "revoked"
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": approver_csrf})
-    await login(client, "platform-revoke-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(client, "platform-revoke-req@gridkeep-platform.example", requester_secret)
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert resp.status_code == 403
@@ -610,17 +768,18 @@ async def test_workspace_snapshot_use_is_audit_logged(client, db):
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-audit-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-audit-appr@gridkeep-platform.example")
-    requester_login = await login(client, "platform-audit-req@gridkeep-platform.example", "Platform-Pass1!")
-    requester_csrf = requester_login.json()["csrf_token"]
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-audit-req@gridkeep-platform.example"
+    )
+    approver_secret = await _create_platform_admin(db, "platform-audit-appr@gridkeep-platform.example")
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-audit-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-audit-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(client, "platform-audit-req@gridkeep-platform.example", requester_secret)
     snapshot_resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert snapshot_resp.status_code == 200
 
@@ -654,19 +813,18 @@ async def test_workspace_snapshot_access_expires_at_matches_the_grant(client, db
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-expiry-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-expiry-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-expiry-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-expiry-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(db, "platform-expiry-appr@gridkeep-platform.example")
 
     grant, _ = await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-expiry-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-expiry-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-expiry-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(client, "platform-expiry-req@gridkeep-platform.example", requester_secret)
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/workspace-snapshot")
     assert resp.status_code == 200, resp.text
@@ -713,8 +871,9 @@ async def test_grant_gated_findings_drilldown_requires_an_active_grant(client, d
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-findings-no-grant@gridkeep-platform.example")
-    await login(client, "platform-findings-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+    await _create_and_login_platform_admin(
+        client, db, "platform-findings-no-grant@gridkeep-platform.example"
+    )
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
     assert resp.status_code == 403
@@ -731,19 +890,18 @@ async def test_grant_gated_findings_drilldown_returns_real_findings(client, db):
     tenant_id = owner_ctx["tenant_id"]
 
     await client.post("/api/auth/logout")
-    await _create_platform_admin(db, "platform-findings-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-findings-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-findings-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-findings-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(db, "platform-findings-appr@gridkeep-platform.example")
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-findings-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-findings-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-findings-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(client, "platform-findings-req@gridkeep-platform.example", requester_secret)
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
     assert resp.status_code == 200, resp.text
@@ -768,19 +926,22 @@ async def test_grant_gated_findings_drilldown_is_audited_with_view_context(clien
     tenant_id = owner_ctx["tenant_id"]
 
     await client.post("/api/auth/logout")
-    await _create_platform_admin(db, "platform-findings-audit-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-findings-audit-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-findings-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-findings-audit-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-findings-audit-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-findings-audit-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-findings-audit-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-findings-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-findings-audit-req@gridkeep-platform.example", requester_secret
+    )
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
     assert resp.status_code == 200
 
@@ -808,19 +969,22 @@ async def test_grant_gated_findings_drilldown_pagination(client, db):
     tenant_id = owner_ctx["tenant_id"]
 
     await client.post("/api/auth/logout")
-    await _create_platform_admin(db, "platform-findings-page-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-findings-page-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-findings-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-findings-page-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-findings-page-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-findings-page-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-findings-page-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-findings-page-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-findings-page-req@gridkeep-platform.example", requester_secret
+    )
 
     full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/findings")
     assert full_resp.status_code == 200
@@ -869,8 +1033,9 @@ async def test_grant_gated_incidents_drilldown_requires_an_active_grant(client, 
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-incidents-no-grant@gridkeep-platform.example")
-    await login(client, "platform-incidents-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+    await _create_and_login_platform_admin(
+        client, db, "platform-incidents-no-grant@gridkeep-platform.example"
+    )
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
     assert resp.status_code == 403
@@ -890,19 +1055,18 @@ async def test_grant_gated_incidents_drilldown_returns_real_incidents(client, db
     )
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-incidents-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-incidents-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-incidents-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-incidents-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(db, "platform-incidents-appr@gridkeep-platform.example")
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-incidents-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-incidents-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-incidents-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(client, "platform-incidents-req@gridkeep-platform.example", requester_secret)
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
     assert resp.status_code == 200, resp.text
@@ -929,19 +1093,22 @@ async def test_grant_gated_incidents_drilldown_is_audited_with_view_context(clie
     await _declare_incident(client, owner_csrf, title="Suspicious admin login", severity="medium")
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-incidents-audit-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-incidents-audit-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-incidents-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-incidents-audit-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-incidents-audit-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-incidents-audit-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-incidents-audit-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-incidents-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-incidents-audit-req@gridkeep-platform.example", requester_secret
+    )
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
     assert resp.status_code == 200
 
@@ -970,19 +1137,22 @@ async def test_grant_gated_incidents_drilldown_pagination(client, db):
     await _declare_incident(client, owner_csrf, title="Incident Three", severity="high")
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-incidents-page-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-incidents-page-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-incidents-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-incidents-page-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-incidents-page-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-incidents-page-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-incidents-page-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-incidents-page-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-incidents-page-req@gridkeep-platform.example", requester_secret
+    )
 
     full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/incidents")
     assert full_resp.status_code == 200
@@ -1014,8 +1184,9 @@ async def test_grant_gated_integrations_drilldown_requires_an_active_grant(clien
     )
     tenant_id = tenant_body["tenant_id"]
 
-    await _create_platform_admin(db, "platform-integrations-no-grant@gridkeep-platform.example")
-    await login(client, "platform-integrations-no-grant@gridkeep-platform.example", "Platform-Pass1!")
+    await _create_and_login_platform_admin(
+        client, db, "platform-integrations-no-grant@gridkeep-platform.example"
+    )
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
     assert resp.status_code == 403
@@ -1038,19 +1209,22 @@ async def test_grant_gated_integrations_drilldown_returns_real_integrations(clie
     assert connect_resp.status_code == 200, connect_resp.text
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-integrations-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-integrations-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-integrations-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-integrations-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-integrations-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-integrations-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-integrations-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-integrations-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-integrations-req@gridkeep-platform.example", requester_secret
+    )
 
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
     assert resp.status_code == 200, resp.text
@@ -1077,19 +1251,22 @@ async def test_grant_gated_integrations_drilldown_is_audited_with_view_context(c
     assert connect_resp.status_code == 200, connect_resp.text
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-integrations-audit-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-integrations-audit-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-integrations-audit-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-integrations-audit-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-integrations-audit-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-integrations-audit-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-integrations-audit-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-integrations-audit-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-integrations-audit-req@gridkeep-platform.example", requester_secret
+    )
     resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
     assert resp.status_code == 200
 
@@ -1127,19 +1304,22 @@ async def test_grant_gated_integrations_drilldown_pagination(client, db):
         assert connect_resp.status_code == 200, connect_resp.text
 
     await client.post("/api/auth/logout", headers={"X-CSRF-Token": owner_csrf})
-    await _create_platform_admin(db, "platform-integrations-page-req@gridkeep-platform.example")
-    await _create_platform_admin(db, "platform-integrations-page-appr@gridkeep-platform.example")
-    requester_login = await login(
-        client, "platform-integrations-page-req@gridkeep-platform.example", "Platform-Pass1!"
+    requester_csrf, requester_secret = await _create_and_login_platform_admin(
+        client, db, "platform-integrations-page-req@gridkeep-platform.example"
     )
-    requester_csrf = requester_login.json()["csrf_token"]
+    approver_secret = await _create_platform_admin(
+        db, "platform-integrations-page-appr@gridkeep-platform.example"
+    )
 
     await _request_and_approve_grant(
-        client, requester_csrf, tenant_id, "platform-integrations-page-appr@gridkeep-platform.example"
+        client, requester_csrf, requester_secret, tenant_id,
+        "platform-integrations-page-appr@gridkeep-platform.example", approver_secret,
     )
 
     await client.post("/api/auth/logout")
-    await login(client, "platform-integrations-page-req@gridkeep-platform.example", "Platform-Pass1!")
+    await _login_platform_admin(
+        client, "platform-integrations-page-req@gridkeep-platform.example", requester_secret
+    )
 
     full_resp = await client.get(f"/api/platform/tenants/{tenant_id}/integrations")
     assert full_resp.status_code == 200
