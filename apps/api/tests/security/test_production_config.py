@@ -15,6 +15,7 @@ import pytest
 from pydantic import ValidationError
 
 from core.config import (
+    _DEV_APP_DB_CREDENTIAL_MARKER,
     _DEV_DB_CREDENTIAL_MARKER,
     _DEV_OBJECT_STORAGE_ACCESS_KEY,
     _DEV_OBJECT_STORAGE_SECRET_KEY,
@@ -88,13 +89,39 @@ def test_app_refuses_to_start_in_production_with_a_dev_default(
     assert expected_message_fragment in str(exc_info.value)
 
 
-@pytest.mark.parametrize("field", ["database_url", "database_migration_url"])
-def test_app_refuses_to_start_in_production_with_default_db_credential(field: str):
+@pytest.mark.parametrize(
+    "field, expected_message_fragment",
+    [
+        # Milestone 31 (finding C-01): DATABASE_URL and DATABASE_MIGRATION_URL
+        # get distinct messages now — the former names the specific mistake
+        # (the app's own connection must be the least-privilege gridkeep_app
+        # role, never the superuser), not just the shared credential marker.
+        ("database_url", "the gridkeep superuser"),
+        ("database_migration_url", "gridkeep:gridkeep"),
+    ],
+)
+def test_app_refuses_to_start_in_production_with_default_db_credential(
+    field: str, expected_message_fragment: str
+):
     kwargs = _production_safe_kwargs()
     kwargs[field] = f"postgresql+asyncpg://{_DEV_DB_CREDENTIAL_MARKER}prod-db-host:5432/gridkeep"
     with pytest.raises(ValidationError) as exc_info:
         Settings(_env_file=None, **kwargs)
-    assert "gridkeep:gridkeep" in str(exc_info.value)
+    assert expected_message_fragment in str(exc_info.value)
+
+
+def test_app_refuses_to_start_in_production_with_default_app_db_password():
+    """Milestone 31 (finding C-01): a real deployment could correctly swap
+    the role name to gridkeep_app but forget to also change the shipped
+    development password — this must be refused independently of the
+    gridkeep-superuser check above, which wouldn't fire for this value."""
+    kwargs = _production_safe_kwargs()
+    kwargs["database_url"] = (
+        f"postgresql+asyncpg://{_DEV_APP_DB_CREDENTIAL_MARKER}prod-db-host:5432/gridkeep"
+    )
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(_env_file=None, **kwargs)
+    assert "GRIDKEEP_APP_DB_PASSWORD" in str(exc_info.value)
 
 
 def test_app_refuses_to_start_in_production_with_127_0_0_1_cors_origin():

@@ -12,7 +12,7 @@ import pyotp
 import pytest
 
 from core.errors import ValidationAppError
-from db.session import AsyncSessionLocal
+from db.session import AsyncSessionLocal, set_tenant_context
 from modules.identity import recovery_service
 from tests.helpers import invite_and_accept_member, login, onboard_verified_owner
 
@@ -203,6 +203,14 @@ async def test_account_recovery_cannot_be_approved_by_the_requester_themselves(c
 
     analyst_user_id = uuid_module.UUID(analyst_login.json()["user"]["id"])
     async with AsyncSessionLocal() as session:
+        # Milestone 31 (finding C-01): the real HTTP route reaches this
+        # service function through `get_tenant_db`, which always sets
+        # `app.current_tenant_id` before the handler runs — RLS now actually
+        # enforces that on the Membership join this function's visibility
+        # check depends on, so a direct service-layer call (as this test
+        # makes) must set the same context to see the row at all, exactly
+        # like the real request flow already does.
+        await set_tenant_context(session, uuid_module.UUID(ctx["tenant_id"]))
         with pytest.raises(ValidationAppError):
             await recovery_service.approve_recovery_request(
                 session,
