@@ -21,6 +21,7 @@ from app.modules.leads import scoring
 from app.modules.tenancy import repositories as tenancy_repo
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker import integration_tasks as it
+from worker import retry as retry_module
 from worker.crawler.safety import FetchError, SafeResponse, UnsafeUrlError
 
 pytestmark = pytest.mark.asyncio
@@ -208,23 +209,28 @@ async def test_celery_wrapper_finalizes_as_failed_once_retries_are_exhausted(mon
     just dies uncaught, leaving the delivery stuck "pending" forever with
     no error recorded (confirmed against the installed Celery version
     before this fix; see docs/adr/0016). `push_lead_to_integration` now
-    checks `self.request.retries >= self.max_retries` *before* calling
-    `retry()` at all, avoiding that dead-code path entirely.
+    delegates the exhaustion check to `worker.retry.retry_or_finalize`
+    (Milestone 12, docs/adr/0020) - the one sanctioned place this check
+    happens across all five of this worker's retrying tasks - rather than
+    hand-writing `self.request.retries >= self.max_retries` itself.
 
     This exercises the real Celery-wrapped task (not `_run_push_async`
     directly), with `push_request` simulating the final attempt.
     `_run_push_async` and `_finalize_failed` are stubbed to trivial,
-    non-awaiting coroutines and `run_db_task` to a synchronous driver
-    that runs them to completion via a single `send(None)` - deliberately
-    not the real `run_db_task` (which calls `asyncio.run(...)`, illegal
-    nested inside pytest-asyncio's already-running loop, and which would
-    also touch the module-scoped `engine`/redis singletons other tests in
-    this session have already bound to that loop). What's under test here
-    is purely `push_lead_to_integration`'s own exception-handling control
-    flow - that it calls `_finalize_failed` instead of letting the
-    original exception re-escape once retries are exhausted - not the
-    database work inside those two functions, which `test_finalize_failed_
-    marks_terminal_status` above already covers against a real database.
+    non-awaiting coroutines and `run_db_task` (both `integration_tasks`'
+    own reference, used for the initial `_run_push_async` call, and
+    `worker.retry`'s own reference, used by `retry_or_finalize`'s
+    finalize call) to a synchronous driver that runs them to completion
+    via a single `send(None)` - deliberately not the real `run_db_task`
+    (which calls `asyncio.run(...)`, illegal nested inside pytest-
+    asyncio's already-running loop, and which would also touch the
+    module-scoped `engine`/redis singletons other tests in this session
+    have already bound to that loop). What's under test here is purely
+    `push_lead_to_integration`'s own exception-handling control flow -
+    that it calls `_finalize_failed` instead of letting the original
+    exception re-escape once retries are exhausted - not the database
+    work inside those two functions, which `test_finalize_failed_marks_
+    terminal_status` above already covers against a real database.
     """
     finalize_calls: list[tuple[str, str, int]] = []
 
@@ -244,6 +250,7 @@ async def test_celery_wrapper_finalizes_as_failed_once_retries_are_exhausted(mon
     monkeypatch.setattr(it, "_run_push_async", fake_run_push_async)
     monkeypatch.setattr(it, "_finalize_failed", fake_finalize_failed)
     monkeypatch.setattr(it, "run_db_task", fake_run_db_task)
+    monkeypatch.setattr(retry_module, "run_db_task", fake_run_db_task)
 
     task = it.push_lead_to_integration
     assert task.max_retries == 4

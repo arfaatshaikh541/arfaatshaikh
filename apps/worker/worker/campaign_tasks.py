@@ -25,7 +25,7 @@ import uuid
 from datetime import UTC, datetime
 
 from app.core.db import AsyncSessionLocal, set_platform_bypass, set_tenant_context
-from app.core.logging import configure_logging, get_logger
+from app.core.logging import configure_logging
 from app.modules.businesses import dedup as businesses_dedup
 from app.modules.businesses import repositories as businesses_repo
 from app.modules.campaign_jobs import repositories as jobs_repo
@@ -45,8 +45,7 @@ from connector_sdk.registry import get_connector
 
 from worker.async_utils import run_db_task
 from worker.celery_app import celery_app
-
-logger = get_logger("gridkeep.worker.campaigns")
+from worker.retry import default_backoff, retry_or_finalize
 
 _WORKER_ID = f"{socket.gethostname()}-{os.getpid()}"
 
@@ -282,35 +281,32 @@ def run_campaign_task(self, task_id: str) -> None:
     try:
         run_db_task(_run_campaign_task_async(task_id))
     except _SlotUnavailable:
-        # Check retries-exhausted *before* calling retry() - see
-        # docs/adr/0016: Celery's retry() re-raises the original `exc`
-        # (not MaxRetriesExceededError) once retries are exhausted
-        # whenever exc= is passed, so a try/except MaxRetriesExceededError
-        # around this call never actually catches anything - it left this
-        # branch dying uncaught, with the task record stuck "pending"
-        # forever and no error recorded, if a slot never freed up.
-        if self.request.retries >= self.max_retries:
-            logger.warning("campaign_task_slot_never_freed", task_id=task_id)
-            run_db_task(
-                _finalize_task_permanently_failed(
-                    task_id,
-                    error_type="_SlotUnavailable",
-                    message="Could not acquire a per-tenant processing slot after repeated retries.",
-                )
-            )
-        else:
-            raise self.retry(countdown=15) from None
+        retry_or_finalize(
+            self,
+            exc=None,
+            finalize=lambda: _finalize_task_permanently_failed(
+                task_id,
+                error_type="_SlotUnavailable",
+                message="Could not acquire a per-tenant processing slot after repeated retries.",
+            ),
+            countdown=15,
+            task_name="run_campaign_task",
+            task_id=task_id,
+        )
     except (ConnectorRateLimitError, ConnectorTransientError) as exc:
-        backoff = min(60, 5 * (2**self.request.retries))
-        if self.request.retries >= self.max_retries:
-            logger.warning("campaign_task_max_retries_exceeded", task_id=task_id, error=str(exc))
-            run_db_task(
-                _finalize_task_permanently_failed(
-                    task_id, error_type=type(exc).__name__, message=str(exc)
-                )
-            )
-        else:
-            raise self.retry(exc=exc, countdown=backoff) from exc
+        error = exc  # `except ... as exc` unbinds exc when this block exits;
+        # the lambda below is a deferred closure, so it must capture a
+        # plain local name instead (see worker.retry's own docstring).
+        retry_or_finalize(
+            self,
+            exc=exc,
+            finalize=lambda: _finalize_task_permanently_failed(
+                task_id, error_type=type(error).__name__, message=str(error)
+            ),
+            countdown=default_backoff(self.request.retries),
+            task_name="run_campaign_task",
+            task_id=task_id,
+        )
 
 
 async def _finalize_task_permanently_failed(

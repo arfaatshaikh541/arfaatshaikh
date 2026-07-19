@@ -28,6 +28,7 @@ from app.modules.integrations import repositories as integrations_repo
 from worker.async_utils import run_db_task
 from worker.celery_app import celery_app
 from worker.crawler.safety import FetchError, UnsafeUrlError, safe_post_json
+from worker.retry import default_backoff, retry_or_finalize
 
 logger = get_logger("gridkeep.worker.integrations")
 
@@ -136,16 +137,17 @@ def push_lead_to_integration(self, delivery_id: str) -> None:
             error=str(exc),
             attempt=self.request.retries,
         )
-        # Check retries-exhausted *before* calling retry(), rather than
-        # catching MaxRetriesExceededError afterwards: Celery's retry()
-        # re-raises the original `exc` (not MaxRetriesExceededError) once
-        # retries are exhausted whenever exc= is passed, so a try/except
-        # MaxRetriesExceededError around this call never actually catches
-        # anything - it's dead code that made this task die uncaught on
-        # real retry exhaustion (see docs/adr/0016 for how this was found).
-        if self.request.retries >= self.max_retries:
-            run_db_task(
-                _finalize_failed(delivery_id, str(exc), attempt_count=self.request.retries + 1)
-            )
-        else:
-            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries))) from exc
+        error = exc  # `except ... as exc` unbinds exc when this block exits;
+        # the lambda below is a deferred closure, so it must capture a
+        # plain local name instead (see worker.retry's own docstring).
+        attempt_count = self.request.retries + 1
+        retry_or_finalize(
+            self,
+            exc=exc,
+            finalize=lambda: _finalize_failed(
+                delivery_id, str(error), attempt_count=attempt_count
+            ),
+            countdown=default_backoff(self.request.retries),
+            task_name="push_lead_to_integration",
+            task_id=delivery_id,
+        )

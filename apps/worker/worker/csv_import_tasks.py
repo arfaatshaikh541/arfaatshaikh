@@ -35,6 +35,7 @@ from app.modules.usage.services import commit_reservation
 
 from worker.async_utils import run_db_task
 from worker.celery_app import celery_app
+from worker.retry import default_backoff, retry_or_finalize
 
 logger = get_logger("gridkeep.worker.csv_import")
 
@@ -187,12 +188,14 @@ def run_csv_import(self, csv_import_id: str) -> None:
             error=str(exc),
             attempt=self.request.retries,
         )
-        # Check retries-exhausted *before* calling retry() - see
-        # docs/adr/0016: Celery's retry() re-raises the original `exc`
-        # (not MaxRetriesExceededError) once retries are exhausted
-        # whenever exc= is passed, so a try/except MaxRetriesExceededError
-        # around this call never actually catches anything.
-        if self.request.retries >= self.max_retries:
-            run_db_task(_finalize_failed(csv_import_id, str(exc)))
-        else:
-            raise self.retry(exc=exc, countdown=min(60, 5 * (2**self.request.retries))) from exc
+        error = exc  # `except ... as exc` unbinds exc when this block exits;
+        # the lambda below is a deferred closure, so it must capture a
+        # plain local name instead (see worker.retry's own docstring).
+        retry_or_finalize(
+            self,
+            exc=exc,
+            finalize=lambda: _finalize_failed(csv_import_id, str(error)),
+            countdown=default_backoff(self.request.retries),
+            task_name="run_csv_import",
+            task_id=csv_import_id,
+        )
