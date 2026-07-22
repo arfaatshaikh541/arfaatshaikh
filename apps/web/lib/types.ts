@@ -347,6 +347,16 @@ export type DuplicateCandidate = {
   reviewed_at: string | null;
 };
 
+export type MergeHistoryEntry = {
+  id: string;
+  winner_business_id: string;
+  loser_business_id: string;
+  match_type: string;
+  confidence: number;
+  moved_records: Record<string, unknown>;
+  undone_at: string | null;
+};
+
 export type LeadListItem = {
   lead_id: string;
   business_id: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Banner, Button, Card } from "@gridkeep/ui";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
@@ -13,6 +13,7 @@ import {
   type IntegrationListResponse,
   type LeadDetail,
   type Member,
+  type MergeHistoryEntry,
 } from "@/lib/types";
 
 const ENRICHMENT_ACTIVE_STATUSES = new Set(["pending", "running"]);
@@ -75,6 +76,42 @@ export default function LeadDetailPage() {
     queryFn: () => api.get<EnrichmentEvidence[]>(`/businesses/${businessId}/evidence`),
     enabled: Boolean(businessId) && enrichmentQuery.data?.status === "completed",
   });
+
+  const mergeHistoryQuery = useQuery<MergeHistoryEntry[]>({
+    queryKey: ["business", businessId, "merge-history"],
+    queryFn: () => api.get<MergeHistoryEntry[]>(`/businesses/${businessId}/merge-history`),
+    enabled: Boolean(businessId),
+  });
+
+  const otherBusinessIds = Array.from(
+    new Set(
+      [
+        ...(detailQuery.data?.duplicate_candidates ?? []).flatMap((c) => [
+          c.business_id_a,
+          c.business_id_b,
+        ]),
+        ...(mergeHistoryQuery.data ?? []).flatMap((m) => [
+          m.winner_business_id,
+          m.loser_business_id,
+        ]),
+      ].filter((id) => id && id !== businessId),
+    ),
+  );
+
+  const otherBusinessQueries = useQueries({
+    queries: otherBusinessIds.map((id) => ({
+      queryKey: ["business", id],
+      queryFn: () => api.get<Business>(`/businesses/${id}`),
+    })),
+  });
+
+  const businessNameById = new Map<string, string>();
+  if (businessQuery.data) businessNameById.set(businessQuery.data.id, businessQuery.data.name);
+  otherBusinessIds.forEach((id, index) => {
+    const name = otherBusinessQueries[index]?.data?.name;
+    if (name) businessNameById.set(id, name);
+  });
+  const nameFor = (id: string) => businessNameById.get(id) ?? id;
 
   const membersQuery = useQuery<Member[]>({
     queryKey: ["tenant-members"],
@@ -145,6 +182,21 @@ export default function LeadDetailPage() {
 
   const handleRemoveTag = (tag: string) =>
     runAction("remove tag", () => api.delete(`/leads/${leadId}/tags/${encodeURIComponent(tag)}`));
+
+  const handleConfirmCandidate = (candidateId: string) =>
+    runAction("confirm duplicate", async () => {
+      await api.post(`/duplicate-candidates/${candidateId}/confirm`);
+      queryClient.invalidateQueries({ queryKey: ["business", businessId, "merge-history"] });
+    });
+
+  const handleRejectCandidate = (candidateId: string) =>
+    runAction("reject duplicate", () => api.post(`/duplicate-candidates/${candidateId}/reject`));
+
+  const handleUndoMerge = (mergeHistoryId: string) =>
+    runAction("undo merge", async () => {
+      await api.post(`/merges/${mergeHistoryId}/undo`);
+      queryClient.invalidateQueries({ queryKey: ["business", businessId, "merge-history"] });
+    });
 
   const handlePush = async () => {
     if (!pushIntegrationId) return;
@@ -469,18 +521,82 @@ export default function LeadDetailPage() {
             <Card>
               <h2 className="text-lg font-medium">Duplicate candidates</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Possible duplicate businesses found for this lead - review from the Businesses API
-                until a dedicated review screen exists.
+                Possible duplicate businesses found for this lead. Confirming merges the other
+                business into this one; rejecting marks the pair as reviewed and not a match.
               </p>
               <ul className="mt-3 flex flex-col gap-2 text-sm">
-                {detail.duplicate_candidates.map((c) => (
-                  <li key={c.id} className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/50">
-                    <p className="font-medium capitalize">
-                      {c.match_type.replace(/_/g, " ")} match — {c.status}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Confidence {(c.confidence * 100).toFixed(0)}%
-                    </p>
+                {detail.duplicate_candidates.map((c) => {
+                  const otherId = c.business_id_a === businessId ? c.business_id_b : c.business_id_a;
+                  return (
+                    <li key={c.id} className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/50">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium capitalize">
+                            {c.match_type.replace(/_/g, " ")} match — {nameFor(otherId)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Confidence {(c.confidence * 100).toFixed(0)}%
+                            {c.status !== "pending" && ` · ${c.status}`}
+                            {c.reviewed_at && ` · reviewed ${new Date(c.reviewed_at).toLocaleString()}`}
+                          </p>
+                        </div>
+                        {c.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="secondary"
+                              isLoading={pending === "confirm duplicate"}
+                              onClick={() => handleConfirmCandidate(c.id)}
+                            >
+                              Confirm merge
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              isLoading={pending === "reject duplicate"}
+                              onClick={() => handleRejectCandidate(c.id)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+
+          {(mergeHistoryQuery.data?.length ?? 0) > 0 && (
+            <Card>
+              <h2 className="text-lg font-medium">Merge history</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Confirmed duplicate merges for this business. Undoing restores the losing business
+                and its records.
+              </p>
+              <ul className="mt-3 flex flex-col gap-2 text-sm">
+                {(mergeHistoryQuery.data ?? []).map((m) => (
+                  <li key={m.id} className="rounded-md bg-slate-50 p-2 dark:bg-slate-800/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium capitalize">
+                          {m.match_type.replace(/_/g, " ")} match — {nameFor(m.winner_business_id)}{" "}
+                          absorbed {nameFor(m.loser_business_id)}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Confidence {(m.confidence * 100).toFixed(0)}%
+                          {m.undone_at && ` · undone ${new Date(m.undone_at).toLocaleString()}`}
+                        </p>
+                      </div>
+                      {!m.undone_at && (
+                        <Button
+                          variant="ghost"
+                          isLoading={pending === "undo merge"}
+                          onClick={() => handleUndoMerge(m.id)}
+                        >
+                          Undo
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
