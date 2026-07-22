@@ -13,29 +13,56 @@ import type { Campaign, CreateCampaignRequest } from "@/lib/types";
 
 const NUMBER_PATTERN = /^-?\d+(\.\d+)?$/;
 
-const createCampaignSchema = z.object({
-  name: z.string().min(1, "Name is required.").max(200),
-  result_limit: z
-    .string()
-    .min(1, "Required.")
-    .refine((v) => NUMBER_PATTERN.test(v) && Number.isInteger(Number(v)), "Must be a whole number.")
-    .refine((v) => Number(v) >= 1 && Number(v) <= 5000, "Must be between 1 and 5000."),
-  industry: z.string().min(1, "Industry is required."),
-  category: z.string().optional(),
-  country: z.string().min(1, "Country is required."),
-  city: z.string().min(1, "City is required."),
-  area: z.string().optional(),
-  min_rating: z
-    .string()
-    .optional()
-    .refine((v) => !v || (NUMBER_PATTERN.test(v) && Number(v) >= 0 && Number(v) <= 5), "Must be 0-5."),
-  min_reviews: z
-    .string()
-    .optional()
-    .refine((v) => !v || (NUMBER_PATTERN.test(v) && Number.isInteger(Number(v)) && Number(v) >= 0), "Must be a whole number."),
-  must_have_phone: z.boolean(),
-  website_requirement: z.enum(["any", "required", "missing"]),
-});
+// Sources with no rating/review data at all (see connector_sdk.base.
+// BaseConnector.supports_rating_filter) - kept in sync by hand with the
+// backend's own per-connector flag, since the frontend has no live
+// connector registry to query. The API rejects the same combination
+// server-side regardless of this client-side check.
+const SOURCES_WITHOUT_RATING_DATA = new Set(["osm"]);
+
+const createCampaignSchema = z
+  .object({
+    name: z.string().min(1, "Name is required.").max(200),
+    source_key: z.enum(["mock", "osm"]),
+    result_limit: z
+      .string()
+      .min(1, "Required.")
+      .refine((v) => NUMBER_PATTERN.test(v) && Number.isInteger(Number(v)), "Must be a whole number.")
+      .refine((v) => Number(v) >= 1 && Number(v) <= 5000, "Must be between 1 and 5000."),
+    industry: z.string().min(1, "Industry is required."),
+    category: z.string().optional(),
+    country: z.string().min(1, "Country is required."),
+    city: z.string().min(1, "City is required."),
+    area: z.string().optional(),
+    min_rating: z
+      .string()
+      .optional()
+      .refine((v) => !v || (NUMBER_PATTERN.test(v) && Number(v) >= 0 && Number(v) <= 5), "Must be 0-5."),
+    min_reviews: z
+      .string()
+      .optional()
+      .refine((v) => !v || (NUMBER_PATTERN.test(v) && Number.isInteger(Number(v)) && Number(v) >= 0), "Must be a whole number."),
+    must_have_phone: z.boolean(),
+    website_requirement: z.enum(["any", "required", "missing"]),
+  })
+  .superRefine((values, ctx) => {
+    if (SOURCES_WITHOUT_RATING_DATA.has(values.source_key)) {
+      if (values.min_rating) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["min_rating"],
+          message: "This data source has no rating data - remove this filter.",
+        });
+      }
+      if (values.min_reviews) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["min_reviews"],
+          message: "This data source has no review data - remove this filter.",
+        });
+      }
+    }
+  });
 
 type CreateCampaignFormValues = z.infer<typeof createCampaignSchema>;
 
@@ -77,6 +104,8 @@ export default function CampaignsPage() {
     queryFn: () => api.get<Campaign[]>("/campaigns"),
   });
 
+  const [selectedSource, setSelectedSource] = useState<"mock" | "osm">("mock");
+
   const {
     register,
     handleSubmit,
@@ -84,6 +113,7 @@ export default function CampaignsPage() {
   } = useForm<CreateCampaignFormValues>({
     resolver: zodResolver(createCampaignSchema),
     defaultValues: {
+      source_key: "mock",
       must_have_phone: false,
       website_requirement: "any",
     },
@@ -94,7 +124,7 @@ export default function CampaignsPage() {
     try {
       const payload: CreateCampaignRequest = {
         name: values.name,
-        source_key: "mock",
+        source_key: values.source_key,
         result_limit: Number(values.result_limit),
         industry: values.industry,
         category: values.category || null,
@@ -138,12 +168,35 @@ export default function CampaignsPage() {
       {showForm && (
         <Card>
           <h2 className="mb-4 text-lg font-medium">New campaign</h2>
-          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-            Uses the <strong>mock</strong> connector, which returns deterministic sample business
-            records for testing - not real lead data.
-          </p>
+          {selectedSource === "osm" ? (
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+              Uses <strong>OpenStreetMap</strong> (via the Overpass API) - real business records,
+              no API key needed. OpenStreetMap has no rating/review data, so minimum
+              rating/reviews filters aren&apos;t available for this source, and coverage/detail
+              varies by region compared to a paid provider.
+            </p>
+          ) : (
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+              Uses the <strong>mock</strong> connector, which returns deterministic sample business
+              records for testing - not real lead data.
+            </p>
+          )}
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField label="Campaign name" error={errors.name?.message} {...register("name")} />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Data source
+              </label>
+              <select
+                {...register("source_key", {
+                  onChange: (e) => setSelectedSource(e.target.value as "mock" | "osm"),
+                })}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              >
+                <option value="mock">Mock (sample data)</option>
+                <option value="osm">OpenStreetMap (real, free)</option>
+              </select>
+            </div>
             <TextField
               label="Result limit"
               type="number"

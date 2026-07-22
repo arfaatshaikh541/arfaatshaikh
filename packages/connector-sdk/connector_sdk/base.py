@@ -13,6 +13,16 @@ class BaseConnector(ABC):
     connector_id: str
     source_type: str
 
+    # Whether this source can supply rating/review data at all - most
+    # connectors can (Google Places, the mock connector's fabricated
+    # values), but a source like OpenStreetMap simply has no such data in
+    # its schema. Rather than silently ignoring a `min_rating`/
+    # `min_reviews` filter a user explicitly set (which would return
+    # unfiltered results with no indication why), campaign creation
+    # rejects that combination outright when this is False - see
+    # `campaigns.services.create_campaign` and `OverpassConnector`.
+    supports_rating_filter: bool = True
+
     @abstractmethod
     async def estimate_cost(self, query: SearchQuery) -> float:
         """Returns the estimated credit cost of running `query` to

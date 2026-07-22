@@ -350,6 +350,30 @@ async def test_create_campaign_rejects_unknown_source_key(client, smtp_capture):
     assert resp.json()["error"]["code"] == "validation_error"
 
 
+async def test_create_campaign_rejects_rating_filters_for_osm_source(client, smtp_capture):
+    # OverpassConnector.supports_rating_filter = False - OSM has no
+    # rating/review schema at all, so a campaign requesting min_rating/
+    # min_reviews against this source is rejected outright rather than
+    # silently created and never enforced (see docs/adr/0028).
+    await _register_owner_and_create_tenant(
+        client, smtp_capture, email="campaign-owner8@example.com", tenant_name="Campaign Co 8"
+    )
+    payload = dict(CAMPAIGN_PAYLOAD, source_key="osm")  # min_rating/min_reviews already set
+    resp = await client.post("/campaigns", json=payload, headers=csrf_headers(client))
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["error"]["code"] == "validation_error"
+
+
+async def test_create_campaign_accepts_osm_source_without_rating_filters(client, smtp_capture):
+    await _register_owner_and_create_tenant(
+        client, smtp_capture, email="campaign-owner9@example.com", tenant_name="Campaign Co 9"
+    )
+    payload = dict(CAMPAIGN_PAYLOAD, source_key="osm", min_rating=None, min_reviews=None)
+    resp = await client.post("/campaigns", json=payload, headers=csrf_headers(client))
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["source_key"] == "osm"
+
+
 # ---------------------------------------------------------------------------
 # Idempotency and concurrency primitives (used directly by the worker)
 # ---------------------------------------------------------------------------

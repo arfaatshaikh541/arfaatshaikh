@@ -14,10 +14,12 @@ breaks process startup."""
 from connector_sdk.base import BaseConnector
 from connector_sdk.google_places import GooglePlacesConnector
 from connector_sdk.mock import MockConnector
+from connector_sdk.overpass import OverpassConnector
 
 _REGISTRY: dict[str, BaseConnector] = {
     "mock": MockConnector(),
     "google_places": GooglePlacesConnector(),
+    "osm": OverpassConnector(),
 }
 
 

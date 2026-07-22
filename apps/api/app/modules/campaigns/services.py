@@ -63,9 +63,17 @@ async def create_campaign(
     if payload.website_requirement not in WEBSITE_REQUIREMENTS:
         raise ValidationAppError(f"website_requirement must be one of {WEBSITE_REQUIREMENTS}")
     try:
-        get_connector(payload.source_key)
+        connector = get_connector(payload.source_key)
     except ValueError as exc:
         raise ValidationAppError(str(exc)) from exc
+
+    if not connector.supports_rating_filter and (
+        payload.min_rating is not None or payload.min_reviews is not None
+    ):
+        raise ValidationAppError(
+            f"The {payload.source_key!r} connector has no rating/review data - "
+            "remove min_rating/min_reviews to use this source."
+        )
 
     campaign = await repo.create_campaign(
         session,
