@@ -162,3 +162,20 @@ func markInvitationAccepted(ctx context.Context, c conn, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// getUserEmailByID looks up the current, authoritative email address for an
+// authenticated user directly from the shared users table, so
+// AcceptInvitation can verify the invitation was actually addressed to the
+// person accepting it rather than trusting whichever session bearer
+// happens to hold a still-valid invitation token.
+func getUserEmailByID(ctx context.Context, c conn, userID uuid.UUID) (string, bool, error) {
+	var email string
+	err := c.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("get user email: %w", err)
+	}
+	return email, true, nil
+}

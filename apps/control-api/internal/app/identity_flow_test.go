@@ -176,3 +176,51 @@ func TestMFAEnrollmentAndLoginChallenge(t *testing.T) {
 		t.Fatalf("/auth/me after mfa verification: expected 200, got %d", resp.StatusCode)
 	}
 }
+
+// TestMFAChallengeLockedAfterTooManyFailedAttempts is a regression test for
+// an audit finding: VerifyMFAChallenge used to mark the challenge consumed
+// and then, if the submitted code turned out to be wrong, return an error
+// that rolled back that same transaction -- silently un-consuming the
+// challenge and allowing unlimited retries against it. This test proves a
+// fixed number of wrong guesses permanently locks the challenge, including
+// against the one code that would otherwise have been correct.
+func TestMFAChallengeLockedAfterTooManyFailedAttempts(t *testing.T) {
+	srv, smtp, _ := testServer(t)
+	email := "mfa-bruteforce@example.com"
+	c := registerAndVerify(t, httpTestServer{URL: srv.URL}, smtp, email)
+
+	c.post("/api/v1/auth/login", map[string]string{"email": email, "password": testPassword})
+	_, body := c.post("/api/v1/auth/mfa/enroll", nil)
+	secret := extractTOTPSecret(t, str(t, body, "otpauth_uri"))
+	code, err := totp.GenerateCode(secret, timeNow())
+	if err != nil {
+		t.Fatalf("generate totp code: %v", err)
+	}
+	c.post("/api/v1/auth/mfa/confirm", map[string]string{"code": code})
+
+	fresh := newClient(t, srv.URL)
+	_, body = fresh.post("/api/v1/auth/login", map[string]string{"email": email, "password": testPassword})
+	challenge := str(t, body, "mfa_challenge")
+
+	correctCode, err := totp.GenerateCode(secret, timeNow())
+	if err != nil {
+		t.Fatalf("generate totp code: %v", err)
+	}
+
+	// The configured test budget is 5 attempts (see app_test.go's
+	// MFAMaxAttempts). Exhaust it with wrong codes.
+	for i := 0; i < 5; i++ {
+		resp, _ := fresh.post("/api/v1/auth/mfa/verify", map[string]string{"mfa_challenge": challenge, "code": "000000"})
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("wrong-code attempt %d: expected 401, got %d", i+1, resp.StatusCode)
+		}
+	}
+
+	// The budget is now spent -- even the genuinely correct code must be
+	// rejected, proving the challenge was durably locked rather than
+	// silently un-consumed by the prior failed attempts' rollbacks.
+	resp, _ := fresh.post("/api/v1/auth/mfa/verify", map[string]string{"mfa_challenge": challenge, "code": correctCode})
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("correct code after exhausting attempt budget: expected 401 (challenge must be locked), got %d", resp.StatusCode)
+	}
+}

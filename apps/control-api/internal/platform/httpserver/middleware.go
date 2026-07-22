@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+
+	"gridkeep/control-api/internal/platform/security"
 )
 
 // SessionValidator is implemented by the identity module and injected here
@@ -25,6 +27,10 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Cache-Control", "no-store")
+		// This is a JSON API with no HTML rendering of its own, so the
+		// strictest possible policy is safe: nothing may load or execute
+		// as a "document" in the context of this origin's responses.
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -102,7 +108,7 @@ func CSRFProtect(cookieSecure bool) func(http.Handler) http.Handler {
 			}
 
 			header := r.Header.Get(csrfHeaderName)
-			if header == "" || token == "" || header != token {
+			if header == "" || token == "" || !security.ConstantTimeEquals(header, token) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				_, _ = w.Write([]byte(`{"error":{"code":"FORBIDDEN","message":"CSRF token missing or invalid."}}`))

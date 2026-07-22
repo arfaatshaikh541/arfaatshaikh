@@ -1,11 +1,46 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-22_
+_Last updated: 2026-07-22 (independent security audit + fixes)_
 
 ## Current Milestone
 
-**Milestone 1: Secure Platform Foundation** — implementation complete, validated, not yet
-handed off for Milestone 2.
+**Milestone 1: Secure Platform Foundation** — implementation complete, independently audited,
+every Critical/High finding fixed and re-verified, not yet handed off for Milestone 2.
+
+## Independent Security Audit (post-implementation)
+
+An independent adversarial audit (code review + live exploitation against a running instance,
+not trusting the original implementation's claims) found **1 Critical, 3 High, 2 Medium, 2 Low**
+findings. Every Critical and High finding is fixed below with complete corrected files; the
+Mediums and Lows were fixed too rather than merely noted. Full narrative, root cause, and fix
+detail: `docs/adr/0006-post-milestone-1-security-audit-fixes.md`.
+
+| # | Severity | Finding | Status |
+|---|---|---|---|
+| 1 | **Critical** | MFA challenge brute-force: a wrong TOTP guess rolled back the transaction that had marked the challenge consumed, silently un-consuming it — confirmed live (50 wrong guesses, then the correct code, still succeeded) | **Fixed** + regression test + live re-PoC (now fails) |
+| 2 | **High** | Seed script's production gate was a denylist (`env == "production"`) — `"prod"`/`"staging"`/typos all bypassed it | **Fixed** (allowlist: `development` or `test` only) |
+| 3 | **High** | Invitation `role_key` had no privilege ceiling — an inviter could name any role in scope with only an existence check | **Fixed** (`rbac.RoleGrantableBy`: target role's permissions must be a subset of the inviter's own role's permissions) |
+| 4 | **High** | `.env.example` shipped a real, working `MFA_ENCRYPTION_KEY` rather than an obvious placeholder | **Fixed** (replaced with a value that is deliberately invalid base64, so the server refuses to start until a real key is generated) |
+| 5 | Medium | `enterprise_tenants`/`operators` had zero Row-Level Security, unlike every other tenant/operator-owned table — confirmed via psql that a tenant-scoped query could read every tenant's row | **Fixed** (migration `0011`, same self-scope + platform-bypass policy pair as the membership tables) |
+| 6 | Medium | `AcceptInvitation` never checked that the invited email matched the authenticated accepting user | **Fixed** (both tenancy and operators now verify email match, case-insensitive, before creating the membership) |
+| 7 | Low | CSRF token comparison used plain `!=` instead of the already-existing, already-tested `security.ConstantTimeEquals` | **Fixed** |
+| 8 | Low | Docker Compose published every port to `0.0.0.0`; no `Content-Security-Policy` response header | **Fixed** (ports bound to `127.0.0.1`; `default-src 'none'` CSP added) |
+
+**What the audit found to be genuinely sound, not just unexamined**: Argon2id password hashing
+with random per-password salts and constant-time comparison; atomic single-UPDATE consumption of
+email-verification and password-reset tokens (no reuse possible, no rollback-reuse issue — that
+pattern only broke for MFA challenges because of the *extra* fallible step, TOTP validation,
+inserted between consumption and commit); session fixation (not applicable — every session token
+is server-generated); the support-access dual-control constraint (both the Postgres `CHECK` and
+the application-level self-approval check were confirmed unbypassable); the append-only audit
+trigger (confirmed to hold even under `app.platform_bypass = true`); no SQL injection via string
+concatenation anywhere in the codebase; no XSS-enabling patterns in the frontend; no hardcoded
+secrets in application source.
+
+**Re-verification after fixes**: every Milestone 1 acceptance check was re-run in full (gofmt,
+`go vet`, `golangci-lint`, `go build`, `go test -p 1 ./...` for control-api and worker, `ruff` +
+`mypy` + `pytest` for policy-engine, `eslint` + `tsc` + `vitest` + `next build` for web) — all
+pass. See updated counts in Test Results below.
 
 ## Completed Work
 
@@ -44,7 +79,8 @@ handed off for Milestone 2.
   plan assignment, and **just-in-time support access** with real dual control (a Postgres
   CHECK constraint plus a service-layer re-check both forbid self-approval), fully audited.
 - Seed script (`cmd/seed`): fictional demo operators/tenants/users per the product spec,
-  idempotent, refuses to run against `CONTROL_API_ENV=production`.
+  idempotent, only runs when `CONTROL_API_ENV` is exactly `development` or `test` (allowlist,
+  tightened during the security audit — see below).
 
 ### worker (Go)
 - Idempotent-consumer pattern (fetch → dedupe → handle-with-retry-and-backoff →
@@ -115,7 +151,7 @@ go build ./...                                # clean
 go build -o /tmp/control-api-bin ./cmd/server
 go build -o /tmp/seed-bin ./cmd/seed
 TEST_DATABASE_URL=postgres://gridkeep:...@localhost:5432/gridkeep_test?sslmode=disable \
-  go test -p 1 ./... -v                       # 27/27 tests pass
+  go test -p 1 ./... -v                       # 34/34 tests pass (re-run after audit fixes)
 
 # worker
 cd apps/worker
@@ -138,12 +174,17 @@ node smoke.js   # register → verify email → login → dashboard → create t
 
 ## Test Results
 
-- **control-api**: 27 tests across `internal/app` (18: registration, login, lockout, MFA,
-  password reset, CSRF, cross-tenant/operator isolation, suspended-tenant regression,
-  support-access dual control), `internal/platform/audit` (3: hash chain, append-only
-  trigger, RLS visibility), `internal/platform/security` (12: password hashing, opaque
-  tokens, TOTP) — **all passing**, run against a real PostgreSQL 16 test database (no mocks
-  of persistence, RLS, or triggers).
+- **control-api**: 34 tests across `internal/app` (23: registration, login, lockout, MFA
+  including the challenge-brute-force-lockout regression test, invitation create/accept/
+  privilege-ceiling/email-mismatch flows added by the audit, password reset, CSRF,
+  cross-tenant/operator isolation, a direct database-level RLS proof for
+  `enterprise_tenants`/`operators`, suspended-tenant regression, support-access dual
+  control), `internal/modules/rbac` (1: the `RoleGrantableBy` privilege-ceiling primitive,
+  new in the audit), `internal/platform/audit` (3: hash chain, append-only trigger, RLS
+  visibility), `internal/platform/security` (12: password hashing, opaque tokens, TOTP,
+  constant-time comparison) — **all passing**, run against a real PostgreSQL 16 test
+  database (no mocks of persistence, RLS, or triggers). Invitations had zero automated test
+  coverage before this audit; that gap is now closed.
 - **worker**: 4 tests (success/commit, duplicate-delivery dedupe, retry-then-dead-letter,
   backoff calculation) — all passing.
 - **policy-engine**: 1 test (`/health`) — passing. Full policy-evaluation test suite is
@@ -162,6 +203,7 @@ See `docs/adr/`:
 - 0003 — session and MFA model
 - 0004 — manual zod validation instead of a broken `@hookform/resolvers`+zod-v4 combination
 - 0005 — shared test database requires sequential (`-p 1`) package execution
+- 0006 — post-Milestone-1 independent security audit findings and fixes
 
 ## Known Limitations
 
@@ -195,7 +237,11 @@ See `docs/adr/`:
    trusted-proxy-aware IP resolver must be added (see Security Findings #1 below); until then,
    every request will show the proxy's IP, not the client's.
 
-## Security Findings (from this Milestone's own testing — found and fixed, not just noted)
+## Security Findings — implementation-phase (superseded/complemented by the audit above)
+
+The findings below were found and fixed during the original Milestone 1 implementation, before
+the independent audit. They are kept here for history; see the audit table above for the
+findings from the subsequent independent review.
 
 1. **Fixed**: `chi/middleware.RealIP` was in the router's middleware chain. It unconditionally
    trusts `X-Forwarded-For`/`X-Real-IP`/`True-Client-IP`, letting any client spoof the IP
@@ -234,6 +280,22 @@ See `docs/adr/`:
 - `@hookform/resolvers` + zod v4 incompatibility (ADR 0004) is a live upstream bug in
   third-party packages, not something GRIDKEEP can fix; the workaround is stable but should be
   revisited on the next dependency upgrade.
+- **MFA brute-force is now bounded, not eliminated instantaneously.** A single challenge is
+  capped at `MFA_MAX_ATTEMPTS` (default 5) and every failed attempt feeds the same
+  `login_attempts`-based lockout that protects the password step, so an attacker who keeps
+  minting fresh challenges will eventually trip `LOGIN_LOCKOUT_THRESHOLD` — but there is a
+  window (a handful of guesses per newly-minted challenge, for however many challenges fit
+  under the lockout threshold within `LOGIN_LOCKOUT_WINDOW_MINUTES`) before that lockout
+  engages. TOTP's 10^6 keyspace makes this impractical over a network today; a future
+  milestone should consider also rate-limiting challenge *creation* per account, not just
+  attempts against an existing challenge.
+- **The invitation privilege-ceiling fix (`rbac.RoleGrantableBy`) is defense-in-depth, not a
+  fix for a currently-exploitable path.** In today's seed permission matrix, the only roles
+  permitted to invite in each scope (`enterprise_owner`/`enterprise_admin`,
+  `operator_platform_owner`) already hold a superset of every other role's permissions in
+  that scope, so no privilege escalation was independently reachable before this fix — the
+  fix exists so that remains true if the permission matrix or the invite-gating permission
+  ever changes, rather than depending on that coincidence.
 
 ## Pending Approvals
 
@@ -242,5 +304,7 @@ begins.
 
 ## Next Action
 
+The independent security audit's Critical/High/Medium/Low findings are all fixed and
+re-verified (see table above); Milestone 1 acceptance checks were re-run in full and pass.
 Await user review and explicit `APPROVE MILESTONE 2` (per working rule #4) before starting
-Operator and Infrastructure Registry work. No Milestone 2 code has been written.
+Operator and Infrastructure Registry work. **No Milestone 2 code has been written.**

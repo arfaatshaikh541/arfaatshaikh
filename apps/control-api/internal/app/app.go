@@ -53,6 +53,7 @@ func NewRouter(d Deps) *chi.Mux {
 		EmailVerificationTTL:  d.Config.EmailVerificationTTL,
 		PasswordResetTTL:      d.Config.PasswordResetTTL,
 		MFAChallengeTTL:       5 * time.Minute,
+		MFAMaxAttempts:        d.Config.MFAMaxAttempts,
 		LoginLockoutThreshold: d.Config.LoginLockoutThreshold,
 		LoginLockoutWindow:    d.Config.LoginLockoutWindow,
 		PublicBaseURL:         d.Config.CORSAllowedOrigins[0],

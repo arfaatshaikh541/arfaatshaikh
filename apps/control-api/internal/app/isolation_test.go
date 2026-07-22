@@ -3,7 +3,20 @@ package app_test
 import (
 	"net/http"
 	"testing"
+
+	"github.com/google/uuid"
+
+	dbpkg "gridkeep/control-api/internal/platform/db"
 )
+
+func mustParseUUID(t *testing.T, s string) *uuid.UUID {
+	t.Helper()
+	id, err := uuid.Parse(s)
+	if err != nil {
+		t.Fatalf("parse uuid %q: %v", s, err)
+	}
+	return &id
+}
 
 func createTenant(t *testing.T, c *client, legalName, country string) string {
 	t.Helper()
@@ -94,8 +107,19 @@ func TestSuspendedTenantBlocksMutationButNotOwnerRead(t *testing.T) {
 	tenantID := createTenant(t, owner, "Suspend Test Tenant", "AE")
 
 	ctx := t.Context()
-	if _, err := store.Pool.Exec(ctx, `UPDATE enterprise_tenants SET status = 'suspended' WHERE id = $1`, tenantID); err != nil {
+	// enterprise_tenants now enforces Row-Level Security (see migration
+	// 0011), so this direct test-setup write needs a platform_bypass
+	// scoped transaction -- a plain store.Pool.Exec would silently match
+	// zero rows instead of erroring.
+	tx, err := store.BeginScoped(ctx, dbpkg.Scope{PlatformBypass: true})
+	if err != nil {
+		t.Fatalf("begin scoped tx: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE enterprise_tenants SET status = 'suspended' WHERE id = $1`, tenantID); err != nil {
 		t.Fatalf("suspend tenant directly: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit tenant suspension: %v", err)
 	}
 
 	resp, _ := owner.get("/api/v1/enterprises/" + tenantID)
@@ -106,5 +130,48 @@ func TestSuspendedTenantBlocksMutationButNotOwnerRead(t *testing.T) {
 	resp, body := owner.patch("/api/v1/enterprises/"+tenantID, map[string]string{"display_name": "Should Be Blocked"})
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("owner write to suspended tenant: expected 403 (not 500), got %d: %v", resp.StatusCode, body)
+	}
+}
+
+// TestTenantAndOperatorRowLevelSecurity is a regression test for an audit
+// finding: enterprise_tenants and operators had no Row-Level Security at
+// all, unlike every other tenant/operator-owned table -- a raw query scoped
+// to one tenant could still read every other tenant's row directly from the
+// database, with nothing but the application layer standing in the way.
+// This proves the database itself, independent of any application code,
+// now enforces the same self-scope + platform-bypass boundary migration
+// 0011 added.
+func TestTenantAndOperatorRowLevelSecurity(t *testing.T) {
+	srv, smtp, store := testServer(t)
+	base := httpTestServer{URL: srv.URL}
+	ctx := t.Context()
+
+	ownerA := registerVerifyAndLogin(t, base, smtp, "rls-tenant-a@example.com")
+	tenantA := createTenant(t, ownerA, "RLS Tenant A", "AE")
+	ownerB := registerVerifyAndLogin(t, base, smtp, "rls-tenant-b@example.com")
+	tenantB := createTenant(t, ownerB, "RLS Tenant B", "AE")
+
+	tx, err := store.BeginScoped(ctx, dbpkg.Scope{TenantID: mustParseUUID(t, tenantA)})
+	if err != nil {
+		t.Fatalf("begin tenant-A-scoped tx: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rows, err := tx.Query(ctx, `SELECT id FROM enterprise_tenants`)
+	if err != nil {
+		t.Fatalf("query enterprise_tenants scoped to tenant A: %v", err)
+	}
+	var seen []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan tenant id: %v", err)
+		}
+		seen = append(seen, id)
+	}
+	rows.Close()
+
+	if len(seen) != 1 || seen[0] != tenantA {
+		t.Fatalf("RLS leak: a transaction scoped to tenant %s could see rows %v (tenant %s must not be visible)", tenantA, seen, tenantB)
 	}
 }

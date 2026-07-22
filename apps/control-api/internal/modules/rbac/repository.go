@@ -161,3 +161,27 @@ func RoleIDByKey(ctx context.Context, c queryable, scopeType, key string) (uuid.
 	}
 	return id, nil
 }
+
+// RoleGrantableBy reports whether roleID's permission set is fully contained
+// within grantorRoleID's permission set -- i.e. whether someone holding
+// grantorRoleID can grant roleID to another user without handing out any
+// permission they do not themselves hold. Invitation flows call this so the
+// privilege ceiling does not depend solely on today's coincidental fact that
+// only the most-privileged role in a scope can currently issue invitations;
+// it stays correct if the permission matrix or the invite gate ever changes.
+func RoleGrantableBy(ctx context.Context, c queryable, roleID, grantorRoleID uuid.UUID) (bool, error) {
+	var ok bool
+	err := c.QueryRow(ctx, `
+		SELECT NOT EXISTS (
+			SELECT 1 FROM role_permissions rp
+			WHERE rp.role_id = $1
+			AND rp.permission_id NOT IN (
+				SELECT permission_id FROM role_permissions WHERE role_id = $2
+			)
+		)
+	`, roleID, grantorRoleID).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("check role grantability: %w", err)
+	}
+	return ok, nil
+}

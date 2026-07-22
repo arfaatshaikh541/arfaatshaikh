@@ -9,9 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"gridkeep/control-api/internal/modules/rbac"
 	"gridkeep/control-api/internal/platform/audit"
@@ -22,7 +24,10 @@ import (
 )
 
 var (
-	ErrInvalidInvitation = errors.New("invitation is invalid or has expired")
+	ErrInvalidInvitation        = errors.New("invitation is invalid or has expired")
+	ErrUnknownRole              = errors.New("unknown role")
+	ErrInsufficientRoleToInvite = errors.New("cannot grant a role more privileged than your own")
+	ErrInvitationEmailMismatch  = errors.New("invitation was issued to a different email address")
 )
 
 type Config struct {
@@ -139,7 +144,29 @@ func (s *Service) CreateInvitation(ctx context.Context, email, roleKey string) e
 
 	roleID, err := rbac.RoleIDByKey(ctx, scopedTx.Tx, "enterprise", roleKey)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUnknownRole
+		}
 		return err
+	}
+
+	// Privilege ceiling: nobody may invite someone into a role that holds a
+	// permission they do not themselves have, regardless of which specific
+	// permission (users.manage) gated this endpoint. A JIT support-access
+	// grant has no role of its own (it is a broad, dual-control-approved,
+	// time-boxed, audited bypass reviewed separately) so it is exempt.
+	if !scope.ViaSupportGrant {
+		grantorRoleID, err := rbac.RoleIDByKey(ctx, scopedTx.Tx, "enterprise", scope.RoleKey)
+		if err != nil {
+			return fmt.Errorf("resolve inviter role: %w", err)
+		}
+		grantable, err := rbac.RoleGrantableBy(ctx, scopedTx.Tx, roleID, grantorRoleID)
+		if err != nil {
+			return err
+		}
+		if !grantable {
+			return ErrInsufficientRoleToInvite
+		}
 	}
 
 	rawToken, tokenHash, err := security.GenerateOpaqueToken(32)
@@ -192,6 +219,14 @@ func (s *Service) AcceptInvitation(ctx context.Context, userID uuid.UUID, rawTok
 	}
 	if !ok {
 		return uuid.Nil, ErrInvalidInvitation
+	}
+
+	accepterEmail, exists, err := getUserEmailByID(ctx, tx, userID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !exists || !strings.EqualFold(accepterEmail, inv.Email) {
+		return uuid.Nil, ErrInvitationEmailMismatch
 	}
 
 	if _, err := createMembership(ctx, tx, userID, inv.TenantID, inv.RoleID); err != nil {

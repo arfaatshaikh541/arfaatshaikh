@@ -36,6 +36,7 @@ type Config struct {
 	LoginLockoutWindow    time.Duration
 	EmailVerificationTTL  time.Duration
 	PasswordResetTTL      time.Duration
+	MFAMaxAttempts        int
 
 	SMTPHost string
 	SMTPPort string
@@ -78,6 +79,7 @@ func Load() (*Config, error) {
 	}
 
 	cfg.LoginLockoutThreshold = getEnvInt("LOGIN_LOCKOUT_THRESHOLD", 5)
+	cfg.MFAMaxAttempts = getEnvInt("MFA_MAX_ATTEMPTS", 5)
 
 	argon2Memory := getEnvInt("ARGON2_MEMORY_KIB", 65536)
 	argon2Iterations := getEnvInt("ARGON2_ITERATIONS", 3)

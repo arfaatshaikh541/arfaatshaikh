@@ -37,6 +37,7 @@ type Config struct {
 	EmailVerificationTTL  time.Duration
 	PasswordResetTTL      time.Duration
 	MFAChallengeTTL       time.Duration
+	MFAMaxAttempts        int
 	LoginLockoutThreshold int
 	LoginLockoutWindow    time.Duration
 	PublicBaseURL         string
@@ -279,18 +280,46 @@ func (s *Service) Login(ctx context.Context, email, password, ip, userAgent stri
 }
 
 func (s *Service) VerifyMFAChallenge(ctx context.Context, rawChallenge, code, ip, userAgent string) (*AuthenticatedSession, error) {
+	challengeHash := security.HashToken(rawChallenge)
+
+	// Step 1: durably record this attempt against the challenge's fixed
+	// attempt budget, in its own transaction committed before the code is
+	// checked. This must happen first and must survive independent of
+	// whether the code turns out to be valid -- otherwise an invalid code
+	// (or any later error) rolls back the attempt along with everything
+	// else in that transaction, letting the same challenge be retried
+	// without limit. See migration 0010 and incrementMFAChallengeAttempt.
+	attemptTx, err := s.systemTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	userID, ok, err := incrementMFAChallengeAttempt(ctx, attemptTx, challengeHash, s.cfg.MFAMaxAttempts)
+	if err != nil {
+		_ = attemptTx.Rollback(ctx)
+		return nil, err
+	}
+	if !ok {
+		_ = attemptTx.Rollback(ctx)
+		return nil, ErrInvalidToken
+	}
+	if err := attemptTx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	// Step 2: validate the code and, only on success, consume the
+	// challenge and create the session. A failed validation here never
+	// re-opens the challenge -- the attempt was already spent above.
 	tx, err := s.systemTx(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	challengeHash := security.HashToken(rawChallenge)
-	userID, ok, err := consumeMFAChallenge(ctx, tx, challengeHash)
+	lockedUserID, stillOpen, err := consumeMFAChallengeIfUnused(ctx, tx, challengeHash)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if !stillOpen || lockedUserID != userID {
 		return nil, ErrInvalidToken
 	}
 
@@ -307,7 +336,21 @@ func (s *Service) VerifyMFAChallenge(ctx context.Context, rawChallenge, code, ip
 		return nil, fmt.Errorf("validate totp: %w", err)
 	}
 	if !valid {
+		// Feed the failed guess into the same account-level lockout that
+		// protects the password step, so brute-forcing across many
+		// freshly-minted challenges eventually locks the account instead
+		// of resetting the attacker's budget on every new challenge.
+		if user, exists, uerr := getUserByID(ctx, tx, userID); uerr == nil && exists {
+			_ = recordLoginAttempt(ctx, tx, user.Email, ip, false)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, ErrInvalidMFACode
+	}
+
+	if err := markMFAChallengeConsumed(ctx, tx, challengeHash); err != nil {
+		return nil, err
 	}
 
 	session, err := s.createSessionForUser(ctx, tx, userID, ip, userAgent)

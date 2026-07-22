@@ -31,9 +31,16 @@ type demoUser struct {
 func main() {
 	ctx := context.Background()
 
+	// Allowlist, not denylist: seeding known-password demo accounts
+	// (including a Platform Super Administrator) is only ever safe in an
+	// explicitly-named local/test environment. Blocking just the literal
+	// string "production" would let any other misconfigured value --
+	// "prod", "staging", "Production", an unset variable typo'd by a
+	// deploy script -- sail through and seed those accounts into a real
+	// environment.
 	env := os.Getenv("CONTROL_API_ENV")
-	if env == "production" {
-		fmt.Fprintln(os.Stderr, "refusing to seed fictional demo data into a production environment")
+	if env != "development" && env != "test" {
+		fmt.Fprintf(os.Stderr, "refusing to seed fictional demo data: CONTROL_API_ENV=%q is not an allowed local/test environment (must be exactly \"development\" or \"test\")\n", env)
 		os.Exit(1)
 	}
 

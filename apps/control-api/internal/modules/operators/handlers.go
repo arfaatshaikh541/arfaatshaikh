@@ -128,6 +128,14 @@ func (h *Handlers) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.CreateInvitation(r.Context(), req.Email, req.RoleKey); err != nil {
+		if errors.Is(err, ErrUnknownRole) {
+			apierror.WriteJSON(w, r, h.logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, "Unknown role."))
+			return
+		}
+		if errors.Is(err, ErrInsufficientRoleToInvite) {
+			apierror.WriteJSON(w, r, h.logger, apierror.New(http.StatusForbidden, apierror.CodeForbidden, "You cannot grant a role more privileged than your own."))
+			return
+		}
 		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to create invitation", err))
 		return
 	}
@@ -153,6 +161,10 @@ func (h *Handlers) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrInvalidInvitation) {
 			apierror.WriteJSON(w, r, h.logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, "This invitation is invalid or has expired."))
+			return
+		}
+		if errors.Is(err, ErrInvitationEmailMismatch) {
+			apierror.WriteJSON(w, r, h.logger, apierror.New(http.StatusForbidden, apierror.CodeForbidden, "This invitation was issued to a different email address."))
 			return
 		}
 		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to accept invitation", err))

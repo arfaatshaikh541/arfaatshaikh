@@ -51,6 +51,7 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 		LoginLockoutWindow:    15 * time.Minute,
 		EmailVerificationTTL:  24 * time.Hour,
 		PasswordResetTTL:      30 * time.Minute,
+		MFAMaxAttempts:        5,
 		SMTPHost:              smtpHost,
 		SMTPPort:              smtpPort,
 		SMTPFrom:              "no-reply@gridkeep.test",

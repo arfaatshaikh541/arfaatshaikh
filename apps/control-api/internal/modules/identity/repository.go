@@ -235,21 +235,58 @@ func createMFAChallenge(ctx context.Context, c conn, userID uuid.UUID, tokenHash
 	return nil
 }
 
-func consumeMFAChallenge(ctx context.Context, c conn, tokenHash string) (uuid.UUID, bool, error) {
+// incrementMFAChallengeAttempt durably records one verification attempt
+// against the challenge's fixed budget (maxAttempts), in a single atomic
+// UPDATE. It must be called -- and its enclosing transaction committed --
+// before the submitted code is checked, so a wrong guess (or an error while
+// checking it) can never "undo" the attempt via a rollback. Once the budget
+// is exhausted the challenge is marked consumed in the same statement so it
+// can never be retried again, win or lose.
+func incrementMFAChallengeAttempt(ctx context.Context, c conn, tokenHash string, maxAttempts int) (uuid.UUID, bool, error) {
 	var userID uuid.UUID
 	err := c.QueryRow(ctx, `
 		UPDATE mfa_challenges
-		SET consumed_at = now()
-		WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now()
+		SET attempt_count = attempt_count + 1,
+		    consumed_at = CASE WHEN attempt_count + 1 >= $2 THEN now() ELSE consumed_at END
+		WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now() AND attempt_count < $2
 		RETURNING user_id
+	`, tokenHash, maxAttempts).Scan(&userID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return uuid.Nil, false, nil
+		}
+		return uuid.Nil, false, fmt.Errorf("increment mfa challenge attempt: %w", err)
+	}
+	return userID, true, nil
+}
+
+// consumeMFAChallengeIfUnused locks the challenge row for the remainder of
+// the caller's transaction and returns its owning user, but does not mark it
+// consumed -- that only happens once the submitted code has actually been
+// validated (see markMFAChallengeConsumed). The row lock serializes
+// concurrent verification attempts against the same still-open challenge.
+func consumeMFAChallengeIfUnused(ctx context.Context, c conn, tokenHash string) (uuid.UUID, bool, error) {
+	var userID uuid.UUID
+	err := c.QueryRow(ctx, `
+		SELECT user_id FROM mfa_challenges
+		WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now()
+		FOR UPDATE
 	`, tokenHash).Scan(&userID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return uuid.Nil, false, nil
 		}
-		return uuid.Nil, false, fmt.Errorf("consume mfa challenge: %w", err)
+		return uuid.Nil, false, fmt.Errorf("lock mfa challenge: %w", err)
 	}
 	return userID, true, nil
+}
+
+func markMFAChallengeConsumed(ctx context.Context, c conn, tokenHash string) error {
+	_, err := c.Exec(ctx, `UPDATE mfa_challenges SET consumed_at = now() WHERE token_hash = $1`, tokenHash)
+	if err != nil {
+		return fmt.Errorf("mark mfa challenge consumed: %w", err)
+	}
+	return nil
 }
 
 func upsertMFASecret(ctx context.Context, c conn, userID uuid.UUID, encryptedSecret string) error {
