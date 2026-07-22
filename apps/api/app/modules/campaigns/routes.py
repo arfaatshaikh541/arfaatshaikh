@@ -20,6 +20,8 @@ from app.modules.campaigns.schemas import (
     EstimateResponse,
     ProgressResponse,
 )
+from app.modules.leads import scoring
+from app.modules.leads.schemas import ScoreLeadResponse
 from app.modules.usage.services import get_available_balance
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -199,3 +201,18 @@ async def list_businesses(
 ):
     businesses = await businesses_repo.list_businesses_for_campaign(db, campaign_id)
     return [BusinessResponse.from_model(b) for b in businesses]
+
+
+@router.post("/{campaign_id}/score-businesses", response_model=list[ScoreLeadResponse])
+async def score_businesses(
+    campaign_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_permission("leads.score")),
+    db: AsyncSession = Depends(get_db),
+):
+    # Pure computation over already-persisted data for every business
+    # this campaign discovered - no network/crawl, so this stays
+    # synchronous and commits once at the end, same reasoning as the
+    # single-business endpoint (ADR-0013).
+    results = await scoring.score_businesses_for_campaign(db, campaign_id)
+    await db.commit()
+    return [ScoreLeadResponse.from_score_result(*r) for r in results]

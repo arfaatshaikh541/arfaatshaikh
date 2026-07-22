@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 from app.core.db import set_tenant_context
+from app.modules.businesses import dedup
 from app.modules.businesses import repositories as businesses_repo
 from app.modules.campaigns import repositories as campaigns_repo
 from app.modules.enrichment import repositories as enrichment_repo
@@ -471,5 +472,92 @@ async def test_recommendation_confidence_is_averaged_across_supporting_opportuni
                 sum(float(o.confidence) for o in contributing) / len(contributing), 2
             )
             assert website_dev["confidence"] == expected_confidence
+    finally:
+        await engine.dispose()
+
+
+async def test_score_businesses_for_campaign_scores_every_canonical_business():
+    """`scoring.score_businesses_for_campaign` (Milestone 19) - the bulk
+    "score all businesses from this campaign" action - closing the known
+    limitation that scoring was manual/per-business only."""
+    engine, Session = _session_factory()
+    try:
+        async with Session() as session:
+            tenant = await _make_tenant(session)
+            await set_tenant_context(session, tenant.id)
+            campaign = await _make_campaign_with_filter(session, tenant.id)
+            businesses = [
+                await _discover(
+                    session,
+                    tenant_id=tenant.id,
+                    campaign_id=campaign.id,
+                    native_id=f"bulk-{i}",
+                    name=f"Bulk Score Business {i}",
+                )
+                for i in range(3)
+            ]
+            await session.commit()
+
+            results = await scoring.score_businesses_for_campaign(session, campaign.id)
+            await session.commit()
+
+            assert len(results) == 3
+            scored_business_ids = {lead.business_id for lead, _score, _o, _r in results}
+            assert scored_business_ids == {b.id for b in businesses}
+            for lead, score, _opportunities, _recommendations in results:
+                assert lead.status == "new"
+                assert score["algorithm_version"] == SCORING_ALGORITHM_VERSION
+
+            # Every business now has exactly one Lead, findable independently.
+            for business in businesses:
+                lead = await leads_repo.get_lead_for_business(session, business.id)
+                assert lead is not None
+    finally:
+        await engine.dispose()
+
+
+async def test_score_businesses_for_campaign_excludes_merged_away_businesses():
+    """A business that lost a Milestone 5 dedup merge (`merged_into_id`
+    set) must not be scored a second time under its own id - only the
+    canonical winner should appear, matching
+    `businesses_repo.list_businesses_for_campaign`'s own "canonical only"
+    contract (already relied on by `GET /campaigns/{id}/businesses`)."""
+    engine, Session = _session_factory()
+    try:
+        async with Session() as session:
+            tenant = await _make_tenant(session)
+            await set_tenant_context(session, tenant.id)
+            campaign = await _make_campaign_with_filter(session, tenant.id)
+            winner = await _discover(
+                session,
+                tenant_id=tenant.id,
+                campaign_id=campaign.id,
+                native_id="merge-winner",
+                name="Merge Winner Cafe",
+            )
+            loser = await _discover(
+                session,
+                tenant_id=tenant.id,
+                campaign_id=campaign.id,
+                native_id="merge-loser",
+                name="Merge Loser Cafe",
+            )
+            await session.commit()
+
+            await dedup.merge_businesses(
+                session,
+                winner_id=winner.id,
+                loser_id=loser.id,
+                match_type="domain",
+                confidence=0.95,
+            )
+            await session.commit()
+
+            results = await scoring.score_businesses_for_campaign(session, campaign.id)
+            await session.commit()
+
+            assert len(results) == 1
+            (lead, _score, _o, _r) = results[0]
+            assert lead.business_id == winner.id
     finally:
         await engine.dispose()

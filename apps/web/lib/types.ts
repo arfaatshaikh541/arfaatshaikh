@@ -312,6 +312,13 @@ export type LeadRecommendation = {
   recommended_at: string;
 };
 
+export type ScoreLeadResult = {
+  lead: Lead;
+  score: LeadScore;
+  opportunities: LeadOpportunity[];
+  recommendations: LeadRecommendation[];
+};
+
 export type NoteEntry = {
   id: string;
   author_user_id: string | null;

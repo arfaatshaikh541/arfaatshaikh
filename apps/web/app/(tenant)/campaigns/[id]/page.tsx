@@ -10,6 +10,7 @@ import type {
   CampaignErrorEntry,
   CampaignEvent,
   CampaignProgress,
+  ScoreLeadResult,
 } from "@/lib/types";
 
 const TERMINAL_STATUSES = new Set(["completed", "partially_completed", "cancelled", "failed"]);
@@ -31,6 +32,7 @@ export default function CampaignDetailPage() {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [scoreNotice, setScoreNotice] = useState<string | null>(null);
 
   const campaignQuery = useQuery<CampaignDetail>({
     queryKey: ["campaign", campaignId],
@@ -99,6 +101,24 @@ export default function CampaignDetailPage() {
       router.push("/campaigns");
     });
 
+  const handleScoreBusinesses = async () => {
+    setActionError(null);
+    setScoreNotice(null);
+    setPendingAction("score");
+    try {
+      const results = await api.post<ScoreLeadResult[]>(`/campaigns/${campaignId}/score-businesses`);
+      setScoreNotice(
+        results.length > 0
+          ? `Scored ${results.length} business${results.length === 1 ? "" : "es"} into leads.`
+          : "No businesses to score yet.",
+      );
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not score businesses.");
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
   if (campaignQuery.isError) {
     return <Banner tone="info">You don&apos;t have permission to view this campaign.</Banner>;
   }
@@ -154,6 +174,15 @@ export default function CampaignDetailPage() {
               </Button>
             </>
           )}
+          {(progress?.businesses_found ?? 0) > 0 && (
+            <Button
+              variant="secondary"
+              isLoading={pendingAction === "score"}
+              onClick={handleScoreBusinesses}
+            >
+              Score all businesses
+            </Button>
+          )}
           {status && DELETABLE_STATUSES.has(status) && (
             <Button variant="ghost" isLoading={pendingAction === "delete"} onClick={handleDelete}>
               Delete
@@ -163,6 +192,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {actionError && <Banner tone="error">{actionError}</Banner>}
+      {scoreNotice && <Banner tone="success">{scoreNotice}</Banner>}
 
       {campaign && (
         <Card>

@@ -15,10 +15,7 @@ from app.modules.leads import repositories as leads_repo
 from app.modules.leads import scoring
 from app.modules.leads.schemas import (
     DuplicateCandidateResponse,
-    LeadOpportunityResponse,
-    LeadRecommendationResponse,
     LeadResponse,
-    LeadScoreResponse,
     MergeHistoryResponse,
     ScoreLeadResponse,
 )
@@ -112,19 +109,7 @@ async def score_business(
     # than as a background Celery task; see docs/adr/0013.
     lead, score, opportunities, recommendations = await scoring.score_lead(db, business_id)
     await db.commit()
-    return ScoreLeadResponse(
-        lead=LeadResponse.from_model(lead),
-        score=LeadScoreResponse(
-            id=score["id"],
-            algorithm_version=score["algorithm_version"],
-            total_score=score["total_score"],
-            max_score=score["max_score"],
-            factors=score["factors"],
-            calculated_at=score["calculated_at"],
-        ),
-        opportunities=[LeadOpportunityResponse.from_model(o) for o in opportunities],
-        recommendations=[LeadRecommendationResponse(**r) for r in recommendations],
-    )
+    return ScoreLeadResponse.from_score_result(lead, score, opportunities, recommendations)
 
 
 @router.get("/{business_id}/lead", response_model=LeadResponse | None)

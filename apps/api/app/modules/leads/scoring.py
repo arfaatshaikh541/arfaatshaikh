@@ -459,3 +459,18 @@ async def score_lead(
         for r in persisted_recommendations
     ]
     return lead, score_dict, persisted_opportunities, recommendations_out
+
+
+async def score_businesses_for_campaign(
+    session: AsyncSession, campaign_id: uuid.UUID
+) -> list[tuple[Lead, dict, list[LeadOpportunity], list[dict]]]:
+    """Scores every canonical (non-merged-away) business this campaign
+    discovered, one at a time through `score_lead` - the same pure
+    computation the single-business endpoint uses, no network/crawl
+    involved, so a whole campaign's worth of businesses can be scored
+    synchronously in one call. Callers commit once after this returns,
+    same as a single `score_lead` call - this function itself never
+    commits, so a caller scoring many businesses gets one transaction,
+    not one per business."""
+    businesses = await businesses_repo.list_businesses_for_campaign(session, campaign_id)
+    return [await score_lead(session, business.id) for business in businesses]

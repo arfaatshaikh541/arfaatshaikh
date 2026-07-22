@@ -73,6 +73,22 @@ class ScoreLeadResponse(BaseModel):
     opportunities: list[LeadOpportunityResponse]
     recommendations: list[LeadRecommendationResponse]
 
+    @classmethod
+    def from_score_result(cls, lead, score: dict, opportunities: list, recommendations: list) -> Self:
+        return cls(
+            lead=LeadResponse.from_model(lead),
+            score=LeadScoreResponse(
+                id=score["id"],
+                algorithm_version=score["algorithm_version"],
+                total_score=score["total_score"],
+                max_score=score["max_score"],
+                factors=score["factors"],
+                calculated_at=score["calculated_at"],
+            ),
+            opportunities=[LeadOpportunityResponse.from_model(o) for o in opportunities],
+            recommendations=[LeadRecommendationResponse(**r) for r in recommendations],
+        )
+
 
 class DuplicateCandidateResponse(BaseModel):
     id: uuid.UUID

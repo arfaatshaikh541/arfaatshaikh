@@ -287,6 +287,59 @@ async def test_read_only_viewer_can_view_but_not_mutate_campaigns(
     assert denied_cancel.json()["error"]["code"] == "permission_denied"
 
 
+async def test_score_businesses_route_requires_leads_score_permission(
+    client, client_factory, smtp_capture
+):
+    tenant = await _register_owner_and_create_tenant(
+        client, smtp_capture, email="campaign-owner7@example.com", tenant_name="Campaign Co 7"
+    )
+    campaign_id, _campaign = await _create_estimate_launch(client, result_limit=10)
+
+    # No worker runs in this API-only test process, so the campaign never
+    # discovers any businesses - this checks routing/permission wiring,
+    # not scoring correctness (that's `scoring.score_businesses_for_campaign`'s
+    # own direct-session coverage in test_lead_scoring.py).
+    owner_resp = await client.post(
+        f"/campaigns/{campaign_id}/score-businesses", headers=csrf_headers(client)
+    )
+    assert owner_resp.status_code == 200, owner_resp.text
+    assert owner_resp.json() == []
+
+    roles = {r["name"]: r["id"] for r in (await client.get("/tenants/roles")).json()}
+    invite_resp = await client.post(
+        "/tenants/invitations",
+        json={"email": "viewer7@example.com", "role_id": roles["Read-Only Viewer"]},
+        headers=csrf_headers(client),
+    )
+    assert invite_resp.status_code == 200, invite_resp.text
+    invite_token = extract_token_from_url(
+        smtp_capture.latest_body_for("viewer7@example.com"), "token"
+    )
+
+    viewer = client_factory()
+    await register_verify_login(
+        viewer,
+        smtp_capture,
+        email="viewer7@example.com",
+        password=STRONG_PASSWORD,
+        full_name="Viewer",
+    )
+    accept = await viewer.post(
+        "/invitations/accept", json={"token": invite_token}, headers=csrf_headers(viewer)
+    )
+    assert accept.status_code == 200, accept.text
+    switch = await viewer.post(
+        "/tenants/switch", json={"tenant_id": tenant["id"]}, headers=csrf_headers(viewer)
+    )
+    assert switch.status_code == 200
+
+    denied = await viewer.post(
+        f"/campaigns/{campaign_id}/score-businesses", headers=csrf_headers(viewer)
+    )
+    assert denied.status_code == 403
+    assert denied.json()["error"]["code"] == "permission_denied"
+
+
 async def test_create_campaign_rejects_unknown_source_key(client, smtp_capture):
     await _register_owner_and_create_tenant(
         client, smtp_capture, email="campaign-owner6@example.com", tenant_name="Campaign Co 6"
