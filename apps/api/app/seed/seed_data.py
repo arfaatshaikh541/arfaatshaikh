@@ -42,14 +42,22 @@ DEMO_PASSWORD = "GridkeepDemo!2026"
 DEMO_TENANT_NAME = "Northstar Digital Solutions Demo"
 
 DEMO_TENANT_USERS = [
-    ("owner@northstar-demo.gridkeep.local", "Nadia Owner (Demo)", "Owner"),
-    ("campaigns@northstar-demo.gridkeep.local", "Cameron Campaigns (Demo)", "Campaign Manager"),
-    ("sales-manager@northstar-demo.gridkeep.local", "Sam Sales-Manager (Demo)", "Sales Manager"),
-    ("sales-rep@northstar-demo.gridkeep.local", "Riley Sales-Rep (Demo)", "Sales Representative"),
-    ("viewer@northstar-demo.gridkeep.local", "Vic Viewer (Demo)", "Read-Only Viewer"),
+    ("owner@northstar-demo.gridkeep-demo.example.com", "Nadia Owner (Demo)", "Owner"),
+    ("campaigns@northstar-demo.gridkeep-demo.example.com", "Cameron Campaigns (Demo)", "Campaign Manager"),
+    ("sales-manager@northstar-demo.gridkeep-demo.example.com", "Sam Sales-Manager (Demo)", "Sales Manager"),
+    ("sales-rep@northstar-demo.gridkeep-demo.example.com", "Riley Sales-Rep (Demo)", "Sales Representative"),
+    ("viewer@northstar-demo.gridkeep-demo.example.com", "Vic Viewer (Demo)", "Read-Only Viewer"),
 ]
 
-PLATFORM_DEMO_USER = ("platform-admin@gridkeep-platform-demo.local", "Piper Platform-Admin (Demo)")
+# `example.com` is RFC 2606's reserved documentation domain - a real,
+# resolvable-looking TLD that pydantic's EmailStr accepts, unlike the
+# previous `.local` special-use TLD (which EmailStr rejects outright,
+# meaning these demo accounts could never log in through the real API -
+# see docs/project-status.md known limitation #41).
+PLATFORM_DEMO_USER = (
+    "platform-admin@gridkeep-platform-demo.example.com",
+    "Piper Platform-Admin (Demo)",
+)
 
 SUBSCRIPTION_PLANS = [
     # key, name, description, monthly_price_usd, monthly_credit_grant, max_team_members, max_concurrent_campaigns
