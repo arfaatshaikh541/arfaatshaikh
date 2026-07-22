@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Go
+apps/*/bin/
+apps/*/*.test
+apps/*/coverage.out
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts
+
+# Python
+apps/policy-engine/.venv/
+apps/policy-engine/__pycache__/
+apps/policy-engine/**/__pycache__/
+apps/policy-engine/.pytest_cache/
+apps/policy-engine/.mypy_cache/
+apps/policy-engine/.ruff_cache/
+apps/policy-engine/src/*.egg-info/
+*.pyc
+
+# Env / secrets
+.env
+.env.local
+!.env.example
+*.pem
+*.key
+!infrastructure/**/*.example.*
+
+# Build artefacts
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Local dev volumes (docker compose bind mounts)
+infrastructure/docker/volumes/

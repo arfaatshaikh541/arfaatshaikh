@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  control-api:
+    name: control-api (Go)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gridkeep_test
+          POSTGRES_USER: gridkeep
+          POSTGRES_PASSWORD: gridkeep_dev_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gridkeep -d gridkeep_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/control-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: apps/control-api/go.sum
+      - name: gofmt
+        run: |
+          diff <(gofmt -l .) <(echo -n "") || (echo "Run gofmt -w ." && exit 1)
+      - name: go vet
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: apps/control-api
+          version: latest
+      - name: go build
+        run: go build ./...
+      - name: migration check (fresh apply)
+        env:
+          DATABASE_URL: postgres://gridkeep:gridkeep_dev_password@localhost:5432/gridkeep_test?sslmode=disable
+        run: |
+          go run ./cmd/seed --help >/dev/null 2>&1 || true
+          go build -o /tmp/seed-check ./cmd/seed
+          CONTROL_API_ENV=development DATABASE_URL="$DATABASE_URL" /tmp/seed-check
+      - name: go test (unit + integration, sequential packages)
+        env:
+          TEST_DATABASE_URL: postgres://gridkeep:gridkeep_dev_password@localhost:5432/gridkeep_test?sslmode=disable
+        run: go test -p 1 ./... -v
+
+  worker:
+    name: worker (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: apps/worker/go.sum
+      - name: gofmt
+        run: diff <(gofmt -l .) <(echo -n "") || (echo "Run gofmt -w ." && exit 1)
+      - name: go vet
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: apps/worker
+          version: latest
+      - name: go build
+        run: go build ./...
+      - name: go test
+        run: go test ./...
+
+  policy-engine:
+    name: policy-engine (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/policy-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: pip install -e ".[dev]"
+      - name: ruff
+        run: ruff check .
+      - name: mypy
+        run: mypy src
+      - name: pytest
+        run: python -m pytest -q
+
+  web:
+    name: web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: install
+        run: npm ci
+      - name: lint
+        run: npx eslint .
+      - name: typecheck
+        run: npx tsc --noEmit
+      - name: test
+        run: npx vitest run
+      - name: build
+        env:
+          NEXT_PUBLIC_CONTROL_API_URL: http://localhost:8080
+        run: npx next build
+
+  docker-compose-validate:
+    name: docker-compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate compose file
+        run: docker compose config -q
