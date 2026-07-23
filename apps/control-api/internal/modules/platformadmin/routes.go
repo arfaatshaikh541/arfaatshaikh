@@ -10,8 +10,13 @@ import (
 
 // Mount registers all platform-administration routes under /api/v1/platform.
 // Every route requires a platform_role_assignments-granted permission --
-// enterprise/operator memberships grant nothing here.
-func Mount(r chi.Router, h *Handlers, auditHandlers *auditlog.Handlers, authz *rbac.Middleware) {
+// enterprise/operator memberships grant nothing here. extraMounters are
+// called with the same sub-router (e.g. images.MountPlatformScoped) --
+// chi panics if two separate top-level Route() calls both claim
+// "/api/v1/platform", so every platform-scoped module's routes must be
+// registered inside this single Route block rather than mounting a second
+// one elsewhere.
+func Mount(r chi.Router, h *Handlers, auditHandlers *auditlog.Handlers, authz *rbac.Middleware, extraMounters ...func(chi.Router)) {
 	r.Route("/api/v1/platform", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
 
@@ -30,5 +35,9 @@ func Mount(r chi.Router, h *Handlers, auditHandlers *auditlog.Handlers, authz *r
 		r.With(authz.RequirePlatformPermission("platform.support_access.view")).Get("/support-access-grants", h.ListSupportAccessGrants)
 
 		auditlog.MountPlatformScoped(r, auditHandlers, authz)
+
+		for _, mount := range extraMounters {
+			mount(r)
+		}
 	})
 }

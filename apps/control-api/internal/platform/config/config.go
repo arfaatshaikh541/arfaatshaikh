@@ -44,6 +44,16 @@ type Config struct {
 	PolicyEngineURL     string
 	PolicyEngineTimeout time.Duration
 
+	S3Endpoint               string
+	S3Region                 string
+	S3AccessKey              string
+	S3SecretKey              string
+	S3BucketArtefacts        string
+	S3UseSSL                 bool
+	ArtefactUploadURLTTL     time.Duration
+	ArtefactDownloadURLTTL   time.Duration
+	ArtefactMaxContentLength int64
+
 	SMTPHost string
 	SMTPPort string
 	SMTPFrom string
@@ -62,10 +72,19 @@ func Load() (*Config, error) {
 		SMTPPort:            getEnv("SMTP_PORT", "1025"),
 		SMTPFrom:            getEnv("SMTP_FROM", "no-reply@gridkeep.local"),
 		PolicyEngineURL:     getEnv("POLICY_ENGINE_URL", "http://localhost:8090"),
+		S3Endpoint:          getEnv("S3_ENDPOINT", "http://localhost:9000"),
+		S3Region:            getEnv("S3_REGION", "us-east-1"),
+		S3AccessKey:         os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:         os.Getenv("S3_SECRET_KEY"),
+		S3BucketArtefacts:   getEnv("S3_BUCKET_ARTEFACTS", "gridkeep-artefacts"),
+		S3UseSSL:            getEnvBool("S3_USE_SSL", false),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
+		return nil, fmt.Errorf("S3_ACCESS_KEY and S3_SECRET_KEY are required")
 	}
 
 	var err error
@@ -93,6 +112,13 @@ func Load() (*Config, error) {
 	if cfg.PolicyEngineTimeout, err = getEnvDurationSeconds("POLICY_ENGINE_TIMEOUT_SECONDS", 5); err != nil {
 		return nil, err
 	}
+	if cfg.ArtefactUploadURLTTL, err = getEnvDurationMinutes("ARTEFACT_UPLOAD_URL_TTL_MINUTES", 15); err != nil {
+		return nil, err
+	}
+	if cfg.ArtefactDownloadURLTTL, err = getEnvDurationMinutes("ARTEFACT_DOWNLOAD_URL_TTL_MINUTES", 15); err != nil {
+		return nil, err
+	}
+	cfg.ArtefactMaxContentLength = getEnvInt64("ARTEFACT_MAX_CONTENT_LENGTH_BYTES", 20*1024*1024*1024)
 
 	cfg.LoginLockoutThreshold = getEnvInt("LOGIN_LOCKOUT_THRESHOLD", 5)
 	cfg.MFAMaxAttempts = getEnvInt("MFA_MAX_ATTEMPTS", 5)
@@ -140,6 +166,18 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	i, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return i
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	i, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return fallback
 	}

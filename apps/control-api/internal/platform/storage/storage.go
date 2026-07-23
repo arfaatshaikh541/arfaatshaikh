@@ -11,6 +11,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,7 +21,12 @@ import (
 
 type Client struct {
 	mc     *minio.Client
-	Bucket string
+	bucket string
+}
+
+// Bucket returns the bucket this client is configured to operate against.
+func (c *Client) Bucket() string {
+	return c.bucket
 }
 
 type Config struct {
@@ -58,7 +64,7 @@ func Connect(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("enable bucket versioning: %w", err)
 	}
 
-	return &Client{mc: mc, Bucket: cfg.Bucket}, nil
+	return &Client{mc: mc, bucket: cfg.Bucket}, nil
 }
 
 // ObjectKey builds a non-guessable, tenant-isolated (and, when operatorID is
@@ -77,7 +83,7 @@ func ObjectKey(tenantID uuid.UUID, operatorID *uuid.UUID) string {
 // the object's bytes to directly -- control-api never proxies the upload
 // body itself, and never hands out the underlying storage credentials.
 func (c *Client) PresignedPutURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
-	u, err := c.mc.PresignedPutObject(ctx, c.Bucket, objectKey, expiry)
+	u, err := c.mc.PresignedPutObject(ctx, c.bucket, objectKey, expiry)
 	if err != nil {
 		return "", fmt.Errorf("presign put url: %w", err)
 	}
@@ -86,7 +92,7 @@ func (c *Client) PresignedPutURL(ctx context.Context, objectKey string, expiry t
 
 // PresignedGetURL returns a short-lived download URL for exactly one object.
 func (c *Client) PresignedGetURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
-	u, err := c.mc.PresignedGetObject(ctx, c.Bucket, objectKey, expiry, nil)
+	u, err := c.mc.PresignedGetObject(ctx, c.bucket, objectKey, expiry, nil)
 	if err != nil {
 		return "", fmt.Errorf("presign get url: %w", err)
 	}
@@ -106,7 +112,7 @@ type ObjectInfo struct {
 // version, so the caller can compare them against what was declared at
 // upload-authorisation time.
 func (c *Client) Stat(ctx context.Context, objectKey string) (ObjectInfo, error) {
-	info, err := c.mc.StatObject(ctx, c.Bucket, objectKey, minio.StatObjectOptions{})
+	info, err := c.mc.StatObject(ctx, c.bucket, objectKey, minio.StatObjectOptions{})
 	if err != nil {
 		return ObjectInfo{}, fmt.Errorf("stat object: %w", err)
 	}
@@ -118,13 +124,25 @@ func (c *Client) Stat(ctx context.Context, objectKey string) (ObjectInfo, error)
 	}, nil
 }
 
+// Get opens a server-side read stream of an object -- used only for
+// completion-time checksum verification (internal/modules/artefacts hashes
+// the bytes itself rather than trusting a client-declared checksum), never
+// to proxy a download to a browser (PresignedGetURL is what browsers use).
+func (c *Client) Get(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	obj, err := c.mc.GetObject(ctx, c.bucket, objectKey, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get object: %w", err)
+	}
+	return obj, nil
+}
+
 // Remove deletes an object (all versions are retained by the bucket's
 // versioning configuration unless the caller also removes those version IDs
 // explicitly -- this call only removes the current/latest version, which is
 // the deliberate "soft delete" behavior a versioned bucket gives us for
 // free: a deletion/retirement workflow can still recover prior bytes).
 func (c *Client) Remove(ctx context.Context, objectKey string) error {
-	if err := c.mc.RemoveObject(ctx, c.Bucket, objectKey, minio.RemoveObjectOptions{}); err != nil {
+	if err := c.mc.RemoveObject(ctx, c.bucket, objectKey, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("remove object: %w", err)
 	}
 	return nil

@@ -19,6 +19,7 @@ import (
 	dbpkg "gridkeep/control-api/internal/platform/db"
 	"gridkeep/control-api/internal/platform/logging"
 	"gridkeep/control-api/internal/platform/pki"
+	"gridkeep/control-api/internal/platform/storage"
 )
 
 func main() {
@@ -69,13 +70,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	storageClient, err := storage.Connect(ctx, storage.Config{
+		Endpoint:  cfg.S3Endpoint,
+		AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey,
+		UseSSL:    cfg.S3UseSSL,
+		Bucket:    cfg.S3BucketArtefacts,
+	})
+	if err != nil {
+		logger.Error("failed to connect to object storage", "error", err)
+		os.Exit(1)
+	}
+
 	router := app.NewRouter(app.Deps{
-		Store:  store,
-		Cache:  cacheClient,
-		Logger: logger,
-		Config: cfg,
-		MFAKey: mfaKey,
-		CA:     ca,
+		Store:   store,
+		Cache:   cacheClient,
+		Logger:  logger,
+		Config:  cfg,
+		MFAKey:  mfaKey,
+		CA:      ca,
+		Storage: storageClient,
 	})
 
 	srv := &http.Server{

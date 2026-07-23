@@ -13,8 +13,11 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"gridkeep/control-api/internal/modules/agents"
+	"gridkeep/control-api/internal/modules/artefacts"
 	"gridkeep/control-api/internal/modules/auditlog"
 	"gridkeep/control-api/internal/modules/identity"
+	"gridkeep/control-api/internal/modules/images"
+	"gridkeep/control-api/internal/modules/models"
 	"gridkeep/control-api/internal/modules/operators"
 	"gridkeep/control-api/internal/modules/platformadmin"
 	"gridkeep/control-api/internal/modules/policies"
@@ -22,6 +25,7 @@ import (
 	"gridkeep/control-api/internal/modules/registry"
 	"gridkeep/control-api/internal/modules/subscriptions"
 	"gridkeep/control-api/internal/modules/tenancy"
+	"gridkeep/control-api/internal/modules/workloads"
 	"gridkeep/control-api/internal/platform/cache"
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
@@ -36,14 +40,18 @@ import (
 // from. Cache may be nil (subscriptions/entitlements fall back to reading
 // Postgres directly -- see subscriptions.Service). CA is loaded (or
 // generated on first use) by the caller before NewRouter runs, since doing
-// so requires a database round trip -- see pki.LoadOrCreate.
+// so requires a database round trip -- see pki.LoadOrCreate. Storage is
+// typed as artefacts.ObjectStore (an interface, not the concrete
+// *storage.Client) specifically so integration tests can substitute an
+// in-memory fake instead of requiring a live MinIO instance.
 type Deps struct {
-	Store  *dbpkg.Store
-	Cache  *cache.Client
-	Logger *slog.Logger
-	Config *config.Config
-	MFAKey []byte
-	CA     *pki.CA
+	Store   *dbpkg.Store
+	Cache   *cache.Client
+	Logger  *slog.Logger
+	Config  *config.Config
+	MFAKey  []byte
+	CA      *pki.CA
+	Storage artefacts.ObjectStore
 }
 
 // NewRouter builds the fully-wired control-api HTTP router.
@@ -106,6 +114,22 @@ func NewRouter(d Deps) *chi.Mux {
 	})
 	policiesHandlers := policies.NewHandlers(policiesSvc, d.Logger)
 
+	modelsSvc := models.NewService(d.Store)
+	modelsHandlers := models.NewHandlers(modelsSvc, d.Logger)
+
+	imagesSvc := images.NewService(d.Store)
+	imagesHandlers := images.NewHandlers(imagesSvc, d.Logger)
+
+	artefactsSvc := artefacts.NewService(d.Store, d.Storage, artefacts.Config{
+		MaxContentLength: d.Config.ArtefactMaxContentLength,
+		UploadURLTTL:     d.Config.ArtefactUploadURLTTL,
+		DownloadURLTTL:   d.Config.ArtefactDownloadURLTTL,
+	})
+	artefactsHandlers := artefacts.NewHandlers(artefactsSvc, d.Logger)
+
+	workloadsSvc := workloads.NewService(d.Store)
+	workloadsHandlers := workloads.NewHandlers(workloadsSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -132,6 +156,10 @@ func NewRouter(d Deps) *chi.Mux {
 		subscriptions.MountEnterpriseScoped(r, subsHandlers, authz)
 		auditlog.MountEnterpriseScoped(r, auditHandlers, authz)
 		policies.MountTenantScoped(r, policiesHandlers, authz)
+		models.MountTenantScoped(r, modelsHandlers, authz)
+		images.MountTenantScoped(r, imagesHandlers, authz)
+		artefacts.MountTenantScoped(r, artefactsHandlers, authz)
+		workloads.MountTenantScoped(r, workloadsHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {
@@ -143,7 +171,9 @@ func NewRouter(d Deps) *chi.Mux {
 		agents.MountOperatorScoped(r, agentsHandlers, authz)
 	})
 
-	platformadmin.Mount(router, platformHandlers, auditHandlers, authz)
+	platformadmin.Mount(router, platformHandlers, auditHandlers, authz, func(r chi.Router) {
+		images.MountPlatformScoped(r, imagesHandlers, authz)
+	})
 
 	return router
 }

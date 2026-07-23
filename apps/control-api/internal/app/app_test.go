@@ -48,38 +48,43 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 	}
 
 	fakeEngine := startFakePolicyEngine(t)
+	fakeStorage := startFakeObjectStore(t)
 
 	cfg := &config.Config{
-		Env:                    "test",
-		SessionCookieName:      "gridkeep_session",
-		SessionCookieSecure:    false,
-		SessionTTL:             time.Hour,
-		StepUpTTL:              15 * time.Minute,
-		CORSAllowedOrigins:     []string{"http://localhost:3000"},
-		Argon2Memory:           19456,
-		Argon2Iterations:       2,
-		Argon2Parallelism:      1,
-		LoginLockoutThreshold:  5,
-		LoginLockoutWindow:     15 * time.Minute,
-		EmailVerificationTTL:   24 * time.Hour,
-		PasswordResetTTL:       30 * time.Minute,
-		MFAMaxAttempts:         5,
-		AgentBootstrapTokenTTL: 24 * time.Hour,
-		AgentCertificateTTL:    72 * time.Hour,
-		PolicyEngineURL:        fakeEngine.URL,
-		PolicyEngineTimeout:    5 * time.Second,
-		SMTPHost:               smtpHost,
-		SMTPPort:               smtpPort,
-		SMTPFrom:               "no-reply@gridkeep.test",
+		Env:                      "test",
+		SessionCookieName:        "gridkeep_session",
+		SessionCookieSecure:      false,
+		SessionTTL:               time.Hour,
+		StepUpTTL:                15 * time.Minute,
+		CORSAllowedOrigins:       []string{"http://localhost:3000"},
+		Argon2Memory:             19456,
+		Argon2Iterations:         2,
+		Argon2Parallelism:        1,
+		LoginLockoutThreshold:    5,
+		LoginLockoutWindow:       15 * time.Minute,
+		EmailVerificationTTL:     24 * time.Hour,
+		PasswordResetTTL:         30 * time.Minute,
+		MFAMaxAttempts:           5,
+		AgentBootstrapTokenTTL:   24 * time.Hour,
+		AgentCertificateTTL:      72 * time.Hour,
+		PolicyEngineURL:          fakeEngine.URL,
+		PolicyEngineTimeout:      5 * time.Second,
+		ArtefactMaxContentLength: 20 * 1024 * 1024 * 1024,
+		ArtefactUploadURLTTL:     15 * time.Minute,
+		ArtefactDownloadURLTTL:   15 * time.Minute,
+		SMTPHost:                 smtpHost,
+		SMTPPort:                 smtpPort,
+		SMTPFrom:                 "no-reply@gridkeep.test",
 	}
 
 	router := app.NewRouter(app.Deps{
-		Store:  store,
-		Cache:  nil,
-		Logger: testutil.DiscardLogger(),
-		Config: cfg,
-		MFAKey: mfaKey,
-		CA:     ca,
+		Store:   store,
+		Cache:   nil,
+		Logger:  testutil.DiscardLogger(),
+		Config:  cfg,
+		MFAKey:  mfaKey,
+		CA:      ca,
+		Storage: fakeStorage,
 	})
 
 	srv := httptest.NewServer(router)
@@ -173,6 +178,14 @@ func (c *client) post(path string, payload any) (*http.Response, map[string]any)
 
 func (c *client) patch(path string, payload any) (*http.Response, map[string]any) {
 	return c.do(http.MethodPatch, path, payload)
+}
+
+func (c *client) put(path string, payload any) (*http.Response, map[string]any) {
+	return c.do(http.MethodPut, path, payload)
+}
+
+func (c *client) delete(path string) (*http.Response, map[string]any) {
+	return c.do(http.MethodDelete, path, nil)
 }
 
 // getArray decodes a GET response whose top-level JSON value is an array
