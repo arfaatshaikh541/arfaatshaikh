@@ -177,3 +177,36 @@ func mustSign(t *testing.T, keyPEM string, message []byte) string {
 	}
 	return sig
 }
+
+// TestCASignMessageVerifiesAgainstItsOwnCertificate proves the Milestone 6
+// control-message signing round trip: the CA signs a message with its own
+// key, and VerifySignature (the exact function an agent uses) confirms the
+// signature against the CA's own certificate PEM (the exact function an
+// agent would fetch and cache).
+func TestCASignMessageVerifiesAgainstItsOwnCertificate(t *testing.T) {
+	ca := testCA(t)
+	message := []byte(`{"plan_id":"11111111-1111-1111-1111-111111111111"}`)
+
+	sig, err := ca.SignMessage(message)
+	if err != nil {
+		t.Fatalf("sign message: %v", err)
+	}
+
+	valid, err := VerifySignature(ca.CertificatePEM(), message, sig)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !valid {
+		t.Fatalf("expected the CA's own signature to verify against its own certificate")
+	}
+
+	// A tampered message must not verify.
+	tampered := []byte(`{"plan_id":"22222222-2222-2222-2222-222222222222"}`)
+	valid, err = VerifySignature(ca.CertificatePEM(), tampered, sig)
+	if err != nil {
+		t.Fatalf("verify tampered: %v", err)
+	}
+	if valid {
+		t.Fatalf("expected a tampered message to fail verification")
+	}
+}

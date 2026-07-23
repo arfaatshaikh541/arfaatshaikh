@@ -98,8 +98,11 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
       <Link href={`/dashboard/operator/${operatorId}/infrastructure`} className="mb-2 inline-block text-sm underline">
         Infrastructure registry &rarr;
       </Link>
-      <Link href={`/dashboard/operator/${operatorId}/capacity`} className="mb-6 inline-block text-sm underline">
+      <Link href={`/dashboard/operator/${operatorId}/capacity`} className="mb-2 inline-block text-sm underline">
         Capacity offers &amp; reservations &rarr;
+      </Link>
+      <Link href={`/dashboard/operator/${operatorId}/cluster-agents`} className="mb-6 inline-block text-sm underline">
+        Cluster agents &rarr;
       </Link>
 
       <section className="mb-8">

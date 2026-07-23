@@ -40,12 +40,16 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, logger *slog.Logg
 	switch {
 	case errors.Is(err, ErrInvalidBootstrapToken), errors.Is(err, ErrInvalidCSR):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusUnauthorized, apierror.CodeUnauthenticated, "The bootstrap token or certificate request is invalid or expired."))
-	case errors.Is(err, ErrAgentNotFound):
+	case errors.Is(err, ErrAgentNotFound), errors.Is(err, ErrClusterAgentNotFound), errors.Is(err, ErrControlMessageNotFound):
 		apierror.WriteJSON(w, r, logger, apierror.ErrNotFound)
 	case errors.Is(err, ErrNoTrustedCertificate), errors.Is(err, ErrInvalidSignature):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusUnauthorized, apierror.CodeUnauthenticated, "Signature verification failed."))
 	case errors.Is(err, ErrUnknownCluster):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, "Cluster does not exist for this operator."))
+	case errors.Is(err, ErrUnknownReservation):
+		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, err.Error()))
+	case errors.Is(err, ErrNoActiveClusterAgent), errors.Is(err, ErrReplay):
+		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
 	default:
 		apierror.WriteJSON(w, r, logger, apierror.Wrap(500, apierror.CodeInternal, "agents operation failed", err))
 	}

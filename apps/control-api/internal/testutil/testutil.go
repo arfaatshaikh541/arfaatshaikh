@@ -25,6 +25,10 @@ func testDatabaseURL() string {
 // migration's table is a deliberate addition here, not a silent gap).
 var tablesToTruncate = []string{
 	"audit_events",
+	"deployment_plan_validations",
+	"control_messages",
+	"cluster_agent_certificates",
+	"cluster_agents",
 	"capacity_reservations",
 	"placement_evaluations",
 	"placement_requests",

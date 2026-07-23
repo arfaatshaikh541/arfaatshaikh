@@ -143,7 +143,7 @@ func NewRouter(d Deps) *chi.Mux {
 	// or a request signature made with an issued certificate's private
 	// key) rather than a session cookie, so CSRF's double-submit-cookie
 	// check does not apply to them -- see httpserver.CSRFProtect.
-	csrfExemptPrefixes := []string{"/api/v1/agent-bootstrap", "/api/v1/agents/"}
+	csrfExemptPrefixes := []string{"/api/v1/agent-bootstrap", "/api/v1/agents/", "/api/v1/cluster-agent-bootstrap", "/api/v1/cluster-agents/"}
 	router := httpserver.NewRouter(d.Logger, d.Config.CORSAllowedOrigins, d.Config.SessionCookieSecure, validator, d.Config.SessionCookieName, csrfExemptPrefixes)
 
 	identity.Mount(router, identityHandlers, d.Logger)

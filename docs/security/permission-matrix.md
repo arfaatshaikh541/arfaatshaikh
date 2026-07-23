@@ -96,3 +96,12 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   `internal/modules/registry` as they have been since Milestone 2 -- Milestone 5 is their
   first consumer on the enterprise side (browsing/placing against the region a capacity
   offer sits in).
+- Milestone 6 introduces no new permission keys. Cluster-agent registration/revocation,
+  certificate rotation, deployment-plan-validation requests, and control-message/
+  validation history are all gated by the existing `operator.agents.manage` permission
+  from Milestone 2 (an `operator_security_administrator` or `operator_platform_owner`
+  concern, consistent with that permission's existing scope) -- a cluster agent is the
+  same trust model as an operator agent, scoped one level narrower, not a new privilege
+  category. The machine-authenticated poll/respond/rotate/bootstrap endpoints are not
+  gated by any permission at all, by design: identity there is proved by certificate
+  signature, the same posture as Milestone 2's capacity-snapshot ingestion.
