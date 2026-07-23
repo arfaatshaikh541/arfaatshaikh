@@ -17,6 +17,7 @@ import (
 	"gridkeep/control-api/internal/modules/operators"
 	"gridkeep/control-api/internal/modules/platformadmin"
 	"gridkeep/control-api/internal/modules/rbac"
+	"gridkeep/control-api/internal/modules/registry"
 	"gridkeep/control-api/internal/modules/subscriptions"
 	"gridkeep/control-api/internal/modules/tenancy"
 	"gridkeep/control-api/internal/platform/cache"
@@ -83,12 +84,16 @@ func NewRouter(d Deps) *chi.Mux {
 	platformSvc := platformadmin.NewService(d.Store)
 	platformHandlers := platformadmin.NewHandlers(platformSvc, subsSvc, d.Logger)
 
+	registrySvc := registry.NewService(d.Store)
+	registryHandlers := registry.NewHandlers(registrySvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	router := httpserver.NewRouter(d.Logger, d.Config.CORSAllowedOrigins, d.Config.SessionCookieSecure, validator, d.Config.SessionCookieName)
 
 	identity.Mount(router, identityHandlers, d.Logger)
 	tenancy.MountTopLevel(router, tenancyHandlers)
 	operators.MountTopLevel(router, operatorsHandlers)
+	registry.MountTopLevel(router, registryHandlers, authz)
 
 	router.Route("/api/v1/me", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
@@ -108,6 +113,7 @@ func NewRouter(d Deps) *chi.Mux {
 		operators.MountOperatorScoped(r, operatorsHandlers, authz)
 		subscriptions.MountOperatorScoped(r, subsHandlers, authz)
 		auditlog.MountOperatorScoped(r, auditHandlers, authz)
+		registry.MountOperatorScoped(r, registryHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz)
