@@ -15,10 +15,12 @@ import (
 	"gridkeep/control-api/internal/modules/agents"
 	"gridkeep/control-api/internal/modules/artefacts"
 	"gridkeep/control-api/internal/modules/auditlog"
+	"gridkeep/control-api/internal/modules/capacityoffers"
 	"gridkeep/control-api/internal/modules/identity"
 	"gridkeep/control-api/internal/modules/images"
 	"gridkeep/control-api/internal/modules/models"
 	"gridkeep/control-api/internal/modules/operators"
+	"gridkeep/control-api/internal/modules/placement"
 	"gridkeep/control-api/internal/modules/platformadmin"
 	"gridkeep/control-api/internal/modules/policies"
 	"gridkeep/control-api/internal/modules/rbac"
@@ -130,6 +132,12 @@ func NewRouter(d Deps) *chi.Mux {
 	workloadsSvc := workloads.NewService(d.Store)
 	workloadsHandlers := workloads.NewHandlers(workloadsSvc, d.Logger)
 
+	capacityOffersSvc := capacityoffers.NewService(d.Store)
+	capacityOffersHandlers := capacityoffers.NewHandlers(capacityOffersSvc, d.Logger)
+
+	placementSvc := placement.NewService(d.Store, policyEngineClient)
+	placementHandlers := placement.NewHandlers(placementSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -160,6 +168,7 @@ func NewRouter(d Deps) *chi.Mux {
 		images.MountTenantScoped(r, imagesHandlers, authz)
 		artefacts.MountTenantScoped(r, artefactsHandlers, authz)
 		workloads.MountTenantScoped(r, workloadsHandlers, authz)
+		placement.MountTenantScoped(r, placementHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {
@@ -169,6 +178,7 @@ func NewRouter(d Deps) *chi.Mux {
 		auditlog.MountOperatorScoped(r, auditHandlers, authz)
 		registry.MountOperatorScoped(r, registryHandlers, authz)
 		agents.MountOperatorScoped(r, agentsHandlers, authz)
+		capacityoffers.MountOperatorScoped(r, capacityOffersHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz, func(r chi.Router) {
