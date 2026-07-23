@@ -17,6 +17,7 @@ import (
 	"gridkeep/control-api/internal/modules/identity"
 	"gridkeep/control-api/internal/modules/operators"
 	"gridkeep/control-api/internal/modules/platformadmin"
+	"gridkeep/control-api/internal/modules/policies"
 	"gridkeep/control-api/internal/modules/rbac"
 	"gridkeep/control-api/internal/modules/registry"
 	"gridkeep/control-api/internal/modules/subscriptions"
@@ -27,6 +28,7 @@ import (
 	"gridkeep/control-api/internal/platform/httpserver"
 	"gridkeep/control-api/internal/platform/mailer"
 	"gridkeep/control-api/internal/platform/pki"
+	"gridkeep/control-api/internal/platform/policyengine"
 	"gridkeep/control-api/internal/platform/security"
 )
 
@@ -98,6 +100,12 @@ func NewRouter(d Deps) *chi.Mux {
 	})
 	agentsHandlers := agents.NewHandlers(agentsSvc, d.Logger)
 
+	policyEngineClient := policyengine.NewClient(d.Config.PolicyEngineURL, d.Config.PolicyEngineTimeout)
+	policiesSvc := policies.NewService(d.Store, policyEngineClient, policies.Config{
+		PolicyEngineTimeout: d.Config.PolicyEngineTimeout,
+	})
+	policiesHandlers := policies.NewHandlers(policiesSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -123,6 +131,7 @@ func NewRouter(d Deps) *chi.Mux {
 		tenancy.MountTenantScoped(r, tenancyHandlers, authz)
 		subscriptions.MountEnterpriseScoped(r, subsHandlers, authz)
 		auditlog.MountEnterpriseScoped(r, auditHandlers, authz)
+		policies.MountTenantScoped(r, policiesHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {

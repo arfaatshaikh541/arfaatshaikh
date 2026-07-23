@@ -47,6 +47,8 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 		t.Fatalf("load or create test CA: %v", err)
 	}
 
+	fakeEngine := startFakePolicyEngine(t)
+
 	cfg := &config.Config{
 		Env:                    "test",
 		SessionCookieName:      "gridkeep_session",
@@ -64,6 +66,8 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 		MFAMaxAttempts:         5,
 		AgentBootstrapTokenTTL: 24 * time.Hour,
 		AgentCertificateTTL:    72 * time.Hour,
+		PolicyEngineURL:        fakeEngine.URL,
+		PolicyEngineTimeout:    5 * time.Second,
 		SMTPHost:               smtpHost,
 		SMTPPort:               smtpPort,
 		SMTPFrom:               "no-reply@gridkeep.test",

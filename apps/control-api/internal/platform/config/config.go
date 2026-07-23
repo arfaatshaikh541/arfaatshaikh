@@ -41,6 +41,9 @@ type Config struct {
 	AgentBootstrapTokenTTL time.Duration
 	AgentCertificateTTL    time.Duration
 
+	PolicyEngineURL     string
+	PolicyEngineTimeout time.Duration
+
 	SMTPHost string
 	SMTPPort string
 	SMTPFrom string
@@ -58,6 +61,7 @@ func Load() (*Config, error) {
 		SMTPHost:            getEnv("SMTP_HOST", "localhost"),
 		SMTPPort:            getEnv("SMTP_PORT", "1025"),
 		SMTPFrom:            getEnv("SMTP_FROM", "no-reply@gridkeep.local"),
+		PolicyEngineURL:     getEnv("POLICY_ENGINE_URL", "http://localhost:8090"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -84,6 +88,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.AgentCertificateTTL, err = getEnvDurationHours("AGENT_CERTIFICATE_TTL_HOURS", 72); err != nil {
+		return nil, err
+	}
+	if cfg.PolicyEngineTimeout, err = getEnvDurationSeconds("POLICY_ENGINE_TIMEOUT_SECONDS", 5); err != nil {
 		return nil, err
 	}
 
@@ -153,4 +160,12 @@ func getEnvDurationMinutes(key string, fallbackMinutes int) (time.Duration, erro
 		return 0, fmt.Errorf("%s must be a positive integer", key)
 	}
 	return time.Duration(v) * time.Minute, nil
+}
+
+func getEnvDurationSeconds(key string, fallbackSeconds int) (time.Duration, error) {
+	v := getEnvInt(key, fallbackSeconds)
+	if v <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return time.Duration(v) * time.Second, nil
 }
