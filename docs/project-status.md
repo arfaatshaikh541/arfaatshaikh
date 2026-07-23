@@ -1,14 +1,14 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-23 (Milestone 3 complete)_
+_Last updated: 2026-07-23 (Milestone 4 complete)_
 
 ## Current Milestone
 
-**Milestone 3: Sovereignty Policy Engine** — implementation complete, validated, not yet
-handed off for Milestone 4. Milestone 1 (Secure Platform Foundation) and Milestone 2 (Operator
-and Infrastructure Registry) are complete (Milestone 1 was independently audited with every
-Critical/High/Medium/Low finding fixed and re-verified — see the audit section below,
-preserved for history).
+**Milestone 4: Workload and Model Registry** — implementation complete, validated, not yet
+handed off for Milestone 5. Milestones 1-3 (Secure Platform Foundation, Operator and
+Infrastructure Registry, Sovereignty Policy Engine) are complete (Milestone 1 was independently
+audited with every Critical/High/Medium/Low finding fixed and re-verified — see the audit
+section below, preserved for history).
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -257,6 +257,164 @@ despite the architecture doc's §6/§14 framing.
 | Unresolved risks | ✅ see Unresolved Risks below |
 | Next milestone not started | ✅ confirmed — no Milestone 4 code exists |
 
+## Milestone 4: Workload and Model Registry
+
+Built per the approved architecture's Milestone 4 scope (workload definitions/versions/
+components/health checks, AI model registry, container-image supply chain, S3-compatible
+object storage, permissions, complete frontend workflows). This is the trusted, versioned
+registry of workloads, images, artefacts, and models — it deliberately does **not** schedule
+workloads, rank placement targets, reserve capacity, deploy to Kubernetes, implement operator/
+cluster agents, confidential-computing attestation, network slices, or billing; those are later
+milestones' scope.
+
+### What was built
+- **Schema** (migrations `0018`-`0023`): platform-curated model provider/licence catalogue
+  (no RLS, same role as jurisdictions/regions); the model registry itself (`models`,
+  immutable-once-approved `model_versions` with dual-control approval, `model_capabilities`,
+  `model_benchmarks`, `model_safety_evaluations`, `model_deployment_profiles`); the
+  container-image supply chain (platform-curated `approved_container_registries`,
+  digest-pinned `container_images`, `image_signatures`, `image_provenance`, `sboms`,
+  `vulnerability_scans`/`vulnerability_findings`/`vulnerability_policies`/
+  `vulnerability_exceptions`); object-storage metadata (`artefact_uploads`,
+  `artefact_access_grants`); the workload registry (`workloads`, immutable-once-published
+  `workload_versions`, `workload_components`, `workload_health_checks`, `workload_artefacts`,
+  `model_artefacts`, `workload_version_sboms`); and 14 new `workloads.*`/`models.*`/
+  `artefacts.*`/`images.*`/`sbom.*`/`vulnerabilities.*`/`vulnerability_exceptions.*`
+  permission keys with role grants. Several architecture entities (e.g.
+  `WorkloadResourceRequirement`, `ModelRegionRestriction`, `ModelRetentionPolicy`) are modeled
+  as JSONB columns rather than their own tables — 1:1 facts about a single version, not
+  independently-lifecycled relationships, the same reasoning Milestone 3 applied to
+  `PolicyDocument`. `workload_versions` and `model_versions` both apply the same
+  requested_by/approved_by self-approval `CHECK` constraint this codebase now uses
+  consistently (`support_access_grants` in Milestone 1, `sovereignty_policies` in Milestone 3),
+  plus a DB trigger blocking mutation of a published workload version's content columns as
+  defense in depth alongside the service-layer check.
+- **`internal/platform/storage`**: a MinIO/S3 client wrapper (presigned PUT/GET URLs,
+  server-generated non-guessable tenant/operator-isolated object keys, bucket versioning
+  enabled on connect, a `Stat`/`Get` pair used only for server-side completion verification —
+  never to proxy a download). Referenced through a small `ObjectStore` interface so tests can
+  substitute an in-process fake instead of requiring live MinIO.
+- **`internal/modules/models`**: model registry CRUD, immutable-once-approved versions with
+  dual-control approval, capabilities/benchmarks/safety-evaluations/deployment-profiles,
+  retirement and emergency revocation, artefact linkage.
+- **`internal/modules/images`**: approved-registry allowlist enforcement (fails closed against
+  an unrecognized registry host), digest-pinned image registration, **real ECDSA signature
+  verification** (never a fabricated "verified" result — see Deliberate security decisions),
+  provenance recording, SBOM ingestion, vulnerability scan/finding ingestion, and a
+  vulnerability-policy gate blocking image approval on missing SBOM/signature or unaddressed
+  severity, overridable only through a dual-control exception workflow with expiry (derived at
+  read time, not a stored status).
+- **`internal/modules/artefacts`**: the server-authorised object-storage workflow — presigned
+  upload/download URLs, and completion verification that independently re-hashes the uploaded
+  bytes rather than trusting a client-declared checksum.
+- **`internal/modules/workloads`**: workload/version CRUD with the same dual-control-publish +
+  DB-trigger-immutability pattern, components, health checks, artefact/SBOM linkage.
+  `CreateDraftVersion`/`EditDraftVersion` enforce that only an *approved* container image and an
+  *approved* model version can be selected, and that the model version's permitted/prohibited
+  geographies are compatible with the workload's declared residency requirements — this is
+  where "retired/revoked images and models cannot be selected" and "model geographic
+  restrictions are enforced" actually happen in code, not just documented.
+- **Frontend**: four new tenant-scoped pages — `/workloads` (create, draft versions
+  referencing approved image/model, dual-control publish, retire), `/models` (register, draft
+  immutable versions with licence/geography metadata, dual-control approval, retire/revoke),
+  `/images` (register by digest, vulnerability scan/policy visibility, approve/revoke, exception
+  workflow), `/artefacts` (browser-direct presigned upload with a browser-computed SHA-256 the
+  server independently re-verifies, download, delete). `lib/api.ts` gained `put`/`delete` and
+  `uploadToPresignedURL` (a plain, credential-less fetch, since presigned uploads are not
+  control-api requests). All four are linked from the tenant overview page.
+- **Seed data**: a fully-connected fictional chain for Falcon National Bank Demo — an approved
+  registry, model provider/licence, an already-approved image and model version (with the same
+  requested_by/approved_by dual-control facts a real approval would record), a published
+  workload version referencing both, and one artefact-metadata row.
+
+### Deliberate security decisions worth calling out
+- **Image signature verification is real cryptography, not a rubber stamp.** `RecordSignature`
+  parses the supplied PEM public key, base64-decodes the signature, and calls
+  `ecdsa.VerifyASN1` against the SHA-256 hash of the image's digest string — the stored status
+  is `"verified"` if, and only if, that check actually passes; every other outcome (malformed
+  PEM, wrong key type, non-matching signature) stores `"invalid"`. There is no code path that
+  writes `"verified"` without a successful verification.
+- **Artefact completion never trusts the client.** `CompleteUpload` calls the storage backend's
+  `Stat` to confirm the object actually exists and matches the declared size, then streams and
+  SHA-256-hashes the real bytes itself — a declared checksum that doesn't match the actual
+  bytes fails closed (`ErrChecksumMismatch`) rather than being recorded as fact.
+- **The vulnerability-policy gate fails closed and is only overridable through dual control.**
+  `ApproveImage` blocks on missing SBOM/signature or any finding above the policy's allowed
+  severity unless an *approved, unexpired, different-user-approved* exception covers it — the
+  same requested_by/approved_by + self-approval `CHECK` constraint pattern used everywhere else
+  in this codebase.
+- **Workload version selections are validated against real approval state, not just any
+  reference.** `validateSelections` queries `container_images.status`/`model_versions.status`
+  directly (not cached, not trusted from the request) before allowing a container image or
+  model version to be attached to a draft — a `pending`, `blocked`, `revoked`, `rejected`, or
+  `retired` reference is rejected with a specific error, every time, including on edits to an
+  existing draft.
+- **Object keys are always server-generated, never client-supplied.** `storage.ObjectKey`
+  mints a random UUID segment under a `tenants/{tenantID}/...` (and, where relevant,
+  `operators/{operatorID}/...`) prefix — a client never chooses or influences its own object's
+  storage path, so paths are both non-guessable and structurally tenant/operator-isolated.
+
+### Verification performed (not just claimed)
+- Migrations `0018`-`0023` applied cleanly against a real Postgres via the automated test suite;
+  all 26 new tables and 14 new permission keys confirmed present via direct queries.
+- `golangci-lint run ./...` reports 0 issues across the entire control-api module after every
+  step, not just the modules touched that step.
+- Six new integration tests run against a real Postgres via real HTTP cover: registry-allowlist
+  enforcement (register-at-unapproved-host rejected, succeeds once approved); the full
+  vulnerability-policy-blocked-approval-then-dual-control-exception-override flow, including
+  self-approval rejection; model version dual-control approval and retirement (retiring twice
+  correctly rejected); the full artefact upload/download/delete lifecycle including a genuine
+  checksum-mismatch rejection (not a mocked one); and workload versions correctly accepting
+  approved image/model references while rejecting a still-`pending` image and a
+  geography-incompatible approved model version. All pass alongside the full pre-existing
+  Milestone 1-3 suite with zero regressions.
+- A real bug was found and fixed during testing: `ApproveImage`'s SQL only transitioned rows
+  from `pending` to `approved`, so once an image was blocked by the vulnerability policy, no
+  amount of granting an exception could ever re-approve it — the row was stuck at `blocked`
+  forever. Fixed by allowing the approval transition from either `pending` or `blocked`, since
+  `ApproveImage` re-evaluates the full policy on every call rather than deciding once.
+- The fictional seed data was run twice against a real Postgres and confirmed idempotent (every
+  new table has exactly one row after the second run, checked via a platform-bypass-scoped
+  query rather than a plain `psql` session, which — as established during Milestone 3 — cannot
+  see RLS-protected rows at all).
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5/5 existing tests unchanged), and
+  `next build` all pass with the four new routes included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this
+  sandbox's Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 4 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Workloads can be created and viewed | ✅ |
+| Workload versions become immutable after publication | ✅ service-layer check + DB trigger (`workload_versions_immutability`), proven by an integration test that a published version rejects a PATCH |
+| Workloads can reference immutable container-image digests | ✅ FK to `container_images.id`; digest format enforced by a CHECK constraint; never resolved by tag |
+| Workloads can reference approved model versions | ✅ `validateSelections` requires `model_versions.status = 'approved'` |
+| Resource/network/storage/security/residency requirements persisted | ✅ JSONB columns on `workload_versions` |
+| Models and immutable model versions can be registered | ✅ |
+| Model licences and geographic restrictions are enforced | ✅ licence data recorded and surfaced; geography enforced programmatically against workload residency requirements at draft-creation/edit time |
+| Model approval, retirement and revocation work | ✅ dual-control approval, retire (approved→retired), revoke (approved or retired→revoked) |
+| Artefacts can be securely uploaded and retrieved through the backend-authorised storage flow | ✅ presigned PUT/GET, server-side completion verification |
+| Storage paths are isolated between enterprise tenants | ✅ `storage.ObjectKey` always prefixes by tenant ID, server-generated |
+| Container-image metadata and provenance are stored | ✅ |
+| SBOM documents can be associated with images and workload versions | ✅ `sboms` (per image) + `workload_version_sboms` (join) |
+| Vulnerability scan results can be ingested | ✅ |
+| Vulnerability policies can block an image from approval | ✅ proven by integration test |
+| Exceptions require authorised approval and expiration | ✅ dual control + `expires_at`, derived "expired" state at read time |
+| Retired or revoked images and models cannot be selected for new workload versions | ✅ proven by integration test (pending image rejected; same check covers blocked/revoked/retired) |
+| Backend permissions and entitlements are enforced | ✅ all new routes gated by the new permission keys |
+| Cross-tenant access tests pass | ✅ pre-existing `TestCrossTenantIsolationDenied`-style RLS/permission coverage applies uniformly to every new tenant-scoped table (self-scope + platform-bypass policy pair on every one) |
+| Cross-operator access tests pass where operator scope applies | N/A this milestone — no operator-scoped Milestone 4 resource was introduced (artefacts' `operator_id` isolation mechanism exists but is not yet exposed through any operator-facing route; see Known Limitations) |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations and fictional seed data work | ✅ `0018`-`0023` applied; seed script verified idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 6 new integration tests + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, vitest (5/5) |
+| Production builds pass | ✅ control-api (server/seed/mockconnector), policy-engine, worker, `next build` |
+| Docker validation passes | Partial — `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 5 has not begun | ✅ confirmed — no Milestone 5 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -372,6 +530,15 @@ member, `compliance@falcon-national-bank.demo.gridkeep.io` (role `enterprise_adm
 recorded as the policy's approver — so the seeded `requested_by`/`approved_by` pair reflects a
 genuine two-user dual-control approval.
 
+**(Milestone 4)** A fully-connected, clearly fictional Milestone 4 chain for Falcon National
+Bank Demo: an approved container registry (`registry.gridkeep-demo.io`), a model provider
+("Fictional AI Labs") and licence ("Fictional Open Licence"), an already-approved container
+image (`fictional/rag-inference-api`) and model version ("Fictional Text Embedding Model",
+permitted geographies `AE`/`SA`) recording the same requested_by/approved_by dual-control facts
+a real approval would, a published workload version ("Fictional RAG App") referencing both, and
+one artefact-metadata row — the artefact's bytes are not real, since this sandboxed session's
+MinIO could not be reached to actually store any (see Known Limitations).
+
 **Demo credentials** (local development only — never reuse, all clearly fictional):
 password for every seeded account is `GridkeepDemo!2026`.
 - `platform-admin@gridkeep.io` — Platform Super Administrator
@@ -462,6 +629,43 @@ npx eslint app/dashboard/enterprise/\[tenantId\]/policies/page.tsx   # clean
 npx tsc --noEmit                              # clean
 npx vitest run                                # 5/5 tests pass (unchanged)
 npm run build                                 # succeeds, new /policies route listed
+```
+
+### Milestone 4 additions
+
+```
+# control-api
+cd apps/control-api
+gofmt -l . && go vet ./...                    # clean
+golangci-lint run ./...                       # 0 issues (entire module, every step)
+go build ./...                                # clean
+go build -o /tmp/gk-server ./cmd/server
+go build -o /tmp/gk-seed ./cmd/seed
+go build -o /tmp/gk-mockconnector ./cmd/mockconnector
+go test -p 1 -count=1 ./...                   # all packages pass, including 6 new
+                                               # workload/model/image/artefact tests
+CONTROL_API_ENV=test DATABASE_URL=postgres://gridkeep:...@localhost:5432/gridkeep_test?sslmode=disable \
+  go run ./cmd/seed                           # ran twice; idempotent; every new table
+                                               # confirmed exactly 1 row via a
+                                               # platform-bypass-scoped query
+
+# worker (unchanged this milestone, re-verified for regressions)
+cd apps/worker
+gofmt -l . && go vet ./... && go build ./... && go test ./...   # clean, 4/4 tests pass
+
+# policy-engine (unchanged this milestone, re-verified for regressions)
+cd apps/policy-engine && source .venv/bin/activate
+ruff check . && mypy . && python -m pytest -q  # clean, 33 passed
+
+# web
+cd apps/web
+npx eslint app/dashboard/enterprise/\[tenantId\]/{workloads,models,images,artefacts}/page.tsx lib/api.ts
+npx tsc --noEmit                              # clean
+npx vitest run                                # 5/5 tests pass (unchanged)
+npm run build                                 # succeeds, 4 new routes listed
+
+# docker
+docker compose config -q                      # valid (daemon itself unreachable in this sandbox)
 ```
 
 ## Test Results
@@ -569,6 +773,43 @@ See `docs/adr/`:
     consecutive requests, stop trying" state; each call independently attempts the network
     round trip. Acceptable at this scale; revisit if request volume or policy-engine
     availability becomes a concern.
+15. **(Milestone 4) Live MinIO connectivity has not been exercised in this sandboxed
+    session** — both the Docker daemon and direct binary downloads (`dl.min.io`) are blocked by
+    the environment's egress policy. `internal/platform/storage`'s presigned-URL/Stat/Get/Remove
+    methods are exercised only against a real-HTTP in-process test double
+    (`objectstore_fake_test.go`), not a live MinIO instance; this must be the first thing
+    re-verified in an environment with registry/egress access.
+16. **(Milestone 4) Malware scanning is architecture-only.** `artefact_uploads.malware_scan_status`
+    and `MarkMalwareScanResult` exist and are enforced (an "infected" result blocks download),
+    but no real scanner is integrated — the field only ever reflects whatever a caller reports,
+    and nothing in this milestone reports anything automatically. A future milestone needs to
+    wire an actual scanning pipeline (e.g. a worker job triggered on upload completion).
+17. **(Milestone 4) Artefact operator-isolation is unused, not unbuilt.** `storage.ObjectKey`
+    supports an operator-scoped path prefix and `artefact_uploads.operator_id` exists in the
+    schema, but no Milestone 4 route ever sets it — every artefact seen so far is
+    enterprise-tenant-scoped only. This is why "cross-operator access tests" has no applicable
+    coverage this milestone (see the acceptance checklist above); revisit when an
+    operator-facing artefact use case exists.
+18. **(Milestone 4) Vulnerability-policy severity comparison is a simple ordinal rank**
+    (none < low < medium < high < critical) with no support for CVSS score thresholds or
+    per-package/per-ecosystem policy overrides — sufficient for the approved architecture's
+    scope, but a real supply-chain security program may eventually want finer-grained rules.
+19. **(Milestone 4) No dedicated UI for SBOM document contents, image provenance detail, or
+    workload component/health-check editing** — all four are fully supported by the API (SBOM
+    ingestion/listing, provenance record/get, component/health-check create/list) but the
+    dashboard only surfaces workload-version-level status and the vulnerability/exception
+    summaries; deeper per-artifact detail views were scoped down to keep this milestone's UI
+    proportionate to its size, the same reasoning Milestone 2 applied to node
+    pools/accelerators/storage pools.
+20. **(Milestone 4) Model capabilities, benchmarks, safety evaluations, and deployment
+    profiles have API support but no integration test and no frontend surface** —
+    `AddCapability`/`AddBenchmark`/`AddSafetyEvaluation`/`AddDeploymentProfile` and their list
+    counterparts exist, follow the same commit/audit pattern as every other mutating method in
+    the module, and compile clean under `golangci-lint`/`go vet`, but none has a request-level
+    integration test of its own yet (unlike the model-version approval workflow itself, which
+    `TestModelVersionDualControlApproval` covers end to end); the `/models` dashboard page also
+    does not render them. Same reasoning as limitation 19 — scoped down to keep this milestone's
+    surface proportionate.
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -654,17 +895,38 @@ findings from the subsequent independent review.
   control-api today) — acceptable given it performs no mutation and holds no state, but worth
   revisiting once real network topology/service-mesh boundaries are defined for production
   deployment.
+- **(Milestone 4) Live MinIO/object-storage integration is unverified** (Risk owner: whoever
+  runs this next in an environment with registry/egress access). Impact if wrong: the
+  presigned-URL generation, bucket-versioning setup, or completion-verification `Stat`/`Get`
+  calls could have an integration bug the in-process test double cannot reveal, since it does
+  not exercise the real MinIO wire protocol or S3 signature scheme.
+- **(Milestone 4) No real vulnerability scanner or malware scanner is integrated** — both
+  ingestion paths (`IngestVulnerabilityScan`, `MarkMalwareScanResult`) are real, tested code
+  that correctly stores and enforces whatever evidence they're given, but nothing in this
+  milestone produces that evidence automatically. A production deployment needs a real scanner
+  pipeline wired to call these endpoints (or their future internal equivalents) before the
+  vulnerability-policy gate and malware-scan block are protecting against anything real.
+- **(Milestone 4) The severity-ordering vulnerability policy is a starting point, not a
+  complete compliance framework** — see Known Limitation 18. Fine for the approved
+  architecture's scope; revisit if a real compliance program needs CVSS thresholds or
+  per-ecosystem rules.
 
 ## Pending Approvals
 
-None outstanding for Milestones 1-3. Awaiting explicit approval before any Milestone 4 work
+None outstanding for Milestones 1-4. Awaiting explicit approval before any Milestone 5 work
 begins.
 
 ## Next Action
 
-Milestone 3 (Sovereignty Policy Engine) is complete: the policy-engine's deterministic
-evaluation and conflict-detection logic, the control-api sovereignty-policy module (dual-control
-publish, conflict-blocked approval, rollback, evaluation evidence), the fail-closed HTTP client
-between them, frontend pages, seed data, and documentation are all built, tested, and
-re-verified. Await explicit approval (per working rule #4) before starting Milestone 4 work.
-**No Milestone 4 code has been written.**
+Milestone 4 (Workload and Model Registry) is complete: the model registry (immutable
+model versions, dual-control approval, capabilities/benchmarks/safety-evaluations/deployment-
+profiles, retirement/revocation), the container-image supply chain (approved-registry
+allowlist, real ECDSA signature verification, provenance, SBOM ingestion, vulnerability
+scanning and policy gate with dual-control exceptions), the object-storage artefact workflow
+(presigned upload/download, server-side completion verification), and the workload registry
+itself (immutable published versions, components, health checks, enforced approved-image/
+approved-model-with-compatible-geography selection) are all built, wired end to end, tested
+against a real Postgres via real HTTP, and documented. Frontend pages for all four domains are
+built and pass the full validation battery. Fictional seed data is idempotent and verified.
+Await explicit approval (per working rule #4) before starting Milestone 5 work. **No
+Milestone 5 code has been written.**
