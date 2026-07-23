@@ -59,8 +59,23 @@ export const api = {
     request<T>(path, { method: "POST", body: data !== undefined ? JSON.stringify(data) : undefined }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: "PATCH", body: data !== undefined ? JSON.stringify(data) : undefined }),
+  put: <T>(path: string, data?: unknown) =>
+    request<T>(path, { method: "PUT", body: data !== undefined ? JSON.stringify(data) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   warmCsrf: () => request<{ status: string }>("/healthz"),
 };
+
+// uploadToPresignedURL PUTs a file's bytes directly to a presigned storage
+// URL -- this is NOT a control-api request (no credentials, no CSRF token,
+// often a different origin entirely), matching the server-authorised
+// upload flow: control-api only ever hands out a URL and object metadata,
+// never sees or proxies the file's bytes itself.
+export async function uploadToPresignedURL(uploadURL: string, file: File): Promise<void> {
+  const res = await fetch(uploadURL, { method: "PUT", body: file });
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+  }
+}
 
 export interface CurrentUser {
   user_id: string;

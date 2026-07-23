@@ -95,9 +95,21 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         {tenant.data?.country} &middot; status: {tenant.data?.status}
       </p>
 
-      <section className="mb-8">
+      <section className="mb-8 flex flex-col gap-1">
         <Link href={`/dashboard/enterprise/${tenantId}/policies`} className="text-sm underline">
           Sovereignty policies &rarr;
+        </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/workloads`} className="text-sm underline">
+          Workloads &rarr;
+        </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/models`} className="text-sm underline">
+          Model registry &rarr;
+        </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/images`} className="text-sm underline">
+          Container images &amp; supply chain &rarr;
+        </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/artefacts`} className="text-sm underline">
+          Artefacts &rarr;
         </Link>
       </section>
 
