@@ -27,7 +27,12 @@
 // agent fetches this deployment's decrypted secret values through the
 // agent-facing, certificate-authenticated secrets endpoint -- this process
 // never receives a secret value any other way (control-api's own session-
-// authenticated responses never carry one).
+// authenticated responses never carry one). Milestone 8 adds: if that
+// fetch is rejected because the deployment requires confidential computing
+// and has no fresh, passing attestation result, this agent runs the
+// remote-attestation protocol itself (request a server-issued challenge,
+// produce a fixed, clearly-labelled mock hardware report, submit it for
+// verification) before retrying the fetch -- see fetchSecretsWithAttestationRetry.
 //
 // Usage:
 //
@@ -231,7 +236,7 @@ func executeDeploymentCommand(c *http.Client, baseURL, keyPEM, agentID, caCertPE
 		if manifest == nil {
 			manifest = map[string]any{}
 		}
-		secrets, err := fetchAgentSecrets(c, baseURL, keyPEM, agentID, cmd.DeploymentID)
+		secrets, err := fetchSecretsWithAttestationRetry(c, baseURL, keyPEM, agentID, cmd.DeploymentID)
 		if err != nil {
 			return cmd.Action, false, fmt.Sprintf("fetch secrets: %v", err)
 		}
@@ -283,19 +288,22 @@ func secretKeys(secrets map[string]string) []string {
 // a signature over a canonical challenge string built from this agent's id,
 // the target deployment's id, a fresh nonce, and the current time -- and
 // returns the decrypted secret values control-api will only ever hand to
-// the one cluster agent actually assigned to that deployment.
-func fetchAgentSecrets(c *http.Client, baseURL, keyPEM, agentID, deploymentID string) (map[string]string, error) {
+// the one cluster agent actually assigned to that deployment. The status
+// code is returned alongside the error so a caller can distinguish "this
+// deployment requires a fresh attestation" (409) from any other failure
+// without string-matching the error message.
+func fetchAgentSecrets(c *http.Client, baseURL, keyPEM, agentID, deploymentID string) (secrets map[string]string, statusCode int, err error) {
 	nonce := fmt.Sprintf("secrets-%d", time.Now().UnixNano())
 	signedAt := time.Now().UTC().Format(time.RFC3339)
 	challenge := fmt.Sprintf("agent-secrets:%s:%s:%s:%s", agentID, deploymentID, nonce, signedAt)
 	signature, err := pki.SignMessage(keyPEM, []byte(challenge))
 	if err != nil {
-		return nil, fmt.Errorf("sign secrets challenge: %w", err)
+		return nil, 0, fmt.Errorf("sign secrets challenge: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/cluster-agents/"+agentID+"/deployments/"+deploymentID+"/secrets", nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("X-Agent-Nonce", nonce)
 	req.Header.Set("X-Agent-Signed-At", signedAt)
@@ -303,20 +311,160 @@ func fetchAgentSecrets(c *http.Client, baseURL, keyPEM, agentID, deploymentID st
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch secrets failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+		return nil, resp.StatusCode, fmt.Errorf("fetch secrets failed: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	var parsed struct {
 		Secrets map[string]string `json:"secrets"`
 	}
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return nil, fmt.Errorf("parse secrets response: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("parse secrets response: %w", err)
 	}
-	return parsed.Secrets, nil
+	return parsed.Secrets, resp.StatusCode, nil
+}
+
+// fetchSecretsWithAttestationRetry is Milestone 8's addition to the
+// deploy/rollback path: it tries fetchAgentSecrets first (the common case,
+// no confidential-computing requirement), and only if that is rejected
+// with HTTP 409 (control-api's "requires a fresh, passing attestation
+// result" response) does it run the remote-attestation protocol -- request
+// a server-issued challenge, produce mock evidence, submit it for
+// verification -- before retrying the exact same secrets fetch once.
+func fetchSecretsWithAttestationRetry(c *http.Client, baseURL, keyPEM, agentID, deploymentID string) (map[string]string, error) {
+	secrets, status, err := fetchAgentSecrets(c, baseURL, keyPEM, agentID, deploymentID)
+	if err == nil {
+		return secrets, nil
+	}
+	if status != http.StatusConflict {
+		return nil, err
+	}
+
+	fmt.Println("mockclusteragent: secrets fetch requires confidential-computing attestation; running the remote-attestation protocol...")
+	sessionID, sessionNonce, err := requestAttestationSession(c, baseURL, keyPEM, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("request attestation session: %w", err)
+	}
+	decision, reasonCodes, err := submitAttestationEvidence(c, baseURL, keyPEM, agentID, sessionID, deploymentID, sessionNonce, mockMeasurements())
+	if err != nil {
+		return nil, fmt.Errorf("submit attestation evidence: %w", err)
+	}
+	fmt.Printf("mockclusteragent: attestation decision: %s %v\n", decision, reasonCodes)
+	if decision != "pass" {
+		return nil, fmt.Errorf("attestation failed: %v", reasonCodes)
+	}
+
+	secrets, _, err = fetchAgentSecrets(c, baseURL, keyPEM, agentID, deploymentID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch secrets after successful attestation: %w", err)
+	}
+	return secrets, nil
+}
+
+// mockMeasurements is this agent's fixed, simulated hardware report -- a
+// real cluster agent running inside genuine confidential-computing hardware
+// would read these values from the platform itself (e.g. an SEV-SNP
+// attestation report or a TDX quote); this mock has no real hardware
+// behind it at all; see internal/platform/attestation.MockProvider's own
+// doc comment on why this makes no claim of proving genuine confidential
+// computing.
+func mockMeasurements() map[string]any {
+	return map[string]any{
+		"platform":      "mock-tee-v1",
+		"firmware_hash": "mock-firmware-abc123",
+	}
+}
+
+// requestAttestationSession proves identity by signing a canonical
+// challenge string (the same construction pollPendingMessages uses for its
+// own GET-shaped auth), and returns the server-issued session id and
+// attestation nonce the subsequent evidence submission must embed.
+func requestAttestationSession(c *http.Client, baseURL, keyPEM, agentID string) (sessionID, attestationNonce string, err error) {
+	requestNonce := fmt.Sprintf("attsess-%d", time.Now().UnixNano())
+	signedAt := time.Now().UTC().Format(time.RFC3339)
+	challenge := fmt.Sprintf("attestation-session:%s:%s:%s", agentID, requestNonce, signedAt)
+	signature, err := pki.SignMessage(keyPEM, []byte(challenge))
+	if err != nil {
+		return "", "", fmt.Errorf("sign session request: %w", err)
+	}
+
+	body, err := json.Marshal(map[string]string{"nonce": requestNonce, "signed_at": signedAt, "signature": signature})
+	if err != nil {
+		return "", "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/cluster-agents/"+agentID+"/attestation-sessions", bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		return "", "", fmt.Errorf("request attestation session failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed struct {
+		ID    string `json:"id"`
+		Nonce string `json:"nonce"`
+	}
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return "", "", fmt.Errorf("parse attestation session response: %w", err)
+	}
+	return parsed.ID, parsed.Nonce, nil
+}
+
+// submitAttestationEvidence signs its own JSON body (the session's nonce,
+// among other fields, is covered by this same signature) and submits it to
+// control-api for verification against the cluster's active attestation
+// policy.
+func submitAttestationEvidence(c *http.Client, baseURL, keyPEM, agentID, sessionID, deploymentID, sessionNonce string, measurements map[string]any) (decision string, reasonCodes []string, err error) {
+	body, err := json.Marshal(map[string]any{
+		"deployment_id": deploymentID,
+		"provider_type": "mock",
+		"measurements":  measurements,
+		"raw_evidence":  `{"note":"fictional mock evidence blob, not a real attestation report"}`,
+		"nonce":         sessionNonce,
+		"signed_at":     time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	signature, err := pki.SignMessage(keyPEM, body)
+	if err != nil {
+		return "", nil, fmt.Errorf("sign evidence: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/cluster-agents/"+agentID+"/attestation-sessions/"+sessionID+"/evidence", bytes.NewReader(body))
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Agent-Signature", signature)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		return "", nil, fmt.Errorf("submit evidence failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	var parsed struct {
+		Decision    string   `json:"decision"`
+		ReasonCodes []string `json:"reason_codes"`
+	}
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return "", nil, fmt.Errorf("parse evidence result: %w", err)
+	}
+	return parsed.Decision, parsed.ReasonCodes, nil
 }
 
 // reportCommandResult signs its own JSON body (action, success, detail,

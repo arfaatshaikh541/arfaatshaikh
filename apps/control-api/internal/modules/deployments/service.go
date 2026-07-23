@@ -30,6 +30,14 @@ import (
 // activeClusterAgentForCluster).
 const signedAtWindow = 5 * time.Minute
 
+// attestationFreshnessWindow bounds how long a passing Milestone 8
+// attestation_results row remains acceptable for a key-release decision --
+// "freshness" in the approved attestation scope. A confidential-computing-required
+// deployment must have attested successfully within this window, not merely
+// at some point in its history, before AgentFetchSecrets will decrypt
+// anything for it.
+const attestationFreshnessWindow = 30 * time.Minute
+
 var (
 	ErrReservationNotFound        = errors.New("capacity reservation not found")
 	ErrReservationNotCommitted    = errors.New("only a committed capacity reservation can be deployed")
@@ -53,6 +61,7 @@ var (
 	ErrControlMessageNotFound     = errors.New("control message not found")
 	ErrActionMismatch             = errors.New("reported action does not match the original command")
 	ErrNotAssignedAgent           = errors.New("this cluster agent is not the one assigned to the deployment")
+	ErrAttestationRequired        = errors.New("this deployment requires confidential computing and has no fresh, passing attestation result")
 )
 
 type Service struct {
@@ -918,6 +927,20 @@ func (s *Service) AgentFetchSecrets(ctx context.Context, agentID, deploymentID u
 	}
 	if d.ClusterAgentID != agentID {
 		return nil, ErrNotAssignedAgent
+	}
+
+	requiresAttestation, err := workloadVersionRequiresConfidentialComputing(ctx, tx, d.WorkloadVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if requiresAttestation {
+		passed, err := latestAttestationPasses(ctx, tx, deploymentID, time.Now().Add(-attestationFreshnessWindow))
+		if err != nil {
+			return nil, err
+		}
+		if !passed {
+			return nil, ErrAttestationRequired
+		}
 	}
 
 	rows, err := listWorkloadSecretsWithValues(ctx, tx, d.WorkloadVersionID)

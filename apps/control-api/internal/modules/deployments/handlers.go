@@ -40,7 +40,8 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, logger *slog.Logg
 	case errors.Is(err, ErrReservationNotCommitted), errors.Is(err, ErrReservationAlreadyDeployed),
 		errors.Is(err, ErrPlanNotDraft), errors.Is(err, ErrPlanNotPendingApproval), errors.Is(err, ErrNoApprovedPlan),
 		errors.Is(err, ErrDeploymentNotRunning), errors.Is(err, ErrDeploymentNotPaused), errors.Is(err, ErrDeploymentNotFailed),
-		errors.Is(err, ErrNoRollbackTarget), errors.Is(err, ErrNoPlanToRetry), errors.Is(err, ErrReplay):
+		errors.Is(err, ErrNoRollbackTarget), errors.Is(err, ErrNoPlanToRetry), errors.Is(err, ErrReplay),
+		errors.Is(err, ErrAttestationRequired):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
 	case errors.Is(err, ErrReservationNotFound), errors.Is(err, ErrDeploymentNotFound), errors.Is(err, ErrPlanNotFound),
 		errors.Is(err, ErrSecretNotFound), errors.Is(err, ErrNoActiveClusterAgent), errors.Is(err, ErrControlMessageNotFound):

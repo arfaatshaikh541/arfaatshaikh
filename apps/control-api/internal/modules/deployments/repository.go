@@ -596,6 +596,48 @@ func getWorkloadVersionFacts(ctx context.Context, c conn, tenantID, versionID uu
 	return f, true, nil
 }
 
+// workloadVersionRequiresConfidentialComputing reads
+// security_requirements.confidential_computing_required directly by
+// workload_version_id with no tenant filter -- used only by
+// AgentFetchSecrets, a machine-authenticated path with no session-derived
+// tenant scope; the workload_version_id it is called with was already
+// resolved from a deployment whose cluster_agent_id was independently
+// verified to be the calling agent, so an unscoped read here is not a new
+// trust boundary.
+func workloadVersionRequiresConfidentialComputing(ctx context.Context, c conn, workloadVersionID uuid.UUID) (bool, error) {
+	var securityRaw []byte
+	err := c.QueryRow(ctx, `SELECT security_requirements FROM workload_versions WHERE id = $1`, workloadVersionID).Scan(&securityRaw)
+	if err != nil {
+		return false, fmt.Errorf("look up workload version security requirements: %w", err)
+	}
+	var security map[string]any
+	if err := json.Unmarshal(securityRaw, &security); err != nil {
+		return false, fmt.Errorf("decode security requirements: %w", err)
+	}
+	required, _ := security["confidential_computing_required"].(bool)
+	return required, nil
+}
+
+// latestAttestationPasses reports whether a deployment has a passing
+// attestation_results row evaluated at or after freshSince -- Milestone 8's
+// "key release only after successful attestation" gate. This package reads
+// attestation_results directly (owned by internal/modules/attestation), the
+// same "each module owns its own SQL against shared tables" convention
+// already established for cross-module reads throughout this codebase.
+func latestAttestationPasses(ctx context.Context, c conn, deploymentID uuid.UUID, freshSince time.Time) (bool, error) {
+	var exists bool
+	err := c.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM attestation_results
+			WHERE deployment_id = $1 AND decision = 'pass' AND evaluated_at >= $2
+		)
+	`, deploymentID, freshSince).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check latest attestation result: %w", err)
+	}
+	return exists, nil
+}
+
 type componentFacts struct {
 	ComponentKey string
 	Name         string
