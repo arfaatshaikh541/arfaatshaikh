@@ -105,3 +105,21 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   category. The machine-authenticated poll/respond/rotate/bootstrap endpoints are not
   gated by any permission at all, by design: identity there is proved by certificate
   signature, the same posture as Milestone 2's capacity-snapshot ingestion.
+- Milestone 7 also introduces no new permission keys -- every action
+  `internal/modules/deployments` needs was already seeded in Milestone 1 anticipating
+  exactly this milestone: `workloads.deploy` gates creating a deployment, drafting a
+  plan, requesting its approval, and submitting an approved plan for execution;
+  `deployments.approve` gates the dual-control plan approve/reject step;
+  `workloads.scale`/`workloads.pause`/`workloads.terminate`/`workloads.retry` gate the
+  corresponding lifecycle actions (`workloads.pause` covers resume too -- it is the same
+  lifecycle-control capability, not two); `deployments.rollback` gates rolling back to a
+  previously executed plan version; `deployments.view` gates read access to deployments,
+  plans, and the event stream; `credentials.manage` gates workload-secrets CRUD (values
+  are never returned by any session-authenticated response regardless of permission --
+  see `internal/platform/secretsvault`). `operator.deployments.view` (seeded in
+  Milestone 1) is enforced for real for the first time, gating an operator's read-only
+  view of deployments running on its own clusters. The agent-facing secret-retrieval and
+  command-result endpoints are, like Milestone 6's machine-facing endpoints, not gated by
+  any permission at all -- identity is proved by certificate signature, and
+  `AgentFetchSecrets` additionally checks the calling cluster agent is the one actually
+  assigned to the requested deployment before decrypting anything.
