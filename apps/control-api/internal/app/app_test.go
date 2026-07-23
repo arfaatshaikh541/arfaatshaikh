@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"gridkeep/control-api/internal/app"
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
+	"gridkeep/control-api/internal/platform/pki"
 	"gridkeep/control-api/internal/testutil"
 )
 
@@ -36,25 +38,35 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 	for i := range mfaKey {
 		mfaKey[i] = byte(i)
 	}
+	pkiCAKey := make([]byte, 32)
+	for i := range pkiCAKey {
+		pkiCAKey[i] = byte(i + 1)
+	}
+	ca, err := pki.LoadOrCreate(context.Background(), store.Pool, pkiCAKey)
+	if err != nil {
+		t.Fatalf("load or create test CA: %v", err)
+	}
 
 	cfg := &config.Config{
-		Env:                   "test",
-		SessionCookieName:     "gridkeep_session",
-		SessionCookieSecure:   false,
-		SessionTTL:            time.Hour,
-		StepUpTTL:             15 * time.Minute,
-		CORSAllowedOrigins:    []string{"http://localhost:3000"},
-		Argon2Memory:          19456,
-		Argon2Iterations:      2,
-		Argon2Parallelism:     1,
-		LoginLockoutThreshold: 5,
-		LoginLockoutWindow:    15 * time.Minute,
-		EmailVerificationTTL:  24 * time.Hour,
-		PasswordResetTTL:      30 * time.Minute,
-		MFAMaxAttempts:        5,
-		SMTPHost:              smtpHost,
-		SMTPPort:              smtpPort,
-		SMTPFrom:              "no-reply@gridkeep.test",
+		Env:                    "test",
+		SessionCookieName:      "gridkeep_session",
+		SessionCookieSecure:    false,
+		SessionTTL:             time.Hour,
+		StepUpTTL:              15 * time.Minute,
+		CORSAllowedOrigins:     []string{"http://localhost:3000"},
+		Argon2Memory:           19456,
+		Argon2Iterations:       2,
+		Argon2Parallelism:      1,
+		LoginLockoutThreshold:  5,
+		LoginLockoutWindow:     15 * time.Minute,
+		EmailVerificationTTL:   24 * time.Hour,
+		PasswordResetTTL:       30 * time.Minute,
+		MFAMaxAttempts:         5,
+		AgentBootstrapTokenTTL: 24 * time.Hour,
+		AgentCertificateTTL:    72 * time.Hour,
+		SMTPHost:               smtpHost,
+		SMTPPort:               smtpPort,
+		SMTPFrom:               "no-reply@gridkeep.test",
 	}
 
 	router := app.NewRouter(app.Deps{
@@ -63,6 +75,7 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 		Logger: testutil.DiscardLogger(),
 		Config: cfg,
 		MFAKey: mfaKey,
+		CA:     ca,
 	})
 
 	srv := httptest.NewServer(router)

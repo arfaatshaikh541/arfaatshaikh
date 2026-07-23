@@ -1,8 +1,9 @@
-# GRIDKEEP Permission Matrix (Milestone 1, seeded ground truth)
+# GRIDKEEP Permission Matrix (seeded ground truth)
 
 This document is generated from the actual seeded `roles`/`permissions`/`role_permissions`
-rows in migration `0002_rbac.up.sql` -- it is not aspirational, it is what the running
-system enforces today. Regenerate after any change to that migration with:
+rows -- most from migration `0002_rbac.up.sql` (Milestone 1), plus `platform.regions.manage`
+added by migration `0012_registry_locations.up.sql` (Milestone 2) -- it is not aspirational,
+it is what the running system enforces today. Regenerate after any change to these with:
 
 ```sql
 SELECT r.scope_type, r.key, r.name, string_agg(p.key, ', ' ORDER BY p.key)
@@ -52,7 +53,7 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
 | **GRIDKEEP Billing Administrator** (`platform_billing_administrator`) | platform.billing.manage, platform.billing.view |
 | **GRIDKEEP Platform Operations Engineer** (`platform_operations_engineer`) | platform.feature_flags.manage, platform.releases.manage |
 | **GRIDKEEP Security Operator** (`platform_security_operator`) | platform.audit.view, platform.security.view, platform.support_access.view |
-| **GRIDKEEP Platform Super Administrator** (`platform_super_administrator`) | platform.audit.view, platform.billing.manage, platform.billing.view, platform.feature_flags.manage, platform.operators.manage, platform.releases.manage, platform.security.view, platform.support_access.grant, platform.support_access.view, platform.tenants.manage |
+| **GRIDKEEP Platform Super Administrator** (`platform_super_administrator`) | platform.audit.view, platform.billing.manage, platform.billing.view, platform.feature_flags.manage, platform.operators.manage, platform.regions.manage, platform.releases.manage, platform.security.view, platform.support_access.grant, platform.support_access.view, platform.tenants.manage |
 | **GRIDKEEP Support Engineer** (`platform_support_engineer`) | platform.support_access.grant, platform.support_access.view |
 
 ## Notes
@@ -63,8 +64,15 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
 - A user with no membership and no active, approved support-access grant is denied
   regardless of any permission listed here -- the permission check only runs *after*
   scope resolution succeeds (see `internal/modules/rbac/middleware.go`).
-- Permission keys for modules that do not exist yet at Milestone 1 (workloads,
-  deployments, policies, models, reservations, capacity, incidents, approvals, ...)
-  are seeded now as durable product vocabulary but are not yet enforced by any route --
-  no route in Milestone 1 checks them. They will be wired to real enforcement as their
-  owning modules are built in later milestones.
+- Permission keys for modules that do not exist yet (workloads, deployments, policies,
+  models, reservations, capacity, incidents, approvals, ...) are seeded as durable product
+  vocabulary but are not yet enforced by any route. They will be wired to real enforcement
+  as their owning modules are built in later milestones.
+- As of Milestone 2, `operator.regions.manage`, `operator.locations.manage`,
+  `operator.clusters.manage`, `operator.profile.manage`, and `operator.agents.manage` are
+  enforced for real by `internal/modules/registry` and `internal/modules/agents` (data
+  centres, edge sites, clusters, node pools, accelerators, storage pools, network
+  capabilities, operator contracts, and operator-agent registration/certificate lifecycle).
+  `platform.regions.manage` (new in Milestone 2) gates writes to the global
+  region/jurisdiction taxonomy; reading that taxonomy requires only an authenticated
+  session, no specific permission, since it is non-sensitive shared reference data.

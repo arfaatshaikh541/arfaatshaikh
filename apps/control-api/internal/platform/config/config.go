@@ -38,6 +38,9 @@ type Config struct {
 	PasswordResetTTL      time.Duration
 	MFAMaxAttempts        int
 
+	AgentBootstrapTokenTTL time.Duration
+	AgentCertificateTTL    time.Duration
+
 	SMTPHost string
 	SMTPPort string
 	SMTPFrom string
@@ -75,6 +78,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.LoginLockoutWindow, err = getEnvDurationMinutes("LOGIN_LOCKOUT_WINDOW_MINUTES", 15); err != nil {
+		return nil, err
+	}
+	if cfg.AgentBootstrapTokenTTL, err = getEnvDurationHours("AGENT_BOOTSTRAP_TOKEN_TTL_HOURS", 24); err != nil {
+		return nil, err
+	}
+	if cfg.AgentCertificateTTL, err = getEnvDurationHours("AGENT_CERTIFICATE_TTL_HOURS", 72); err != nil {
 		return nil, err
 	}
 

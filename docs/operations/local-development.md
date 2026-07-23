@@ -47,6 +47,7 @@ go build -o /tmp/control-api-bin ./cmd/server
 DATABASE_URL="postgres://gridkeep:gridkeep_dev_password@localhost:5432/gridkeep?sslmode=disable" \
 REDIS_URL="redis://localhost:6379/0" \
 MFA_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+PKI_CA_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
 CONTROL_API_ENV=development CONTROL_API_PORT=8080 SESSION_COOKIE_SECURE=false \
 CORS_ALLOWED_ORIGINS=http://localhost:3000 SMTP_HOST=localhost SMTP_PORT=1025 \
 /tmp/control-api-bin

@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"gridkeep/control-api/internal/modules/agents"
 	"gridkeep/control-api/internal/modules/auditlog"
 	"gridkeep/control-api/internal/modules/identity"
 	"gridkeep/control-api/internal/modules/operators"
@@ -25,18 +26,22 @@ import (
 	dbpkg "gridkeep/control-api/internal/platform/db"
 	"gridkeep/control-api/internal/platform/httpserver"
 	"gridkeep/control-api/internal/platform/mailer"
+	"gridkeep/control-api/internal/platform/pki"
 	"gridkeep/control-api/internal/platform/security"
 )
 
 // Deps are the already-constructed external connections the app is built
 // from. Cache may be nil (subscriptions/entitlements fall back to reading
-// Postgres directly -- see subscriptions.Service).
+// Postgres directly -- see subscriptions.Service). CA is loaded (or
+// generated on first use) by the caller before NewRouter runs, since doing
+// so requires a database round trip -- see pki.LoadOrCreate.
 type Deps struct {
 	Store  *dbpkg.Store
 	Cache  *cache.Client
 	Logger *slog.Logger
 	Config *config.Config
 	MFAKey []byte
+	CA     *pki.CA
 }
 
 // NewRouter builds the fully-wired control-api HTTP router.
@@ -87,13 +92,25 @@ func NewRouter(d Deps) *chi.Mux {
 	registrySvc := registry.NewService(d.Store)
 	registryHandlers := registry.NewHandlers(registrySvc, d.Logger)
 
+	agentsSvc := agents.NewService(d.Store, d.CA, agents.Config{
+		BootstrapTokenTTL: d.Config.AgentBootstrapTokenTTL,
+		CertificateTTL:    d.Config.AgentCertificateTTL,
+	})
+	agentsHandlers := agents.NewHandlers(agentsSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
-	router := httpserver.NewRouter(d.Logger, d.Config.CORSAllowedOrigins, d.Config.SessionCookieSecure, validator, d.Config.SessionCookieName)
+	// These two routes authenticate a machine identity (a bootstrap token,
+	// or a request signature made with an issued certificate's private
+	// key) rather than a session cookie, so CSRF's double-submit-cookie
+	// check does not apply to them -- see httpserver.CSRFProtect.
+	csrfExemptPrefixes := []string{"/api/v1/agent-bootstrap", "/api/v1/agents/"}
+	router := httpserver.NewRouter(d.Logger, d.Config.CORSAllowedOrigins, d.Config.SessionCookieSecure, validator, d.Config.SessionCookieName, csrfExemptPrefixes)
 
 	identity.Mount(router, identityHandlers, d.Logger)
 	tenancy.MountTopLevel(router, tenancyHandlers)
 	operators.MountTopLevel(router, operatorsHandlers)
 	registry.MountTopLevel(router, registryHandlers, authz)
+	agents.MountMachineFacing(router, agentsHandlers)
 
 	router.Route("/api/v1/me", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
@@ -114,6 +131,7 @@ func NewRouter(d Deps) *chi.Mux {
 		subscriptions.MountOperatorScoped(r, subsHandlers, authz)
 		auditlog.MountOperatorScoped(r, auditHandlers, authz)
 		registry.MountOperatorScoped(r, registryHandlers, authz)
+		agents.MountOperatorScoped(r, agentsHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz)

@@ -18,6 +18,7 @@ import (
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
 	"gridkeep/control-api/internal/platform/logging"
+	"gridkeep/control-api/internal/platform/pki"
 )
 
 func main() {
@@ -57,12 +58,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	pkiCAKey, err := loadPKICAKey()
+	if err != nil {
+		logger.Error("failed to load PKI CA encryption key", "error", err)
+		os.Exit(1)
+	}
+	ca, err := pki.LoadOrCreate(ctx, store.Pool, pkiCAKey)
+	if err != nil {
+		logger.Error("failed to load or create local development CA", "error", err)
+		os.Exit(1)
+	}
+
 	router := app.NewRouter(app.Deps{
 		Store:  store,
 		Cache:  cacheClient,
 		Logger: logger,
 		Config: cfg,
 		MFAKey: mfaKey,
+		CA:     ca,
 	})
 
 	srv := &http.Server{
@@ -97,6 +110,22 @@ func loadMFAKey() ([]byte, error) {
 	key, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
 		return nil, errors.New("MFA_ENCRYPTION_KEY must be valid base64")
+	}
+	return key, nil
+}
+
+// loadPKICAKey reads PKI_CA_ENCRYPTION_KEY (base64-encoded 32 bytes) from
+// the environment -- the key used to encrypt the local development CA's
+// private key at rest (see internal/platform/pki). Same "required, no
+// insecure fallback" rule as MFA_ENCRYPTION_KEY.
+func loadPKICAKey() ([]byte, error) {
+	raw := os.Getenv("PKI_CA_ENCRYPTION_KEY")
+	if raw == "" {
+		return nil, errors.New("PKI_CA_ENCRYPTION_KEY environment variable is required (base64-encoded 32-byte key)")
+	}
+	key, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, errors.New("PKI_CA_ENCRYPTION_KEY must be valid base64")
 	}
 	return key, nil
 }

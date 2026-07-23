@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -82,9 +83,24 @@ func writeUnauthenticated(w http.ResponseWriter) {
 // non-HttpOnly cookie carries a random token the frontend must echo back in
 // the X-CSRF-Token header on every state-changing request. GET/HEAD/OPTIONS
 // are exempt because they must not mutate state.
-func CSRFProtect(cookieSecure bool) func(http.Handler) http.Handler {
+//
+// exemptPrefixes are additionally exempt regardless of method: routes that
+// never authenticate via the session cookie at all (a machine identity
+// authenticated by a one-time bootstrap token or a request signature) carry
+// no ambient browser credential, so there is nothing for CSRF to protect
+// against there -- forcing a non-browser API caller to also play the
+// cookie/header double-submit game would add friction without adding
+// security.
+func CSRFProtect(cookieSecure bool, exemptPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, prefix := range exemptPrefixes {
+				if strings.HasPrefix(r.URL.Path, prefix) {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
 			existing, err := r.Cookie(csrfCookieName)
 			token := ""
 			if err == nil {

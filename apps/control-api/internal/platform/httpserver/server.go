@@ -12,7 +12,13 @@ import (
 
 // NewRouter builds the base router with global middleware. Modules mount
 // their own route groups onto the returned router in main.go.
-func NewRouter(logger *slog.Logger, allowedOrigins []string, cookieSecure bool, validator SessionValidator, cookieName string) *chi.Mux {
+//
+// csrfExemptPrefixes lists path prefixes that skip CSRF checking entirely
+// (see CSRFProtect) -- for routes that are never authenticated via the
+// session cookie in the first place (e.g. a machine identity authenticated
+// by a bootstrap token or a request signature), so there is no ambient
+// browser credential for CSRF to protect against.
+func NewRouter(logger *slog.Logger, allowedOrigins []string, cookieSecure bool, validator SessionValidator, cookieName string, csrfExemptPrefixes []string) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -35,7 +41,7 @@ func NewRouter(logger *slog.Logger, allowedOrigins []string, cookieSecure bool, 
 		MaxAge:           300,
 	}))
 	r.Use(WithOptionalSession(validator, cookieName))
-	r.Use(CSRFProtect(cookieSecure))
+	r.Use(CSRFProtect(cookieSecure, csrfExemptPrefixes))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
