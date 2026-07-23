@@ -210,8 +210,73 @@ func main() {
 		return id
 	}
 
-	operatorID("Gulf Horizon Telecom Demo", "Gulf Horizon Telecom Demo", "AE", gulfHorizonOwnerEmail, "operator_premium")
-	operatorID("EuroNorth Communications Demo", "EuroNorth Communications Demo", "DE", euroNorthOwnerEmail, "operator_standard")
+	gulfHorizonID := operatorID("Gulf Horizon Telecom Demo", "Gulf Horizon Telecom Demo", "AE", gulfHorizonOwnerEmail, "operator_premium")
+	euroNorthID := operatorID("EuroNorth Communications Demo", "EuroNorth Communications Demo", "DE", euroNorthOwnerEmail, "operator_standard")
+
+	// --- Infrastructure registry (Milestone 2) -------------------------------
+	jurisdictionID := func(countryCode, name string) uuid.UUID {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM jurisdictions WHERE country_code = $1`, countryCode).Scan(&id)
+		if err != nil {
+			err = tx.QueryRow(ctx, `
+				INSERT INTO jurisdictions (country_code, name) VALUES ($1, $2) RETURNING id
+			`, countryCode, name).Scan(&id)
+			if err != nil {
+				fatal("seed jurisdiction "+countryCode, err)
+			}
+		}
+		return id
+	}
+	regionID := func(key, name string, jurisdictionID uuid.UUID) uuid.UUID {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM regions WHERE key = $1`, key).Scan(&id)
+		if err != nil {
+			err = tx.QueryRow(ctx, `
+				INSERT INTO regions (key, name, jurisdiction_id) VALUES ($1, $2, $3) RETURNING id
+			`, key, name, jurisdictionID).Scan(&id)
+			if err != nil {
+				fatal("seed region "+key, err)
+			}
+		}
+		return id
+	}
+	dataCentreID := func(operatorID, regionID uuid.UUID, name, locality string) uuid.UUID {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM data_centres WHERE operator_id = $1 AND name = $2`, operatorID, name).Scan(&id)
+		if err != nil {
+			err = tx.QueryRow(ctx, `
+				INSERT INTO data_centres (operator_id, region_id, name, locality) VALUES ($1, $2, $3, $4) RETURNING id
+			`, operatorID, regionID, name, locality).Scan(&id)
+			if err != nil {
+				fatal("seed data centre "+name, err)
+			}
+		}
+		return id
+	}
+	clusterID := func(operatorID, dataCentreID uuid.UUID, name, k8sVersion string) uuid.UUID {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM clusters WHERE operator_id = $1 AND name = $2`, operatorID, name).Scan(&id)
+		if err != nil {
+			err = tx.QueryRow(ctx, `
+				INSERT INTO clusters (operator_id, data_centre_id, name, kubernetes_version) VALUES ($1, $2, $3, $4) RETURNING id
+			`, operatorID, dataCentreID, name, k8sVersion).Scan(&id)
+			if err != nil {
+				fatal("seed cluster "+name, err)
+			}
+		}
+		return id
+	}
+
+	aeJurisdiction := jurisdictionID("AE", "United Arab Emirates")
+	deJurisdiction := jurisdictionID("DE", "Germany")
+	meCentral := regionID("me-central-1", "Middle East Central", aeJurisdiction)
+	euCentral := regionID("eu-central-1", "EU Central", deJurisdiction)
+
+	gulfDataCentre := dataCentreID(gulfHorizonID, meCentral, "Dubai DC1", "Dubai")
+	clusterID(gulfHorizonID, gulfDataCentre, "gulf-horizon-gpu-cluster-1", "1.31")
+
+	euroNorthDataCentre := dataCentreID(euroNorthID, euCentral, "Frankfurt DC1", "Frankfurt")
+	clusterID(euroNorthID, euroNorthDataCentre, "euronorth-gpu-cluster-1", "1.31")
 
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
