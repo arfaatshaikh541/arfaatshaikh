@@ -48,6 +48,17 @@ interface WorkloadSecret {
   created_at: string;
 }
 
+// RedactedAttestationResult is the "customer verification view" -- it
+// deliberately has no field for reported measurements or raw evidence;
+// control-api's own query never selects those columns for this endpoint.
+interface RedactedAttestationResult {
+  id: string;
+  provider_type: string;
+  decision: string;
+  reason_codes: string[];
+  evaluated_at: string;
+}
+
 // Roles known (from docs/security/permission-matrix.md) to hold the
 // server-side permission each action requires -- a UX convenience only,
 // re-checked independently by control-api on every request.
@@ -59,6 +70,10 @@ const CAN_TERMINATE = new Set(["enterprise_owner", "enterprise_admin", "devops_e
 const CAN_RETRY = new Set(["enterprise_owner", "enterprise_admin", "devops_engineer"]);
 const CAN_ROLLBACK = new Set(["enterprise_owner", "enterprise_admin", "ai_platform_engineer", "devops_engineer"]);
 const CAN_MANAGE_SECRETS = new Set(["enterprise_owner", "enterprise_admin", "security_administrator"]);
+const CAN_VIEW_ATTESTATION = new Set([
+  "enterprise_owner", "enterprise_admin", "ai_platform_engineer", "application_owner",
+  "devops_engineer", "read_only_auditor", "compliance_manager", "security_administrator",
+]);
 
 export default function DeploymentsPage({ params }: { params: Promise<{ tenantId: string }> }) {
   const { tenantId } = use(params);
@@ -79,6 +94,7 @@ export default function DeploymentsPage({ params }: { params: Promise<{ tenantId
     retry: CAN_RETRY.has(myRole),
     rollback: CAN_ROLLBACK.has(myRole),
     manageSecrets: CAN_MANAGE_SECRETS.has(myRole),
+    viewAttestation: CAN_VIEW_ATTESTATION.has(myRole),
   };
 
   const deployments = useQuery({
@@ -205,6 +221,7 @@ interface Perms {
   retry: boolean;
   rollback: boolean;
   manageSecrets: boolean;
+  viewAttestation: boolean;
 }
 
 function DeploymentRow({
@@ -233,6 +250,11 @@ function DeploymentRow({
     queryKey: ["deployment-events", tenantId, deployment.id],
     queryFn: () => api.get<DeploymentEvent[]>(`/api/v1/enterprises/${tenantId}/deployments/${deployment.id}/events`),
     enabled: expanded,
+  });
+  const attestationResults = useQuery({
+    queryKey: ["deployment-attestation-results", tenantId, deployment.id],
+    queryFn: () => api.get<RedactedAttestationResult[]>(`/api/v1/enterprises/${tenantId}/deployments/${deployment.id}/attestation-results`),
+    enabled: expanded && perms.viewAttestation,
   });
 
   const refresh = () => {
@@ -359,6 +381,26 @@ function DeploymentRow({
               {events.data?.length === 0 && <li>No events yet.</li>}
             </ul>
           </div>
+
+          {perms.viewAttestation && (
+            <div>
+              <h4 className="mb-1 text-xs font-medium">Confidential-computing attestation</h4>
+              <p className="mb-1 text-xs text-zinc-500">
+                Verified by control-api against the operator&apos;s cluster hardware policy --
+                this view never shows raw evidence or reported measurements, only the decision.
+              </p>
+              <ul className="flex flex-col gap-1 text-xs text-zinc-500">
+                {attestationResults.data?.map((r) => (
+                  <li key={r.id}>
+                    {new Date(r.evaluated_at).toLocaleString()} &middot; {r.provider_type} &middot;{" "}
+                    <span className={r.decision === "pass" ? "text-emerald-600" : "text-red-600"}>{r.decision}</span>
+                    {r.reason_codes.length > 0 && ` · ${r.reason_codes.join(", ")}`}
+                  </li>
+                ))}
+                {attestationResults.data?.length === 0 && <li>No attestation evidence submitted yet.</li>}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </li>
