@@ -95,8 +95,11 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
         {operator.data?.country} &middot; status: {operator.data?.status} &middot; trust:{" "}
         {operator.data?.trust_level}
       </p>
-      <Link href={`/dashboard/operator/${operatorId}/infrastructure`} className="mb-6 inline-block text-sm underline">
+      <Link href={`/dashboard/operator/${operatorId}/infrastructure`} className="mb-2 inline-block text-sm underline">
         Infrastructure registry &rarr;
+      </Link>
+      <Link href={`/dashboard/operator/${operatorId}/capacity`} className="mb-6 inline-block text-sm underline">
+        Capacity offers &amp; reservations &rarr;
       </Link>
 
       <section className="mb-8">
