@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -337,6 +338,146 @@ func main() {
 			users[falconOwnerEmail].id, users[falconComplianceEmail].id); err != nil {
 			fatal("seed Falcon National Bank sovereignty policy", err)
 		}
+	}
+
+	// --- Workload and Model Registry (Milestone 4) --------------------------
+	// All fictional: a made-up model provider/licence catalogue, one
+	// approved container registry, one already-approved image, one
+	// already-approved model version, and one already-published workload
+	// version referencing both -- inserted directly (like the sovereignty
+	// policy above) rather than through the request/approve HTTP flow, but
+	// recording the same requested_by/approved_by dual-control facts a real
+	// approval would. No real object bytes exist for the seeded artefact --
+	// this environment's MinIO is not reachable in this sandboxed session
+	// (see internal/platform/storage's commit message) -- so its row is
+	// fictional metadata only, clearly not a substitute for exercising the
+	// real upload/download flow.
+	fakeDigest := func(seed string) string {
+		hex := "0123456789abcdef"
+		var b strings.Builder
+		for i := 0; i < 64; i++ {
+			b.WriteByte(hex[int(seed[i%len(seed)])%16])
+		}
+		return "sha256:" + b.String()
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO approved_container_registries (registry_host, notes, added_by)
+		VALUES ('registry.gridkeep-demo.io', 'Fictional demo registry', $1)
+		ON CONFLICT (registry_host) DO NOTHING
+	`, users[platformAdminEmail].id); err != nil {
+		fatal("seed approved container registry", err)
+	}
+
+	var providerID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO model_providers (key, name, website)
+		VALUES ('fictional-ai-labs', 'Fictional AI Labs', 'https://example.com/fictional-ai-labs')
+		ON CONFLICT (key) DO UPDATE SET key = EXCLUDED.key
+		RETURNING id
+	`).Scan(&providerID); err != nil {
+		fatal("seed model provider", err)
+	}
+
+	var licenceID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO model_licences (key, name, terms_url, allows_commercial_use, allows_redistribution)
+		VALUES ('fictional-open-licence', 'Fictional Open Licence', 'https://example.com/licence', true, true)
+		ON CONFLICT (key) DO UPDATE SET key = EXCLUDED.key
+		RETURNING id
+	`).Scan(&licenceID); err != nil {
+		fatal("seed model licence", err)
+	}
+
+	falconImageDigest := fakeDigest("falcon-inference-image-v1")
+	var falconImageID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM container_images WHERE enterprise_tenant_id = $1 AND digest = $2`, falconTenantID, falconImageDigest).Scan(&falconImageID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO container_images (enterprise_tenant_id, registry_host, repository, digest, tag, status, registered_by, approved_by, approved_at)
+			VALUES ($1, 'registry.gridkeep-demo.io', 'fictional/rag-inference-api', $2, 'v1', 'approved', $3, $4, now())
+			RETURNING id
+		`, falconTenantID, falconImageDigest, users[falconOwnerEmail].id, users[falconComplianceEmail].id).Scan(&falconImageID); err != nil {
+			fatal("seed Falcon container image", err)
+		}
+	}
+
+	var falconModelID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM models WHERE enterprise_tenant_id = $1 AND model_key = $2`, falconTenantID, "fictional-text-embedding").Scan(&falconModelID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO models (enterprise_tenant_id, model_key, name, description, provider_id)
+			VALUES ($1, 'fictional-text-embedding', 'Fictional Text Embedding Model', 'Fictional demo model -- not a real AI model', $2)
+			RETURNING id
+		`, falconTenantID, providerID).Scan(&falconModelID); err != nil {
+			fatal("seed Falcon model", err)
+		}
+	}
+
+	var falconModelVersionID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM model_versions WHERE model_id = $1 AND version = 1`, falconModelID).Scan(&falconModelVersionID)
+	if err != nil {
+		permittedJSON, _ := json.Marshal([]string{"AE", "SA"})
+		workloadTypesJSON, _ := json.Marshal([]string{"embedding_service"})
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO model_versions (
+				model_id, enterprise_tenant_id, version, status, provider_id, licence_id, checksum_sha256,
+				permitted_geographies, supported_workload_types, requested_by, approved_by, approved_at
+			)
+			VALUES ($1, $2, 1, 'approved', $3, $4, $5, $6, $7, $8, $9, now())
+			RETURNING id
+		`, falconModelID, falconTenantID, providerID, licenceID, strings.TrimPrefix(fakeDigest("falcon-model-weights-v1"), "sha256:"),
+			permittedJSON, workloadTypesJSON, users[falconOwnerEmail].id, users[falconComplianceEmail].id).Scan(&falconModelVersionID); err != nil {
+			fatal("seed Falcon model version", err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO model_capabilities (enterprise_tenant_id, model_version_id, capability_key, description)
+		VALUES ($1, $2, 'semantic-search', 'Fictional semantic search embedding capability')
+		ON CONFLICT (model_version_id, capability_key) DO NOTHING
+	`, falconTenantID, falconModelVersionID); err != nil {
+		fatal("seed Falcon model capability", err)
+	}
+
+	var falconWorkloadID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM workloads WHERE enterprise_tenant_id = $1 AND workload_key = $2`, falconTenantID, "fictional-rag-app").Scan(&falconWorkloadID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO workloads (enterprise_tenant_id, workload_key, workload_type, name, description, owner_user_id)
+			VALUES ($1, 'fictional-rag-app', 'retrieval_augmented_generation_application', 'Fictional RAG App', 'Fictional demo workload', $2)
+			RETURNING id
+		`, falconTenantID, users[falconOwnerEmail].id).Scan(&falconWorkloadID); err != nil {
+			fatal("seed Falcon workload", err)
+		}
+	}
+	var falconWorkloadVersionID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM workload_versions WHERE workload_id = $1 AND version = 1`, falconWorkloadID).Scan(&falconWorkloadVersionID)
+	if err != nil {
+		residencyJSON, _ := json.Marshal(map[string]any{"allowed_countries": []string{"AE"}})
+		resourceJSON, _ := json.Marshal(map[string]any{"cpu": "2", "memory_gb": 4})
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO workload_versions (
+				workload_id, enterprise_tenant_id, version, status, container_image_id, model_version_id,
+				residency_requirements, resource_requirements, requested_by, approved_by, published_at
+			)
+			VALUES ($1, $2, 1, 'published', $3, $4, $5, $6, $7, $8, now())
+			RETURNING id
+		`, falconWorkloadID, falconTenantID, falconImageID, falconModelVersionID,
+			residencyJSON, resourceJSON, users[falconOwnerEmail].id, users[falconComplianceEmail].id).Scan(&falconWorkloadVersionID); err != nil {
+			fatal("seed Falcon workload version", err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO artefact_uploads (
+			enterprise_tenant_id, object_key, bucket, purpose, content_type, content_length,
+			checksum_sha256, status, uploaded_by, uploaded_at
+		)
+		VALUES ($1, $2, 'gridkeep-artefacts', 'model_artefact', 'application/octet-stream', 1048576, $3, 'uploaded', $4, now())
+		ON CONFLICT (object_key) DO NOTHING
+	`, falconTenantID, "tenants/"+falconTenantID.String()+"/fictional-model-weights-v1",
+		strings.TrimPrefix(fakeDigest("falcon-artefact-checksum-v1"), "sha256:"), users[falconOwnerEmail].id); err != nil {
+		fatal("seed Falcon artefact upload", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
