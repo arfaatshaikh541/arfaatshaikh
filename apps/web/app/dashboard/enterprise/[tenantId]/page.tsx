@@ -96,6 +96,12 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
       </p>
 
       <section className="mb-8">
+        <Link href={`/dashboard/enterprise/${tenantId}/policies`} className="text-sm underline">
+          Sovereignty policies &rarr;
+        </Link>
+      </section>
+
+      <section className="mb-8">
         <h2 className="mb-3 text-lg font-medium">Subscription</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {entitlements.data?.plan_name ?? "No active subscription"}

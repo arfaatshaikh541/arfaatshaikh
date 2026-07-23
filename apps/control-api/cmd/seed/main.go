@@ -8,12 +8,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/google/uuid"
 
 	dbpkg "gridkeep/control-api/internal/platform/db"
+	"gridkeep/control-api/internal/platform/policyengine"
 	"gridkeep/control-api/internal/platform/security"
 )
 
@@ -94,13 +96,14 @@ func main() {
 
 	platformAdminEmail := "platform-admin@gridkeep.io"
 	falconOwnerEmail := "owner@falcon-national-bank.demo.gridkeep.io"
+	falconComplianceEmail := "compliance@falcon-national-bank.demo.gridkeep.io"
 	atlasOwnerEmail := "owner@atlas-gov.demo.gridkeep.io"
 	helixOwnerEmail := "owner@helix-manufacturing.demo.gridkeep.io"
 	gulfHorizonOwnerEmail := "owner@gulf-horizon-telecom.demo.gridkeep.io"
 	euroNorthOwnerEmail := "owner@euronorth-communications.demo.gridkeep.io"
 
 	for _, email := range []string{
-		platformAdminEmail, falconOwnerEmail, atlasOwnerEmail, helixOwnerEmail,
+		platformAdminEmail, falconOwnerEmail, falconComplianceEmail, atlasOwnerEmail, helixOwnerEmail,
 		gulfHorizonOwnerEmail, euroNorthOwnerEmail,
 	} {
 		seedUser(email)
@@ -163,9 +166,25 @@ func main() {
 		return id
 	}
 
-	tenantID("Falcon National Bank Demo", "Falcon National Bank Demo", "AE", falconOwnerEmail, "enterprise_sovereign")
+	falconTenantID := tenantID("Falcon National Bank Demo", "Falcon National Bank Demo", "AE", falconOwnerEmail, "enterprise_sovereign")
 	tenantID("Atlas Government Services Demo", "Atlas Government Services Demo", "AE", atlasOwnerEmail, "enterprise_sovereign")
 	tenantID("Helix Manufacturing Demo", "Helix Manufacturing Demo", "DE", helixOwnerEmail, "enterprise_growth")
+
+	// A second Falcon National Bank member with the enterprise_admin role --
+	// exists so the published sovereignty policy below has a genuine,
+	// different approver on record (dual control, same as a real publish
+	// would require through the API).
+	var falconAdminRoleID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM roles WHERE scope_type = 'enterprise' AND key = 'enterprise_admin'`).Scan(&falconAdminRoleID); err != nil {
+		fatal("resolve enterprise_admin role", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO enterprise_memberships (user_id, enterprise_tenant_id, role_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, enterprise_tenant_id) DO NOTHING
+	`, users[falconComplianceEmail].id, falconTenantID, falconAdminRoleID); err != nil {
+		fatal("seed compliance membership for Falcon National Bank Demo", err)
+	}
 
 	// --- Operators -----------------------------------------------------------
 	operatorID := func(legalName, displayName, country, ownerEmail, planKey string) uuid.UUID {
@@ -278,13 +297,55 @@ func main() {
 	euroNorthDataCentre := dataCentreID(euroNorthID, euCentral, "Frankfurt DC1", "Frankfurt")
 	clusterID(euroNorthID, euroNorthDataCentre, "euronorth-gpu-cluster-1", "1.31")
 
+	// --- Sovereignty policy (Milestone 3) ------------------------------------
+	// A single already-published policy, inserted directly rather than
+	// through the request-publish/approve-publish HTTP flow (this script
+	// runs outside the API, with RLS bypassed) but recording the same
+	// requested_by/approved_by dual-control facts a real publish would.
+	falconResidencyDocument := policyengine.PolicyDocument{
+		Residency: policyengine.ResidencyConstraint{
+			AllowedCountries: []string{"AE"},
+			DeniedCountries:  []string{},
+		},
+		Operators: policyengine.OperatorConstraint{Allowed: []string{}, Denied: []string{}},
+		ConfidentialComputing: policyengine.ConfidentialComputingConstraint{
+			Required: true,
+		},
+		CrossBorder: policyengine.CrossBorderConstraint{
+			BackupAllowedCountries:   []string{"AE"},
+			FailoverAllowedCountries: []string{},
+		},
+		Encryption: policyengine.EncryptionConstraint{},
+	}
+	falconDocumentJSON, err := json.Marshal(falconResidencyDocument)
+	if err != nil {
+		fatal("marshal Falcon residency policy document", err)
+	}
+	var existingPolicyID uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT id FROM sovereignty_policies
+		WHERE enterprise_tenant_id = $1 AND policy_key = $2 AND status = 'published'
+	`, falconTenantID, "data-residency").Scan(&existingPolicyID)
+	if err != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sovereignty_policies (
+				enterprise_tenant_id, policy_key, version, status, name, document,
+				requested_by, requested_publish_at, approved_by, published_at
+			)
+			VALUES ($1, $2, 1, 'published', $3, $4, $5, now(), $6, now())
+		`, falconTenantID, "data-residency", "UAE Data Residency", falconDocumentJSON,
+			users[falconOwnerEmail].id, users[falconComplianceEmail].id); err != nil {
+			fatal("seed Falcon National Bank sovereignty policy", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}
 
 	fmt.Println("Seed complete. Fictional demo accounts (password for all:", demoPassword, "):")
 	for _, email := range []string{
-		platformAdminEmail, falconOwnerEmail, atlasOwnerEmail, helixOwnerEmail,
+		platformAdminEmail, falconOwnerEmail, falconComplianceEmail, atlasOwnerEmail, helixOwnerEmail,
 		gulfHorizonOwnerEmail, euroNorthOwnerEmail,
 	} {
 		fmt.Println(" -", email)
