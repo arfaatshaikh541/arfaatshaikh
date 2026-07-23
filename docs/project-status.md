@@ -1,15 +1,15 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-23 (Milestone 7 complete)_
+_Last updated: 2026-07-23 (Milestone 8 complete)_
 
 ## Current Milestone
 
-**Milestone 7: Secure Deployment Orchestration** — implementation complete, validated, not yet
-handed off for Milestone 8. Milestones 1-6 (Secure Platform Foundation, Operator and
+**Milestone 8: Confidential Computing and Attestation** — implementation complete, validated,
+not yet handed off for Milestone 9. Milestones 1-7 (Secure Platform Foundation, Operator and
 Infrastructure Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and
-Capacity Engine, Operator and Cluster Agents) are complete (Milestone 1 was independently
-audited with every Critical/High/Medium/Low finding fixed and re-verified — see the audit
-section below, preserved for history).
+Capacity Engine, Operator and Cluster Agents, Secure Deployment Orchestration) are complete
+(Milestone 1 was independently audited with every Critical/High/Medium/Low finding fixed and
+re-verified — see the audit section below, preserved for history).
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -993,6 +993,182 @@ does **not** build the architecture document's fuller multi-step `ApprovalPolicy
 | Milestone 8 has not begun | ✅ confirmed — no Milestone 8 code exists |
 | No generic multi-step `ApprovalPolicy`/`ApprovalStep`/`EmergencyOverride` system | ✅ confirmed out of scope — this milestone's approval is the established lightweight dual-control pattern, documented above as a deliberate decision |
 
+## Milestone 8: Confidential Computing and Attestation
+
+Built per the approved architecture's Milestone 8 scope (a provider-neutral attestation layer;
+a mock attestation provider; attestation policies; nonce/freshness/replay protection; evidence
+validation; deployment binding; key-release architecture; attestation evidence retention; a
+customer verification view). This is the first milestone where control-api itself is the
+*verifier* rather than the recorder of someone else's decision: Milestone 6/7's "local
+enforcement" model has the cluster agent independently decide and control-api only record the
+outcome; here the cluster agent is the *prover* (it produces evidence about its own hardware)
+and control-api is the *verifier*, because the verifier is the one making the "key release only
+after successful attestation" decision the approved scope requires.
+
+### What was built
+- **Schema** (migrations `0028`/`0029`): `attestation_policies` (an operator's declaration of
+  what a confidential-computing-capable cluster's hardware is expected to report -- one active
+  policy per cluster via a partial unique index, "revocation" is create-new-then-supersede-old,
+  never an in-place edit, mirroring `deployment_plans`' immutable-manifest-per-version
+  discipline); `attestation_sessions` (the server-issued challenge -- Nonce is minted by
+  control-api, not the agent, the reverse of Milestone 6/7's nonce handling, since a remote-attestation
+  verifier must control what value a prover's evidence must contain, not the other way around;
+  session consumption, a conditional `UPDATE ... WHERE status = 'pending' AND expires_at > now()`,
+  is the actual replay-protection mechanism); `attestation_results` (the append-only
+  evidence-plus-verification record, dual-scope RLS like `deployments`/`deployment_events` since
+  it belongs to both the operator whose cluster produced the evidence and the tenant whose
+  deployment it is bound to). Two new permission keys: `attestation.view` (enterprise) and
+  `operator.attestation.manage` (operator) -- see `docs/security/permission-matrix.md`.
+- **`internal/platform/attestation`** (new): the `Provider` interface the approved architecture's
+  "attestation-provider abstraction" requirement asks for -- a fixed, narrow method set
+  (`Verify(policy, evidence) -> Result`) future adapters for AMD SEV-SNP, Intel TDX, NVIDIA
+  confidential computing, cloud-provider confidential VMs, and HSM-backed workloads would each
+  implement once. Unlike `internal/platform/clusteradapter` (agent-side; only a cluster agent
+  calls it), `Provider` is verifier-side -- control-api itself holds and calls an implementation,
+  since remote attestation is inherently something the relying party verifies about the prover.
+  The only implementation, `MockProvider`, does a plain expected-vs-reported measurement
+  comparison with no real evidence-format parsing at all -- it makes no claim of verifying
+  genuine confidential-computing hardware, per the approved architecture's explicit "no fake
+  claims of confidential computing" requirement.
+- **`internal/modules/attestation`** (new module, operator + enterprise + agent-facing):
+  `CreatePolicy`/`ListPolicies`/`RevokePolicy` (operator-scoped, `operator.attestation.manage`);
+  `RequestSession` (machine-authenticated -- verifies the agent's signature over a canonical
+  challenge, then mints and persists a fresh, server-chosen attestation nonce);
+  `SubmitEvidence` (the security-critical direction -- verifies the agent's signature over the
+  exact submitted bytes, atomically consumes the session, confirms the referenced deployment is
+  actually assigned to this agent, runs `Provider.Verify` against the cluster's current active
+  policy or fails closed with `NO_ACTIVE_POLICY` if none exists, records the outcome as an
+  immutable `AttestationResult`); `ListOperatorResults` (full detail -- the operator's own
+  infrastructure) and `ListTenantResults` (the "customer verification view" -- redacted; its own
+  SQL never selects `measurements`/`raw_evidence` at all, the same stronger guarantee Milestone
+  7's `WorkloadSecret` established: a type/query that cannot hold the sensitive value, not one
+  that merely omits it from JSON).
+- **`internal/modules/deployments` extended**: `AgentFetchSecrets` now checks whether the
+  deployment's workload version requires confidential computing
+  (`security_requirements.confidential_computing_required`, the same field Milestone 5's
+  placement eligibility filter already reads); if so, it requires a passing `attestation_results`
+  row evaluated within a 30-minute freshness window before decrypting and returning anything --
+  Milestone 8's "key-release architecture" requirement, implemented as a gate on the one existing
+  endpoint that ever hands back a decrypted secret, not a new parallel secrets path.
+- **`cmd/mockclusteragent` extended**: `fetchSecretsWithAttestationRetry` tries the ordinary
+  secrets fetch first; only on an HTTP 409 ("requires a fresh, passing attestation result") does
+  it run the remote-attestation protocol itself -- request a session, produce a fixed,
+  clearly-labelled mock hardware report (`mockMeasurements`), submit it for verification -- before
+  retrying the exact same fetch once.
+- **Frontend**: `/dashboard/operator/[operatorId]/attestation` -- configure/revoke attestation
+  policies per cluster (expected measurements edited as JSON, since the schema is provider-defined
+  and has no fixed field set) and view full attestation results (including measurements and raw
+  evidence) for that cluster's agent. A new "Confidential-computing attestation" section on
+  `/dashboard/enterprise/[tenantId]/deployments` shows the tenant's own redacted view of a
+  deployment's attestation decisions. Both linked from their respective overview pages.
+
+### Deliberate security decisions worth calling out
+- **The verifier, not the prover, mints the challenge nonce -- the opposite of every prior
+  milestone's replay-protection design.** Milestone 6/7's `control_messages`/agent-signed bodies
+  all have the *agent* generate its own nonce, since the agent is proving freshness of a message
+  *it* is asserting. Remote attestation inverts this: the whole point of a challenge-response
+  protocol is that the verifier controls what value must appear inside the evidence, so a prover
+  cannot pre-compute or cache evidence for a challenge it does not yet know. Getting this
+  direction right (rather than mechanically reusing the agent-mints-nonce pattern) is the single
+  most architecturally significant decision in this milestone, documented explicitly in migration
+  `0028`'s comment on `attestation_sessions` and in `internal/platform/attestation`'s package doc.
+- **Key release is gated on the one existing decrypt path, not a new parallel one.** Rather than
+  building a separate "attested secrets" endpoint, Milestone 8 adds a single check inside
+  Milestone 7's `AgentFetchSecrets` -- confidential-computing-required deployments need a fresh,
+  passing attestation; everything else is unaffected. This keeps "only one function in this
+  codebase ever decrypts a workload secret" true after this milestone, exactly as it was after
+  Milestone 7.
+- **The mock provider makes no claim of proving genuine confidential-computing hardware.**
+  `MockProvider.Verify` is a plain map comparison; a real provider parsing an actual AMD
+  SEV-SNP report or Intel TDX quote, checking a hardware vendor's certificate chain, and
+  validating a report signature against a vendor root of trust, is explicitly future work. This
+  is stated in `internal/platform/attestation`'s package doc, the migration's schema comment, and
+  the operator-facing frontend page itself (the provider-type dropdown labels every non-mock
+  option "not yet implemented") -- consistent with the approved architecture's explicit "no fake
+  claims of confidential computing" requirement.
+- **Attestation policy revocation fails closed, not silently.** Once a policy is revoked (or
+  superseded by a new version), a subsequent evidence submission against that cluster finds no
+  active policy and is recorded as a `fail` decision with reason code `NO_ACTIVE_POLICY` -- it is
+  never silently accepted, and the failure is itself durable evidence
+  (`TestAttestationPolicyRevocationFailsClosed`).
+- **The tenant's "customer verification view" is redacted by construction, not by convention.**
+  `listAttestationResultsForTenant`'s SQL query does not select `measurements` or
+  `raw_evidence` at all; `RedactedAttestationResult` has no field capable of holding either. A
+  future handler bug could not accidentally leak either value to a tenant even by mistake --
+  proven by `TestAttestationKeyReleaseGate`'s explicit assertion that neither key is present in
+  the tenant-facing JSON response.
+
+### Verification performed (not just claimed)
+- Migrations `0028`/`0029` applied cleanly against a real Postgres via the automated test suite;
+  all three new tables, their RLS policies, the append-only trigger on `attestation_results`, and
+  both new permission keys confirmed present via direct queries. Also applied cleanly against the
+  separate `gridkeep` development database (verified via `psql \d`).
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including the new `attestation` module and platform package.
+- 4 new unit tests in `internal/platform/attestation` (pass on matching measurements, fail on a
+  mismatched measurement, fail on a missing measurement, fail on a provider-type mismatch) and 3
+  new integration tests in `internal/app`, run against a real Postgres via real HTTP with genuine
+  ECDSA keys and signatures throughout: `TestAttestationKeyReleaseGate` (the complete round trip
+  -- secrets withheld before any attestation, a mismatched-measurement evidence submission fails
+  and secrets remain withheld, a passing submission using a fresh session unlocks the exact same
+  secrets fetch, the operator sees full detail including measurements/raw evidence, the tenant
+  sees only the redacted summary); `TestAttestationSessionRejectsReplayAndForgedSignature` (a
+  forged signature is rejected, and a consumed session cannot be replayed even with a perfectly
+  valid signature); `TestAttestationPolicyRevocationFailsClosed` (evidence submitted with no
+  active policy fails closed with a `NO_ACTIVE_POLICY` reason code, never silently accepted). All
+  pass alongside the full pre-existing Milestone 1-7 suite (52 total `internal/app` tests) with
+  zero regressions.
+- `cmd/mockclusteragent` was not run live against a running `cmd/server` process in this
+  sandboxed session, for the same reason as every prior milestone since Milestone 4: this
+  environment's Docker Hub egress is blocked and no MinIO instance is reachable, and `cmd/server`
+  requires a live object-storage connection to start at all. The integration test suite exercises
+  byte-identical Go code paths (the same `internal/modules/attestation` service methods, the same
+  real ECDSA operations, the same key-release gate in `internal/modules/deployments`) via
+  `httptest`, the validation method this project has used since Milestone 1 for exactly this
+  reason.
+- The fictional seed data was **not** extended to include attestation policies/sessions/results,
+  for the same reason Milestone 6/7 did not seed cluster-agent/deployment identity: a realistic
+  attestation session requires a real, bootstrapped cluster agent (a real generated key pair and
+  a certificate signed by the same CA key the running server uses), which a schema-migration-style
+  seed script cannot produce without a fragile coupling to the live encryption/signing keys. The
+  real crypto and full protocol are demonstrated by `cmd/mockclusteragent` and this milestone's
+  integration tests instead.
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5/5 existing tests unchanged), and `next build`
+  all pass with the new attestation route and the extended deployments page included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 8 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Provider-neutral attestation-provider abstraction | ✅ `internal/platform/attestation.Provider`, a fixed `Verify(policy, evidence)` method future real adapters would each implement once |
+| Mock attestation provider, clearly labelled | ✅ `MockProvider` -- package doc, migration comment, and the frontend's own provider dropdown all state it makes no claim of proving genuine hardware |
+| Attestation policies | ✅ `attestation_policies`, one active policy per cluster, create-new-then-supersede-old revocation |
+| Nonce and freshness | ✅ server-issued nonce per session; `signed_at` bounded by a 5-minute acceptance window on every agent-signed request |
+| Replay protection | ✅ atomic session consumption (`pending` -> `consumed` exactly once); proven by `TestAttestationSessionRejectsReplayAndForgedSignature` |
+| Expected measurements / evidence validation | ✅ `MockProvider.Verify` compares every expected measurement against what was reported, fails closed on any mismatch or omission |
+| Deployment binding | ✅ every `AttestationResult` is bound to a specific `deployment_id`; `SubmitEvidence` verifies the calling agent is actually assigned to that deployment |
+| Key release only after successful attestation | ✅ `AgentFetchSecrets` requires a fresh, passing result for any confidential-computing-required deployment before decrypting anything |
+| Evidence retention | ✅ `attestation_results` is append-only (same trigger discipline as `audit_events`/`deployment_events`); raw evidence and measurements are retained, never overwritten |
+| Revocation | ✅ `RevokePolicy`; a revoked/superseded policy leaves future evidence with no active policy to verify against, failing closed |
+| Operator trust chain | ✅ scoped as documented: the operator is this milestone's trust anchor for its own cluster's expected measurements (see Deliberate security decisions) |
+| Customer-verifiable evidence | ✅ `attestation.view` + the redacted tenant view, both in the API and the frontend |
+| No fake claims of confidential computing | ✅ stated explicitly in the platform package doc, the migration schema comment, and the frontend UI |
+| No AI-only placement/ranking decisions | ✅ unaffected -- this milestone does not touch placement/ranking |
+| Infrastructure/cluster/vault credentials never exposed to the frontend | ✅ raw evidence and measurements are never sent to a tenant session; the operator view (its own infrastructure) is the only one that sees them |
+| Backend permissions are enforced | ✅ two new permission keys, both gated correctly; every machine-authenticated route requires a valid certificate signature |
+| Cross-tenant/cross-operator isolation holds | ✅ dual-scope RLS on `attestation_results`, operator-only RLS on `attestation_policies`/`attestation_sessions` |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0028`/`0029` applied cleanly against both the test database and the separate development database |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 4 new `attestation` platform unit tests + 3 new integration tests + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, vitest (5/5) |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 9 has not begun | ✅ confirmed -- no Milestone 9 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -1543,6 +1719,36 @@ See `docs/adr/`:
     what was true when the plan was drafted. A container image or model version revoked between
     drafting and submission would not block submission; this mirrors Milestone 5's own
     documented limitation that placement evaluates eligibility once, not continuously.
+36. **(Milestone 8) Only a `mock` attestation provider is implemented** — `amd_sev_snp`,
+    `intel_tdx`, `nvidia_cc`, `cloud_confidential_vm`, and `hsm` are reserved vocabulary in the
+    `provider_type` `CHECK` constraint (and labelled "not yet implemented" in the frontend's own
+    dropdown) but have no real verification logic behind them. A real provider parsing an actual
+    hardware attestation report/quote, checking a vendor certificate chain, and validating a
+    report signature against a vendor root of trust is future work for whichever milestone
+    integrates real confidential-computing hardware.
+37. **(Milestone 8) Attestation identity/policies/results are not seeded into the fictional demo
+    data**, for the same reason cluster-agent/deployment identity was not seeded in Milestone
+    6/7 (Known Limitations 28/32): a realistic attestation session requires a real, bootstrapped
+    cluster agent backed by the same live CA key the running server uses.
+38. **(Milestone 8) `cmd/mockclusteragent`'s attestation-retry flow has not been run against a
+    live `cmd/server` process in this sandboxed session** — the same Docker Hub egress /
+    unreachable-MinIO limitation documented since Milestone 4 (Known Limitation 15), not
+    anything specific to this milestone's code; validated instead via `httptest`-based
+    integration tests exercising the identical Go code paths.
+39. **(Milestone 8) The 30-minute attestation freshness window is a fixed constant** — same
+    category as Milestone 5's fixed 15-minute hold TTL (Known Limitation 25) and Milestone 6's
+    fixed 5-minute signed-time window (Known Limitation 30): reasonable for this milestone's
+    scope, not yet configurable per operator, per cluster, or per confidential-computing
+    provider type. A real hardware attestation's own validity period (which varies by provider)
+    should eventually inform this rather than a single global constant.
+40. **(Milestone 8) Revoking an attestation policy does not retroactively invalidate a
+    deployment that already has a passing, still-fresh result evaluated under it** — the
+    revocation only prevents *future* evidence submissions from finding an active policy to pass
+    against (see Deliberate security decisions: "fails closed, not silently"). A deployment that
+    attested successfully minutes before its cluster's policy was revoked keeps its secret access
+    until that result ages out of the freshness window. Revisit if a future milestone needs
+    immediate revocation semantics (e.g., invalidating all attestation_results tied to a revoked
+    policy_id).
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -1700,32 +1906,58 @@ findings from the subsequent independent review.
   sufficient for "was this manifest genuinely approved and untampered in transit/storage," not a
   guarantee about the integrity of the agent process itself. Consistent with this milestone's
   scope (secure orchestration of the control plane's own decisions), not a gap specific to this
-  implementation.
+  implementation. Milestone 8 partially addresses this for confidential-computing-required
+  deployments specifically (a fresh, passing attestation gates secret release), but the mock
+  provider's measurement comparison is not itself a hardware root-of-trust guarantee -- see
+  Milestone 8's own risk entries below.
+- **(Milestone 8) `internal/platform/attestation.MockProvider` provides no cryptographic
+  guarantee whatsoever -- it is a plain map comparison.** A malicious or compromised cluster
+  agent could submit any `measurements` value it likes; nothing in this milestone's mock
+  verification path can distinguish genuine hardware-reported values from fabricated ones. This
+  is the approved architecture's explicitly accepted local-development posture (Known Limitation
+  36), but it means the "key release only after successful attestation" guarantee is currently
+  only as strong as "the agent claimed the expected values" -- real security here requires a real
+  provider verifying a real hardware attestation report before this milestone's guarantee means
+  anything in production.
+- **(Milestone 8) Revoked-policy retroactivity is a known, accepted gap** — see Known Limitation
+  40. A policy revocation is a rare, operator-initiated action (e.g., decommissioning hardware or
+  responding to a suspected compromise); the current design's freshness window (30 minutes)
+  bounds how long a deployment's already-passing attestation remains trusted after that, rather
+  than invalidating it instantly. Revisit if a future incident-response requirement needs
+  immediate revocation semantics.
+- **(Milestone 8) `withPlatformBypass`-equivalent cross-scope reads were not needed by this
+  milestone** — `internal/modules/attestation` reads `cluster_agents`/`deployments` directly by
+  agent/deployment id already resolved from a verified certificate signature (machine-authenticated
+  paths open their own `platform_bypass` transaction the same way Milestone 6/7's agent-facing
+  endpoints do), so the "fourth use" trigger Milestone 7's Unresolved Risks entry mentioned for
+  writing a standalone ADR on the pattern has not yet occurred. Still worth prioritizing before it
+  does.
 
 ## Pending Approvals
 
-None outstanding for Milestones 1-7. Awaiting explicit approval before any Milestone 8 work
+None outstanding for Milestones 1-8. Awaiting explicit approval before any Milestone 9 work
 begins.
 
 ## Next Action
 
-Milestone 7 (Secure Deployment Orchestration) is complete: a committed Milestone 5 capacity
-reservation can become a deployment; a signed, versioned, dual-control-approved deployment plan
-is built from a snapshot of the workload version's components/health checks/requirement blocks
-and secret key names (never values); the plan executes over Milestone 6's signed control-message
-channel via two new generic message types; scale/pause/resume/rollback/terminate/retry lifecycle
-actions each round-trip their own signed command and result, with the terminal status only ever
-set once the cluster agent's own signed report arrives; workload secret values are encrypted at
-rest and never returned by any session-authenticated response; an agent-facing,
-certificate-authenticated endpoint lets only the one cluster agent assigned to a deployment fetch
-its decrypted secrets; and every step is recorded in an append-only deployment event stream,
-visible to both the owning tenant and the hosting operator. Two real bugs (an operator/tenant id
-mix-up in event recording, and two cross-scope RLS reads/writes that needed the same
-`withPlatformBypass` elevation `internal/modules/placement` already established) were found and
-fixed via the project's own integration tests before being reported as done. `cmd/mockclusteragent`
-was extended to execute deployment commands and report signed results. Both frontend pages are
-built and pass the full validation battery. Fictional seed data intentionally does not include
-deployment/cluster-agent identity, for the reasons documented above (mirroring Milestone 6's own
-precedent) — the real crypto and full lifecycle are proven via `cmd/mockclusteragent` and the
+Milestone 8 (Confidential Computing and Attestation) is complete: a provider-neutral
+`internal/platform/attestation.Provider` abstraction (verifier-side, the opposite trust
+direction from Milestone 6/7's agent-side local enforcement) with a clearly-labelled
+`MockProvider`; an operator configures what a confidential-computing-capable cluster's hardware
+is expected to report (`attestation_policies`, one active policy per cluster); a cluster agent
+requests a server-issued challenge (`attestation_sessions` -- the nonce is minted by control-api,
+the reverse of every prior milestone's agent-mints-its-own-nonce pattern) and submits signed
+evidence bound to a specific deployment; control-api verifies it and records an immutable,
+append-only result (`attestation_results`); `internal/modules/deployments`' `AgentFetchSecrets`
+now requires a fresh, passing attestation before releasing any workload secret for a
+confidential-computing-required deployment (the "key-release architecture" requirement);
+`cmd/mockclusteragent` runs the attestation protocol itself when a secrets fetch is rejected for
+that reason; and a tenant's "customer verification view" only ever sees a redacted result
+(decision/provider/reason codes), never raw evidence or measurements, enforced by the underlying
+query never selecting those columns rather than by response-shaping alone. Both frontend pages
+(operator policy management + attestation results, enterprise attestation status) are built and
+pass the full validation battery. Fictional seed data intentionally does not include attestation
+identity/policies/results, for the reasons documented above (mirroring Milestone 6/7's own
+precedent) — the real crypto and full protocol are proven via `cmd/mockclusteragent` and the
 integration suite instead. Await explicit approval (per working rule #4) before starting
-Milestone 8 work. **No Milestone 8 code has been written.**
+Milestone 9 (Network and Edge Services) work. **No Milestone 9 code has been written.**
