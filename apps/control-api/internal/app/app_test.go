@@ -46,6 +46,10 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 	if err != nil {
 		t.Fatalf("load or create test CA: %v", err)
 	}
+	secretsVaultKey := make([]byte, 32)
+	for i := range secretsVaultKey {
+		secretsVaultKey[i] = byte(i + 2)
+	}
 
 	fakeEngine := startFakePolicyEngine(t)
 	fakeStorage := startFakeObjectStore(t)
@@ -78,13 +82,14 @@ func testServer(t *testing.T) (*httptest.Server, *testutil.FakeSMTPServer, *dbpk
 	}
 
 	router := app.NewRouter(app.Deps{
-		Store:   store,
-		Cache:   nil,
-		Logger:  testutil.DiscardLogger(),
-		Config:  cfg,
-		MFAKey:  mfaKey,
-		CA:      ca,
-		Storage: fakeStorage,
+		Store:           store,
+		Cache:           nil,
+		Logger:          testutil.DiscardLogger(),
+		Config:          cfg,
+		MFAKey:          mfaKey,
+		CA:              ca,
+		Storage:         fakeStorage,
+		SecretsVaultKey: secretsVaultKey,
 	})
 
 	srv := httptest.NewServer(router)

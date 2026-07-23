@@ -70,6 +70,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	secretsVaultKey, err := loadSecretsVaultKey()
+	if err != nil {
+		logger.Error("failed to load secrets vault encryption key", "error", err)
+		os.Exit(1)
+	}
+
 	storageClient, err := storage.Connect(ctx, storage.Config{
 		Endpoint:  cfg.S3Endpoint,
 		AccessKey: cfg.S3AccessKey,
@@ -83,13 +89,14 @@ func main() {
 	}
 
 	router := app.NewRouter(app.Deps{
-		Store:   store,
-		Cache:   cacheClient,
-		Logger:  logger,
-		Config:  cfg,
-		MFAKey:  mfaKey,
-		CA:      ca,
-		Storage: storageClient,
+		Store:           store,
+		Cache:           cacheClient,
+		Logger:          logger,
+		Config:          cfg,
+		MFAKey:          mfaKey,
+		CA:              ca,
+		Storage:         storageClient,
+		SecretsVaultKey: secretsVaultKey,
 	})
 
 	srv := &http.Server{
@@ -140,6 +147,23 @@ func loadPKICAKey() ([]byte, error) {
 	key, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
 		return nil, errors.New("PKI_CA_ENCRYPTION_KEY must be valid base64")
+	}
+	return key, nil
+}
+
+// loadSecretsVaultKey reads SECRETS_VAULT_ENCRYPTION_KEY (base64-encoded
+// 32 bytes) from the environment -- the key internal/platform/secretsvault
+// uses to encrypt workload secret values at rest (Milestone 7). Same
+// "required, no insecure fallback" rule as MFA_ENCRYPTION_KEY and
+// PKI_CA_ENCRYPTION_KEY.
+func loadSecretsVaultKey() ([]byte, error) {
+	raw := os.Getenv("SECRETS_VAULT_ENCRYPTION_KEY")
+	if raw == "" {
+		return nil, errors.New("SECRETS_VAULT_ENCRYPTION_KEY environment variable is required (base64-encoded 32-byte key)")
+	}
+	key, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, errors.New("SECRETS_VAULT_ENCRYPTION_KEY must be valid base64")
 	}
 	return key, nil
 }

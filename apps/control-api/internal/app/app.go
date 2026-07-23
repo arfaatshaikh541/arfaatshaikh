@@ -16,6 +16,7 @@ import (
 	"gridkeep/control-api/internal/modules/artefacts"
 	"gridkeep/control-api/internal/modules/auditlog"
 	"gridkeep/control-api/internal/modules/capacityoffers"
+	"gridkeep/control-api/internal/modules/deployments"
 	"gridkeep/control-api/internal/modules/identity"
 	"gridkeep/control-api/internal/modules/images"
 	"gridkeep/control-api/internal/modules/models"
@@ -35,6 +36,7 @@ import (
 	"gridkeep/control-api/internal/platform/mailer"
 	"gridkeep/control-api/internal/platform/pki"
 	"gridkeep/control-api/internal/platform/policyengine"
+	"gridkeep/control-api/internal/platform/secretsvault"
 	"gridkeep/control-api/internal/platform/security"
 )
 
@@ -47,13 +49,14 @@ import (
 // *storage.Client) specifically so integration tests can substitute an
 // in-memory fake instead of requiring a live MinIO instance.
 type Deps struct {
-	Store   *dbpkg.Store
-	Cache   *cache.Client
-	Logger  *slog.Logger
-	Config  *config.Config
-	MFAKey  []byte
-	CA      *pki.CA
-	Storage artefacts.ObjectStore
+	Store           *dbpkg.Store
+	Cache           *cache.Client
+	Logger          *slog.Logger
+	Config          *config.Config
+	MFAKey          []byte
+	CA              *pki.CA
+	Storage         artefacts.ObjectStore
+	SecretsVaultKey []byte
 }
 
 // NewRouter builds the fully-wired control-api HTTP router.
@@ -138,6 +141,13 @@ func NewRouter(d Deps) *chi.Mux {
 	placementSvc := placement.NewService(d.Store, policyEngineClient)
 	placementHandlers := placement.NewHandlers(placementSvc, d.Logger)
 
+	secretsVault, err := secretsvault.New(d.SecretsVaultKey)
+	if err != nil {
+		panic(err) // SecretsVaultKey is validated by the caller before reaching here.
+	}
+	deploymentsSvc := deployments.NewService(d.Store, d.CA, secretsVault)
+	deploymentsHandlers := deployments.NewHandlers(deploymentsSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -151,6 +161,7 @@ func NewRouter(d Deps) *chi.Mux {
 	operators.MountTopLevel(router, operatorsHandlers)
 	registry.MountTopLevel(router, registryHandlers, authz)
 	agents.MountMachineFacing(router, agentsHandlers)
+	deployments.MountMachineFacing(router, deploymentsHandlers)
 
 	router.Route("/api/v1/me", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
@@ -169,6 +180,7 @@ func NewRouter(d Deps) *chi.Mux {
 		artefacts.MountTenantScoped(r, artefactsHandlers, authz)
 		workloads.MountTenantScoped(r, workloadsHandlers, authz)
 		placement.MountTenantScoped(r, placementHandlers, authz)
+		deployments.MountTenantScoped(r, deploymentsHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {
@@ -179,6 +191,7 @@ func NewRouter(d Deps) *chi.Mux {
 		registry.MountOperatorScoped(r, registryHandlers, authz)
 		agents.MountOperatorScoped(r, agentsHandlers, authz)
 		capacityoffers.MountOperatorScoped(r, capacityOffersHandlers, authz)
+		deployments.MountOperatorScoped(r, deploymentsHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz, func(r chi.Router) {
