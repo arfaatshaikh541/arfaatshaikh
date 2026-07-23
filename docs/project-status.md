@@ -1,13 +1,14 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-23 (Milestone 2 complete)_
+_Last updated: 2026-07-23 (Milestone 3 complete)_
 
 ## Current Milestone
 
-**Milestone 2: Operator and Infrastructure Registry** — implementation complete, validated,
-not yet handed off for Milestone 3. Milestone 1 (Secure Platform Foundation) is complete and
-was independently audited with every Critical/High/Medium/Low finding fixed and re-verified
-(see the audit section below, preserved for history).
+**Milestone 3: Sovereignty Policy Engine** — implementation complete, validated, not yet
+handed off for Milestone 4. Milestone 1 (Secure Platform Foundation) and Milestone 2 (Operator
+and Infrastructure Registry) are complete (Milestone 1 was independently audited with every
+Critical/High/Medium/Low finding fixed and re-verified — see the audit section below,
+preserved for history).
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -128,6 +129,134 @@ registration, certificate lifecycle, mock operator connector).
 | Unresolved risks | ✅ see Unresolved Risks below |
 | Next milestone not started | ✅ confirmed — no Milestone 3 (Sovereignty Policy Engine) code exists |
 
+## Milestone 3: Sovereignty Policy Engine
+
+Built per the approved architecture's Milestone 3 scope (policy model, policy-as-code format,
+policy builder, versions, simulation, conflict detection, deterministic evaluation,
+deny-by-default, approval workflows, policy evidence, rollback, policy tests). Split across the
+existing control-plane/data-plane boundary: policy lifecycle (drafting, versioning, dual-control
+publish, rollback, evidence storage) lives in `control-api` (Go); the deterministic constraint
+evaluation and conflict-detection logic itself lives in `policy-engine` (Python), called over
+plain HTTP — see `docs/adr/0008-policy-engine-http-transport.md` for why this doesn't use gRPC
+despite the architecture doc's §6/§14 framing.
+
+### What was built
+- **`policy-engine`** (`src/policy_engine/schema.py`, `evaluate.py`, `conflicts.py`): a
+  Pydantic policy-as-code schema (residency, operator, confidential-computing, cross-border,
+  and encryption-key-ownership constraints); a deterministic, deny-by-default evaluation
+  pipeline that runs every constraint unconditionally and collects every failing reason code
+  (not just the first); a static conflict detector comparing two policies' constraints for
+  contradictions (disjoint allowed-country/operator sets, cross allow/deny contradictions,
+  mutually exclusive encryption-key ownership). `POST /evaluate` and `POST /conflicts` FastAPI
+  endpoints. 33 tests (`pytest`), `ruff check` and `mypy --strict` both clean.
+- **Schema/migrations `0016`-`0017`**: `sovereignty_policies` (draft → pending_publish →
+  published → superseded lifecycle, a DB `CHECK` forbidding `approved_by = requested_by`, a
+  partial unique index enforcing at most one `published` row per `policy_key`, RLS self-scope +
+  platform-bypass, same pattern as every other tenant-scoped table); `policy_evaluation_records`
+  (append-only compliance evidence, enforced by its own `BEFORE UPDATE`/`BEFORE DELETE` trigger
+  mirroring `audit_events`' — kept as a separate, structured, queryable table rather than folded
+  into the generic audit log, since the architecture explicitly frames evaluation evidence as a
+  distinct retention need).
+- **`internal/platform/policyengine`**: the Go HTTP client for the Python service. Fails closed
+  on every failure mode — network error, timeout, non-200 status, malformed body, and even an
+  *ambiguous* decision value (anything other than exactly `"allow"`/`"deny"`) all produce a
+  synthetic `deny` with reason code `POLICY_ENGINE_UNAVAILABLE`, never a silent allow. 8 tests,
+  including a genuine timeout race (20ms client timeout vs. a 200ms server delay).
+- **`internal/modules/policies`**: draft creation/editing (one draft per `policy_key` at a
+  time); dual-control publish — `RequestPublish` (by the author) and `ApprovePublish` (by a
+  *different* user, checked both in application code and by the DB `CHECK` constraint, the same
+  defense-in-depth pattern as Milestone 1's `support_access_grants`); `ApprovePublish` also asks
+  policy-engine whether the candidate conflicts with any other currently-published policy for
+  the tenant and **fails closed** — an unreachable policy-engine blocks the publish rather than
+  letting it through unverified; `Rollback` creates a new draft carrying an old version's
+  content rather than ever mutating published history; `Simulate` (no persistence, true
+  "what-if") vs. `Evaluate` (persists a `policy_evaluation_records` row and an `audit_events`
+  row — this is what compliance evidence is built from). Routes mounted under
+  `/api/v1/enterprises/{tenantID}`, reusing the `policies.*` permission keys pre-seeded (but
+  unenforced) since Milestone 1.
+- **Frontend**: `/dashboard/enterprise/[tenantId]/policies` — policy list with per-policy
+  document view, request-publish/approve-publish controls (with a client-side hint, not a
+  security control, when the viewer is the requester), rollback-to-version, an inline
+  candidate-evaluation form (simulate vs. evaluate), and an evidence log of past evaluations.
+  Linked from the tenant overview page.
+- **Seed data**: a published "UAE Data Residency" policy for the Falcon National Bank Demo
+  tenant, plus a second demo user (`compliance@falcon-national-bank.demo.gridkeep.io`, role
+  `enterprise_admin`) so the seeded policy's `requested_by`/`approved_by` reflect a genuine
+  two-user approval rather than the same user twice. Verified idempotent (seed script run twice
+  against a real Postgres; row counts stable).
+- **Go-side integration test double**: `internal/app/policyengine_fake_test.go` reimplements
+  the real Python evaluator/conflict-detector's contract as an in-process `httptest.Server`, so
+  `go test` can exercise genuine allow/deny/conflict outcomes without spawning a Python process.
+  This is explicitly a test-only double — the real Python logic has its own independent
+  33-test suite, and was additionally exercised live over real HTTP (`curl`) against the running
+  service during development to confirm the fake matches its actual contract.
+
+### Deliberate security decisions worth calling out
+- **Fail-closed is not just "return an error" — it is "return `deny`."** Every policy-engine
+  client failure mode (`internal/platform/policyengine/client.go`) resolves to a synthetic
+  `deny` decision, never a passthrough or an `allow`. The same fail-closed posture extends to
+  conflict-checking at publish time: `ApprovePublish` treats a `CheckConflicts` error identically
+  to a genuine conflict and blocks the publish.
+- **Dual control is enforced twice.** `ApprovePublish` checks `requestedBy == actor` in
+  application code *and* the database independently rejects `approved_by = requested_by` via a
+  `CHECK` constraint — the same defense-in-depth shape as Milestone 1's support-access grants,
+  so a bug in one layer alone cannot produce a self-approved policy.
+- **Rollback never mutates history.** `Rollback` reads an old version's content and calls the
+  same `createDraft` path as any brand-new policy, producing a new version number that must
+  independently go through request-publish/approve-publish — there is no code path that
+  rewrites or deletes a previously-published row.
+- **The evaluation pipeline always runs every constraint.** `evaluate.py`'s
+  `CONSTRAINT_PIPELINE` is a fixed list run unconditionally per request; a `deny` collects every
+  failing reason code, not just the first, so a caller (or an auditor reading the evidence
+  later) sees the complete set of reasons a placement was rejected, not a partial picture that
+  depends on constraint ordering.
+
+### Verification performed (not just claimed)
+- Migrations `0016`-`0017` applied cleanly against a real Postgres via the automated test suite.
+- The real `policy-engine` service was started and its `/evaluate` and `/conflicts` endpoints
+  called live over real HTTP (`curl`) during development to confirm the Go-side fake test double
+  matches its actual contract, in addition to the service's own independent 33-test suite.
+- The Go `policyengine.Client`'s fail-closed behavior was proven, not assumed: a genuine network
+  error (dialing a closed port), a genuine timeout (20ms client timeout racing a 200ms server
+  delay), a non-200 status, a malformed response body, and an ambiguous decision value were each
+  tested and each produces the synthetic `deny`.
+- Three end-to-end integration tests against a real Postgres via real HTTP cover: the full
+  dual-control lifecycle (draft → edit → request-publish → self-approval rejected → a different
+  user approves → publish succeeds) plus simulate-vs-evaluate evidence persistence; a
+  publish blocked by a genuine residency conflict against another published policy; and
+  rollback producing a new draft with the old version's content.
+- The seed script was run twice against a real Postgres and confirmed idempotent (stable row
+  counts on the second run), and the seeded published policy's data was independently verified
+  present via a platform-bypass-scoped query (a plain, unscoped `psql` session correctly sees
+  zero rows for `sovereignty_policies`/`enterprise_tenants`, since both tables force Row-Level
+  Security — this is expected RLS behavior, not a seeding bug, and was confirmed as such before
+  concluding the seed data was correct).
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5 tests), and `next build` all pass with the
+  new policies page included.
+
+### Milestone 3 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Architecture summary before implementation | ✅ stated at the start of implementation (control-api/policy-engine split, HTTP transport choice — ADR 0008) |
+| Complete files (no snippets) | ✅ every file created/modified in full |
+| Migrations | ✅ `0016`-`0017`, applied and idempotent |
+| Seed data updates | ✅ published demo policy + second approving user; idempotent (verified via two runs) |
+| Unit tests | ✅ 33 policy-engine tests (schema/evaluate/conflicts/app), 8 `policyengine` client tests |
+| Integration tests | ✅ 3 end-to-end policies-module tests against a real Postgres via real HTTP |
+| Security tests | ✅ self-approval rejection, conflict-blocked publish, fail-closed on every client failure mode (network error, timeout, non-200, malformed body, ambiguous decision) |
+| Frontend tests where applicable | ✅ existing vitest suite still passes; new page covered by eslint/tsc/build (primarily server-interaction UI, matching Milestone 2's testing rationale) |
+| Formatting / linting / type checking | ✅ gofmt, `go vet`, `golangci-lint` (0 issues), `ruff`, `mypy --strict`, eslint, tsc — all clean across every touched app |
+| Production builds | ✅ control-api (including seed) builds; `policy-engine` importable with clean type-checking; `next build` succeeds |
+| Docker validation | Partial — same Docker Hub egress limitation as Milestones 1-2 (see Known Limitations); all validation performed against natively-installed Postgres |
+| Migration validation | ✅ fresh-database apply verified via the test harness |
+| Updated documentation | ✅ ADR 0008, this document |
+| Updated project status | ✅ this document |
+| Created/modified file list | ✅ see commit history on `claude/gridkeep-sovereign-ai-platform-l5ijoz` — one commit per coherent implementation step |
+| Limitations | ✅ see Known Limitations below |
+| Unresolved risks | ✅ see Unresolved Risks below |
+| Next milestone not started | ✅ confirmed — no Milestone 4 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -210,8 +339,9 @@ pass. See updated counts in Test Results below.
   **not runtime-validated against a live broker in this session** (see Known Limitations).
 
 ### policy-engine (Python)
-- FastAPI service foundation (`/health`), Milestone 1 scope only — the actual sovereignty
-  policy evaluation/simulation engine is Milestone 3 and is explicitly not started.
+- FastAPI service foundation (`/health`), Milestone 1 scope only. **(Milestone 3)** The actual
+  deterministic evaluation and conflict-detection engine (`/evaluate`, `/conflicts`) is now
+  built — see the Milestone 3 section above for full detail.
 
 ### web (Next.js 16 / React 19 / TypeScript / Tailwind)
 - Pages: home, register, login (+ MFA challenge), verify-email, invitation acceptance
@@ -235,6 +365,12 @@ Horizon Telecom Demo → Dubai DC1 → `gulf-horizon-gpu-cluster-1` (region `me-
 EuroNorth Communications Demo → Frankfurt DC1 → `euronorth-gpu-cluster-1` (region
 `eu-central-1`). Two global jurisdictions (`AE`, `DE`) and regions (`me-central-1`,
 `eu-central-1`) are seeded alongside them.
+
+**(Milestone 3)** Falcon National Bank Demo gets a published sovereignty policy ("UAE Data
+Residency": residency restricted to `AE`, confidential computing required) plus a second
+member, `compliance@falcon-national-bank.demo.gridkeep.io` (role `enterprise_admin`), who is
+recorded as the policy's approver — so the seeded `requested_by`/`approved_by` pair reflects a
+genuine two-user dual-control approval.
 
 **Demo credentials** (local development only — never reuse, all clearly fictional):
 password for every seeded account is `GridkeepDemo!2026`.
@@ -298,6 +434,34 @@ NEXT_PUBLIC_CONTROL_API_URL=http://localhost:8080 npx next build   # succeeds
 # End-to-end (real browser, real backend, real Postgres/Redis, captured real SMTP traffic)
 node smoke.js   # register → verify email → login → dashboard → create tenant → tenant detail
 # => SMOKE TEST PASSED (run twice, including once after a full DB reset + reseed)
+```
+
+### Milestone 3 additions
+
+```
+# policy-engine
+cd apps/policy-engine && source .venv/bin/activate
+ruff check .                                  # All checks passed!
+mypy .                                        # Success: no issues found in 11 source files
+python -m pytest -q                           # 33 passed
+
+# control-api
+cd apps/control-api
+gofmt -l . && go vet ./...                    # clean
+golangci-lint run ./...                       # 0 issues
+go build ./...                                # clean
+go test -p 1 -count=1 ./...                   # all packages pass, including 3 new
+                                               # end-to-end sovereignty-policy tests
+CONTROL_API_ENV=test DATABASE_URL=postgres://gridkeep:...@localhost:5432/gridkeep_test?sslmode=disable \
+  go run ./cmd/seed                           # ran twice; idempotent; seeded policy verified
+                                               # present via a platform-bypass-scoped query
+
+# web
+cd apps/web
+npx eslint app/dashboard/enterprise/\[tenantId\]/policies/page.tsx   # clean
+npx tsc --noEmit                              # clean
+npx vitest run                                # 5/5 tests pass (unchanged)
+npm run build                                 # succeeds, new /policies route listed
 ```
 
 ## Test Results
@@ -387,6 +551,24 @@ See `docs/adr/`:
     correct for this architecture, since control-api never terminates TLS itself (see ADR
     0007), but worth remembering if a future milestone introduces a real mTLS terminator in
     front of it, which would need its own revocation-checking story.
+12. **(Milestone 3) Conflict detection is pairwise and static.** `ApprovePublish` checks the
+    candidate policy against every other currently-*published* policy for the tenant, one pair
+    at a time — it does not detect conflicts across three-or-more policies that are only
+    jointly contradictory, nor does it consider draft/pending policies. This matches the
+    approved architecture's scope (conflict detection between policies, not full formal
+    verification of the entire policy set); revisit if a future milestone needs stronger
+    guarantees.
+13. **(Milestone 3) No dedicated UI for browsing full version history or conflict details** —
+    the frontend shows the latest version per policy key and lets an operator roll back to a
+    specific version number by typing it in; a richer version-history/diff view and a
+    structured display of *why* a publish was conflict-blocked (today: the raw conflict codes
+    from the error message) are both API-supported but not yet built into the dashboard.
+14. **(Milestone 3) `policy-engine` is not yet load-balanced or given its own health-based
+    circuit breaker beyond per-request fail-closed behavior** — every individual request to it
+    fails closed correctly, but there is no separate "the service has been down for N
+    consecutive requests, stop trying" state; each call independently attempts the network
+    round trip. Acceptable at this scale; revisit if request volume or policy-engine
+    availability becomes a concern.
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -462,16 +644,27 @@ findings from the subsequent independent review.
   being rejected only by other means (none currently), though a request without a valid
   signature is rejected before any row is written. Revisit if this becomes a real concern once
   actual operator-agents exist (Milestone 6).
+- **(Milestone 3) HTTP/JSON rather than gRPC between control-api and policy-engine** — a
+  considered deviation from the architecture doc's §6/§14 gRPC/mTLS framing, documented in ADR
+  0008 as "production transport security posture" rather than a hard wire-format mandate.
+  Revisit if the API surface grows streaming or bidirectional needs that HTTP/JSON handles
+  poorly, or if this reasoning is judged incorrect on review.
+- **(Milestone 3) `policy-engine` currently has no authentication of its own** (it trusts any
+  caller on its network, same posture as an internal-only service reachable only from
+  control-api today) — acceptable given it performs no mutation and holds no state, but worth
+  revisiting once real network topology/service-mesh boundaries are defined for production
+  deployment.
 
 ## Pending Approvals
 
-None outstanding for Milestone 1 or Milestone 2. Awaiting explicit approval before any
-Milestone 3 (Sovereignty Policy Engine) work begins.
+None outstanding for Milestones 1-3. Awaiting explicit approval before any Milestone 4 work
+begins.
 
 ## Next Action
 
-Milestone 2 (Operator and Infrastructure Registry) is complete: schema, the local development
-CA, the registry and agents modules, the mock operator connector, frontend pages, seed data,
-and documentation are all built, tested, and re-verified. Await explicit approval (per working
-rule #4) before starting Milestone 3 (Sovereignty Policy Engine) work. **No Milestone 3 code
-has been written.**
+Milestone 3 (Sovereignty Policy Engine) is complete: the policy-engine's deterministic
+evaluation and conflict-detection logic, the control-api sovereignty-policy module (dual-control
+publish, conflict-blocked approval, rollback, evaluation evidence), the fail-closed HTTP client
+between them, frontend pages, seed data, and documentation are all built, tested, and
+re-verified. Await explicit approval (per working rule #4) before starting Milestone 4 work.
+**No Milestone 4 code has been written.**
