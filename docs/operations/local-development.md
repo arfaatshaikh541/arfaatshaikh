@@ -66,6 +66,26 @@ CONTROL_API_ENV=development /tmp/seed-bin
 
 Safe to re-run (idempotent). See `docs/project-status.md` for the seeded demo credentials.
 
+## Exercising the operator-agent chain (Milestone 2 mock connector)
+
+`cmd/mockconnector` is a real CLI that performs the entire bootstrap -> CSR -> certificate
+issuance -> signed capacity-snapshot submission flow against a running control-api, using
+real generated key pairs and real ECDSA signatures -- it only fabricates the capacity
+*facts* it reports (clearly labeled `is_fictional_demo_data: true`), since there is no real
+GPU cluster behind it in Milestone 2. First register an agent as an operator member
+(`POST /api/v1/operators/{operatorID}/agents`) to obtain an `agent_id` and one-time
+`bootstrap_token`, and create a cluster to attribute the snapshot to, then:
+
+```bash
+cd apps/control-api
+go build -o /tmp/mockconnector-bin ./cmd/mockconnector
+/tmp/mockconnector-bin \
+  -control-api-url http://localhost:8080 \
+  -agent-id <operator_agent id> \
+  -bootstrap-token <raw bootstrap token, shown once at registration> \
+  -cluster-id <cluster id>
+```
+
 ## Running the worker
 
 ```bash
