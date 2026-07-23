@@ -293,10 +293,10 @@ func main() {
 	euCentral := regionID("eu-central-1", "EU Central", deJurisdiction)
 
 	gulfDataCentre := dataCentreID(gulfHorizonID, meCentral, "Dubai DC1", "Dubai")
-	clusterID(gulfHorizonID, gulfDataCentre, "gulf-horizon-gpu-cluster-1", "1.31")
+	gulfClusterID := clusterID(gulfHorizonID, gulfDataCentre, "gulf-horizon-gpu-cluster-1", "1.31")
 
 	euroNorthDataCentre := dataCentreID(euroNorthID, euCentral, "Frankfurt DC1", "Frankfurt")
-	clusterID(euroNorthID, euroNorthDataCentre, "euronorth-gpu-cluster-1", "1.31")
+	euroNorthClusterID := clusterID(euroNorthID, euroNorthDataCentre, "euronorth-gpu-cluster-1", "1.31")
 
 	// --- Sovereignty policy (Milestone 3) ------------------------------------
 	// A single already-published policy, inserted directly rather than
@@ -478,6 +478,100 @@ func main() {
 	`, falconTenantID, "tenants/"+falconTenantID.String()+"/fictional-model-weights-v1",
 		strings.TrimPrefix(fakeDigest("falcon-artefact-checksum-v1"), "sha256:"), users[falconOwnerEmail].id); err != nil {
 		fatal("seed Falcon artefact upload", err)
+	}
+
+	// --- Placement and Capacity Engine (Milestone 5) -------------------------
+	// One capacity offer per demo operator -- Gulf Horizon's in the AE region
+	// (matching Falcon National Bank's AE-only sovereignty policy above),
+	// EuroNorth's in the DE region (deliberately cheaper, to demonstrate that
+	// sovereignty gating -- not price -- decides eligibility) -- plus one
+	// already-committed reservation for Falcon against the eligible AE offer,
+	// inserted directly (like every other already-approved row in this
+	// script) rather than through the evaluate/approve-commit HTTP flow, but
+	// recording the same requested_by/approved_by dual-control facts a real
+	// commit would.
+	var gulfOfferID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM capacity_offers WHERE operator_id = $1 AND cluster_id = $2`, gulfHorizonID, gulfClusterID).Scan(&gulfOfferID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO capacity_offers (
+				operator_id, cluster_id, region_id, accelerator_type, total_capacity, available_capacity,
+				price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, created_by
+			)
+			VALUES ($1, $2, $3, 'nvidia-h100', 16, 16, 3.25, 'USD', true, 0.65, $4)
+			RETURNING id
+		`, gulfHorizonID, gulfClusterID, meCentral, users[gulfHorizonOwnerEmail].id).Scan(&gulfOfferID); err != nil {
+			fatal("seed Gulf Horizon capacity offer", err)
+		}
+	}
+
+	var euroNorthOfferID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM capacity_offers WHERE operator_id = $1 AND cluster_id = $2`, euroNorthID, euroNorthClusterID).Scan(&euroNorthOfferID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO capacity_offers (
+				operator_id, cluster_id, region_id, accelerator_type, total_capacity, available_capacity,
+				price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, created_by
+			)
+			VALUES ($1, $2, $3, 'nvidia-h100', 16, 16, 1.80, 'USD', false, 0.55, $4)
+			RETURNING id
+		`, euroNorthID, euroNorthClusterID, euCentral, users[euroNorthOwnerEmail].id).Scan(&euroNorthOfferID); err != nil {
+			fatal("seed EuroNorth capacity offer", err)
+		}
+	}
+
+	var falconPlacementRequestID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM placement_requests WHERE workload_version_id = $1`, falconWorkloadVersionID).Scan(&falconPlacementRequestID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO placement_requests (enterprise_tenant_id, workload_version_id, quantity, simulate, status, requested_by)
+			VALUES ($1, $2, 2, false, 'reserved', $3)
+			RETURNING id
+		`, falconTenantID, falconWorkloadVersionID, users[falconOwnerEmail].id).Scan(&falconPlacementRequestID); err != nil {
+			fatal("seed Falcon placement request", err)
+		}
+
+		eligibleExplanation, _ := json.Marshal(map[string]any{
+			"sovereignty":            map[string]any{"passed": true, "policies_evaluated": []any{}},
+			"security":               map[string]any{"confidential_computing_required": true, "offer_confidential_computing": true, "passed": true},
+			"commercial_eligibility": map[string]any{"passed": true, "note": "bilateral agreement gating is out of scope for Milestone 5"},
+			"capacity":               map[string]any{"available_capacity": 16, "requested_quantity": 2, "passed": true},
+			"runtime_compatibility":  map[string]any{"required_accelerator_type": "", "offer_accelerator_type": "nvidia-h100", "passed": true},
+			"cost":                   map[string]any{"price_per_unit_hour": 3.25, "estimated_cost": 6.50},
+			"energy":                 map[string]any{"estimated_kwh_per_unit_hour": 0.65, "estimated_energy_kwh": 1.30},
+		})
+		rejectedExplanation, _ := json.Marshal(map[string]any{
+			"sovereignty": map[string]any{"passed": false, "policies_evaluated": []any{
+				map[string]any{"policy_id": "fictional", "decision": "deny", "reason_codes": []string{"RESIDENCY_NOT_IN_ALLOWED_COUNTRIES"}},
+			}},
+		})
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO placement_evaluations (
+				enterprise_tenant_id, placement_request_id, capacity_offer_id, operator_id, region_id,
+				accelerator_type, decision, rank, estimated_cost, estimated_energy_kwh, reason_codes, explanation
+			) VALUES
+				($1, $2, $3, $4, $5, 'nvidia-h100', 'eligible', 1, 6.50, 1.30, '[]'::jsonb, $6),
+				($1, $2, $7, $8, $9, 'nvidia-h100', 'rejected', NULL, 3.60, 1.10, '["RESIDENCY_NOT_IN_ALLOWED_COUNTRIES"]'::jsonb, $10)
+		`, falconTenantID, falconPlacementRequestID, gulfOfferID, gulfHorizonID, meCentral, eligibleExplanation,
+			euroNorthOfferID, euroNorthID, euCentral, rejectedExplanation); err != nil {
+			fatal("seed Falcon placement evaluations", err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO capacity_reservations (
+				enterprise_tenant_id, operator_id, placement_request_id, capacity_offer_id, quantity,
+				price_per_unit_hour, estimated_cost, status, approval_required, requested_by, approved_by,
+				expires_at, committed_at
+			)
+			VALUES ($1, $2, $3, $4, 2, 3.25, 6.50, 'committed', true, $5, $6, now() + interval '15 minutes', now())
+		`, falconTenantID, gulfHorizonID, falconPlacementRequestID, gulfOfferID, users[falconOwnerEmail].id, users[falconComplianceEmail].id); err != nil {
+			fatal("seed Falcon capacity reservation", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE capacity_offers SET available_capacity = available_capacity - 2 WHERE id = $1 AND available_capacity >= 2
+		`, gulfOfferID); err != nil {
+			fatal("apply Falcon reservation to Gulf Horizon capacity offer", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
