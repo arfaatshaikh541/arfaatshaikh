@@ -91,10 +91,13 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
           Fictional demo data
         </p>
       )}
-      <p className="mb-6 text-sm text-zinc-500">
+      <p className="mb-2 text-sm text-zinc-500">
         {operator.data?.country} &middot; status: {operator.data?.status} &middot; trust:{" "}
         {operator.data?.trust_level}
       </p>
+      <Link href={`/dashboard/operator/${operatorId}/infrastructure`} className="mb-6 inline-block text-sm underline">
+        Infrastructure registry &rarr;
+      </Link>
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-medium">Members</h2>
