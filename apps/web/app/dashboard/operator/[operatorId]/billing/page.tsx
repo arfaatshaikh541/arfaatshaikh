@@ -64,6 +64,39 @@ interface BillingDispute {
   opened_at: string;
 }
 
+interface Adjustment {
+  id: string;
+  invoice_id?: string;
+  settlement_id?: string;
+  operator_id: string;
+  enterprise_tenant_id?: string;
+  amount: number;
+  reason: string;
+  created_at: string;
+}
+
+interface CreditNote {
+  id: string;
+  invoice_id: string;
+  enterprise_tenant_id: string;
+  operator_id: string;
+  amount: number;
+  reason: string;
+  status: string;
+  created_at: string;
+  applied_at?: string;
+}
+
+interface BillingProviderEvent {
+  id: string;
+  invoice_id?: string;
+  settlement_id?: string;
+  provider_type: string;
+  event_type: string;
+  external_ref?: string;
+  occurred_at: string;
+}
+
 const USAGE_METRIC_KEYS = [
   "cpu_seconds", "gpu_seconds", "gpu_memory_gb_seconds", "storage_gb_hours", "object_storage_gb_hours",
   "network_ingress_gb", "network_egress_gb", "private_network_gb_hours", "network_slice_gbps_hours",
@@ -127,6 +160,11 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
     queryFn: () => api.get<BilateralAgreement[]>(`/api/v1/operators/${operatorId}/bilateral-agreements`),
     enabled: canViewSettlements,
   });
+  const creditNotes = useQuery({
+    queryKey: ["operator-credit-notes", operatorId],
+    queryFn: () => api.get<CreditNote[]>(`/api/v1/operators/${operatorId}/credit-notes`),
+    enabled: canViewSettlements,
+  });
 
   const invalidate = (key: string) => queryClient.invalidateQueries({ queryKey: [key, operatorId] });
 
@@ -180,17 +218,35 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-medium">Invoices</h2>
           <GenerateInvoiceForm operatorId={operatorId} canManage={canManageSettlements} onGenerated={() => invalidate("operator-invoices")} />
-          <ul className="mt-3 flex flex-col gap-1 text-sm">
+          <ul className="mt-3 flex flex-col gap-2 text-sm">
             {invoices.data?.map((inv) => (
-              <li key={inv.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
-                  <span>{inv.currency} {inv.total.toFixed(2)}</span>
-                  <span className={inv.status === "disputed" ? "text-red-600" : "text-zinc-500"}>{inv.status}</span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-500">Issued {new Date(inv.issued_at).toLocaleString()}</p>
-              </li>
+              <InvoiceRow key={inv.id} operatorId={operatorId} invoice={inv} canManage={canManageSettlements} onChanged={() => invalidate("operator-invoices")} />
             ))}
             {invoices.data?.length === 0 && <li className="text-zinc-500">No invoices issued yet.</li>}
+          </ul>
+        </section>
+      )}
+
+      {canViewSettlements && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-medium">Credit notes</h2>
+          {canManageSettlements && (
+            <CreateCreditNoteForm operatorId={operatorId} onCreated={() => { invalidate("operator-credit-notes"); invalidate("operator-invoices"); }} />
+          )}
+          <ul className="mt-3 flex flex-col gap-1 text-sm">
+            {creditNotes.data?.map((cn) => (
+              <li key={cn.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span>{cn.amount.toFixed(2)} &middot; {cn.reason}</span>
+                  <span className="text-zinc-500">{cn.status}</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Invoice {cn.invoice_id.slice(0, 8)}&hellip; &middot; issued {new Date(cn.created_at).toLocaleString()}
+                  {cn.applied_at && <> &middot; applied {new Date(cn.applied_at).toLocaleString()}</>}
+                </p>
+              </li>
+            ))}
+            {creditNotes.data?.length === 0 && <li className="text-zinc-500">No credit notes issued yet.</li>}
           </ul>
         </section>
       )}
@@ -489,6 +545,19 @@ function CreateSettlementForAgreementForm({ operatorId, agreements, onCreated }:
 
 function SettlementRow({ operatorId, settlement, canManage, onChanged }: { operatorId: string; settlement: SettlementRecord; canManage: boolean; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const adjustments = useQuery({
+    queryKey: ["settlement-adjustments", settlement.id],
+    queryFn: () => api.get<Adjustment[]>(`/api/v1/operators/${operatorId}/settlements/${settlement.id}/adjustments`),
+    enabled: detailsOpen,
+  });
+  const providerEvents = useQuery({
+    queryKey: ["settlement-provider-events", settlement.id],
+    queryFn: () => api.get<BillingProviderEvent[]>(`/api/v1/operators/${operatorId}/settlements/${settlement.id}/provider-events`),
+    enabled: detailsOpen,
+  });
 
   const reconcile = async () => {
     setError(null);
@@ -511,10 +580,207 @@ function SettlementRow({ operatorId, settlement, canManage, onChanged }: { opera
         {settlement.bilateral_agreement_id && <> &middot; from bilateral agreement (tenant {settlement.enterprise_tenant_id?.slice(0, 8)}&hellip;)</>}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {canManage && settlement.status === "pending" && (
-        <button onClick={reconcile} className="mt-2 text-xs underline">Reconcile</button>
+      <div className="mt-2 flex gap-3">
+        {canManage && settlement.status === "pending" && (
+          <button onClick={reconcile} className="text-xs underline">Reconcile</button>
+        )}
+        <button onClick={() => setDetailsOpen((v) => !v)} className="text-xs underline">
+          {detailsOpen ? "Hide details" : "Adjustments & provider events"}
+        </button>
+      </div>
+      {detailsOpen && (
+        <div className="mt-3 flex flex-col gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <div>
+            <h4 className="mb-1 text-xs font-medium text-zinc-500">Adjustments</h4>
+            <ul className="flex flex-col gap-1 text-xs">
+              {adjustments.data?.map((a) => (
+                <li key={a.id} className="rounded-md border border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+                  {a.amount.toFixed(2)} &middot; {a.reason}
+                </li>
+              ))}
+              {adjustments.data?.length === 0 && <li className="text-zinc-500">No adjustments recorded.</li>}
+            </ul>
+            {canManage && (
+              <CreateAdjustmentForm
+                operatorId={operatorId}
+                settlementId={settlement.id}
+                onCreated={() => queryClient.invalidateQueries({ queryKey: ["settlement-adjustments", settlement.id] })}
+              />
+            )}
+          </div>
+          <div>
+            <h4 className="mb-1 text-xs font-medium text-zinc-500">Provider events</h4>
+            <ul className="flex flex-col gap-1 text-xs">
+              {providerEvents.data?.map((e) => (
+                <li key={e.id} className="rounded-md border border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+                  {e.provider_type} &middot; {e.event_type} &middot; {new Date(e.occurred_at).toLocaleString()}
+                </li>
+              ))}
+              {providerEvents.data?.length === 0 && <li className="text-zinc-500">No provider events recorded.</li>}
+            </ul>
+          </div>
+        </div>
       )}
     </li>
+  );
+}
+
+function InvoiceRow({ operatorId, invoice, canManage, onChanged }: { operatorId: string; invoice: Invoice; canManage: boolean; onChanged: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const adjustments = useQuery({
+    queryKey: ["invoice-adjustments", invoice.id],
+    queryFn: () => api.get<Adjustment[]>(`/api/v1/operators/${operatorId}/invoices/${invoice.id}/adjustments`),
+    enabled: detailsOpen,
+  });
+  const providerEvents = useQuery({
+    queryKey: ["invoice-provider-events", invoice.id],
+    queryFn: () => api.get<BillingProviderEvent[]>(`/api/v1/operators/${operatorId}/invoices/${invoice.id}/provider-events`),
+    enabled: detailsOpen,
+  });
+
+  const markPaid = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/operators/${operatorId}/invoices/${invoice.id}/mark-paid`, {});
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to mark invoice paid.");
+    }
+  };
+
+  return (
+    <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
+      <div className="flex items-center justify-between">
+        <span>{invoice.currency} {invoice.total.toFixed(2)}</span>
+        <span className={invoice.status === "disputed" ? "text-red-600" : "text-zinc-500"}>{invoice.status}</span>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">Issued {new Date(invoice.issued_at).toLocaleString()}</p>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      <div className="mt-2 flex gap-3">
+        {canManage && invoice.status !== "paid" && invoice.status !== "void" && (
+          <button onClick={markPaid} className="text-xs underline">Mark paid</button>
+        )}
+        <button onClick={() => setDetailsOpen((v) => !v)} className="text-xs underline">
+          {detailsOpen ? "Hide details" : "Adjustments & provider events"}
+        </button>
+      </div>
+      {detailsOpen && (
+        <div className="mt-3 flex flex-col gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <div>
+            <h4 className="mb-1 text-xs font-medium text-zinc-500">Adjustments</h4>
+            <ul className="flex flex-col gap-1 text-xs">
+              {adjustments.data?.map((a) => (
+                <li key={a.id} className="rounded-md border border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+                  {a.amount.toFixed(2)} &middot; {a.reason}
+                </li>
+              ))}
+              {adjustments.data?.length === 0 && <li className="text-zinc-500">No adjustments recorded.</li>}
+            </ul>
+            {canManage && (
+              <CreateAdjustmentForm
+                operatorId={operatorId}
+                invoiceId={invoice.id}
+                onCreated={() => queryClient.invalidateQueries({ queryKey: ["invoice-adjustments", invoice.id] })}
+              />
+            )}
+          </div>
+          <div>
+            <h4 className="mb-1 text-xs font-medium text-zinc-500">Provider events</h4>
+            <ul className="flex flex-col gap-1 text-xs">
+              {providerEvents.data?.map((e) => (
+                <li key={e.id} className="rounded-md border border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
+                  {e.provider_type} &middot; {e.event_type} &middot; {new Date(e.occurred_at).toLocaleString()}
+                </li>
+              ))}
+              {providerEvents.data?.length === 0 && <li className="text-zinc-500">No provider events recorded.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+// CreateAdjustmentForm posts to the single shared POST /adjustments
+// endpoint, scoping the adjustment to exactly one of an invoice or a
+// settlement depending on which id the caller passes in.
+function CreateAdjustmentForm({ operatorId, invoiceId, settlementId, onCreated }: { operatorId: string; invoiceId?: string; settlementId?: string; onCreated: () => void }) {
+  const [amount, setAmount] = useState("0.00");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/operators/${operatorId}/adjustments`, {
+        invoice_id: invoiceId, settlement_id: settlementId, amount: Number(amount), reason,
+      });
+      setReason("");
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to create adjustment.");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input placeholder="Amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
+          className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+        <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
+          className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+        <button onClick={create} disabled={!reason} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50 dark:border-zinc-700">
+          Add adjustment
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function CreateCreditNoteForm({ operatorId, onCreated }: { operatorId: string; onCreated: () => void }) {
+  const [invoiceId, setInvoiceId] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [amount, setAmount] = useState("0.00");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/operators/${operatorId}/credit-notes`, {
+        invoice_id: invoiceId, enterprise_tenant_id: tenantId, amount: Number(amount), reason,
+      });
+      setReason("");
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to create credit note.");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <h3 className="mb-2 text-sm font-medium">Issue a credit note</h3>
+      <div className="flex flex-col gap-2">
+        <input placeholder="Invoice id" value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <div className="flex gap-2">
+          <input placeholder="Amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
+            className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button onClick={create} disabled={!invoiceId || !tenantId || !reason} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
+          Issue credit note
+        </button>
+      </div>
+    </div>
   );
 }
 
