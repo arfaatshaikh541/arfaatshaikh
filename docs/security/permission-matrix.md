@@ -4,9 +4,9 @@ This document is generated from the actual seeded `roles`/`permissions`/`role_pe
 rows -- most from migration `0002_rbac.up.sql` (Milestone 1), plus permissions added by
 `0012_registry_locations.up.sql` (Milestone 2), `0023_workload_model_permissions.up.sql`
 (Milestone 4), `0025_placement_permissions.up.sql` (Milestone 5),
-`0029_attestation_permissions.up.sql` (Milestone 8), and `0031_network_permissions.up.sql`
-(Milestone 9) -- it is not aspirational, it is what the running system enforces today.
-Regenerate after any change to these with:
+`0029_attestation_permissions.up.sql` (Milestone 8), `0031_network_permissions.up.sql`
+(Milestone 9), and `0033_assurance_permissions.up.sql` (Milestone 10) -- it is not aspirational,
+it is what the running system enforces today. Regenerate after any change to these with:
 
 ```sql
 SELECT r.scope_type, r.key, r.name, string_agg(p.key, ', ' ORDER BY p.key)
@@ -20,15 +20,15 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
 
 | Role | Permissions |
 |---|---|
-| **AI Platform Engineer** (`ai_platform_engineer`) | artefacts.download, artefacts.upload, artefacts.view, attestation.view, capacity.view, deployments.rollback, deployments.view, images.register, images.view, models.edit, models.register, models.view, network.view, policies.simulate, policies.view, regions.view, reservations.cancel, reservations.create, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.publish, workloads.scale, workloads.view |
+| **AI Platform Engineer** (`ai_platform_engineer`) | artefacts.download, artefacts.upload, artefacts.view, assurance.view, attestation.view, capacity.view, deployments.rollback, deployments.view, images.register, images.view, models.edit, models.register, models.view, network.view, policies.simulate, policies.view, regions.view, reservations.cancel, reservations.create, slos.manage, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.publish, workloads.scale, workloads.view |
 | **Application Owner** (`application_owner`) | artefacts.view, attestation.view, deployments.view, usage.view, workloads.create, workloads.deploy, workloads.edit, workloads.pause, workloads.publish, workloads.scale, workloads.view |
 | **Compliance Manager** (`compliance_manager`) | approvals.respond, approvals.view, artefacts.view, attestation.view, audit.view, incidents.view, models.approve, policies.simulate, policies.view, reservations.approve, sbom.view, vulnerabilities.view, vulnerability_exceptions.approve |
 | **Data Engineer** (`data_engineer`) | artefacts.delete, artefacts.download, artefacts.upload, artefacts.view, models.view, workloads.view |
-| **DevOps Engineer** (`devops_engineer`) | attestation.view, capacity.view, deployments.failover, deployments.rollback, deployments.view, images.view, incidents.view, infrastructure.view, network.view, regions.select, regions.view, reservations.cancel, reservations.create, sbom.view, vulnerabilities.view, workloads.deploy, workloads.pause, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
-| **Enterprise Administrator** (`enterprise_admin`) | approvals.respond, approvals.view, artefacts.delete, artefacts.download, artefacts.upload, artefacts.view, attestation.view, audit.view, billing.view, capacity.view, credentials.manage, deployments.approve, deployments.failover, deployments.rollback, deployments.view, images.approve, images.register, images.revoke, images.view, incidents.manage, incidents.view, infrastructure.view, integrations.manage, models.approve, models.edit, models.publish, models.register, models.retire, models.view, network.view, policies.approve, policies.create, policies.edit, policies.publish, policies.rollback, policies.simulate, policies.view, regions.select, regions.view, reservations.approve, reservations.cancel, reservations.create, roles.manage, sbom.view, settings.manage, usage.view, users.manage, vulnerabilities.view, vulnerability_exceptions.approve, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.pause, workloads.publish, workloads.retire, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
-| **Enterprise Owner** (`enterprise_owner`) | approvals.respond, approvals.view, artefacts.delete, artefacts.download, artefacts.upload, artefacts.view, attestation.view, audit.view, billing.view, capacity.view, credentials.manage, deployments.approve, deployments.failover, deployments.rollback, deployments.view, images.approve, images.register, images.revoke, images.view, incidents.manage, incidents.view, infrastructure.view, integrations.manage, models.approve, models.edit, models.publish, models.register, models.retire, models.view, network.view, policies.approve, policies.create, policies.edit, policies.publish, policies.rollback, policies.simulate, policies.view, regions.select, regions.view, reservations.approve, reservations.cancel, reservations.create, roles.manage, sbom.view, settings.manage, usage.view, users.manage, vulnerabilities.view, vulnerability_exceptions.approve, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.pause, workloads.publish, workloads.retire, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
-| **FinOps Manager** (`finops_manager`) | billing.view, capacity.view, network.view, reservations.cancel, reservations.create, usage.view |
-| **Read-Only Auditor** (`read_only_auditor`) | approvals.view, artefacts.view, attestation.view, audit.view, billing.view, capacity.view, deployments.view, images.view, incidents.view, infrastructure.view, models.view, network.view, policies.view, regions.view, sbom.view, usage.view, vulnerabilities.view, workloads.view |
+| **DevOps Engineer** (`devops_engineer`) | assurance.view, attestation.view, capacity.view, deployments.failover, deployments.rollback, deployments.view, images.view, incidents.view, infrastructure.view, network.view, regions.select, regions.view, reservations.cancel, reservations.create, sbom.view, slos.manage, vulnerabilities.view, workloads.deploy, workloads.pause, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
+| **Enterprise Administrator** (`enterprise_admin`) | approvals.respond, approvals.view, artefacts.delete, artefacts.download, artefacts.upload, artefacts.view, assurance.view, attestation.view, audit.view, billing.view, capacity.view, credentials.manage, deployments.approve, deployments.failover, deployments.rollback, deployments.view, images.approve, images.register, images.revoke, images.view, incidents.manage, incidents.view, infrastructure.view, integrations.manage, models.approve, models.edit, models.publish, models.register, models.retire, models.view, network.view, policies.approve, policies.create, policies.edit, policies.publish, policies.rollback, policies.simulate, policies.view, regions.select, regions.view, reservations.approve, reservations.cancel, reservations.create, roles.manage, sbom.view, settings.manage, slos.manage, usage.view, users.manage, vulnerabilities.view, vulnerability_exceptions.approve, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.pause, workloads.publish, workloads.retire, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
+| **Enterprise Owner** (`enterprise_owner`) | approvals.respond, approvals.view, artefacts.delete, artefacts.download, artefacts.upload, artefacts.view, assurance.view, attestation.view, audit.view, billing.view, capacity.view, credentials.manage, deployments.approve, deployments.failover, deployments.rollback, deployments.view, images.approve, images.register, images.revoke, images.view, incidents.manage, incidents.view, infrastructure.view, integrations.manage, models.approve, models.edit, models.publish, models.register, models.retire, models.view, network.view, policies.approve, policies.create, policies.edit, policies.publish, policies.rollback, policies.simulate, policies.view, regions.select, regions.view, reservations.approve, reservations.cancel, reservations.create, roles.manage, sbom.view, settings.manage, slos.manage, usage.view, users.manage, vulnerabilities.view, vulnerability_exceptions.approve, vulnerability_exceptions.request, workloads.create, workloads.deploy, workloads.edit, workloads.pause, workloads.publish, workloads.retire, workloads.retry, workloads.scale, workloads.terminate, workloads.view |
+| **FinOps Manager** (`finops_manager`) | assurance.view, billing.view, capacity.view, network.view, reservations.cancel, reservations.create, usage.view |
+| **Read-Only Auditor** (`read_only_auditor`) | approvals.view, artefacts.view, assurance.view, attestation.view, audit.view, billing.view, capacity.view, deployments.view, images.view, incidents.view, infrastructure.view, models.view, network.view, policies.view, regions.view, sbom.view, usage.view, vulnerabilities.view, workloads.view |
 | **Security Administrator** (`security_administrator`) | attestation.view, audit.view, credentials.manage, images.approve, images.revoke, incidents.manage, incidents.view, integrations.manage, policies.approve, policies.create, policies.edit, policies.publish, policies.rollback, policies.simulate, policies.view, reservations.approve, sbom.view, vulnerabilities.view, vulnerability_exceptions.approve, workloads.retire, workloads.terminate |
 
 ## Operator Roles
@@ -41,7 +41,7 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
 | **Operator Compliance Officer** (`operator_compliance_officer`) | operator.agreements.manage, operator.audit.view |
 | **Operator Edge Administrator** (`operator_edge_administrator`) | operator.capacity.manage, operator.deployments.view, operator.locations.manage |
 | **Operator Finance Manager** (`operator_finance_manager`) | operator.pricing.manage, operator.settlements.view, operator.usage.view |
-| **Operator Infrastructure Administrator** (`operator_infrastructure_administrator`) | operator.capacity.manage, operator.clusters.manage, operator.deployments.view, operator.locations.manage |
+| **Operator Infrastructure Administrator** (`operator_infrastructure_administrator`) | operator.capacity.manage, operator.clusters.manage, operator.deployments.view, operator.locations.manage, operator.sla.manage |
 | **Operator Network Administrator** (`operator_network_administrator`) | operator.deployments.view, operator.network.manage, operator.regions.manage |
 | **Operator Platform Owner** (`operator_platform_owner`) | operator.agents.manage, operator.agreements.manage, operator.attestation.manage, operator.audit.view, operator.capacity.manage, operator.clusters.manage, operator.deployments.manage, operator.deployments.view, operator.incidents.manage, operator.locations.manage, operator.network.manage, operator.offerings.manage, operator.pricing.manage, operator.profile.manage, operator.regions.manage, operator.reservations.view, operator.security.manage, operator.settlements.view, operator.sla.manage, operator.usage.view |
 | **Operator Product Manager** (`operator_product_manager`) | operator.agreements.manage, operator.offerings.manage, operator.pricing.manage |
@@ -151,3 +151,22 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   permission). The one machine-facing network-provision-result endpoint is, like every other
   machine-facing endpoint since Milestone 2, not gated by any permission at all -- identity is
   proved by certificate signature.
+- Milestone 10 introduces two new permission keys, enforced for real by
+  `internal/modules/assurance`: `assurance.view` (enterprise) gates correlated health, SLOs,
+  incidents, and alerts for a tenant's own workloads; `slos.manage` (enterprise) gates SLO
+  *and* alert-rule configuration -- deliberately reused for both rather than minting a third key,
+  since both are the same "reliability configuration a workload owner sets" concern (see
+  migration `0033`'s header comment). Incident lifecycle actions reuse
+  `incidents.view`/`incidents.manage` from Milestone 1, activated for real enforcement here for
+  the first time. Operator-side SLA/alert-rule configuration reuses `operator.sla.manage`, also
+  seeded in Milestone 1 but, remarkably, never once granted to any role until this migration --
+  granted to Operator Platform Owner (blanket) and Operator Infrastructure Administrator, the
+  role whose existing remit (capacity/clusters/locations) an SLA on that same infrastructure most
+  naturally belongs to. Operator-side incident lifecycle reuses `operator.incidents.manage` from
+  Milestone 1. Every read (SLOs, incidents, incident events, alert rules, alerts, correlated
+  health) on the operator side requires only operator membership, mirroring Milestone 5/8/9's own
+  precedent (view is membership, manage/mutate is a permission). Audit correlation
+  (`GET .../audit-correlation/{resourceType}/{resourceID}`) deliberately reuses
+  `audit.view`/`operator.audit.view` from Milestone 1 rather than `assurance.view`, since it
+  exposes audit evidence directly -- the same disclosure the `auditlog` module's own routes
+  already gate.

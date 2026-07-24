@@ -1,15 +1,16 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-24 (Milestone 9 complete)_
+_Last updated: 2026-07-24 (Milestone 10 complete)_
 
 ## Current Milestone
 
-**Milestone 9: Network and Edge Services** — implementation complete, validated, not yet handed
-off for Milestone 10. Milestones 1-8 (Secure Platform Foundation, Operator and Infrastructure
-Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and Capacity Engine,
-Operator and Cluster Agents, Secure Deployment Orchestration, Confidential Computing and
-Attestation) are complete (Milestone 1 was independently audited with every Critical/High/Medium/
-Low finding fixed and re-verified — see the audit section below, preserved for history).
+**Milestone 10: Service Assurance and Observability** — implementation complete, validated, not
+yet handed off for Milestone 11. Milestones 1-9 (Secure Platform Foundation, Operator and
+Infrastructure Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and
+Capacity Engine, Operator and Cluster Agents, Secure Deployment Orchestration, Confidential
+Computing and Attestation, Network and Edge Services) are complete (Milestone 1 was independently
+audited with every Critical/High/Medium/Low finding fixed and re-verified — see the audit section
+below, preserved for history).
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -1371,6 +1372,167 @@ channel rather than building parallel plumbing.
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 10 has not begun | ✅ confirmed -- no Milestone 10 code exists |
 
+## Milestone 10: Service Assurance and Observability
+
+Built per the approved architecture's Milestone 10 scope (workload/cluster/GPU/network/model
+health, policy compliance, SLOs, incidents, dashboards, tracing, alerts, audit correlation,
+operator and enterprise views). This milestone is deliberately **correlation-first, not
+duplication-first**: the approved scope's "Correlate: workload health, cluster/node/GPU/network
+health, policy compliance, attestation, capacity, operator incidents" requirement is built as a
+read-time join across data this codebase already produces for entirely different reasons
+(`deployment_events` from Milestone 7, `network_reservations`/`network_health_events` from
+Milestone 9, `attestation_results` from Milestone 8, `policy_evaluation_records` from Milestone
+3/5) -- no new table duplicates any of it. What genuinely does not exist anywhere else, and this
+milestone adds: SLOs, Incidents, and Alerts.
+
+### What was built
+- **Schema** (migration `0032`): `slo_definitions`/`slo_evaluations` (a target either an operator
+  commits to for its own infrastructure or an enterprise sets for its own workload/deployment --
+  `num_nonnulls(operator_id, enterprise_tenant_id) = 1`; evaluations are append-only, denormalizing
+  the owner columns from the parent definition the same way `network_service_evaluations`
+  denormalizes from its parent request); `incidents`/`incident_events` (dual-scope like
+  `deployments`/`network_reservations` -- `num_nonnulls(...) >= 1`, since an operator-infra
+  incident can visibly affect a specific tenant; `incident_events` is the append-only timeline,
+  the same discipline `deployment_events`/`network_health_events` already established);
+  `alert_rules`/`alerts` (exactly one owner -- `num_nonnulls(...) = 1`, since unlike an incident
+  there is no legitimate second party who needs visibility into a rule *definition*; `alerts` is
+  the fired-instance history, status transitions `firing` -> `resolved` via update in place, not
+  append-only, since resolution is an update to the same logical firing event rather than an
+  independent new fact). `resource_type`/`resource_id` on `slo_definitions`/`incidents`/
+  `alert_rules` is a soft, unvalidated polymorphic reference -- the same pattern Milestone 1's
+  `audit_events.target_type`/`target_id` already established, not a new one.
+- **Schema** (migration `0033`): only 2 genuinely new permission keys -- `assurance.view`
+  (enterprise) and `slos.manage` (enterprise, deliberately reused for alert-rule configuration too
+  -- see Deliberate security decisions). Incident lifecycle actions reuse the already-seeded
+  `incidents.view`/`incidents.manage`/`operator.incidents.manage` from migration `0002`
+  (Milestone 1) -- activated for real enforcement here for the first time. SLA/alert-rule
+  configuration on the operator side reuses `operator.sla.manage`, also seeded in migration `0002`
+  but, remarkably, never granted to any role in nine prior milestones -- the clearest "roles
+  anticipate milestones" case this project has found yet.
+- **`internal/modules/assurance`** (new module, operator + enterprise-facing, no machine-facing
+  routes): `CreateSLO`/`ListSLOs`/`ArchiveSLO`/`EvaluateSLO` (evaluation computes the SLO's own
+  `metric_source` over its own `window_days`, persists an immutable `slo_evaluations` row, and
+  returns it -- there is no live scheduler in this codebase, so this runs on demand, the same
+  "`reclaimExpired` runs at the top of every call" precedent Milestone 5 established for
+  reservation-hold expiry); `CreateIncident`/`ListIncidents`/`AcknowledgeIncident`/
+  `ResolveIncident` (each transition writes an `incident_events` row); `CreateAlertRule`/
+  `ListAlertRules`/`SetAlertRuleStatus`/`EvaluateAlertRule` (computes the same metric a matching
+  SLO would, or -- for the `slo_burn_rate` metric source -- reads a specific SLO's own latest
+  evaluation rather than recomputing independently, so an alert about an SLO's burn rate can never
+  drift from that SLO's own evaluation history; fires a new alert only if none is already firing
+  for that rule, idempotent by construction, and resolves the currently-firing one the moment the
+  condition no longer holds); `GetCorrelatedHealth` (the read-time join, four metrics + open
+  incident/firing alert counts, over a fixed 24-hour window); `ListCorrelatedAuditEvents` (a query
+  against Milestone 1's `audit_events` by `target_type`/`target_id`, gated by the existing
+  `audit.view`/`operator.audit.view` rather than `assurance.view`, since it exposes audit evidence
+  directly -- the same disclosure the `auditlog` module's own routes already gate). Every metric
+  function (`computeDeploymentAvailability`, `computeNetworkProvisioning`,
+  `computeAttestationSuccessRate`, `computePolicyComplianceRate`) is a single, shared piece of SQL
+  both SLO evaluation and alert evaluation call through, so the two concepts can never compute the
+  same named metric two different ways.
+- **Frontend**: `/dashboard/operator/[operatorId]/assurance` and
+  `/dashboard/enterprise/[tenantId]/assurance` -- correlated health tiles, SLO/SLA
+  definition+on-demand evaluation, incident open/acknowledge/resolve, alert rule
+  definition+on-demand evaluation, and alert history. Both linked from their respective overview
+  pages. A dedicated audit-correlation UI (picking a resource type/id to inspect) was scoped down
+  to keep this milestone's UI proportionate to its size -- the same reasoning Milestones 2/4/5
+  applied to their own deeper-detail-view limitations; the API fully supports it.
+
+### Deliberate security decisions worth calling out
+- **A metric with zero samples in its window returns 100%, not an error or a punitive 0%.** An
+  SLO or alert rule with no relevant activity yet should not immediately read as breached just
+  because nothing has happened. This is a deliberate simplification (documented in
+  `internal/modules/assurance/repository.go`'s own comment on `defaultMetricPercentage`), not a
+  true time-weighted uptime calculation, which would require a live metrics store this codebase
+  does not have -- see Known Limitations.
+- **`slos.manage` is deliberately reused for alert-rule configuration, not split into a third
+  permission key.** Both are "reliability configuration" a workload owner sets, the same category
+  of resource; minting `alerts.manage` separately would not gate a meaningfully different
+  disclosure or capability. Consistent with this project's established minimize-new-permission-
+  keys discipline (Milestone 9's `reservations.create`/`reservations.cancel` reuse is the most
+  recent prior example).
+- **Alert firing is idempotent by construction, not by a uniqueness constraint.** `evaluateAlertRule`
+  checks for an already-firing alert against the same rule before inserting a new one; there is no
+  database-level uniqueness constraint enforcing "at most one firing alert per rule" the way, for
+  example, `attestation_policies`' partial unique index enforces "one active policy per cluster."
+  This is acceptable because evaluation is synchronous and single-writer per request (no concurrent
+  evaluators racing the same rule in this milestone's scope), but a future milestone that
+  parallelizes evaluation should add the constraint rather than rely on this ordering alone.
+- **`slo_burn_rate` alert rules read the referenced SLO's latest evaluation rather than
+  recomputing the underlying metric independently.** An alert about an SLO's burn rate must track
+  that exact SLO's own evaluation history -- if it recomputed the metric itself, a different
+  window or a race between the two calls could make the alert disagree with the SLO it claims to
+  be about.
+- **Correlated health and alert/SLO evaluation share the same metric-computation functions, never
+  duplicate the query.** `computeMetric`'s dispatch table is the single place a `metric_source`
+  string is mapped to a SQL query; every consumer (SLO evaluation, alert evaluation, the
+  correlated-health endpoint) goes through it.
+
+### Verification performed (not just claimed)
+- Migrations `0032`/`0033` applied cleanly against a real Postgres via the automated test suite;
+  all six new tables, their RLS policies, the append-only triggers on `slo_evaluations` and
+  `incident_events`, and both new permission keys (plus `operator.sla.manage`'s first-ever role
+  grant) confirmed present via direct queries. Also applied cleanly against the separate
+  `gridkeep` development database (verified via `psql \d` and direct `SELECT`s under
+  `app.platform_bypass`).
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including the new `assurance` module.
+- 1 new integration test in `internal/app`
+  (`TestAssuranceSLOIncidentAndAlertLifecycle`), run against a real Postgres via real HTTP,
+  reusing Milestone 5's placement fixtures to produce real `policy_evaluation_records` (1 eligible
+  offer, 1 rejected by sovereignty policy) rather than fabricating metric data: creates an SLO
+  against `policy_compliance_rate`, evaluates it and asserts the exact computed 50% (1/2) and
+  resulting `at_risk` status; creates an alert rule against the same metric, evaluates it twice and
+  asserts the second evaluation returns the *same* firing alert (idempotent, never double-fires)
+  while a second, unbreached rule correctly evaluates to no alert at all; walks an incident through
+  open -> acknowledge -> resolve, asserting all three `incident_events` were recorded and that
+  re-resolving an already-resolved incident is rejected (409) rather than silently re-accepted;
+  asserts correlated health reflects the identical 50% policy-compliance figure; and asserts audit
+  correlation surfaces the SLO's own `slos.created` audit event by resource. All pass alongside the
+  full pre-existing Milestone 1-9 suite (57 total `internal/app` tests) with zero regressions.
+- The fictional seed data **was** extended this milestone: one SLO and one alert rule per side,
+  each paired with a real evaluation snapshot computed by hand from the exact seed data already
+  produced -- Falcon's `policy_compliance_rate` SLO reflects the 1 eligible / 1 rejected
+  `placement_evaluations` pair Milestone 5's own seed block produces (50%, correctly `breached`
+  against an 80% target); EuroNorth's `network_reservation_provisioning` SLA reflects its own
+  Milestone 9-seeded `network_reservations` row still sitting at `provisioning_status='pending'`
+  (0%, since no cluster agent identity is seeded in this environment -- see Known Limitations),
+  which also drives a genuinely-firing alert and an open incident, an honest reflection of what
+  this sandbox's seed data can and cannot demonstrate rather than a fabricated success state.
+  Verified idempotent by running the seed script twice against the same development database and
+  confirming row counts and evaluated figures did not change on the second run.
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5/5 existing tests unchanged), and `next build`
+  all pass with the two new assurance routes included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 10 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Workload/cluster/GPU/network/model health correlation | ✅ `GetCorrelatedHealth`, a read-time join across `deployment_events`/`network_reservations`/`attestation_results`/`policy_evaluation_records` -- no duplicated storage |
+| Policy compliance | ✅ `computePolicyComplianceRate`, reading Milestone 3/5's `policy_evaluation_records` directly |
+| SLOs | ✅ `slo_definitions`/`slo_evaluations`, on-demand evaluation against a real, shared metric-computation layer |
+| Incidents | ✅ `incidents`/`incident_events`, full open/acknowledge/resolve lifecycle with an append-only timeline |
+| Dashboards | ✅ operator and enterprise assurance pages, both linked from their overview pages |
+| Tracing | Scoped to correlation IDs already present in existing event streams (deployment/network/attestation/policy/audit) -- no live OpenTelemetry/Jaeger integration; this sandbox has no reachable telemetry backend, the same category of constraint as MinIO/Docker Hub (see Known Limitations) |
+| Alerts | ✅ `alert_rules`/`alerts`, idempotent on-demand firing/resolution against the same metric layer |
+| Audit correlation | ✅ `ListCorrelatedAuditEvents` against Milestone 1's `audit_events` by resource, gated by the existing `audit.view`/`operator.audit.view` |
+| Operator and enterprise views | ✅ every SLO/incident/alert/health capability exists on both sides |
+| No AI-only placement/ranking decisions | ✅ unaffected -- this milestone introduces no placement or ranking decisions of any kind |
+| Infrastructure/cluster/vault credentials never exposed to the frontend | ✅ unaffected -- this milestone introduces no new credential material |
+| Backend permissions are enforced | ✅ two new permission keys plus four deliberately reused ones, all gated correctly |
+| Cross-tenant/cross-operator isolation holds | ✅ dual-scope RLS on `incidents`/`incident_events`, owner-exclusive RLS on `slo_definitions`/`slo_evaluations`/`alert_rules`/`alerts` |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0032`/`0033` applied cleanly against both the test database and the separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new integration test + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, vitest (5/5) |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 11 has not begun | ✅ confirmed -- no Milestone 11 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -1971,6 +2133,37 @@ See `docs/adr/`:
     unreachable-MinIO limitation documented since Milestone 4 (Known Limitation 15), not anything
     specific to this milestone's code; validated instead via `httptest`-based integration tests
     exercising the identical Go code paths.
+45. **(Milestone 10) Metric computation is a current/recent-window snapshot, not a true
+    time-weighted uptime calculation** — `computeDeploymentAvailability` and its siblings compute a
+    simple success-ratio over discrete events in a window (e.g. "how many `command_result` events
+    in the last N days succeeded"), not minute-by-minute weighted availability the way a real
+    metrics/time-series store would. This is an accepted simplification given this codebase has no
+    live metrics store; a zero-sample window returns a neutral 100% rather than an error or a
+    punitive 0% (see this milestone's Deliberate security decisions). Revisit if a future milestone
+    introduces real time-series infrastructure.
+46. **(Milestone 10) There is no live scheduler for SLO or alert-rule evaluation** — both run only
+    on demand (an explicit "Evaluate now" action, a dashboard load), the same "`reclaimExpired` runs
+    at the top of every call" precedent Milestone 5 already established and documented as a
+    limitation for reservation-hold expiry. A future milestone that adds a real background worker
+    schedule should add a periodic sweep for both.
+47. **(Milestone 10) Alert firing has no database-level uniqueness constraint preventing two
+    concurrent evaluations of the same rule from both inserting a firing alert** — correctness
+    today relies on evaluation being synchronous and effectively single-writer per request in this
+    milestone's scope, not a `UNIQUE` index the way `attestation_policies`' partial unique index
+    enforces "one active policy per cluster." Revisit if a future milestone parallelizes evaluation.
+48. **(Milestone 10) `resource_type`/`resource_id` on `slo_definitions`/`incidents`/`alert_rules`
+    is an unvalidated soft reference** — the same pattern `audit_events.target_type`/`target_id`
+    already established since Milestone 1, not a new gap; no FK-checked ownership of the referenced
+    resource is enforced, consistent with that precedent.
+49. **(Milestone 10) No dedicated audit-correlation UI** — `ListCorrelatedAuditEvents` is fully
+    supported by the API (`GET .../audit-correlation/{resourceType}/{resourceID}`) but the
+    dashboard does not yet render a resource picker for it, the same "scoped down to keep this
+    milestone's UI proportionate" reasoning Milestones 2/4/5 applied to their own deeper-detail-view
+    limitations.
+50. **(Milestone 10) `cmd/mockclusteragent` is unaffected by this milestone and was not re-run
+    live against `cmd/server`** — this milestone introduces no new agent-facing protocol; the same
+    Docker Hub egress / unreachable-MinIO limitation documented since Milestone 4 (Known Limitation
+    15) is the reason no milestone since has run `cmd/server` live in this sandbox at all.
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -2165,44 +2358,63 @@ findings from the subsequent independent review.
   be resolved) has no automatic retry or alerting** — `provisioning_status` is set to `failed` and
   is visible to both the operator and the tenant via the API/frontend, but nothing in this
   milestone re-attempts provisioning once a cluster agent later becomes available, or notifies
-  anyone proactively. Acceptable for this milestone's scope (a marketplace and provisioning
-  protocol, not an operations/alerting platform); revisit if a future milestone adds a background
-  worker that could periodically retry `failed` provisioning attempts.
+  anyone proactively. **Partially mitigated by Milestone 10**: an operator or tenant can now
+  define an `alert_rules` row against `network_reservation_provisioning` to be notified, and the
+  seed data does exactly this for EuroNorth's own stuck reservation — but nothing wires such a
+  rule automatically on reservation creation, and there is still no automatic retry. Revisit if a
+  future milestone adds a background worker that could periodically retry `failed` provisioning
+  attempts and/or auto-create a default alert rule per reservation.
+- **(Milestone 10) `withPlatformBypass` was not needed by this milestone** —
+  `internal/modules/assurance` never crosses RLS scope boundaries itself; every metric-computation
+  query runs inside the caller's own already-scoped transaction (an operator's own `operator_id`
+  or a tenant's own `enterprise_tenant_id`, exactly matching that transaction's session GUCs), so
+  the "fifth use" trigger Milestone 9's own Unresolved Risks entry flagged has not occurred here.
+  The standalone ADR for the pattern (now flagged across Milestones 7, 8, and 9) is still not
+  written and should be prioritized regardless before the next module that does need it.
+- **(Milestone 10) Alert and SLO evaluation are computed, not verified, quantities — a caller
+  with `slos.manage`/`operator.sla.manage` fully controls what an SLO or alert rule measures
+  (`metric_source`, `resource_type`/`resource_id`, `target_percentage`/`threshold`) but cannot
+  fabricate the underlying data an evaluation reads**, since every metric function queries
+  existing, independently-written tables (`deployment_events`, `network_reservations`,
+  `attestation_results`, `policy_evaluation_records`) the assurance module itself never writes to.
+  This is a deliberate integrity property, not an incidental one: an SLO cannot be gamed by
+  configuring it to lie about its own inputs, only by choosing which real signal to measure.
 
 ## Pending Approvals
 
-None outstanding for Milestones 1-9. Awaiting explicit approval before any Milestone 10 work
+None outstanding for Milestones 1-10. Awaiting explicit approval before any Milestone 11 work
 begins.
 
 ## Next Action
 
-Milestone 9 (Network and Edge Services) is complete: the marketplace layer on top of Milestone 2's
-static `network_capabilities` inventory (the same relationship Milestone 5's `capacity_offers` has
-to `node_pools`/`accelerators`) -- an operator publishes a network service offer against a
-capability it owns (`network_service_offers`, a fourth RLS combination in this codebase: operator
-mutate + any-tenant-reads-active-offers + platform bypass); a tenant evaluates and reserves one
-through a deterministic, explainable filter/rank pass mirroring Milestone 5's placement engine
-exactly (`network_service_requests`/`network_service_evaluations`); a successful, non-simulated
-reservation commits **immediately, with no dual-control approval step at all** (the one
-reservation-like resource in this codebase without one -- there is no analogue to
-`workload_versions.deployment_approval_required` to drive that decision), and is provisioned by
-resolving the offer's capability's location to an active cluster agent and sending it a signed
-`network_service_provision` control message over Milestone 6/7's existing `control_messages`
-channel (a single message type discriminated by an `action` field -- `"provision"` or `"release"`
--- reusing `deployment_command`'s own convention rather than widening the CHECK constraint a
-second time); `cmd/mockclusteragent` applies it to a new in-memory
-`internal/platform/networkadapter.Mock` and signs back a result, recorded both as
-`provisioning_status` and as an append-only `network_health_event`. Two genuinely new permission
-keys (`network.view`, `operator.network.manage`); reservation lifecycle actions deliberately reuse
-`reservations.create`/`reservations.cancel`/`operator.reservations.view` rather than minting
-network-specific equivalents. ConnectivityPolicy/NetworkSLA/NetworkUsageRecord are deliberately not
-built as separate entities this milestone (folded into existing fields or explicitly deferred --
-see Deliberate security decisions). Both frontend pages (operator offer management + reservations/
-health events, enterprise marketplace browse/evaluate/reserve/cancel) are built and pass the full
-validation battery. Unlike Milestone 6/7/8's deployment/attestation identity, the fictional seed
-data **was** extended this milestone with one network capability, one offer per demo operator, and
-one committed (but honestly unprovisioned -- no cluster agent identity is seeded) reservation for
-Falcon National Bank, verified idempotent across two runs. `withPlatformBypass` is now used by a
-fourth module (flagged in Unresolved Risks as the trigger for writing a standalone ADR, not yet
-done). Await explicit approval (per working rule #4) before starting Milestone 10 work.
-**No Milestone 10 code has been written.**
+Milestone 10 (Service Assurance and Observability) is complete: built **correlation-first, not
+duplication-first** -- the approved scope's "Correlate: workload/cluster/GPU/network/model health,
+policy compliance, attestation, capacity, operator incidents" requirement is a read-time join
+across data this codebase already produces for entirely different reasons (`deployment_events`
+from Milestone 7, `network_reservations`/`network_health_events` from Milestone 9,
+`attestation_results` from Milestone 8, `policy_evaluation_records` from Milestone 3/5), never a
+new table duplicating any of it (`GetCorrelatedHealth`). What genuinely did not exist anywhere
+else and this milestone adds: SLOs (`slo_definitions`/`slo_evaluations`, either an operator's own
+infrastructure commitment or an enterprise's own workload target, evaluated **on demand** -- there
+is no live scheduler in this codebase, the same "`reclaimExpired` runs at the top of every call"
+precedent Milestone 5 established), Incidents (`incidents`/`incident_events`, dual-scope like
+`deployments`/`network_reservations`, full open/acknowledge/resolve lifecycle with an append-only
+timeline), and Alerts (`alert_rules`/`alerts`, evaluated on demand against the identical
+metric-computation layer SLOs use, firing/resolving **idempotently** -- re-evaluating an
+already-firing rule never creates a duplicate alert). Only 2 genuinely new permission keys
+(`assurance.view`, `slos.manage` -- the latter deliberately reused for alert-rule configuration
+too); incident lifecycle reuses the already-seeded `incidents.view`/`incidents.manage`/
+`operator.incidents.manage` from Milestone 1, and operator-side SLA/alert configuration reuses
+`operator.sla.manage` -- seeded in Milestone 1, never once granted to any role until this
+milestone, the clearest "roles anticipate milestones" case yet. Both frontend pages (operator and
+enterprise: correlated health, SLO/SLA management, incidents, alert rules and history) are built
+and pass the full validation battery. Unlike Milestone 6/7/8's deployment/attestation identity, the
+fictional seed data **was** extended this milestone with one SLO and one alert rule per side, each
+paired with a real evaluation snapshot computed by hand from data the seed script already produces
+(never a fabricated number) -- including an honest 0%-provisioned EuroNorth network reservation
+that genuinely breaches its own seeded SLA and fires its own seeded alert, verified idempotent
+across two runs. `withPlatformBypass` was not needed by this milestone (every query stays inside
+the caller's own already-scoped transaction), so the standalone-ADR trigger flagged since Milestone
+7 remains unresolved but not worsened. Await explicit approval (per working rule #4) before
+starting Milestone 11 (Usage, Billing and Settlement) work. **No Milestone 11 code has been
+written.**
