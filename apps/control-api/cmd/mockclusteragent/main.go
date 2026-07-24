@@ -33,6 +33,11 @@
 // remote-attestation protocol itself (request a server-issued challenge,
 // produce a fixed, clearly-labelled mock hardware report, submit it for
 // verification) before retrying the fetch -- see fetchSecretsWithAttestationRetry.
+// Milestone 9 adds: a network_service_provision message (discriminated by
+// its own "action" field, "provision" or "release") is applied to an
+// in-memory internal/platform/networkadapter.Mock the same way
+// deployment_command is applied to clusteradapter.Mock, and the signed
+// outcome is reported back to the network-services-owned result endpoint.
 //
 // Usage:
 //
@@ -56,6 +61,7 @@ import (
 	"time"
 
 	"gridkeep/control-api/internal/platform/clusteradapter"
+	"gridkeep/control-api/internal/platform/networkadapter"
 	"gridkeep/control-api/internal/platform/pki"
 )
 
@@ -89,6 +95,18 @@ type deploymentCommand struct {
 	Manifest     map[string]any `json:"manifest,omitempty"`
 	ReplicaCount int            `json:"replica_count,omitempty"`
 	PlanVersion  int            `json:"plan_version,omitempty"`
+}
+
+// networkProvisionCommand mirrors control-api's internal (unexported)
+// networkProvisionPayload -- Milestone 9's generic to_agent message shape
+// for provision/release, discriminated by Action, the same
+// single-message-type-plus-Action convention deploymentCommand already
+// established.
+type networkProvisionCommand struct {
+	Action        string  `json:"action"`
+	ReservationID string  `json:"reservation_id"`
+	BandwidthGbps float64 `json:"bandwidth_gbps,omitempty"`
+	ServiceClass  string  `json:"service_class,omitempty"`
 }
 
 func main() {
@@ -147,6 +165,7 @@ func main() {
 	}
 
 	adapter := clusteradapter.NewMock()
+	netAdapter := networkadapter.NewMock()
 	for _, msg := range messages {
 		fmt.Printf("mockclusteragent: evaluating control message %s (%s)...\n", msg.ID, msg.MessageType)
 
@@ -158,6 +177,13 @@ func main() {
 				fatal("report command result", err)
 			}
 			fmt.Println("mockclusteragent: signed command result submitted and accepted.")
+		case "network_service_provision":
+			action, reservationID, success, detail := executeNetworkProvisionCommand(caCertPEM, msg, netAdapter)
+			fmt.Printf("mockclusteragent: executed network %q for reservation %s, success=%v: %s\n", action, reservationID, success, detail)
+			if err := reportNetworkProvisionResult(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, action, reservationID, success, detail); err != nil {
+				fatal("report network provision result", err)
+			}
+			fmt.Println("mockclusteragent: signed network provision result submitted and accepted.")
 		default:
 			decision, reasonCodes := evaluatePlan(caCertPEM, msg, *expectedClusterID, adapter)
 			fmt.Printf("mockclusteragent: local enforcement decision: %s %v\n", decision, reasonCodes)
@@ -273,6 +299,38 @@ func executeDeploymentCommand(c *http.Client, baseURL, keyPEM, agentID, caCertPE
 		return cmd.Action, true, "terminated"
 	default:
 		return cmd.Action, false, "unknown action"
+	}
+}
+
+// executeNetworkProvisionCommand is network_service_provision's
+// local-enforcement step, exactly mirroring executeDeploymentCommand's
+// discipline: verify the signature against the CA's own certificate before
+// trusting any content, then act only through
+// internal/platform/networkadapter's narrow method set.
+func executeNetworkProvisionCommand(caCertPEM string, msg controlMessage, adapter *networkadapter.Mock) (action, reservationID string, success bool, detail string) {
+	valid, err := pki.VerifySignature(caCertPEM, msg.Payload, msg.Signature)
+	if err != nil || !valid {
+		return "unknown", "", false, "invalid signature"
+	}
+	var cmd networkProvisionCommand
+	if err := json.Unmarshal(msg.Payload, &cmd); err != nil {
+		return "unknown", "", false, "malformed command payload"
+	}
+
+	ctx := context.Background()
+	switch cmd.Action {
+	case "provision":
+		if err := adapter.ProvisionService(ctx, cmd.ReservationID, cmd.BandwidthGbps, cmd.ServiceClass); err != nil {
+			return cmd.Action, cmd.ReservationID, false, fmt.Sprintf("provision network service: %v", err)
+		}
+		return cmd.Action, cmd.ReservationID, true, fmt.Sprintf("provisioned %.2f Gbps (%s)", cmd.BandwidthGbps, cmd.ServiceClass)
+	case "release":
+		if err := adapter.ReleaseService(ctx, cmd.ReservationID); err != nil {
+			return cmd.Action, cmd.ReservationID, false, fmt.Sprintf("release network service: %v", err)
+		}
+		return cmd.Action, cmd.ReservationID, true, "released"
+	default:
+		return cmd.Action, cmd.ReservationID, false, "unknown action"
 	}
 }
 
@@ -504,6 +562,46 @@ func reportCommandResult(c *http.Client, baseURL, keyPEM, agentID, messageID, ac
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("report command result failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
+// reportNetworkProvisionResult signs its own JSON body (action,
+// reservation_id, success, detail, nonce, and signed_at all covered by the
+// same signature) and submits it to the network-services-owned result
+// endpoint -- Milestone 9's counterpart to reportCommandResult.
+func reportNetworkProvisionResult(c *http.Client, baseURL, keyPEM, agentID, messageID, action, reservationID string, success bool, detail string) error {
+	body, err := json.Marshal(map[string]any{
+		"action":         action,
+		"reservation_id": reservationID,
+		"success":        success,
+		"detail":         detail,
+		"nonce":          fmt.Sprintf("network-provision-result-%d", time.Now().UnixNano()),
+		"signed_at":      time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	signature, err := pki.SignMessage(keyPEM, body)
+	if err != nil {
+		return fmt.Errorf("sign network provision result: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/cluster-agents/"+agentID+"/control-messages/"+messageID+"/network-provision-result", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Agent-Signature", signature)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("report network provision result failed: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
