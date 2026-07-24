@@ -1,15 +1,15 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-23 (Milestone 8 complete)_
+_Last updated: 2026-07-24 (Milestone 9 complete)_
 
 ## Current Milestone
 
-**Milestone 8: Confidential Computing and Attestation** — implementation complete, validated,
-not yet handed off for Milestone 9. Milestones 1-7 (Secure Platform Foundation, Operator and
-Infrastructure Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and
-Capacity Engine, Operator and Cluster Agents, Secure Deployment Orchestration) are complete
-(Milestone 1 was independently audited with every Critical/High/Medium/Low finding fixed and
-re-verified — see the audit section below, preserved for history).
+**Milestone 9: Network and Edge Services** — implementation complete, validated, not yet handed
+off for Milestone 10. Milestones 1-8 (Secure Platform Foundation, Operator and Infrastructure
+Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and Capacity Engine,
+Operator and Cluster Agents, Secure Deployment Orchestration, Confidential Computing and
+Attestation) are complete (Milestone 1 was independently audited with every Critical/High/Medium/
+Low finding fixed and re-verified — see the audit section below, preserved for history).
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -1169,6 +1169,208 @@ after successful attestation" decision the approved scope requires.
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 9 has not begun | ✅ confirmed -- no Milestone 9 code exists |
 
+## Milestone 9: Network and Edge Services
+
+Built per the approved architecture's Milestone 9 scope (private connectivity, private 5G
+capability, network slices, bandwidth reservations, latency objectives, network-service requests,
+network-health events, workload-to-network correlation, a mock network-service adapter). This
+milestone is the marketplace layer on top of Milestone 2's static `network_capabilities`
+inventory, the same relationship Milestone 5's `capacity_offers`/`capacity_reservations` has to
+Milestone 2's `node_pools`/`accelerators` -- an operator publishes a sellable network service
+offer against an already-registered capability, a tenant evaluates and reserves one through a
+deterministic, explainable ranking pass mirroring Milestone 5's placement engine exactly, and a
+committed reservation is provisioned by sending a signed control message to the cluster agent
+resolved from the offer's capability's location, reusing Milestone 6/7's `control_messages`
+channel rather than building parallel plumbing.
+
+### What was built
+- **Schema** (migration `0030`): `network_service_offers` (operator-owned, `network_capability_id`
+  FK, `service_class` free text, `total_bandwidth_gbps`/`available_bandwidth_gbps`, an optional
+  `max_latency_ms` commitment, price/currency, status; RLS is a fourth combination in this
+  codebase -- `network_service_offers_operator_scope` (mutate) +
+  `network_service_offers_enterprise_read` (a `FOR SELECT USING (status = 'active')` policy any
+  tenant can read, mirroring `capacity_offers_enterprise_read` exactly) + `_platform_bypass`);
+  `network_service_requests` (enterprise-owned, optional `deployment_id` FK for
+  workload-to-network correlation, `required_bandwidth_gbps`/optional `max_latency_ms`/optional
+  `service_class` filter, `simulate`); `network_service_evaluations` (mirrors
+  `placement_evaluations`' shape -- decision/rank/estimated_cost/reason_codes/explanation, one
+  persisted, immutable row per candidate offer); `network_reservations` (dual-scope RLS like
+  `deployments`/`attestation_results`; **no dual-control approval fields at all** -- see
+  Deliberate security decisions below; `provisioning_status` tracks the separate,
+  asynchronous outcome of the control-message round trip independently of `status`);
+  `network_health_events` (append-only via its own `BEFORE UPDATE/DELETE`-raising trigger
+  function, independently defined like every other append-only table in this codebase; dual-scope
+  RLS since an event belongs to both the operator whose infrastructure produced it and,
+  optionally, the tenant whose reservation it concerns). `control_messages.message_type`'s CHECK
+  constraint is widened once more to add `network_service_provision`/
+  `network_service_provision_result`, reusing the single-message-type-plus-`action`-field
+  convention `deployment_command` established (`action` is `"provision"` or `"release"`) rather
+  than adding a second pair of message types for release.
+- **Schema** (migration `0031`): only 2 genuinely new permission keys -- `network.view`
+  (enterprise) and `operator.network.manage` (operator). Reservation lifecycle actions
+  deliberately *reuse* the already-generically-named `reservations.create`/`reservations.cancel`
+  (seeded in migration `0002`) and `operator.reservations.view` (seeded in Milestone 5's migration
+  `0025`) rather than minting network-specific equivalents -- see Deliberate security decisions.
+- **`internal/platform/networkadapter`** (new): mirrors `internal/platform/clusteradapter`'s
+  shape and rationale exactly -- an `Adapter` interface (`ProvisionService`/`ReleaseService`,
+  keyed by reservation id) only a cluster agent ever calls, never control-api itself. The only
+  implementation, in-memory `Mock`, proves the protocol (releasing a service that was never
+  provisioned is rejected, re-provisioning is idempotent) without touching any real network
+  fabric -- there is none in this environment to integrate against.
+- **`internal/modules/networkservices`** (new module, operator + enterprise + agent-facing):
+  `CreateOffer`/`ListOffers`/`GetOffer`/`UpdateOffer` (operator-scoped, resolving the offer's
+  region server-side from the operator-owned network capability, the same `clusterRegion` pattern
+  Milestone 5's `capacityoffers` uses); `ListActiveOffers` (enterprise-facing marketplace browse);
+  `EvaluateAndReserve` (the placement-style deterministic filter/rank/reserve flow -- filters on
+  bandwidth availability, optional max-latency and service-class match, ranks eligible candidates
+  by cost alone with a stable tie-break, never an AI/ML decision; a successful, non-simulated
+  reservation resolves an active cluster agent for the winning offer's network capability's
+  location and sends it a signed `network_service_provision` control message; if no active agent
+  can be resolved, the reservation still commits -- bandwidth is genuinely reserved -- but
+  `provisioning_status` is set to `failed` for visibility rather than blocking the commercial
+  transaction on infrastructure that happens to be unreachable); `CancelReservation` (releases
+  bandwidth back to the offer and, if provisioned, sends a signed release command to the same
+  agent); `AgentReportProvisionResult` (machine-authenticated, mirrors
+  `deployments.AgentReportCommandResult`'s signature/nonce/replay discipline exactly, records the
+  outcome both as the reservation's `provisioning_status` and as an append-only
+  `network_health_event`).
+- **`activeClusterAgentForCapability`** (new resolution chain): `network_capabilities` has no
+  direct FK to `cluster_agents` -- resolved instead by joining on a shared `data_centre_id`/
+  `edge_site_id` location (`network_capabilities` -> `clusters` -> `cluster_agents`, status
+  `active`, most-recently-registered agent wins if more than one cluster shares that location).
+- **`cmd/mockclusteragent` extended**: handles `network_service_provision` messages (discriminated
+  by the payload's `action` field) by applying them to an in-memory `networkadapter.Mock` and
+  signing back a result to the network-services-owned `network-provision-result` endpoint --
+  exactly parallel to how it already handles `deployment_command`.
+- **Frontend**: `/dashboard/operator/[operatorId]/network-services` -- publish/pause/withdraw
+  network service offers against an already-registered network capability, view reservations held
+  against them and network health events. `/dashboard/enterprise/[tenantId]/network-services` --
+  browse the cross-operator marketplace, evaluate and reserve a network service (with the same
+  ranked/explained evaluation display Milestone 5's placement page uses), cancel a reservation,
+  view network health events for the tenant's own reservations. Both linked from their respective
+  overview pages.
+
+### Deliberate security decisions worth calling out
+- **Network reservations have no dual-control approval step at all -- the only reservation-like
+  resource in this codebase without one.** Every other reservation pattern (`capacity_reservations`,
+  `model_versions`, `workload_versions`, `vulnerability_exceptions`, `deployment_plans`) has a
+  requested-by/approved-by pair with a no-self-approval CHECK constraint, driven by some
+  per-request "does this need approval" source (`workload_versions.deployment_approval_required`
+  for capacity reservations). Network reservations have no analogous source to drive that decision
+  from, so a successful `EvaluateAndReserve` call commits immediately -- documented explicitly in
+  migration `0030`'s header comment and reflected in the schema itself (`network_reservations` has
+  no `requested_by`/`approved_by` pair, only a single `requested_by`).
+- **Two genuinely new permission keys, not four.** Rather than minting `network.request`/
+  `network.cancel` mirroring `reservations.create`/`reservations.cancel`, migration `0031` reuses
+  the already-generically-named existing keys directly, since both are named generically enough
+  ("reservations.*", not "capacity_reservations.*") to already cover the new resource type
+  conceptually, and the same infra/platform-engineering roles that hold them for capacity
+  reservations are the right roles to hold them for network reservations too. Only `network.view`
+  and `operator.network.manage` are genuinely new. `operator_network_administrator` (seeded in
+  migration `0002`, described as "Manages operator network capabilities" since Milestone 1, but
+  holding no network-specific permission at all until now) is strong evidence this role was seeded
+  in anticipation of exactly this permission -- the same "roles anticipate milestones" pattern
+  found repeatedly across this project (e.g. Milestone 5's `operator.reservations.view`).
+- **ConnectivityPolicy, NetworkSLA, and NetworkUsageRecord are deliberately not built as separate
+  tables.** ConnectivityPolicy overlaps with `workload_versions.network_requirements` (Milestone 4)
+  and existing sovereignty-policy dimensions (public-network restrictions, private-connectivity
+  requirements) closely enough that a dedicated policy-engine integration for it is future work,
+  not a Milestone 9 gap; NetworkSLA is folded into the offer's `max_latency_ms` commitment field
+  rather than a separate entity; NetworkUsageRecord is explicitly deferred to a future usage/
+  metering milestone, mirroring Milestone 5's own explicit deferral of commercial/billing gating.
+  `EvaluateAndReserve` correspondingly does not run any sovereignty-policy evaluation at all (no
+  `policyengine.Client` dependency in this module) -- a deliberate scope boundary, visible in every
+  evaluation's `explanation` field never mentioning sovereignty, not a silently-assumed pass.
+- **A single message type plus an `action` field, not a second type pair, for release.** Rather
+  than widening `control_messages.message_type`'s CHECK constraint a second time for
+  `network_service_release`/`_result`, `networkProvisionPayload` gained an `action` field
+  (`"provision"` or `"release"`) discriminating within the one `network_service_provision` type --
+  the exact convention `deployment_command` already established for its own six actions
+  (deploy/scale/pause/resume/rollback/terminate), reused here rather than mechanically re-widening
+  the CHECK constraint a second time in the same migration.
+- **A failed cluster-agent resolution does not block the reservation from committing.** Bandwidth
+  is a real, atomically-reserved commercial resource the instant `EvaluateAndReserve` succeeds;
+  whether a cluster agent happens to be reachable to actually provision it is a separate,
+  asynchronous concern tracked by `provisioning_status`, not a precondition for the reservation
+  itself to exist -- consistent with how `capacity_reservations` in Milestone 5 also does not
+  require a cluster agent to exist at reservation time (only Milestone 7's `CreateDeployment`
+  does, for a different resource).
+
+### Verification performed (not just claimed)
+- Migrations `0030`/`0031` applied cleanly against a real Postgres via the automated test suite;
+  all four new tables, their RLS policies, the append-only trigger on `network_health_events`, the
+  widened `control_messages.message_type` CHECK constraint, and both new permission keys confirmed
+  present via direct queries. Also applied cleanly (and confirmed idempotent, run twice) against
+  the separate `gridkeep` development database (verified via `psql \d` and direct `SELECT`s under
+  `app.platform_bypass`).
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including the new `networkservices` module and `networkadapter`
+  platform package.
+- 1 new unit test in `internal/platform/networkadapter` (`TestMockProvisionAndReleaseLifecycle` --
+  release-before-provision rejection, provision success, idempotent re-provisioning overwrite,
+  non-positive-bandwidth rejection, release-after-provision success) and 3 new integration tests
+  in `internal/app`, run against a real Postgres via real HTTP with genuine ECDSA keys and
+  signatures throughout: `TestNetworkServiceEvaluateReserveProvisionAndCancel` (the complete round
+  trip -- evaluate and reserve against a real published offer, the reservation commits immediately
+  with no approval step, bandwidth is atomically decremented, the resolved cluster agent polls for
+  and signs back a provisioning result, the reservation's `provisioning_status` and a
+  `network_health_event` both reflect it, cancelling releases the bandwidth and drives a signed
+  release command through the identical channel, both operator and tenant see the resulting health
+  events); `TestNetworkServiceEvaluateRejectsInsufficientBandwidth` (a request exceeding every
+  offer's available bandwidth is evaluated with an `INSUFFICIENT_BANDWIDTH` reason code but never
+  reserved); `TestNetworkServiceSimulateDoesNotReserveBandwidth` (`simulate=true` runs the full
+  evaluation/ranking/explanation pipeline without ever touching `available_bandwidth_gbps` or
+  creating a reservation). All pass alongside the full pre-existing Milestone 1-8 suite (55 total
+  `internal/app` tests) with zero regressions.
+- `cmd/mockclusteragent` was not run live against a running `cmd/server` process in this sandboxed
+  session, for the same reason as every prior milestone since Milestone 4: this environment's
+  Docker Hub egress is blocked and no MinIO instance is reachable, and `cmd/server` requires a live
+  object-storage connection to start at all. The integration test suite exercises byte-identical
+  Go code paths (the same `internal/modules/networkservices` service methods, the same real ECDSA
+  operations) via `httptest`, the validation method this project has used since Milestone 1 for
+  exactly this reason.
+- The fictional seed data **was** extended this milestone, unlike Milestone 6/7/8's deployment/
+  attestation identity: one network capability and one network service offer per demo operator
+  (mirroring the existing capacity-offer seed block exactly -- neither needs a bootstrapped cluster
+  agent, only the already-seeded operator/data-centre/network-capability chain), plus one
+  already-committed network reservation for Falcon National Bank against the cheaper (EuroNorth)
+  eligible offer. `cluster_agent_id` is left `NULL` and `provisioning_status` stays at its
+  `pending` default -- honest, since no cluster agent identity is seeded (the same reason
+  Milestone 6/7/8 did not seed one); no `network_health_event` is seeded either, since none
+  genuinely occurred against an unprovisioned reservation. Verified idempotent by running the seed
+  script twice against a freshly recreated `gridkeep` database and confirming row counts and
+  `available_bandwidth_gbps` did not change on the second run.
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5/5 existing tests unchanged), and `next build`
+  all pass with the two new network-services routes included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 9 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Private connectivity / private 5G / network slice capability categories | ✅ `network_capabilities.capability_type` (Milestone 2) is the inventory this milestone's offers are built against; `service_class` on the offer is the free-text marketplace label |
+| Bandwidth reservations | ✅ `network_reservations.bandwidth_gbps`, atomically reserved/released against the offer's `available_bandwidth_gbps` |
+| Latency objectives | ✅ `max_latency_ms` on both the offer (a commitment) and the request (a filter), enforced in `EvaluateAndReserve`'s eligibility check |
+| Network-service requests | ✅ `network_service_requests` + `EvaluateAndReserve`'s deterministic filter/rank/reserve flow |
+| Network-health events | ✅ `network_health_events`, append-only, populated by `AgentReportProvisionResult` |
+| Workload-to-network correlation | ✅ `network_service_requests.deployment_id` / `network_reservations.deployment_id`, both optional FKs to Milestone 7's `deployments` |
+| Mock network-service adapter | ✅ `internal/platform/networkadapter.Mock`, driven by `cmd/mockclusteragent` |
+| Do not replace operator network control systems | ✅ `networkadapter.Adapter` is the delegated-access boundary by construction, stated in its package doc, only a cluster agent ever calls it |
+| No AI-only placement/ranking decisions | ✅ `EvaluateAndReserve`'s ranking is a plain, deterministic cost sort, identical discipline to Milestone 5's placement engine |
+| Infrastructure/cluster/vault credentials never exposed to the frontend | ✅ unaffected -- this milestone introduces no new credential material |
+| Backend permissions are enforced | ✅ two new permission keys plus two deliberately reused ones, all gated correctly; the machine-authenticated route requires a valid certificate signature |
+| Cross-tenant/cross-operator isolation holds | ✅ dual-scope RLS on `network_reservations`/`network_health_events`, operator-scope + enterprise-read-only RLS on `network_service_offers`, tenant-scope RLS on `network_service_requests`/`network_service_evaluations` |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0030`/`0031` applied cleanly against both the test database and the separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new `networkadapter` unit test + 3 new integration tests + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, vitest (5/5) |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 10 has not begun | ✅ confirmed -- no Milestone 10 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -1749,6 +1951,26 @@ See `docs/adr/`:
     until that result ages out of the freshness window. Revisit if a future milestone needs
     immediate revocation semantics (e.g., invalidating all attestation_results tied to a revoked
     policy_id).
+41. **(Milestone 9) `EvaluateAndReserve` does not evaluate sovereignty policy at all** — unlike
+    Milestone 5's placement engine, this milestone's network-service evaluation only checks
+    bandwidth/latency/service-class; there is no `policyengine.Client` call and no
+    ConnectivityPolicy dimension. Deliberate scope boundary (see Deliberate security decisions),
+    visible in every evaluation's `explanation` field never mentioning sovereignty. Revisit once a
+    future milestone extends the policy engine with a network/connectivity dimension.
+42. **(Milestone 9) Network reservations have no dual-control approval, unlike every other
+    reservation-like resource in this codebase** — an accepted, documented scope decision (see
+    Deliberate security decisions), not an oversight; there is no per-request source analogous to
+    `workload_versions.deployment_approval_required` to drive one. Revisit only if a future
+    milestone introduces a per-tenant or per-service-class approval requirement for network
+    reservations specifically.
+43. **(Milestone 9) `NetworkUsageRecord` (metering/billing) is not built** — explicitly deferred,
+    mirroring Milestone 5's own deferral of commercial/billing gating for capacity reservations. A
+    future usage/metering milestone owns this.
+44. **(Milestone 9) `cmd/mockclusteragent`'s network-provisioning flow has not been run against a
+    live `cmd/server` process in this sandboxed session** — the same Docker Hub egress /
+    unreachable-MinIO limitation documented since Milestone 4 (Known Limitation 15), not anything
+    specific to this milestone's code; validated instead via `httptest`-based integration tests
+    exercising the identical Go code paths.
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -1932,32 +2154,55 @@ findings from the subsequent independent review.
   endpoints do), so the "fourth use" trigger Milestone 7's Unresolved Risks entry mentioned for
   writing a standalone ADR on the pattern has not yet occurred. Still worth prioritizing before it
   does.
+- **(Milestone 9) `withPlatformBypass` is now used by a fourth module**
+  (`internal/modules/networkservices`, after Milestone 2's ADR-0007-documented exception,
+  Milestone 5's `internal/modules/placement`, and Milestone 7's `internal/modules/deployments`) —
+  this is the exact trigger Milestone 7's own Unresolved Risks entry said should prompt writing a
+  standalone ADR for the pattern rather than continuing to re-explain it inline in each milestone's
+  docs. Still not done as of this milestone; should be prioritized before a fifth use makes the
+  inline explanation harder to keep consistent across modules.
+- **(Milestone 9) A committed-but-unprovisioned network reservation (no active cluster agent could
+  be resolved) has no automatic retry or alerting** — `provisioning_status` is set to `failed` and
+  is visible to both the operator and the tenant via the API/frontend, but nothing in this
+  milestone re-attempts provisioning once a cluster agent later becomes available, or notifies
+  anyone proactively. Acceptable for this milestone's scope (a marketplace and provisioning
+  protocol, not an operations/alerting platform); revisit if a future milestone adds a background
+  worker that could periodically retry `failed` provisioning attempts.
 
 ## Pending Approvals
 
-None outstanding for Milestones 1-8. Awaiting explicit approval before any Milestone 9 work
+None outstanding for Milestones 1-9. Awaiting explicit approval before any Milestone 10 work
 begins.
 
 ## Next Action
 
-Milestone 8 (Confidential Computing and Attestation) is complete: a provider-neutral
-`internal/platform/attestation.Provider` abstraction (verifier-side, the opposite trust
-direction from Milestone 6/7's agent-side local enforcement) with a clearly-labelled
-`MockProvider`; an operator configures what a confidential-computing-capable cluster's hardware
-is expected to report (`attestation_policies`, one active policy per cluster); a cluster agent
-requests a server-issued challenge (`attestation_sessions` -- the nonce is minted by control-api,
-the reverse of every prior milestone's agent-mints-its-own-nonce pattern) and submits signed
-evidence bound to a specific deployment; control-api verifies it and records an immutable,
-append-only result (`attestation_results`); `internal/modules/deployments`' `AgentFetchSecrets`
-now requires a fresh, passing attestation before releasing any workload secret for a
-confidential-computing-required deployment (the "key-release architecture" requirement);
-`cmd/mockclusteragent` runs the attestation protocol itself when a secrets fetch is rejected for
-that reason; and a tenant's "customer verification view" only ever sees a redacted result
-(decision/provider/reason codes), never raw evidence or measurements, enforced by the underlying
-query never selecting those columns rather than by response-shaping alone. Both frontend pages
-(operator policy management + attestation results, enterprise attestation status) are built and
-pass the full validation battery. Fictional seed data intentionally does not include attestation
-identity/policies/results, for the reasons documented above (mirroring Milestone 6/7's own
-precedent) — the real crypto and full protocol are proven via `cmd/mockclusteragent` and the
-integration suite instead. Await explicit approval (per working rule #4) before starting
-Milestone 9 (Network and Edge Services) work. **No Milestone 9 code has been written.**
+Milestone 9 (Network and Edge Services) is complete: the marketplace layer on top of Milestone 2's
+static `network_capabilities` inventory (the same relationship Milestone 5's `capacity_offers` has
+to `node_pools`/`accelerators`) -- an operator publishes a network service offer against a
+capability it owns (`network_service_offers`, a fourth RLS combination in this codebase: operator
+mutate + any-tenant-reads-active-offers + platform bypass); a tenant evaluates and reserves one
+through a deterministic, explainable filter/rank pass mirroring Milestone 5's placement engine
+exactly (`network_service_requests`/`network_service_evaluations`); a successful, non-simulated
+reservation commits **immediately, with no dual-control approval step at all** (the one
+reservation-like resource in this codebase without one -- there is no analogue to
+`workload_versions.deployment_approval_required` to drive that decision), and is provisioned by
+resolving the offer's capability's location to an active cluster agent and sending it a signed
+`network_service_provision` control message over Milestone 6/7's existing `control_messages`
+channel (a single message type discriminated by an `action` field -- `"provision"` or `"release"`
+-- reusing `deployment_command`'s own convention rather than widening the CHECK constraint a
+second time); `cmd/mockclusteragent` applies it to a new in-memory
+`internal/platform/networkadapter.Mock` and signs back a result, recorded both as
+`provisioning_status` and as an append-only `network_health_event`. Two genuinely new permission
+keys (`network.view`, `operator.network.manage`); reservation lifecycle actions deliberately reuse
+`reservations.create`/`reservations.cancel`/`operator.reservations.view` rather than minting
+network-specific equivalents. ConnectivityPolicy/NetworkSLA/NetworkUsageRecord are deliberately not
+built as separate entities this milestone (folded into existing fields or explicitly deferred --
+see Deliberate security decisions). Both frontend pages (operator offer management + reservations/
+health events, enterprise marketplace browse/evaluate/reserve/cancel) are built and pass the full
+validation battery. Unlike Milestone 6/7/8's deployment/attestation identity, the fictional seed
+data **was** extended this milestone with one network capability, one offer per demo operator, and
+one committed (but honestly unprovisioned -- no cluster agent identity is seeded) reservation for
+Falcon National Bank, verified idempotent across two runs. `withPlatformBypass` is now used by a
+fourth module (flagged in Unresolved Risks as the trigger for writing a standalone ADR, not yet
+done). Await explicit approval (per working rule #4) before starting Milestone 10 work.
+**No Milestone 10 code has been written.**

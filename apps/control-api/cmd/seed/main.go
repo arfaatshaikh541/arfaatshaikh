@@ -574,6 +574,127 @@ func main() {
 		}
 	}
 
+	// --- Network and Edge Services (Milestone 9) -----------------------------
+	// One network capability and one network service offer per demo operator
+	// (mirroring the capacity offer block above), plus one already-committed
+	// network reservation for Falcon -- inserted directly, like every other
+	// already-approved row in this script. This milestone's EvaluateAndReserve
+	// does not yet gate on sovereignty policy (see docs/project-status.md's
+	// Deliberate security decisions for Milestone 9), so both offers are
+	// eligible here and ranking is by price alone, EuroNorth's cheaper offer
+	// winning -- exactly what a real evaluate call against this seed data
+	// would produce. cluster_agent_id is left NULL and provisioning_status
+	// stays at its 'pending' default, for the same reason Milestone 6/7/8's
+	// seed data does not fabricate a cluster agent identity: a realistic
+	// provisioning result requires a real bootstrapped agent, which a
+	// schema-migration-style seed script cannot produce. No network health
+	// event is seeded either, since none genuinely occurred against this
+	// unprovisioned reservation.
+	var gulfNetworkCapabilityID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM network_capabilities WHERE operator_id = $1 AND data_centre_id = $2`, gulfHorizonID, gulfDataCentre).Scan(&gulfNetworkCapabilityID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO network_capabilities (operator_id, data_centre_id, capability_type, bandwidth_gbps, estimated_latency_ms)
+			VALUES ($1, $2, 'private_5g', 50, 8)
+			RETURNING id
+		`, gulfHorizonID, gulfDataCentre).Scan(&gulfNetworkCapabilityID); err != nil {
+			fatal("seed Gulf Horizon network capability", err)
+		}
+	}
+
+	var euroNorthNetworkCapabilityID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM network_capabilities WHERE operator_id = $1 AND data_centre_id = $2`, euroNorthID, euroNorthDataCentre).Scan(&euroNorthNetworkCapabilityID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO network_capabilities (operator_id, data_centre_id, capability_type, bandwidth_gbps, estimated_latency_ms)
+			VALUES ($1, $2, 'network_slice', 100, 15)
+			RETURNING id
+		`, euroNorthID, euroNorthDataCentre).Scan(&euroNorthNetworkCapabilityID); err != nil {
+			fatal("seed EuroNorth network capability", err)
+		}
+	}
+
+	var gulfNetworkOfferID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM network_service_offers WHERE operator_id = $1 AND network_capability_id = $2`, gulfHorizonID, gulfNetworkCapabilityID).Scan(&gulfNetworkOfferID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO network_service_offers (
+				operator_id, network_capability_id, region_id, service_class, total_bandwidth_gbps,
+				available_bandwidth_gbps, max_latency_ms, price_per_unit_hour, currency, created_by
+			)
+			VALUES ($1, $2, $3, 'private-5g-standard', 50, 50, 8, 2.50, 'USD', $4)
+			RETURNING id
+		`, gulfHorizonID, gulfNetworkCapabilityID, meCentral, users[gulfHorizonOwnerEmail].id).Scan(&gulfNetworkOfferID); err != nil {
+			fatal("seed Gulf Horizon network service offer", err)
+		}
+	}
+
+	var euroNorthNetworkOfferID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM network_service_offers WHERE operator_id = $1 AND network_capability_id = $2`, euroNorthID, euroNorthNetworkCapabilityID).Scan(&euroNorthNetworkOfferID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO network_service_offers (
+				operator_id, network_capability_id, region_id, service_class, total_bandwidth_gbps,
+				available_bandwidth_gbps, max_latency_ms, price_per_unit_hour, currency, created_by
+			)
+			VALUES ($1, $2, $3, 'network-slice-standard', 100, 100, 15, 1.20, 'USD', $4)
+			RETURNING id
+		`, euroNorthID, euroNorthNetworkCapabilityID, euCentral, users[euroNorthOwnerEmail].id).Scan(&euroNorthNetworkOfferID); err != nil {
+			fatal("seed EuroNorth network service offer", err)
+		}
+	}
+
+	var falconNetworkRequestID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM network_service_requests WHERE enterprise_tenant_id = $1`, falconTenantID).Scan(&falconNetworkRequestID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO network_service_requests (enterprise_tenant_id, required_bandwidth_gbps, max_latency_ms, simulate, status, requested_by)
+			VALUES ($1, 5, 20, false, 'reserved', $2)
+			RETURNING id
+		`, falconTenantID, users[falconOwnerEmail].id).Scan(&falconNetworkRequestID); err != nil {
+			fatal("seed Falcon network service request", err)
+		}
+
+		eligibleExplanation, _ := json.Marshal(map[string]any{
+			"bandwidth":     map[string]any{"available_bandwidth_gbps": 100, "required_bandwidth_gbps": 5, "passed": true},
+			"latency":       map[string]any{"required_max_latency_ms": 20, "offer_max_latency_ms": 15, "passed": true},
+			"service_class": map[string]any{"required_service_class": nil, "offer_service_class": "network-slice-standard", "passed": true},
+			"cost":          map[string]any{"price_per_unit_hour": 1.20, "estimated_cost": 6.00},
+		})
+		gulfEligibleExplanation, _ := json.Marshal(map[string]any{
+			"bandwidth":     map[string]any{"available_bandwidth_gbps": 50, "required_bandwidth_gbps": 5, "passed": true},
+			"latency":       map[string]any{"required_max_latency_ms": 20, "offer_max_latency_ms": 8, "passed": true},
+			"service_class": map[string]any{"required_service_class": nil, "offer_service_class": "private-5g-standard", "passed": true},
+			"cost":          map[string]any{"price_per_unit_hour": 2.50, "estimated_cost": 12.50},
+		})
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO network_service_evaluations (
+				enterprise_tenant_id, network_service_request_id, network_service_offer_id, operator_id, region_id,
+				service_class, decision, rank, estimated_cost, reason_codes, explanation
+			) VALUES
+				($1, $2, $3, $4, $5, 'network-slice-standard', 'eligible', 1, 6.00, '[]'::jsonb, $6),
+				($1, $2, $7, $8, $9, 'private-5g-standard', 'eligible', 2, 12.50, '[]'::jsonb, $10)
+		`, falconTenantID, falconNetworkRequestID, euroNorthNetworkOfferID, euroNorthID, euCentral, eligibleExplanation,
+			gulfNetworkOfferID, gulfHorizonID, meCentral, gulfEligibleExplanation); err != nil {
+			fatal("seed Falcon network service evaluations", err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO network_reservations (
+				enterprise_tenant_id, operator_id, network_service_request_id, network_service_offer_id,
+				bandwidth_gbps, price_per_unit_hour, estimated_cost, status, requested_by, committed_at
+			)
+			VALUES ($1, $2, $3, $4, 5, 1.20, 6.00, 'committed', $5, now())
+		`, falconTenantID, euroNorthID, falconNetworkRequestID, euroNorthNetworkOfferID, users[falconOwnerEmail].id); err != nil {
+			fatal("seed Falcon network reservation", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE network_service_offers SET available_bandwidth_gbps = available_bandwidth_gbps - 5 WHERE id = $1 AND available_bandwidth_gbps >= 5
+		`, euroNorthNetworkOfferID); err != nil {
+			fatal("apply Falcon reservation to EuroNorth network service offer", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}
