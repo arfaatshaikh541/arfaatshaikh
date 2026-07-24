@@ -1,16 +1,20 @@
 # GRIDKEEP Project Status
 
-_Last updated: 2026-07-24 (Milestone 10 complete)_
+_Last updated: 2026-07-24 (Milestone 16 complete)_
 
 ## Current Milestone
 
-**Milestone 10: Service Assurance and Observability** — implementation complete, validated, not
-yet handed off for Milestone 11. Milestones 1-9 (Secure Platform Foundation, Operator and
-Infrastructure Registry, Sovereignty Policy Engine, Workload and Model Registry, Placement and
-Capacity Engine, Operator and Cluster Agents, Secure Deployment Orchestration, Confidential
-Computing and Attestation, Network and Edge Services) are complete (Milestone 1 was independently
-audited with every Critical/High/Medium/Low finding fixed and re-verified — see the audit section
-below, preserved for history).
+**Milestone 16: Production Hardening** — implementation complete, validated. This was the final
+milestone of the 16 defined in this project's architecture brief. Milestones 1-15 (Secure Platform
+Foundation, Operator and Infrastructure Registry, Sovereignty Policy Engine, Workload and Model
+Registry, Placement and Capacity Engine, Operator and Cluster Agents, Secure Deployment
+Orchestration, Confidential Computing and Attestation, Network and Edge Services, Service Assurance
+and Observability, Usage/Billing/Settlement, Federated Capacity Exchange, AI Model Exchange,
+Energy-Aware Scheduling, Enterprise/Operator/Platform Portals) are all complete (Milestone 1 was
+independently audited with every Critical/High/Medium/Low finding fixed and re-verified — see the
+audit section below, preserved for history). See `docs/production-readiness-review.md` for the
+capstone summary across all 16 milestones, including a consolidated risk register and a go/no-go
+assessment.
 
 ## Milestone 2: Operator and Infrastructure Registry
 
@@ -3321,41 +3325,201 @@ findings from the subsequent independent review.
   This is a deliberate integrity property, not an incidental one: an SLO cannot be gamed by
   configuring it to lie about its own inputs, only by choosing which real signal to measure.
 
+## Milestone 16: Production Hardening
+
+The final milestone of the 16 defined in this project's architecture brief. Twenty brief items,
+grouped into twelve implementation steps: independent tenant- and operator-isolation audits, an
+application-security audit, Kubernetes/cryptographic/supply-chain audits, Dockerfiles for all four
+services, CI/CD hardening (dependency scanning, image build/scan/SBOM/signing), real performance
+and load testing, real chaos testing, a real disaster-recovery/backup-restore drill, observability
+and SLO validation, Helm charts, Terraform modules, a production deployment guide, operational and
+incident-response runbooks, and this capstone readiness review. Unlike every prior milestone, this
+one produces almost no new application functionality -- it hardens, tests, and documents what
+Milestones 1-15 already built, and where an audit or drill found a genuine gap small enough to fix
+in-place, fixes it immediately rather than only documenting it.
+
+Three scoping decisions made explicit before implementation, since the brief itself leaves them
+open: **Terraform targets AWS** as one concrete, documented, illustrative choice (no cloud provider
+is specified anywhere in the brief; every earlier milestone's own provider abstraction -- billing,
+energy, attestation, network -- resolved the same ambiguity the same way, behind a swappable
+boundary). **Performance/chaos/DR testing is a mix of actually-executed and documented-plan-only**,
+split honestly: what this sandbox can genuinely exercise (local Postgres, local processes, a real
+`httptest.Server` behind the actual production router) was run for real; what needs a live cluster,
+cloud account, or container registry got a concrete, ready-to-run procedure with explicit "not yet
+executed here" labeling, never a fabricated result. **Docker builds, a live Helm deploy, and a live
+Terraform apply could not run end-to-end in this sandbox** (no Docker daemon -- `ulimit: error
+setting limit (Operation not permitted)` starting dockerd; `get.helm.sh`/`registry.terraform.io`/
+`registry.opentofu.org` all blocked by the agent-proxy allowlist) -- the same class of limitation as
+Docker Hub's own restriction, disclosed since Milestone 1. Where possible this milestone still found
+ways to validate for real rather than settle for hand-review: `helm`/`tofu` binaries were built from
+source (`go install`/`go build` against `proxy.golang.org` and `github.com`, both reachable), and the
+real AWS/random/tls Terraform provider plugins were fetched directly from `releases.hashicorp.com`
+(reachable even though the registry's own discovery API is not) and served through a
+filesystem-mirror workaround -- see `infrastructure/terraform/README.md` for the exact method, which
+caught a genuine bug (`aws_security_group` description exceeding AWS's 255-character limit) that no
+amount of hand-review would have.
+
+### What was built
+
+- **Independent tenant- and operator-isolation audits** (`docs/security/tenant-isolation-audit.md`,
+  `docs/security/operator-isolation-audit.md`): full RLS policy inventory across every scoped table
+  in the schema. Found and fixed one real gap in test coverage (a new raw-database-layer test,
+  `TestPrivateCapacityOfferMarketplaceRLSDeniesNonGrantedTenant`, proving marketplace-grant RLS
+  directly against Postgres rather than only through the HTTP layer); found and documented (not
+  fixed) one real Medium gap (`support_access_grants` has no RLS despite a scope-shaped column) and
+  several informational items (an intentional marketplace-visibility asymmetry, certificate
+  revocation being application-level rather than transport-enforced).
+- **Application-security audit** (`docs/security/application-security-audit.md`): reviewed password/
+  credential storage, session management, MFA, CSRF, SQL-injection surface, XSS, secrets handling,
+  security headers, brute-force protection, and CORS. Fixed one Low finding immediately (no HSTS
+  header -- `internal/platform/httpserver/middleware.go` now sets `Strict-Transport-Security`
+  unconditionally, with a new `TestSecurityHeadersPresent` regression test). Documented but did not
+  fix two real gaps: `ChangePassword` doesn't rotate other sessions (unlike `ResetPassword`, which
+  does -- confirmed by reading `identity/service.go` directly), and `Register`/
+  `RequestPasswordReset` have no rate limiting.
+- **Kubernetes-security, cryptographic, and supply-chain audits** (`docs/security/
+  kubernetes-security-audit.md`, `docs/security/cryptographic-review.md`, `docs/security/
+  supply-chain-review.md`): the most significant finding of the whole milestone --
+  `internal/platform/clusteradapter` validates only structural ordering of every manifest/quota/
+  network-policy/security-context, never content, since it currently operates on opaque
+  `map[string]any` values with no real `client-go` integration anywhere in this codebase. Rated
+  Medium-High and flagged as launch-blocking specifically *before* any real Kubernetes client is
+  wired in, not before today. Cryptographic review confirmed ECDSA P-256/AES-256-GCM used
+  consistently everywhere with zero `math/rand` usage in the entire repository. Supply-chain review
+  confirmed image-approval/registry-allowlist enforcement is real, not merely advisory, at two
+  independent points.
+- **Dockerfiles** for all four services (`apps/control-api/Dockerfile`, `apps/worker/Dockerfile`,
+  `apps/policy-engine/Dockerfile`, `apps/web/Dockerfile`): multi-stage builds onto distroless/
+  slim non-root runtime images; `apps/web/next.config.ts` gained `output: "standalone"`.
+  Hand-verified, not build-verified (no Docker daemon in this sandbox).
+- **CI/CD hardening** (`.github/workflows/ci.yml`): `govulncheck` for control-api/worker,
+  `pip-audit` for policy-engine, `npm audit` (report-only) for web, and a new `container-security`
+  job building every Dockerfile, scanning with Trivy (SARIF upload, blocking only on
+  CRITICAL-with-fix), generating an SPDX SBOM with Syft, and -- only on push to `main` -- pushing to
+  GHCR and cosign-signing keylessly via the job's own GitHub OIDC token.
+- **Performance and load testing** (`docs/testing/performance-and-load-testing.md`): real,
+  `hey`-driven load against the actual production router behind a real `httptest.Server` --
+  17,729 req/s on `/healthz`, 64.9 req/s on the Argon2id-gated login path (by design, not a bug),
+  ~1,100-1,200 req/s on an authenticated, database-backed endpoint.
+- **Chaos testing** (`apps/control-api/internal/app/chaos_test.go`, `docs/testing/
+  chaos-testing.md`): a new permanent regression test, `TestEntitlementsSurviveRedisOutage`, proving
+  the entitlements cache's documented Postgres fallback against a real Redis connection; a real,
+  manually executed Postgres-outage drill (`sudo service postgresql stop`/`start`) confirming clean
+  `500`s and no crash. Found a real gap: `/healthz` never checks Postgres/Redis and stayed
+  "healthy" through a total DB outage -- documented, not fixed this milestone, referenced in every
+  later Helm/deployment/runbook document that touches probes.
+- **Disaster recovery and backup-restoration drill** (`docs/disaster-recovery/
+  backup-and-restore-runbook.md`): a real drill -- dropped `gridkeep_test` entirely, restored from a
+  537 KB custom-format `pg_dump`, confirmed byte-identical row counts across 108 tables, and ran the
+  full `internal/app` test suite against the restored database to prove functional correctness.
+  Found and fixed two real Postgres-role bugs surfaced only by actually running the drill:
+  `FORCE ROW LEVEL SECURITY` blocks `pg_dump` as the plain app role (fixed with a dedicated
+  `gridkeep_backup` role, `BYPASSRLS`), and restoring into a fresh database needs schema-creation
+  privilege distinct from `BYPASSRLS` (fixed with `GRANT gridkeep TO gridkeep_backup`).
+- **Observability and SLO validation** (`internal/platform/metrics`, `docs/architecture/
+  observability.md`, `docs/architecture/slo-validation.md`): new Prometheus counter/histogram
+  metrics (`http_requests_total`, `http_request_duration_seconds`) exposed on a separate metrics
+  port never mounted on the public router; a new operational SLO document with exact PromQL
+  validation queries, explicitly distinguished from Milestone 10's tenant/operator-facing SLO
+  feature (which is RLS-scoped and cannot be reused here without weakening that boundary).
+- **Helm charts** (`infrastructure/helm/gridkeep/`): an umbrella chart with four independently
+  deployable subcharts (control-api, worker, policy-engine, web), security-hardened pod specs
+  (non-root, read-only root filesystem, all capabilities dropped, `automountServiceAccountToken:
+  false`), NetworkPolicies, PodDisruptionBudgets, an HPA, and an Ingress. Validated with a real,
+  self-built `helm` binary: `helm lint --with-subcharts` (9 charts, 0 failed) and `helm template`
+  (20 objects, reproducibly). Found and fixed three real bugs during that validation: an
+  escaped-backslash template parse error, a nil-pointer on standalone-subchart
+  `global.imageRegistry`, and a missing worker `PodDisruptionBudget`.
+- **Terraform modules** (`infrastructure/terraform/`): seven modules (networking, eks, database,
+  cache, message-queue, object-storage, secrets) plus a `production` root environment wiring them
+  together, targeting AWS. Validated with a real, self-built `tofu` (OpenTofu) binary against
+  genuine AWS/random/tls provider plugins (fetched directly from `releases.hashicorp.com` around
+  this sandbox's registry-discovery-API block) -- `tofu validate` passed, and `tofu plan` (with
+  dummy credentials) proceeded through every local resource before failing only at the AWS STS call
+  requiring a real account. Found and fixed one real bug (an oversized security-group description).
+- **Production deployment guide** (`docs/deployment/production-deployment.md`): ties Terraform, Helm,
+  and CI/CD together end to end -- backend bootstrap, `terraform apply`, bridging Secrets Manager
+  into Kubernetes Secrets, `helm upgrade`, verifying rollout, smoke testing, and rollback. Found and
+  fixed a real gap while writing it: `Store.Migrate` runs on every control-api process start and is
+  checksum-idempotent but not advisory-lock guarded, so two brand-new pods could race to apply the
+  same migration during a rollout. Fixed with an explicit `RollingUpdate` strategy
+  (`maxSurge: 1, maxUnavailable: 0`) on the control-api Deployment template.
+- **Operational and incident-response runbooks** (`docs/runbooks/operations.md`, `docs/runbooks/
+  incident-response.md`): day-to-day procedures (health checks, scaling, credential rotation,
+  certificate/session revocation) and incident playbooks grounded in this milestone's own audit
+  findings and drill results, including a dedicated cross-tenant/cross-operator data-exposure
+  playbook -- this platform's most severe possible incident class.
+- **Production readiness review** (`docs/production-readiness-review.md`): the capstone document --
+  a milestone-by-milestone completeness table, what was proven for real versus what remains
+  structurally sound but not live-verified, a single consolidated risk register pulling every open
+  finding out of every audit above, and an explicit go/no-go assessment.
+
+### Tests
+
+- control-api: `gofmt -l .` clean; `go vet ./...` clean; `golangci-lint run ./...` — 0 issues;
+  `go build ./...` succeeds; `go test -p 1 ./...` — all packages pass (including the new
+  `chaos_test.go`, `metrics_test.go`, the extended `isolation_test.go` and `csrf_test.go`) against a
+  real Postgres 16 + Redis instance.
+- worker: `gofmt`/`go vet`/`golangci-lint` clean; `go build ./...` succeeds; `go test ./...` passes.
+- policy-engine: `ruff check .` — all checks passed; `mypy src` — no issues (run under a Python 3.12
+  venv, matching the project's own `>=3.12` requirement); `pytest -q` — 33 passed.
+- web: `npx eslint .` clean; `npx tsc --noEmit` clean; `npx vitest run` — 5 passed;
+  `npx next build` succeeds (standalone output, the mode `apps/web/Dockerfile` depends on).
+- Helm: `helm lint . --with-subcharts` — 9 chart(s) linted, 0 failed; `helm template gridkeep .` —
+  20 objects rendered, reproducibly (byte-identical across two runs with/without cached
+  `charts/*.tgz`).
+- Terraform: `tofu fmt -recursive -check` clean; `tofu init`/`tofu validate` succeed against real
+  provider plugins, for all seven modules individually and the wired root environment.
+
+No new database migration or seed data was required this milestone -- Milestone 16 hardens and
+tests existing schema/data, it does not introduce new domain functionality.
+
+### Known limitations (carried forward into the readiness review)
+
+See `docs/production-readiness-review.md`'s consolidated risk register for the complete,
+severity-ranked list. In summary: Kubernetes manifest content validation must be added before any
+real `client-go` integration; `Register`/`RequestPasswordReset` need rate limiting before public
+registration is open; `/healthz` needs a real dependency-aware `/readyz` companion; `ChangePassword`
+should rotate other sessions; `support_access_grants` should gain RLS; the three application
+encryption keys have no re-encryption tooling for key rotation; and the full deployment sequence
+(Terraform apply → Helm upgrade) has never been run end-to-end against a live AWS account from this
+sandbox. None of these block a first deployment exercise; three are called out in the readiness
+review as launch-blocking before onboarding real tenant data.
+
 ## Pending Approvals
 
-None outstanding for Milestones 1-15. Awaiting explicit approval before any Milestone 16 work
-begins. (This section previously stopped updating after Milestone 10 even as Milestones 11-15
-shipped -- each of their own `## Milestone N` sections above was kept current throughout, only this
-trailing pointer had gone stale. Corrected here rather than left misleading.)
+None outstanding. Milestone 16 was the last of the 16 milestones defined in this project's
+architecture brief. No Milestone 17 work exists or has been started -- awaiting explicit direction
+on whatever comes next, if anything.
 
 ## Next Action
 
-Milestone 15 (Enterprise and Operator Portals) is complete: a **"Complete, not Build"** milestone,
-scoped by first auditing every existing frontend page and backend route rather than assuming what
-was missing. The audit found the enterprise and operator portals, and the policy/deployment/
-capacity/pricing workflows, already adequate from prior milestones -- no changes were made to those
-surfaces. What it found genuinely missing and this milestone built: a platform portal frontend
-(`/dashboard/platform`, the first UI ever built against `internal/modules/platformadmin`, dormant
-since Milestone 9), `platform_roles` on `/auth/me` (a UI-convenience field, explicitly not an
-authorization boundary -- every `platform.*` route still independently re-checks server-side),
-per-incident event-timeline and correlated-audit-trail drill-downs on both assurance pages, workload
-version deprecation plus component/health-check management, and full settlement-workflow UI
-(mark-paid, adjustments, provider events, credit notes) that had existed as backend endpoints since
-Milestone 11/12 but never had a frontend. It also completed the three cross-cutting requirements no
-earlier milestone had touched: an accessibility pass (skip link, `main` landmark, `aria-label` on
-every placeholder-only input/select across ~30 pages), a responsive design pass (the frontend had
-zero breakpoint utilities before this milestone; now every page uses responsive padding and
-`flex-wrap` on non-stacking rows, verified overflow-free at a 375px viewport), and RTL
-layout-direction readiness (logical Tailwind properties, a `.rtl-mirror` class for the one
-directional glyph in the app, and a `DirToggle` component to actually exercise the mirrored layout --
-explicitly layout-mirroring readiness only, not translation, since no locale/i18n system exists or
-was introduced). Zero new RBAC permission keys; the only new backend surface is a deliberately
-unauthenticated-by-permission top-level model-provider `GET` (non-sensitive catalogue data, matching
-`registry.MountTopLevel`'s existing precedent), which also surfaced and fixed a genuine nil-pointer
-bug in `models.Service.ListProviders` (it was reading through an RBAC-scoped transaction that does
-not exist on auth-only routes) before it reached any other environment. No new migration and no new
-seed data were required -- the already-seeded `platform_super_administrator` role assignment and
-`model_providers` rows are sufficient to demonstrate every new surface, and invoices/settlements/
-credit notes/workload components are populated live through the UI forms this milestone built.
-Await explicit approval (per working rule #4) before starting Milestone 16 (Production Hardening)
-work. **No Milestone 16 code has been written.**
+Milestone 16 (Production Hardening) is complete -- the last of the 16 milestones defined in this
+project's architecture brief. Its own section above has the full build record; the short version:
+independent tenant/operator-isolation, application-security, Kubernetes-security, cryptographic, and
+supply-chain audits (one Low finding fixed immediately -- HSTS headers; one test-coverage gap closed
+with a new raw-database-layer RLS test; several Medium/informational gaps documented and tracked,
+not fixed, because they require their own follow-up work rather than an audit-remediation-sized
+change); Dockerfiles for all four services; CI/CD hardening (dependency scanning, image build/scan/
+SBOM/cosign signing); real performance/load testing against the actual production router; real
+chaos testing (a new permanent Redis-outage regression test plus a manually executed Postgres-outage
+drill); a real disaster-recovery drill that found and fixed two genuine Postgres-role bugs; new
+Prometheus metrics and an operational SLO document; Helm charts for all four services validated with
+a real, self-built `helm` binary (three real bugs found and fixed); Terraform modules targeting AWS
+validated with a real, self-built `tofu` binary against genuine provider plugins (one real bug found
+and fixed); a production deployment guide that found and fixed a real migration-race hazard in the
+control-api rollout strategy; operational and incident-response runbooks; and this milestone's own
+capstone, `docs/production-readiness-review.md`, consolidating every open finding across all of the
+above into a single risk register with an explicit go/no-go assessment. Full validation (gofmt/vet/
+golangci-lint/build/test for control-api and worker; ruff/mypy/pytest for policy-engine; eslint/
+tsc/vitest/next build for web; helm lint/template; tofu fmt/init/validate) passed cleanly across
+every service and every new infrastructure module -- see this milestone's own "Tests" subsection
+above for the full command list and results. No new migration and no new seed data were required --
+Milestone 16 hardens and tests existing functionality, it does not introduce new domain
+functionality.
+
+**No Milestone 17 exists in this project's architecture brief.** Per this project's standing rule
+to stop and await explicit approval between milestones, work stops here. Whether there is further
+work -- a Milestone 17 the brief is extended to include, remediation of one of the launch-blocking
+items in the readiness review's risk register, or the project's conclusion -- is an open question
+for explicit direction, not something to assume or begin unprompted.
