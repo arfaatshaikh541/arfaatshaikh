@@ -41,13 +41,14 @@ func clusterRegion(ctx context.Context, c conn, clusterID, operatorID uuid.UUID)
 
 const offerColumns = `id, operator_id, cluster_id, region_id, accelerator_type, total_capacity, available_capacity,
 	price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, status,
-	created_by, created_at, updated_at`
+	visibility, degraded, degraded_reason, created_by, created_at, updated_at`
 
 func scanOffer(row pgx.Row) (CapacityOffer, error) {
 	var o CapacityOffer
 	err := row.Scan(&o.ID, &o.OperatorID, &o.ClusterID, &o.RegionID, &o.AcceleratorType, &o.TotalCapacity,
 		&o.AvailableCapacity, &o.PricePerUnitHour, &o.Currency, &o.ConfidentialComputingAvailable,
-		&o.EstimatedKWhPerUnitHour, &o.Status, &o.CreatedBy, &o.CreatedAt, &o.UpdatedAt)
+		&o.EstimatedKWhPerUnitHour, &o.Status, &o.Visibility, &o.Degraded, &o.DegradedReason,
+		&o.CreatedBy, &o.CreatedAt, &o.UpdatedAt)
 	if err != nil {
 		return CapacityOffer{}, err
 	}
@@ -58,10 +59,10 @@ func createOffer(ctx context.Context, c conn, operatorID, regionID, createdBy uu
 	row := c.QueryRow(ctx, `
 		INSERT INTO capacity_offers (
 			operator_id, cluster_id, region_id, accelerator_type, total_capacity, available_capacity,
-			price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, created_by
-		) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10)
+			price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, visibility, created_by
+		) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING `+offerColumns, operatorID, in.ClusterID, regionID, in.AcceleratorType, in.TotalCapacity,
-		in.PricePerUnitHour, in.Currency, in.ConfidentialComputingAvailable, in.EstimatedKWhPerUnitHour, createdBy)
+		in.PricePerUnitHour, in.Currency, in.ConfidentialComputingAvailable, in.EstimatedKWhPerUnitHour, in.Visibility, createdBy)
 	o, err := scanOffer(row)
 	if err != nil {
 		return CapacityOffer{}, fmt.Errorf("insert capacity offer: %w", err)
@@ -115,11 +116,142 @@ func updateOffer(ctx context.Context, c conn, operatorID, id uuid.UUID, in Updat
 			available_capacity = COALESCE($3, available_capacity),
 			price_per_unit_hour = COALESCE($4, price_per_unit_hour),
 			status = COALESCE($5, status),
+			visibility = COALESCE($6, visibility),
+			degraded = COALESCE($7, degraded),
+			degraded_reason = COALESCE($8, degraded_reason),
 			updated_at = now()
 		WHERE id = $1 AND operator_id = $2
-	`, id, operatorID, in.AvailableCapacity, in.PricePerUnitHour, in.Status)
+	`, id, operatorID, in.AvailableCapacity, in.PricePerUnitHour, in.Status, in.Visibility, in.Degraded, in.DegradedReason)
 	if err != nil {
 		return false, fmt.Errorf("update capacity offer: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ---------------------------------------------------------------------
+// Bilateral agreements
+// ---------------------------------------------------------------------
+
+const agreementColumns = `id, operator_id, enterprise_tenant_id, status, currency, platform_fee_rate,
+	minimum_commitment_hours, minimum_commitment_amount, notes, created_by, created_at, updated_at, terminates_at`
+
+func scanAgreement(row pgx.Row) (BilateralAgreement, error) {
+	var a BilateralAgreement
+	err := row.Scan(&a.ID, &a.OperatorID, &a.EnterpriseTenantID, &a.Status, &a.Currency, &a.PlatformFeeRate,
+		&a.MinimumCommitmentHours, &a.MinimumCommitmentAmount, &a.Notes, &a.CreatedBy, &a.CreatedAt, &a.UpdatedAt, &a.TerminatesAt)
+	return a, err
+}
+
+func createAgreement(ctx context.Context, c conn, operatorID, createdBy uuid.UUID, in CreateAgreementInput) (BilateralAgreement, error) {
+	row := c.QueryRow(ctx, `
+		INSERT INTO bilateral_agreements (
+			operator_id, enterprise_tenant_id, currency, platform_fee_rate,
+			minimum_commitment_hours, minimum_commitment_amount, notes, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING `+agreementColumns, operatorID, in.EnterpriseTenantID, in.Currency, in.PlatformFeeRate,
+		in.MinimumCommitmentHours, in.MinimumCommitmentAmount, in.Notes, createdBy)
+	a, err := scanAgreement(row)
+	if err != nil {
+		return BilateralAgreement{}, fmt.Errorf("insert bilateral agreement: %w", err)
+	}
+	return a, nil
+}
+
+func listAgreementsForOperator(ctx context.Context, c conn, operatorID uuid.UUID) ([]BilateralAgreement, error) {
+	rows, err := c.Query(ctx, `SELECT `+agreementColumns+` FROM bilateral_agreements WHERE operator_id = $1 ORDER BY created_at DESC`, operatorID)
+	if err != nil {
+		return nil, fmt.Errorf("list bilateral agreements: %w", err)
+	}
+	defer rows.Close()
+	out := []BilateralAgreement{}
+	for rows.Next() {
+		a, err := scanAgreement(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan bilateral agreement: %w", err)
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func getAgreementByID(ctx context.Context, c conn, operatorID, id uuid.UUID) (BilateralAgreement, bool, error) {
+	row := c.QueryRow(ctx, `SELECT `+agreementColumns+` FROM bilateral_agreements WHERE id = $1 AND operator_id = $2`, id, operatorID)
+	a, err := scanAgreement(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return BilateralAgreement{}, false, nil
+		}
+		return BilateralAgreement{}, false, fmt.Errorf("get bilateral agreement: %w", err)
+	}
+	return a, true, nil
+}
+
+func terminateAgreement(ctx context.Context, c conn, operatorID, id uuid.UUID) (bool, error) {
+	tag, err := c.Exec(ctx, `
+		UPDATE bilateral_agreements SET status = 'terminated', terminates_at = now(), updated_at = now()
+		WHERE id = $1 AND operator_id = $2 AND status = 'active'
+	`, id, operatorID)
+	if err != nil {
+		return false, fmt.Errorf("terminate bilateral agreement: %w", err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ---------------------------------------------------------------------
+// Capacity offer grants
+// ---------------------------------------------------------------------
+
+const grantColumns = `id, capacity_offer_id, operator_id, enterprise_tenant_id, bilateral_agreement_id,
+	price_per_unit_hour_override, status, created_by, created_at`
+
+func scanGrant(row pgx.Row) (CapacityOfferGrant, error) {
+	var g CapacityOfferGrant
+	err := row.Scan(&g.ID, &g.CapacityOfferID, &g.OperatorID, &g.EnterpriseTenantID, &g.BilateralAgreementID,
+		&g.PricePerUnitHourOverride, &g.Status, &g.CreatedBy, &g.CreatedAt)
+	return g, err
+}
+
+func createGrant(ctx context.Context, c conn, offerID, operatorID, createdBy uuid.UUID, in CreateGrantInput) (CapacityOfferGrant, error) {
+	row := c.QueryRow(ctx, `
+		INSERT INTO capacity_offer_grants (capacity_offer_id, operator_id, enterprise_tenant_id, bilateral_agreement_id, price_per_unit_hour_override, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (capacity_offer_id, enterprise_tenant_id) DO UPDATE SET
+			bilateral_agreement_id = EXCLUDED.bilateral_agreement_id,
+			price_per_unit_hour_override = EXCLUDED.price_per_unit_hour_override,
+			status = 'active'
+		RETURNING `+grantColumns, offerID, operatorID, in.EnterpriseTenantID, in.BilateralAgreementID, in.PricePerUnitHourOverride, createdBy)
+	g, err := scanGrant(row)
+	if err != nil {
+		return CapacityOfferGrant{}, fmt.Errorf("insert capacity offer grant: %w", err)
+	}
+	return g, nil
+}
+
+func listGrantsForOffer(ctx context.Context, c conn, operatorID, offerID uuid.UUID) ([]CapacityOfferGrant, error) {
+	rows, err := c.Query(ctx, `
+		SELECT `+grantColumns+` FROM capacity_offer_grants WHERE operator_id = $1 AND capacity_offer_id = $2 ORDER BY created_at DESC
+	`, operatorID, offerID)
+	if err != nil {
+		return nil, fmt.Errorf("list capacity offer grants: %w", err)
+	}
+	defer rows.Close()
+	out := []CapacityOfferGrant{}
+	for rows.Next() {
+		g, err := scanGrant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan capacity offer grant: %w", err)
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func revokeGrant(ctx context.Context, c conn, operatorID, id uuid.UUID) (bool, error) {
+	tag, err := c.Exec(ctx, `
+		UPDATE capacity_offer_grants SET status = 'revoked' WHERE id = $1 AND operator_id = $2 AND status = 'active'
+	`, id, operatorID)
+	if err != nil {
+		return false, fmt.Errorf("revoke capacity offer grant: %w", err)
 	}
 	return tag.RowsAffected() > 0, nil
 }
