@@ -88,7 +88,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -96,7 +96,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network service offers &amp; reservations</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -260,7 +260,7 @@ function CreateOfferForm({
     <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <h3 className="mb-2 text-sm font-medium">Publish a new network service offer</h3>
       <div className="flex flex-col gap-2">
-        <select value={capabilityId} onChange={(e) => setCapabilityId(e.target.value)}
+        <select aria-label="Network capability" value={capabilityId} onChange={(e) => setCapabilityId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Select a network capability</option>
           {capabilities?.map((c) => (
@@ -269,16 +269,16 @@ function CreateOfferForm({
         </select>
         <input placeholder="Service class (e.g. private-5g-standard, network-slice-low-latency)" value={serviceClass}
           onChange={(e) => setServiceClass(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Service class (e.g. private-5g-standard, network-slice-low-latency)" />
         <input placeholder="Total bandwidth (Gbps)" type="number" value={totalBandwidthGbps}
           onChange={(e) => setTotalBandwidthGbps(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Total bandwidth (Gbps)" />
         <input placeholder="Max latency (ms, optional)" type="number" step="0.1" value={maxLatencyMs}
           onChange={(e) => setMaxLatencyMs(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Max latency (ms, optional)" />
         <input placeholder="Price per Gbps per hour (USD)" type="number" step="0.01" value={pricePerUnitHour}
           onChange={(e) => setPricePerUnitHour(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Price per Gbps per hour (USD)" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!capabilityId || !serviceClass || !totalBandwidthGbps || !pricePerUnitHour}
           className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">

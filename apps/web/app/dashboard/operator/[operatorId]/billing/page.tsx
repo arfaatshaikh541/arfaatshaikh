@@ -170,7 +170,7 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator&apos;s billing data.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -178,7 +178,7 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Usage, billing &amp; settlement</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -338,14 +338,14 @@ function CreatePriceBookForm({ operatorId, onCreated }: { operatorId: string; on
       <h3 className="mb-2 text-sm font-medium">Draft a new price book</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Currency" />
         <div className="flex gap-2">
-          <select value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
+          <select aria-label="Usage metric" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             {USAGE_METRIC_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
           <input placeholder="Unit price" type="number" min={0} step="0.0001" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)}
-            className="w-28 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-28 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Unit price" />
           <button onClick={addRule} className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700">Add rule</button>
         </div>
         {rules.length > 0 && (
@@ -387,12 +387,12 @@ function AggregateUsageForm({ operatorId }: { operatorId: string }) {
       <h3 className="mb-2 text-sm font-medium">Aggregate usage for a tenant</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
         <div className="flex gap-2">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period end (RFC3339)" />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         {done && <p className="text-sm text-emerald-600">Aggregated.</p>}
@@ -430,15 +430,15 @@ function GenerateInvoiceForm({ operatorId, canManage, onGenerated }: { operatorI
       <h3 className="mb-2 text-sm font-medium">Generate an invoice</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
         <div className="flex gap-2">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period end (RFC3339)" />
         </div>
         <input placeholder="Tax amount" type="number" min={0} step="0.01" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Tax amount" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={generate} disabled={!tenantId} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           Generate invoice
@@ -472,12 +472,12 @@ function CreateSettlementForm({ operatorId, onCreated }: { operatorId: string; o
       <div className="flex flex-col gap-2">
         <div className="flex gap-2">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period end (RFC3339)" />
         </div>
         <input placeholder="Platform fee rate (0-1)" type="number" min={0} max={1} step="0.01" value={feeRate} onChange={(e) => setFeeRate(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Platform fee rate (0-1)" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900">
           Create settlement
@@ -521,7 +521,7 @@ function CreateSettlementForAgreementForm({ operatorId, agreements, onCreated }:
         rate -- there is no fee-rate field here because the server never accepts one for this path.
       </p>
       <div className="flex flex-col gap-2">
-        <select value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
+        <select aria-label="Bilateral agreement" value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Select an agreement</option>
           {activeAgreements.map((a) => (
@@ -530,9 +530,9 @@ function CreateSettlementForAgreementForm({ operatorId, agreements, onCreated }:
         </select>
         <div className="flex gap-2">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period end (RFC3339)" />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!agreementId} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
@@ -729,9 +729,9 @@ function CreateAdjustmentForm({ operatorId, invoiceId, settlementId, onCreated }
     <div className="mt-2 flex flex-col gap-2">
       <div className="flex gap-2">
         <input placeholder="Amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-          className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Amount" />
         <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
-          className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Reason" />
         <button onClick={create} disabled={!reason} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50 dark:border-zinc-700">
           Add adjustment
         </button>
@@ -766,14 +766,14 @@ function CreateCreditNoteForm({ operatorId, onCreated }: { operatorId: string; o
       <h3 className="mb-2 text-sm font-medium">Issue a credit note</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Invoice id" value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Invoice id" />
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
         <div className="flex gap-2">
           <input placeholder="Amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
-            className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Amount" />
           <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Reason" />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!invoiceId || !tenantId || !reason} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
@@ -809,7 +809,7 @@ function DisputeRow({ operatorId, dispute, canManage, onChanged }: { operatorId:
       {canManage && (dispute.status === "open" || dispute.status === "under_review") && (
         <div className="mt-2 flex flex-col gap-2">
           <input placeholder="Resolution note" value={note} onChange={(e) => setNote(e.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Resolution note" />
           <div className="flex gap-3">
             <button onClick={() => resolve("resolved")} className="text-xs underline">Resolve</button>
             <button onClick={() => resolve("rejected")} className="text-xs text-red-600 underline">Reject</button>

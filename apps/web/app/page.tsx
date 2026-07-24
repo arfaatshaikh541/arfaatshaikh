@@ -7,7 +7,7 @@ export default function HomePage() {
   const { user, loading } = useAuth();
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 p-16 text-center">
+    <main id="main-content" className="flex flex-1 flex-col items-center justify-center gap-6 p-16 text-center">
       <h1 className="text-4xl font-semibold tracking-tight">GRIDKEEP</h1>
       <p className="max-w-xl text-lg text-zinc-600 dark:text-zinc-400">
         Sovereign AI Network Exchange &mdash; federated telecom infrastructure for sovereign

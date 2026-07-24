@@ -75,7 +75,7 @@ export default function AttestationPage({ params }: { params: Promise<{ operator
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -83,7 +83,7 @@ export default function AttestationPage({ params }: { params: Promise<{ operator
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Confidential-computing attestation</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -250,14 +250,14 @@ function CreatePolicyForm({
         previous policy is automatically revoked, not edited in place.
       </p>
       <div className="flex flex-col gap-2">
-        <select value={clusterId} onChange={(e) => setClusterId(e.target.value)}
+        <select aria-label="Cluster" value={clusterId} onChange={(e) => setClusterId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Select a cluster</option>
           {clusters?.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-        <select value={providerType} onChange={(e) => setProviderType(e.target.value)}
+        <select aria-label="Attestation provider type" value={providerType} onChange={(e) => setProviderType(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="mock">mock (local development)</option>
           <option value="amd_sev_snp">AMD SEV-SNP (not yet implemented)</option>

@@ -99,7 +99,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s network services.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -107,7 +107,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network services</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -258,13 +258,13 @@ function EvaluateNetworkServiceForm({ tenantId, onEvaluated }: { tenantId: strin
       <div className="flex flex-col gap-2">
         <input placeholder="Required bandwidth (Gbps)" type="number" value={requiredBandwidthGbps}
           onChange={(e) => setRequiredBandwidthGbps(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Required bandwidth (Gbps)" />
         <input placeholder="Max latency (ms, optional)" type="number" step="0.1" value={maxLatencyMs}
           onChange={(e) => setMaxLatencyMs(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Max latency (ms, optional)" />
         <input placeholder="Service class (optional)" value={serviceClass}
           onChange={(e) => setServiceClass(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Service class (optional)" />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} />
           Simulate only (do not reserve bandwidth)

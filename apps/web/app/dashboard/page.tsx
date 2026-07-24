@@ -36,7 +36,7 @@ export default function DashboardPage() {
   if (loading || !user) return null;
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <button onClick={logout} className="text-sm underline">

@@ -26,7 +26,7 @@ function VerifyEmailInner() {
   }, [token]);
 
   return (
-    <main className="flex flex-1 items-center justify-center p-8">
+    <main id="main-content" className="flex flex-1 items-center justify-center p-8">
       <div className="max-w-sm text-center">
         {status === "pending" && <p>Verifying your email address...</p>}
         {status === "success" && (
@@ -51,7 +51,7 @@ function VerifyEmailInner() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<main className="flex flex-1 items-center justify-center p-8">Loading...</main>}>
+    <Suspense fallback={<main id="main-content" className="flex flex-1 items-center justify-center p-8">Loading...</main>}>
       <VerifyEmailInner />
     </Suspense>
   );

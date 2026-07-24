@@ -66,7 +66,7 @@ export default function ModelMarketplacePage({ params }: { params: Promise<{ ten
 
   if (versions.isError && versions.error instanceof ApiError && versions.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s model exchange.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -74,7 +74,7 @@ export default function ModelMarketplacePage({ params }: { params: Promise<{ ten
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">AI model exchange</h1>
       <p className="mb-6 text-sm text-zinc-500">

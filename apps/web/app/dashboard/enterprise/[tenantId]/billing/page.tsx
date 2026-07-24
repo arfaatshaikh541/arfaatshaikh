@@ -133,7 +133,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s billing data.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -141,7 +141,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Usage, billing &amp; settlement</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -272,14 +272,14 @@ function CreateQuoteForm({ tenantId, onCreated }: { tenantId: string; onCreated:
       <h3 className="mb-2 text-sm font-medium">Request a quote</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Operator id" value={operatorId} onChange={(e) => setOperatorId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Operator id" />
         <div className="flex gap-2">
-          <select value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
+          <select aria-label="Usage metric" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             {USAGE_METRIC_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
           <input placeholder="Quantity" type="number" min={0} value={quantity} onChange={(e) => setQuantity(e.target.value)}
-            className="w-28 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-28 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Quantity" />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!operatorId} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
@@ -346,15 +346,15 @@ function CreateBudgetForm({ tenantId, onCreated }: { tenantId: string; onCreated
       <h3 className="mb-2 text-sm font-medium">Define a new budget</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
         <div className="flex gap-2">
           <input placeholder="Threshold amount" type="number" min={0} value={thresholdAmount} onChange={(e) => setThresholdAmount(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Threshold amount" />
           <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
-            className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Currency" />
         </div>
         <input placeholder="Period (days)" type="number" min={1} value={periodDays} onChange={(e) => setPeriodDays(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period (days)" />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={hardLimit} onChange={(e) => setHardLimit(e.target.checked)} />
           Hard limit
@@ -399,7 +399,7 @@ function InvoiceRow({ tenantId, invoice, canDispute, onChanged }: { tenantId: st
       {disputing && (
         <div className="mt-2 flex flex-col gap-2">
           <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Reason" />
           <div className="flex gap-3">
             <button onClick={openDispute} disabled={!reason} className="text-xs text-red-600 underline disabled:opacity-50">Submit dispute</button>
             <button onClick={() => setDisputing(false)} className="text-xs underline">Cancel</button>

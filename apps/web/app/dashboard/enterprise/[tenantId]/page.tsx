@@ -94,7 +94,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
 
   if (tenant.isError && tenant.error instanceof ApiError && tenant.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -102,7 +102,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">{tenant.data?.display_name ?? "..."}</h1>
       {tenant.data?.is_fictional_demo_data && (
@@ -169,7 +169,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
             <label className="text-xs font-medium text-zinc-500">Ranking mode</label>
             <select
-              value={effectiveRankingMode}
+              aria-label="Effective Ranking Mode" value={effectiveRankingMode}
               onChange={(e) => setRankingMode(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             >
@@ -183,7 +183,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
               value={effectiveCarbonCeiling}
               onChange={(e) => setCarbonCeiling(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            />
+             aria-label="No hard limit" />
             {sustainabilityError && <p className="text-sm text-red-600">{sustainabilityError}</p>}
             <button
               onClick={saveSustainabilityPreferences}
@@ -221,9 +221,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            />
+             aria-label="email@example.com" />
             <select
-              value={inviteRole}
+              aria-label="Invite Role" value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             >

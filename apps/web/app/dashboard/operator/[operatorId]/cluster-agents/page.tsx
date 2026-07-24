@@ -75,7 +75,7 @@ export default function ClusterAgentsPage({ params }: { params: Promise<{ operat
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -83,7 +83,7 @@ export default function ClusterAgentsPage({ params }: { params: Promise<{ operat
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Cluster agents</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -192,7 +192,7 @@ function ClusterAgentRow({
           {canManage && agent.status === "active" && (
             <div className="flex items-center gap-2">
               <input placeholder="Namespace" value={namespace} onChange={(e) => setNamespace(e.target.value)}
-                className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Namespace" />
               <button onClick={requestValidation} className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">
                 Request deployment-plan validation
               </button>
@@ -278,7 +278,7 @@ function RegisterClusterAgentForm({
     <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <h3 className="mb-2 text-sm font-medium">Register a new cluster agent</h3>
       <div className="flex flex-col gap-2">
-        <select value={clusterId} onChange={(e) => setClusterId(e.target.value)}
+        <select aria-label="Cluster" value={clusterId} onChange={(e) => setClusterId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Select a cluster</option>
           {clusters?.map((c) => (
@@ -286,7 +286,7 @@ function RegisterClusterAgentForm({
           ))}
         </select>
         <input placeholder="Agent name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Agent name" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={register} disabled={!clusterId || !name}
           className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">

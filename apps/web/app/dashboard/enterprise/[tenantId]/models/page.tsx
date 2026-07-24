@@ -91,7 +91,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
 
   if (models.isError && models.error instanceof ApiError && models.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s model registry.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -99,7 +99,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Model registry</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -313,10 +313,10 @@ function ModelCard({
                   <div className="mt-1 flex flex-wrap gap-2">
                     <input placeholder="Price per unit (optional)" value={pricePerUnit[v.id] ?? ""}
                       onChange={(e) => setPricePerUnit({ ...pricePerUnit, [v.id]: e.target.value })}
-                      className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                      className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Price per unit (optional)" />
                     <input placeholder="Pricing unit (e.g. per_1k_tokens)" value={pricingUnit[v.id] ?? ""}
                       onChange={(e) => setPricingUnit({ ...pricingUnit, [v.id]: e.target.value })}
-                      className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                      className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Pricing unit (e.g. per_1k_tokens)" />
                   </div>
                 )}
                 {grantsOpenFor === v.id && <VersionGrantsPanel tenantId={tenantId} versionId={v.id} />}
@@ -327,7 +327,7 @@ function ModelCard({
 
           <div className="mt-2 flex flex-col gap-2 rounded border border-zinc-100 p-2 dark:border-zinc-900">
             <h4 className="text-xs font-medium">Draft a new version</h4>
-            <select value={licenceId} onChange={(e) => setLicenceId(e.target.value)}
+            <select aria-label="Licence" value={licenceId} onChange={(e) => setLicenceId(e.target.value)}
               className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
               <option value="">Select a licence</option>
               {licences?.map((l) => (
@@ -336,10 +336,10 @@ function ModelCard({
             </select>
             <input placeholder="Permitted geographies (comma-separated, e.g. AE,SA)" value={permitted}
               onChange={(e) => setPermitted(e.target.value)}
-              className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+              className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Permitted geographies (comma-separated, e.g. AE,SA)" />
             <input placeholder="Prohibited geographies (comma-separated)" value={prohibited}
               onChange={(e) => setProhibited(e.target.value)}
-              className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+              className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Prohibited geographies (comma-separated)" />
             <button onClick={createDraft} disabled={!licenceId}
               className="self-start rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
               Create draft version
@@ -409,9 +409,9 @@ function VersionGrantsPanel({ tenantId, versionId }: { tenantId: string; version
       </ul>
       <div className="flex flex-wrap gap-2">
         <input placeholder="Grantee tenant ID" value={granteeTenantId} onChange={(e) => setGranteeTenantId(e.target.value)}
-          className="w-56 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="w-56 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Grantee tenant ID" />
         <input placeholder="Price override (optional)" value={priceOverride} onChange={(e) => setPriceOverride(e.target.value)}
-          className="w-44 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="w-44 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Price override (optional)" />
         <button onClick={createGrant} disabled={!granteeTenantId}
           className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           Grant access
@@ -445,11 +445,11 @@ function CreateModelForm({ tenantId, onCreated }: { tenantId: string; onCreated:
       <h3 className="mb-2 text-sm font-medium">Register a new model</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Model key (e.g. text-embed-v1)" value={modelKey} onChange={(e) => setModelKey(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Model key (e.g. text-embed-v1)" />
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
         <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Description" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!modelKey || !name}
           className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">

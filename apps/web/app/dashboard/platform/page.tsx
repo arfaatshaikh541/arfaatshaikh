@@ -113,7 +113,7 @@ export default function PlatformPortalPage() {
 
   if ((user?.platform_roles?.length ?? 0) === 0) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not hold a platform administration role.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -121,7 +121,7 @@ export default function PlatformPortalPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Platform administration</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -250,7 +250,7 @@ function TenantRow({ tenant, onChanged }: { tenant: TenantSummary; onChanged: ()
             {s}
           </button>
         ))}
-        <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} aria-label="Subscription plan"
+        <select aria-label="Subscription plan" value={planKey} onChange={(e) => setPlanKey(e.target.value)}
           className="rounded-md border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Assign plan&hellip;</option>
           {ENTERPRISE_PLANS.map((p) => (
@@ -315,7 +315,7 @@ function OperatorRow({ operator, onChanged }: { operator: OperatorSummary; onCha
             {tl}
           </button>
         ))}
-        <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} aria-label="Subscription plan"
+        <select aria-label="Operator plan" value={planKey} onChange={(e) => setPlanKey(e.target.value)}
           className="rounded-md border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Assign plan&hellip;</option>
           {OPERATOR_PLANS.map((p) => (
@@ -392,7 +392,7 @@ function CreateSupportGrantForm({ onCreated }: { onCreated: () => void }) {
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
       <label className="flex flex-col gap-1">
         Scope
-        <select value={scopeType} onChange={(e) => setScopeType(e.target.value)}
+        <select aria-label="Support-grant scope type" value={scopeType} onChange={(e) => setScopeType(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
           <option value="enterprise">Enterprise tenant</option>
           <option value="operator">Operator</option>
@@ -401,12 +401,12 @@ function CreateSupportGrantForm({ onCreated }: { onCreated: () => void }) {
       <label className="flex flex-col gap-1">
         Scope ID
         <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} placeholder="tenant or operator ID"
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" aria-label="tenant or operator ID" />
       </label>
       <label className="flex flex-col gap-1">
         Reason
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why support access is needed"
-          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" aria-label="Why support access is needed" />
       </label>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button onClick={create} disabled={!scopeId || !reason}
@@ -473,7 +473,7 @@ function CreateRegionForm({ jurisdictions, onCreated }: { jurisdictions: Jurisdi
         className="w-48 rounded-md border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900" />
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Region name" aria-label="Region name"
         className="w-40 rounded-md border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900" />
-      <select value={jurisdictionId} onChange={(e) => setJurisdictionId(e.target.value)} aria-label="Jurisdiction"
+      <select aria-label="Jurisdiction" value={jurisdictionId} onChange={(e) => setJurisdictionId(e.target.value)}
         className="rounded-md border border-zinc-300 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900">
         <option value="">Select jurisdiction</option>
         {jurisdictions?.map((j) => (

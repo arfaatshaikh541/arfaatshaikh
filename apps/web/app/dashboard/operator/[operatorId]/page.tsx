@@ -75,7 +75,7 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
 
   if (operator.isError && operator.error instanceof ApiError && operator.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -83,7 +83,7 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">{operator.data?.display_name ?? "..."}</h1>
       {operator.data?.is_fictional_demo_data && (
@@ -139,9 +139,9 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            />
+             aria-label="email@example.com" />
             <select
-              value={inviteRole}
+              aria-label="Invite Role" value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             >

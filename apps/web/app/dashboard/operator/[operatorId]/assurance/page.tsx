@@ -122,7 +122,7 @@ export default function OperatorAssurancePage({ params }: { params: Promise<{ op
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -130,7 +130,7 @@ export default function OperatorAssurancePage({ params }: { params: Promise<{ op
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Service assurance</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -316,15 +316,15 @@ function CreateSLOForm({ operatorId, onCreated }: { operatorId: string; onCreate
       <h3 className="mb-2 text-sm font-medium">Commit to a new SLA</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-        <select value={metricSource} onChange={(e) => setMetricSource(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
+        <select aria-label="Metric source" value={metricSource} onChange={(e) => setMetricSource(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           {METRIC_SOURCES.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <input placeholder="Target percentage" type="number" min={1} max={100} value={targetPercentage} onChange={(e) => setTargetPercentage(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Target percentage" />
         <input placeholder="Window (days)" type="number" min={1} value={windowDays} onChange={(e) => setWindowDays(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Window (days)" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!name} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           Commit SLA
@@ -441,8 +441,8 @@ function CreateIncidentForm({ operatorId, onCreated }: { operatorId: string; onC
       <h3 className="mb-2 text-sm font-medium">Open a new incident</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-        <select value={severity} onChange={(e) => setSeverity(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Title" />
+        <select aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="info">Info</option>
           <option value="warning">Warning</option>
@@ -531,22 +531,22 @@ function CreateAlertRuleForm({ operatorId, onCreated }: { operatorId: string; on
       <h3 className="mb-2 text-sm font-medium">Define a new alert rule</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-        <select value={metricSource} onChange={(e) => setMetricSource(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
+        <select aria-label="Metric source" value={metricSource} onChange={(e) => setMetricSource(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           {METRIC_SOURCES.map((m) => <option key={m} value={m}>{m}</option>)}
           <option value="slo_burn_rate">slo_burn_rate</option>
         </select>
         <div className="flex gap-2">
-          <select value={comparison} onChange={(e) => setComparison(e.target.value)}
+          <select aria-label="Comparison operator" value={comparison} onChange={(e) => setComparison(e.target.value)}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             <option value="lt">below</option>
             <option value="gt">above</option>
           </select>
           <input placeholder="Threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Threshold" />
         </div>
-        <select value={severity} onChange={(e) => setSeverity(e.target.value)}
+        <select aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="info">Info</option>
           <option value="warning">Warning</option>

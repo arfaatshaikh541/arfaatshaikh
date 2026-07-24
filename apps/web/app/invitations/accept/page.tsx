@@ -37,11 +37,11 @@ function AcceptInvitationInner() {
     }
   };
 
-  if (loading) return <main className="flex flex-1 items-center justify-center p-8">Loading...</main>;
+  if (loading) return <main id="main-content" className="flex flex-1 items-center justify-center p-8">Loading...</main>;
 
   if (!token) {
     return (
-      <main className="flex flex-1 items-center justify-center p-8 text-center">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
         <p>No invitation token was provided.</p>
       </main>
     );
@@ -49,7 +49,7 @@ function AcceptInvitationInner() {
 
   if (!user) {
     return (
-      <main className="flex flex-1 items-center justify-center p-8 text-center">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
         <div className="max-w-sm">
           <h1 className="mb-2 text-2xl font-semibold">Log in to accept your invitation</h1>
           <p className="mb-6 text-zinc-600 dark:text-zinc-400">
@@ -70,7 +70,7 @@ function AcceptInvitationInner() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-8 text-center">
+    <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
       <div className="max-w-sm">
         <h1 className="mb-4 text-2xl font-semibold">Accept invitation</h1>
         {status === "error" && <p className="mb-4 text-red-600">{message}</p>}
@@ -88,7 +88,7 @@ function AcceptInvitationInner() {
 
 export default function AcceptInvitationPage() {
   return (
-    <Suspense fallback={<main className="flex flex-1 items-center justify-center p-8">Loading...</main>}>
+    <Suspense fallback={<main id="main-content" className="flex flex-1 items-center justify-center p-8">Loading...</main>}>
       <AcceptInvitationInner />
     </Suspense>
   );

@@ -105,7 +105,7 @@ export default function OperatorCapacityPage({ params }: { params: Promise<{ ope
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -113,7 +113,7 @@ export default function OperatorCapacityPage({ params }: { params: Promise<{ ope
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Capacity offers &amp; reservations</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -283,7 +283,7 @@ function OfferRow({
       {canManage && !offer.degraded && (
         <input placeholder="Degraded reason (used when you mark degraded)" value={degradedReasonInput}
           onChange={(e) => setDegradedReasonInput(e.target.value)}
-          className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Degraded reason (used when you mark degraded)" />
       )}
       {grantsOpen && (
         <div className="mt-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
@@ -346,9 +346,9 @@ function CreateGrantForm({
   return (
     <div className="mt-3 flex flex-col gap-2">
       <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+        className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
       <div className="flex gap-2">
-        <select value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
+        <select aria-label="Bilateral agreement" value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
           className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">No linked agreement</option>
           {agreements?.filter((a) => a.status === "active").map((a) => (
@@ -357,7 +357,7 @@ function CreateGrantForm({
         </select>
         <input placeholder="Price override (optional)" type="number" min={0} step="0.01" value={priceOverride}
           onChange={(e) => setPriceOverride(e.target.value)}
-          className="w-40 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          className="w-40 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Price override (optional)" />
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button onClick={create} disabled={!tenantId} className="self-start rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium disabled:opacity-50 dark:border-zinc-700">
@@ -445,24 +445,24 @@ function CreateAgreementForm({ operatorId, onCreated }: { operatorId: string; on
       <h3 className="mb-2 text-sm font-medium">Establish a new bilateral agreement</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
         <div className="flex gap-2">
           <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
-            className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Currency" />
           <input placeholder="Platform fee rate (0-1)" type="number" min={0} max={1} step="0.01" value={feeRate}
             onChange={(e) => setFeeRate(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Platform fee rate (0-1)" />
         </div>
         <div className="flex gap-2">
           <input placeholder="Min. commitment (hours, optional)" type="number" min={0} value={minCommitmentHours}
             onChange={(e) => setMinCommitmentHours(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Min. commitment (hours, optional)" />
           <input placeholder="Min. commitment (amount, optional)" type="number" min={0} value={minCommitmentAmount}
             onChange={(e) => setMinCommitmentAmount(e.target.value)}
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Min. commitment (amount, optional)" />
         </div>
         <input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Notes (optional)" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!tenantId} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
           Create agreement
@@ -515,7 +515,7 @@ function CreateOfferForm({
     <section className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <h3 className="mb-2 text-sm font-medium">Publish a new capacity offer</h3>
       <div className="flex flex-col gap-2">
-        <select value={clusterId} onChange={(e) => setClusterId(e.target.value)}
+        <select aria-label="Cluster" value={clusterId} onChange={(e) => setClusterId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">Select a cluster</option>
           {clusters?.map((c) => (
@@ -524,14 +524,14 @@ function CreateOfferForm({
         </select>
         <input placeholder="Accelerator type (e.g. nvidia-h100, cpu_only)" value={acceleratorType}
           onChange={(e) => setAcceleratorType(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Accelerator type (e.g. nvidia-h100, cpu_only)" />
         <input placeholder="Total capacity (units)" type="number" value={totalCapacity}
           onChange={(e) => setTotalCapacity(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Total capacity (units)" />
         <input placeholder="Price per unit per hour (USD)" type="number" step="0.01" value={pricePerUnitHour}
           onChange={(e) => setPricePerUnitHour(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-        <select value={visibility} onChange={(e) => setVisibility(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Price per unit per hour (USD)" />
+        <select aria-label="Visibility" value={visibility} onChange={(e) => setVisibility(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="public">Public (visible to every tenant)</option>
           <option value="private">Private (visible only to tenants you grant)</option>

@@ -97,7 +97,7 @@ export default function WorkloadsPage({ params }: { params: Promise<{ tenantId: 
 
   if (workloads.isError && workloads.error instanceof ApiError && workloads.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s workloads.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -105,7 +105,7 @@ export default function WorkloadsPage({ params }: { params: Promise<{ tenantId: 
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Workloads</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -283,20 +283,20 @@ function WorkloadCard({
           {canPublish && (
             <div className="flex flex-col gap-2 rounded border border-zinc-100 p-2 dark:border-zinc-900">
               <h4 className="text-xs font-medium">Draft a new version</h4>
-              <select value={containerImageId} onChange={(e) => setContainerImageId(e.target.value)}
+              <select aria-label="Container image" value={containerImageId} onChange={(e) => setContainerImageId(e.target.value)}
                 className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
                 <option value="">No container image</option>
                 {approvedImages.map((img) => (
                   <option key={img.id} value={img.id}>{img.repository}@{img.digest.slice(0, 19)}&hellip;</option>
                 ))}
               </select>
-              <select value={modelId} onChange={(e) => { setModelId(e.target.value); setModelVersionId(""); }}
+              <select aria-label="Model" value={modelId} onChange={(e) => { setModelId(e.target.value); setModelVersionId(""); }}
                 className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
                 <option value="">No model</option>
                 {models.data?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
               {modelId && (
-                <select value={modelVersionId} onChange={(e) => setModelVersionId(e.target.value)}
+                <select aria-label="Model version" value={modelVersionId} onChange={(e) => setModelVersionId(e.target.value)}
                   className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
                   <option value="">Select an approved model version</option>
                   {approvedModelVersions.map((v) => <option key={v.id} value={v.id}>v{v.version}</option>)}
@@ -304,7 +304,7 @@ function WorkloadCard({
               )}
               <input placeholder="Allowed countries (comma-separated, e.g. AE,SA)" value={allowedCountries}
                 onChange={(e) => setAllowedCountries(e.target.value)}
-                className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Allowed countries (comma-separated, e.g. AE,SA)" />
               <button onClick={createDraft} className="self-start rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">
                 Create draft version
               </button>
@@ -374,11 +374,11 @@ function VersionComponentsPanel({ tenantId, versionId, canEdit }: { tenantId: st
       {canEdit && (
         <div className="flex flex-wrap gap-2">
           <input placeholder="Component key" value={componentKey} onChange={(e) => setComponentKey(e.target.value)}
-            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Component key" />
           <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
           <input placeholder="Container image ID" value={containerImageId} onChange={(e) => setContainerImageId(e.target.value)}
-            className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Container image ID" />
           <label className="flex items-center gap-1 text-xs">
             <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} />
             Primary
@@ -433,14 +433,14 @@ function ComponentHealthChecksPanel({ tenantId, componentId, canEdit }: { tenant
       </ul>
       {canEdit && (
         <div className="flex flex-wrap gap-2">
-          <select value={checkType} onChange={(e) => setCheckType(e.target.value)}
+          <select aria-label="Health check type" value={checkType} onChange={(e) => setCheckType(e.target.value)}
             className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
             <option value="http">http</option>
             <option value="tcp">tcp</option>
             <option value="command">command</option>
           </select>
           <input placeholder="Path (e.g. /health)" value={path} onChange={(e) => setPath(e.target.value)}
-            className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+            className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Path (e.g. /health)" />
           <button onClick={addHealthCheck} className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">
             Add health check
           </button>
@@ -477,15 +477,15 @@ function CreateWorkloadForm({ tenantId, onCreated }: { tenantId: string; onCreat
       <h3 className="mb-2 text-sm font-medium">Create a new workload</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Workload key (e.g. fictional-rag-app)" value={workloadKey} onChange={(e) => setWorkloadKey(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-        <select value={workloadType} onChange={(e) => setWorkloadType(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Workload key (e.g. fictional-rag-app)" />
+        <select aria-label="Workload type" value={workloadType} onChange={(e) => setWorkloadType(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           {WORKLOAD_TYPES.map((t) => <option key={t} value={t}>{t.replaceAll("_", " ")}</option>)}
         </select>
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
         <input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Description" />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={create} disabled={!workloadKey || !name}
           className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">

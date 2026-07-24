@@ -129,7 +129,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
 
   if (policies.isError && policies.error instanceof ApiError && policies.error.status === 403) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
         <p>You do not have access to this tenant&apos;s sovereignty policies.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -137,7 +137,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Sovereignty policies</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -311,7 +311,7 @@ function PolicyCard({
             value={rollbackVersion}
             onChange={(e) => setRollbackVersion(e.target.value)}
             className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-          />
+           aria-label="Version #" />
           <button onClick={rollback} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">
             Roll back to version
           </button>
@@ -324,11 +324,11 @@ function PolicyCard({
           <div className="flex flex-wrap gap-2">
             <input placeholder="Country (e.g. AE)" value={candidate.country}
               onChange={(e) => setCandidate({ ...candidate, country: e.target.value.toUpperCase() })}
-              className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+              className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Country (e.g. AE)" />
             <input placeholder="Operator ID" value={candidate.operator_id}
               onChange={(e) => setCandidate({ ...candidate, operator_id: e.target.value })}
-              className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
-            <select value={candidate.placement_role}
+              className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Operator ID" />
+            <select aria-label="Placement role" value={candidate.placement_role}
               onChange={(e) => setCandidate({ ...candidate, placement_role: e.target.value })}
               className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
               <option value="primary">primary</option>
@@ -402,18 +402,18 @@ function CreatePolicyForm({ tenantId, onCreated }: { tenantId: string; onCreated
       <h3 className="mb-2 text-sm font-medium">Draft a new policy</h3>
       <div className="flex flex-col gap-2">
         <input placeholder="Policy key (e.g. data-residency)" value={policyKey} onChange={(e) => setPolicyKey(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Policy key (e.g. data-residency)" />
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
         <input placeholder="Allowed countries (comma-separated, e.g. AE,SA)" value={allowedCountries} onChange={(e) => setAllowedCountries(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Allowed countries (comma-separated, e.g. AE,SA)" />
         <input placeholder="Denied countries (comma-separated)" value={deniedCountries} onChange={(e) => setDeniedCountries(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Denied countries (comma-separated)" />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={confidentialRequired} onChange={(e) => setConfidentialRequired(e.target.checked)} />
           Require confidential computing
         </label>
-        <select value={keyOwnership} onChange={(e) => setKeyOwnership(e.target.value)}
+        <select aria-label="Key ownership" value={keyOwnership} onChange={(e) => setKeyOwnership(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">No encryption key ownership constraint</option>
           <option value="customer_managed">Customer-managed keys required</option>

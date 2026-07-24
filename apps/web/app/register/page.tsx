@@ -32,7 +32,7 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <main className="flex flex-1 items-center justify-center p-8">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-8">
         <div className="max-w-sm text-center">
           <h1 className="mb-2 text-2xl font-semibold">Check your email</h1>
           <p className="text-zinc-600 dark:text-zinc-400">
@@ -47,7 +47,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-8">
+    <main id="main-content" className="flex flex-1 items-center justify-center p-8">
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 p-8 dark:border-zinc-800">
         <h1 className="mb-6 text-2xl font-semibold">Create your GRIDKEEP account</h1>
         <form noValidate className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)}>
