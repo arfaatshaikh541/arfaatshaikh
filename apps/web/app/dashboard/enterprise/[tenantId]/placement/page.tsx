@@ -26,6 +26,15 @@ interface CapacityOffer {
   price_per_unit_hour: number;
   currency: string;
   confidential_computing_available: boolean;
+  degraded: boolean;
+}
+
+interface BilateralAgreement {
+  id: string;
+  operator_id: string;
+  status: string;
+  currency: string;
+  platform_fee_rate: number;
 }
 
 interface PlacementEvaluation {
@@ -98,6 +107,10 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
     queryKey: ["placement-reservations", tenantId],
     queryFn: () => api.get<Reservation[]>(`/api/v1/enterprises/${tenantId}/capacity-reservations`),
   });
+  const agreements = useQuery({
+    queryKey: ["placement-bilateral-agreements", tenantId],
+    queryFn: () => api.get<BilateralAgreement[]>(`/api/v1/enterprises/${tenantId}/bilateral-agreements`),
+  });
 
   const invalidateReservations = () => queryClient.invalidateQueries({ queryKey: ["placement-reservations", tenantId] });
   const invalidateOffers = () => queryClient.invalidateQueries({ queryKey: ["placement-capacity-offers", tenantId] });
@@ -118,7 +131,10 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
       <p className="mb-6 text-sm text-zinc-500">
         Every placement decision below is explainable -- ranking is a plain, auditable sort by
         cost (never an AI/ML decision), and every rejected candidate carries reason codes,
-        including real sovereignty-policy evaluations against the published policy engine.
+        including real sovereignty-policy evaluations against the published policy engine. A
+        private offer only appears below once an operator has granted your tenant access to it,
+        sometimes at a price specific to your own bilateral agreement; a degraded offer stays out
+        of eligible rankings until its operator clears it.
       </p>
 
       <section className="mb-8">
@@ -128,7 +144,10 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
             <li key={o.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
               <div className="flex items-center justify-between">
                 <span>{o.accelerator_type}</span>
-                <span className="text-zinc-500">{o.available_capacity} available</span>
+                <span className="flex items-center gap-2">
+                  {o.degraded && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900 dark:bg-red-900 dark:text-red-100">degraded</span>}
+                  <span className="text-zinc-500">{o.available_capacity} available</span>
+                </span>
               </div>
               <p className="mt-1 text-xs text-zinc-500">
                 ${o.price_per_unit_hour}/unit/hr &middot; {o.confidential_computing_available ? "confidential computing" : "no confidential computing"}
@@ -138,6 +157,22 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
           {offers.data?.length === 0 && <li className="text-zinc-500">No capacity offers visible yet.</li>}
         </ul>
       </section>
+
+      {(agreements.data?.length ?? 0) > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-medium">Bilateral agreements</h2>
+          <ul className="flex flex-col gap-2 text-sm">
+            {agreements.data?.map((a) => (
+              <li key={a.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span>operator {a.operator_id.slice(0, 8)}&hellip; &middot; {a.currency} &middot; {(a.platform_fee_rate * 100).toFixed(1)}% platform fee</span>
+                  <span className={a.status === "active" ? "text-emerald-600" : "text-zinc-500"}>{a.status}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {canReserve && (
         <EvaluatePlacementForm

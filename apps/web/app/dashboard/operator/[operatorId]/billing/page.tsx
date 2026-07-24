@@ -38,12 +38,22 @@ interface Invoice {
 
 interface SettlementRecord {
   id: string;
+  enterprise_tenant_id?: string;
+  bilateral_agreement_id?: string;
   period_start: string;
   period_end: string;
   gross_amount: number;
   net_amount: number;
   currency: string;
   status: string;
+}
+
+interface BilateralAgreement {
+  id: string;
+  enterprise_tenant_id: string;
+  status: string;
+  currency: string;
+  platform_fee_rate: number;
 }
 
 interface BillingDispute {
@@ -110,6 +120,11 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
   const disputes = useQuery({
     queryKey: ["operator-billing-disputes", operatorId],
     queryFn: () => api.get<BillingDispute[]>(`/api/v1/operators/${operatorId}/billing-disputes`),
+    enabled: canViewSettlements,
+  });
+  const agreements = useQuery({
+    queryKey: ["operator-bilateral-agreements", operatorId],
+    queryFn: () => api.get<BilateralAgreement[]>(`/api/v1/operators/${operatorId}/bilateral-agreements`),
     enabled: canViewSettlements,
   });
 
@@ -183,7 +198,12 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
       {canViewSettlements && (
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-medium">Settlements</h2>
-          {canManageSettlements && <CreateSettlementForm operatorId={operatorId} onCreated={() => invalidate("operator-settlements")} />}
+          {canManageSettlements && (
+            <div className="flex flex-col gap-3">
+              <CreateSettlementForm operatorId={operatorId} onCreated={() => invalidate("operator-settlements")} />
+              <CreateSettlementForAgreementForm operatorId={operatorId} agreements={agreements.data} onCreated={() => invalidate("operator-settlements")} />
+            </div>
+          )}
           <ul className="mt-3 flex flex-col gap-2 text-sm">
             {settlements.data?.map((s) => (
               <SettlementRow key={s.id} operatorId={operatorId} settlement={s} canManage={canManageSettlements} onChanged={() => invalidate("operator-settlements")} />
@@ -411,6 +431,62 @@ function CreateSettlementForm({ operatorId, onCreated }: { operatorId: string; o
   );
 }
 
+// CreateSettlementForAgreementForm creates a settlement scoped to exactly
+// one bilateral agreement's own tenant, priced at that agreement's own
+// contracted platform fee rate -- there is deliberately no fee-rate input
+// here, since the server always reads it from the agreement itself, never
+// from this request.
+function CreateSettlementForAgreementForm({ operatorId, agreements, onCreated }: { operatorId: string; agreements: BilateralAgreement[] | undefined; onCreated: () => void }) {
+  const [agreementId, setAgreementId] = useState("");
+  const [periodStart, setPeriodStart] = useState("2020-01-01T00:00:00Z");
+  const [periodEnd, setPeriodEnd] = useState("2030-01-01T00:00:00Z");
+  const [error, setError] = useState<string | null>(null);
+
+  const activeAgreements = agreements?.filter((a) => a.status === "active") ?? [];
+  if (activeAgreements.length === 0) return null;
+
+  const create = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/operators/${operatorId}/settlements/for-agreement`, {
+        bilateral_agreement_id: agreementId, period_start: periodStart, period_end: periodEnd,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to create settlement for agreement.");
+    }
+  };
+
+  return (
+    <div className="mb-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <h3 className="mb-2 text-sm font-medium">Create a settlement for a bilateral agreement</h3>
+      <p className="mb-2 text-xs text-zinc-500">
+        Scoped to exactly that agreement&apos;s tenant, priced at its own contracted platform fee
+        rate -- there is no fee-rate field here because the server never accepts one for this path.
+      </p>
+      <div className="flex flex-col gap-2">
+        <select value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <option value="">Select an agreement</option>
+          {activeAgreements.map((a) => (
+            <option key={a.id} value={a.id}>tenant {a.enterprise_tenant_id.slice(0, 8)}&hellip; ({(a.platform_fee_rate * 100).toFixed(1)}% fee)</option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button onClick={create} disabled={!agreementId} className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
+          Create settlement for agreement
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SettlementRow({ operatorId, settlement, canManage, onChanged }: { operatorId: string; settlement: SettlementRecord; canManage: boolean; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
@@ -432,6 +508,7 @@ function SettlementRow({ operatorId, settlement, canManage, onChanged }: { opera
       </div>
       <p className="mt-1 text-xs text-zinc-500">
         {new Date(settlement.period_start).toLocaleDateString()} &ndash; {new Date(settlement.period_end).toLocaleDateString()}
+        {settlement.bilateral_agreement_id && <> &middot; from bilateral agreement (tenant {settlement.enterprise_tenant_id?.slice(0, 8)}&hellip;)</>}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {canManage && settlement.status === "pending" && (
