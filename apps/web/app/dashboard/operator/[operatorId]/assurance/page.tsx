@@ -30,6 +30,7 @@ interface SLODefinition {
 
 interface SLOEvaluation {
   id: string;
+  evaluated_at: string;
   actual_percentage: number;
   status: string;
   sample_size: number;
@@ -41,6 +42,19 @@ interface Incident {
   severity: string;
   status: string;
   opened_at: string;
+}
+
+interface IncidentEvent {
+  id: string;
+  event_type: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+interface CorrelatedAuditEvent {
+  id: string;
+  occurred_at: string;
+  action: string;
 }
 
 interface AlertRule {
@@ -206,12 +220,20 @@ function HealthTile({ label, pct, n }: { label: string; pct: number; n: number }
 function SLORow({ operatorId, slo, canManage, onChanged }: { operatorId: string; slo: SLODefinition; canManage: boolean; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [lastEval, setLastEval] = useState<SLOEvaluation | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const history = useQuery({
+    queryKey: ["operator-slo-evaluations", slo.id],
+    queryFn: () => api.get<SLOEvaluation[]>(`/api/v1/operators/${operatorId}/slos/${slo.id}/evaluations`),
+    enabled: historyOpen,
+  });
 
   const evaluate = async () => {
     setError(null);
     try {
       const res = await api.post<SLOEvaluation>(`/api/v1/operators/${operatorId}/slos/${slo.id}/evaluate`, {});
       setLastEval(res);
+      if (historyOpen) history.refetch();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to evaluate SLA.");
     }
@@ -247,10 +269,24 @@ function SLORow({ operatorId, slo, canManage, onChanged }: { operatorId: string;
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="mt-2 flex gap-3">
         <button onClick={evaluate} className="text-xs underline">Evaluate now</button>
+        <button onClick={() => setHistoryOpen(!historyOpen)} className="text-xs underline">
+          {historyOpen ? "Hide history" : "Evaluation history"}
+        </button>
         {canManage && slo.status === "active" && (
           <button onClick={archive} className="text-xs text-red-600 underline">Archive</button>
         )}
       </div>
+      {historyOpen && (
+        <ul className="mt-2 flex flex-col gap-1 rounded border border-zinc-100 p-2 text-xs dark:border-zinc-900">
+          {history.data?.map((e) => (
+            <li key={e.id} className="flex items-center justify-between">
+              <span>{new Date(e.evaluated_at).toLocaleString()}</span>
+              <span>{e.actual_percentage.toFixed(1)}% ({e.sample_size} samples) &middot; {e.status}</span>
+            </li>
+          ))}
+          {history.data?.length === 0 && <li className="text-zinc-500">No evaluations recorded yet.</li>}
+        </ul>
+      )}
     </li>
   );
 }
@@ -300,6 +336,18 @@ function CreateSLOForm({ operatorId, onCreated }: { operatorId: string; onCreate
 
 function IncidentRow({ operatorId, incident, canManage, onChanged }: { operatorId: string; incident: Incident; canManage: boolean; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+
+  const events = useQuery({
+    queryKey: ["operator-incident-events", incident.id],
+    queryFn: () => api.get<IncidentEvent[]>(`/api/v1/operators/${operatorId}/incidents/${incident.id}/events`),
+    enabled: timelineOpen,
+  });
+  const auditTrail = useQuery({
+    queryKey: ["operator-incident-audit-trail", incident.id],
+    queryFn: () => api.get<CorrelatedAuditEvent[]>(`/api/v1/operators/${operatorId}/audit-correlation/incident/${incident.id}`),
+    enabled: timelineOpen,
+  });
 
   const acknowledge = async () => {
     setError(null);
@@ -333,10 +381,39 @@ function IncidentRow({ operatorId, incident, canManage, onChanged }: { operatorI
         {incident.status} &middot; opened {new Date(incident.opened_at).toLocaleString()}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {canManage && (
-        <div className="mt-2 flex gap-3">
-          {incident.status === "open" && <button onClick={acknowledge} className="text-xs underline">Acknowledge</button>}
-          {incident.status !== "resolved" && <button onClick={resolve} className="text-xs text-red-600 underline">Resolve</button>}
+      <div className="mt-2 flex gap-3">
+        {canManage && incident.status === "open" && <button onClick={acknowledge} className="text-xs underline">Acknowledge</button>}
+        {canManage && incident.status !== "resolved" && <button onClick={resolve} className="text-xs text-red-600 underline">Resolve</button>}
+        <button onClick={() => setTimelineOpen(!timelineOpen)} className="text-xs underline">
+          {timelineOpen ? "Hide timeline" : "Timeline & audit trail"}
+        </button>
+      </div>
+      {timelineOpen && (
+        <div className="mt-2 flex flex-col gap-2 rounded border border-zinc-100 p-2 text-xs dark:border-zinc-900">
+          <div>
+            <p className="mb-1 font-medium">Events</p>
+            <ul className="flex flex-col gap-1">
+              {events.data?.map((e) => (
+                <li key={e.id} className="flex items-center justify-between">
+                  <span>{e.event_type}</span>
+                  <span className="text-zinc-500">{new Date(e.created_at).toLocaleString()}</span>
+                </li>
+              ))}
+              {events.data?.length === 0 && <li className="text-zinc-500">No events recorded yet.</li>}
+            </ul>
+          </div>
+          <div>
+            <p className="mb-1 font-medium">Audit trail</p>
+            <ul className="flex flex-col gap-1">
+              {auditTrail.data?.map((e) => (
+                <li key={e.id} className="flex items-center justify-between">
+                  <span>{e.action}</span>
+                  <span className="text-zinc-500">{new Date(e.occurred_at).toLocaleString()}</span>
+                </li>
+              ))}
+              {auditTrail.data?.length === 0 && <li className="text-zinc-500">No audit events correlated yet.</li>}
+            </ul>
+          </div>
         </div>
       )}
     </li>
