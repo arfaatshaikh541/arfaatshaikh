@@ -2098,6 +2098,166 @@ read-only catalogue).
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 14 has not begun | ✅ confirmed -- no Milestone 14 code exists |
 
+## Milestone 14: Energy-Aware Scheduling
+
+Built per the approved architecture's Milestone 14 scope (energy data model, carbon data model,
+energy preferences, carbon preferences, schedule windows, cost and energy trade-offs, non-urgent
+workload scheduling, sustainability evidence, mock energy provider). Unlike Milestones 12-13, this
+milestone found **no dormant permission** pre-seeded for it in any earlier migration -- a targeted
+search across every prior migration and `docs/security/permission-matrix.md` for
+"energy"/"carbon"/"sustainability"/"schedule" in a permission-insert context came back empty. What
+it did find already built: `capacity_offers.estimated_kwh_per_unit_hour` and
+`placement_evaluations.estimated_energy_kwh` have existed since Milestone 5 and already served as
+`EvaluatePlacement`'s ranking tie-break (cost, then energy, then offer id) -- an "energy data
+model" of sorts, just never named as one. There was no carbon-intensity or renewable-mix data
+anywhere, and no per-tenant preference mechanism of any kind in this codebase before this
+milestone (Milestones 1-13 configure tenant-facing behaviour only through budgets/SLOs/policies,
+never a plain preference knob) -- both are genuinely new here.
+
+### What was built
+- **Schema** (migration `0038`, no new RBAC permissions migration -- see Deliberate security
+  decisions): `enterprise_tenants` gains `sustainability_ranking_mode`
+  (`cost_first`/`energy_first`/`carbon_first`, default `cost_first` -- byte-for-byte identical
+  ranking behaviour to every pre-Milestone-14 tenant) and `max_carbon_intensity_g_per_kwh` (a
+  hard ceiling, nullable, not just a ranking nudge). `placement_requests` gains
+  `non_urgent`/`schedule_window_start`/`schedule_window_end` and a widened `status` CHECK adding
+  `'deferred'` -- distinct from the pre-existing `'evaluated'`, which already meant "no
+  reservation happened" for every other reason (no eligible capacity, or `simulate=true`).
+  `placement_evaluations` gains `carbon_intensity_g_per_kwh`/`renewable_percentage`/
+  `estimated_carbon_kg` -- this milestone's sustainability evidence, persisted the same way
+  `estimated_energy_kwh` already was for energy since Milestone 5. Preferences are added as plain
+  columns on `enterprise_tenants`, not a new 1:1 preferences table, and schedule windows are added
+  to `placement_requests` itself, not a new table -- both the same "1:1 facts about a single row
+  don't need their own table" reasoning Milestone 4's `model_versions` doc comment already applied
+  to `hardware_requirements`/`retention_policy`.
+- **New `internal/platform/energyprovider`**: a `billingprovider`-shaped mock (control-api calls
+  it directly inside `EvaluatePlacement`, not agent-side like `networkadapter`) returning a
+  `GridSnapshot` (carbon intensity, renewable percentage) deterministically derived from a
+  region's own UUID (so different regions plausibly differ, and repeated calls for the same
+  region are stable) modulated by a smooth day/night cycle, lowest at midday -- loosely
+  illustrative of solar generation, making no claim about any real region's actual grid. No real
+  grid-carbon-intensity API is reachable from this sandbox, the same category of constraint as
+  MinIO/Docker Hub/a real payment gateway.
+- **`internal/modules/tenancy` extension**: `UpdateSustainabilityPreferences` (new
+  `PATCH .../sustainability-preferences`, gated by the same `settings.manage` permission
+  `UpdateTenantSettings` already used) validates `sustainability_ranking_mode` against the three
+  allowed values before it ever reaches the database's own CHECK constraint, returning a clean
+  400 rather than a raw constraint-violation 500.
+- **`internal/modules/placement` extension**: `EvaluatePlacement` resolves a grid snapshot per
+  offer's region and enforces a tenant's optional carbon ceiling as a new hard eligibility check
+  (`CARBON_INTENSITY_EXCEEDS_LIMIT`) alongside the existing sovereignty/security/capacity/
+  compatibility checks -- an offer that fails it is excluded from ranking entirely, not merely
+  ranked lower. The ranking comparator (previously a fixed cost-then-energy-then-id sort) is now
+  keyed by the tenant's `sustainability_ranking_mode`: `energy_first` reorders to
+  energy-then-cost-then-carbon, `carbon_first` to carbon-then-cost-then-energy; `cost_first`
+  (the default) is unchanged from every pre-Milestone-14 evaluation. A non-urgent request whose
+  schedule window has not opened yet at evaluation time skips the reservation step (step 13)
+  entirely and is marked `'deferred'` instead of `'reserved'` -- evaluated lazily, right now,
+  against wall-clock time; there is no scheduler anywhere in this codebase to wake up and retry
+  once the window opens (the same documented absence `reclaimExpired`'s own doc comment already
+  covers for reservation-expiry reclamation), so a caller must call `EvaluatePlacement` again once
+  the window has opened.
+- **Frontend**: the enterprise tenant overview page gains a "Sustainability preferences" section
+  (ranking mode selector, carbon ceiling input); the placement page's evaluation form gains a
+  non-urgent checkbox with optional schedule-window inputs, and each evaluated candidate now shows
+  its resolved carbon intensity, renewable percentage, and estimated carbon alongside the
+  pre-existing cost/energy figures; a deferred request's result explains why no reservation was
+  made and that no automatic retry exists.
+
+### Deliberate security decisions worth calling out
+- **Zero new RBAC permission keys this milestone, for a different reason than Milestones 12-13.**
+  There was no dormant permission to activate -- every new action instead reuses an
+  already-enforced, already-generic permission whose existing remit already covers it:
+  `settings.manage` for sustainability preferences (the same permission tenant display-name
+  updates already used), `reservations.create` for a non-urgent/schedule-window placement request
+  (the same single endpoint every placement request, urgent or not, already goes through). See
+  `docs/security/permission-matrix.md` for the full breakdown.
+- **A carbon ceiling is a hard eligibility gate, not a ranking preference** -- an offer whose
+  region's resolved carbon intensity exceeds a tenant's `max_carbon_intensity_g_per_kwh` is
+  excluded from eligible candidates entirely, the same "excluded with an explicit reason code,
+  never silently hidden" discipline `OPERATOR_DEGRADED` already established in Milestone 12,
+  applied here to a tenant-chosen constraint rather than an operator-declared one.
+  `sustainability_ranking_mode`, by contrast, only ever reorders already-eligible candidates --
+  it can change which eligible offer wins, never make an eligible offer ineligible.
+  `cost_first`'s default ranking key order (cost, energy, carbon, offer id) is identical to every
+  pre-Milestone-14 comparator, so no existing behaviour changed for a tenant that never sets a
+  preference.
+- **No scheduler/cron is introduced anywhere in this milestone.** "Non-urgent workload scheduling"
+  is evaluated lazily on each `EvaluatePlacement` call against wall-clock time, exactly like
+  reservation-expiry reclamation already was -- a documented, honest limitation rather than a
+  claim of proactive scheduling this codebase cannot yet back up (see Known Limitations).
+- **Sustainability evidence is durable, not merely displayed.** `carbon_intensity_g_per_kwh`/
+  `renewable_percentage`/`estimated_carbon_kg` are persisted on every `placement_evaluations` row
+  (including rejected candidates), so a tenant's sustainability claims about a specific
+  reservation are independently auditable after the fact, the same evidentiary role
+  `estimated_energy_kwh` already played since Milestone 5.
+
+### Verification performed (not just claimed)
+- Migration `0038` applied cleanly against a real Postgres via the automated test suite; the new
+  `enterprise_tenants`/`placement_requests`/`placement_evaluations` columns, the widened
+  `placement_requests_status_check` constraint (confirmed via `psql \d`, not just assumed from the
+  migration's own DROP/ADD CONSTRAINT), and the `placement_requests_schedule_window_order` CHECK
+  were all confirmed present via direct queries. Also applied cleanly (and confirmed idempotent
+  across two runs) against a separate development database via the seed script, which runs
+  migrations itself.
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including every extended module and the new
+  `internal/platform/energyprovider` package.
+- 1 new integration test, `TestEnergyAwareSchedulingCarbonCeilingRankingAndDeferral`, run against a
+  real Postgres over real HTTP: every evaluated candidate carries a positive carbon intensity; an
+  unmeetable carbon ceiling (`0.01` gCO2/kWh) rejects every offer with an explicit
+  `CARBON_INTENSITY_EXCEEDS_LIMIT` reason code; with two offers deliberately priced and energy-
+  rated so cost and energy/carbon disagree on the winner, `cost_first` ranks the cheaper (higher-
+  energy/higher-carbon) offer first and `carbon_first` ranks the lower-energy/lower-carbon offer
+  first -- proving the ranking-mode switch actually changes the outcome, not just the label; a
+  non-urgent request outside its declared schedule window is marked `'deferred'` with zero
+  capacity consumed (confirmed via the offers' unchanged `available_capacity`), and the identical
+  request re-evaluated inside its window reserves normally. All pass alongside the full
+  pre-existing Milestone 1-13 suite (60 total `internal/app` tests) with zero regressions; the
+  full `go test ./... -p 1` run (serialized to avoid this sandbox's known shared-test-database
+  contention under `-p` > 1, documented in Known Limitations since early milestones) is entirely
+  green.
+- The fictional seed data **was** extended this milestone: Atlas Government Services (a
+  public-sector tenant, a natural fit for a sustainability mandate) is set to
+  `sustainability_ranking_mode = 'carbon_first'` with a `400` gCO2/kWh ceiling. No schedule-window
+  placement request is seeded -- demonstrating one meaningfully needs a fresh, unconsumed capacity
+  offer and specific wall-clock timing, and every already-seeded offer already carries other seed
+  data's reservations against it; recording just the tenant preference is the honest extent of
+  what this seed script can demonstrate without a contrived, timing-fragile scenario. Verified
+  idempotent by running the seed script twice against a freshly created development database and
+  confirming the preference row did not change on the second run.
+- Frontend: `eslint`, `tsc --noEmit`, and `next build` all pass with the extended tenant-overview
+  and placement pages included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 14 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Energy data model | ✅ unaffected/reused -- `capacity_offers.estimated_kwh_per_unit_hour`/`placement_evaluations.estimated_energy_kwh` (Milestone 5) |
+| Carbon data model | ✅ new -- `internal/platform/energyprovider.GridSnapshot`, persisted as `placement_evaluations.carbon_intensity_g_per_kwh`/`renewable_percentage` |
+| Energy preferences | ✅ `enterprise_tenants.sustainability_ranking_mode` (`energy_first`) |
+| Carbon preferences | ✅ `sustainability_ranking_mode` (`carbon_first`) plus the hard `max_carbon_intensity_g_per_kwh` ceiling |
+| Schedule windows | ✅ `placement_requests.schedule_window_start`/`schedule_window_end` |
+| Cost and energy trade-offs | ✅ ranking comparator reordered by `sustainability_ranking_mode`, still a plain deterministic sort |
+| Non-urgent workload scheduling | ✅ `placement_requests.non_urgent`, a `'deferred'` status when outside the window, evaluated lazily |
+| Sustainability evidence | ✅ `placement_evaluations.carbon_intensity_g_per_kwh`/`renewable_percentage`/`estimated_carbon_kg`, persisted for every candidate |
+| Mock energy provider | ✅ `internal/platform/energyprovider.MockProvider` |
+| No AI-only placement/ranking decisions | ✅ ranking remains a plain, tenant-configurable but fully deterministic sort |
+| Infrastructure/cluster/vault/model/energy-provider credentials never exposed to the frontend | ✅ unaffected -- the mock provider needs no credentials, and none are introduced |
+| Backend permissions are enforced | ✅ zero new permission keys, every action gated by an existing, already-enforced permission |
+| Cross-tenant isolation holds | ✅ unaffected -- no new cross-tenant data path; sustainability preferences and schedule windows are single-tenant data |
+| Audit records are created for all sensitive actions | ✅ `tenancy.sustainability_preferences_updated` plus the pre-existing `placement.evaluated` audit event |
+| Database migrations work | ✅ `0038` applied cleanly against both the test database and a separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new integration test + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, `next build` |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 15 has not begun | ✅ confirmed -- no Milestone 15 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,

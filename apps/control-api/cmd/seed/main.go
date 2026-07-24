@@ -956,6 +956,23 @@ func main() {
 		}
 	}
 
+	// --- Energy-Aware Scheduling (Milestone 14) --------------------------------
+	// Atlas Government Services -- a public-sector tenant, a natural fit for a
+	// sustainability mandate -- sets a carbon-first ranking preference and a
+	// hard carbon ceiling. Nothing else is seeded here: a schedule-window
+	// placement request needs a fresh, unconsumed capacity offer and specific
+	// wall-clock timing to demonstrate meaningfully, and every existing seeded
+	// offer already has other seed-data reservations against it (see the
+	// federation/settlement sections above) -- recording just the tenant
+	// preference is the honest extent of what this seed script can
+	// demonstrate without a contrived, timing-fragile scenario.
+	if _, err := tx.Exec(ctx, `
+		UPDATE enterprise_tenants SET sustainability_ranking_mode = 'carbon_first', max_carbon_intensity_g_per_kwh = 400
+		WHERE id = $1
+	`, atlasTenantID); err != nil {
+		fatal("seed Atlas sustainability preferences", err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}

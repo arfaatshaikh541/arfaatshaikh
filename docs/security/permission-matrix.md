@@ -239,3 +239,15 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   `model_versions_marketplace_read` policy plus the widened WHERE clause in
   `modelVersionEligibilityFacts`), not by a permission check, the same "grant is visibility,
   not a role" design Milestone 12 established for capacity.
+- Milestone 14 introduces **zero** new permission keys too, but for a different reason than
+  Milestones 12-13: no permission key anticipating "energy"/"carbon"/"sustainability"/"schedule"
+  was ever pre-seeded in an earlier migration (confirmed by search across every prior
+  migration) -- there was nothing dormant to activate here. Instead, every new action reuses an
+  already-enforced, already-generic permission whose existing remit already covers it.
+  `UpdateSustainabilityPreferences` (`internal/modules/tenancy`) reuses `settings.manage`, the
+  same permission `UpdateTenantSettings` (display name) already used -- both are a tenant
+  configuring its own account-level behaviour. Declaring a request `non_urgent` with a schedule
+  window (`internal/modules/placement.EvaluatePlacement`) needs no new permission either --
+  `reservations.create` already gates the one endpoint (`POST .../placement-requests`) both the
+  urgent and non-urgent paths go through; the schedule window is request data, not a separate
+  capability.
