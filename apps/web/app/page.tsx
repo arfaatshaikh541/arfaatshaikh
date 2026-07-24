@@ -14,7 +14,7 @@ export default function HomePage() {
         enterprise and government AI workloads.
       </p>
       {!loading && (
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           {user ? (
             <Link
               className="rounded-full bg-zinc-900 px-6 py-3 font-medium text-white dark:bg-white dark:text-zinc-900"

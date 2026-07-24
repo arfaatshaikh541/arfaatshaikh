@@ -105,7 +105,7 @@ export default function OperatorCapacityPage({ params }: { params: Promise<{ ope
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -113,7 +113,7 @@ export default function OperatorCapacityPage({ params }: { params: Promise<{ ope
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Capacity offers &amp; reservations</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -147,7 +147,7 @@ export default function OperatorCapacityPage({ params }: { params: Promise<{ ope
           <ul className="flex flex-col gap-2 text-sm">
             {reservations.data?.map((r) => (
               <li key={r.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{r.quantity} unit(s) &middot; ${r.estimated_cost.toFixed(2)} at ${r.price_per_unit_hour}/unit/hr</span>
                   <span className="text-zinc-500">{r.status}</span>
                 </div>
@@ -248,9 +248,9 @@ function OfferRow({
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{clusterName} &middot; {offer.accelerator_type}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {offer.visibility === "private" && <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">private</span>}
           {offer.degraded && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900 dark:bg-red-900 dark:text-red-100">degraded</span>}
           <span className="text-zinc-500">{offer.status}</span>
@@ -289,12 +289,12 @@ function OfferRow({
         <div className="mt-3 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
           <ul className="flex flex-col gap-2 text-xs">
             {grants.data?.map((g) => (
-              <li key={g.id} className="flex items-center justify-between">
+              <li key={g.id} className="flex items-center justify-between flex-wrap gap-1">
                 <span>
                   tenant {g.enterprise_tenant_id.slice(0, 8)}&hellip;
                   {g.price_per_unit_hour_override != null && <> &middot; ${g.price_per_unit_hour_override}/unit/hr override</>}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 flex-wrap">
                   <span className="text-zinc-500">{g.status}</span>
                   {g.status === "active" && <button onClick={() => revokeGrant(g.id)} className="text-red-600 underline">Revoke</button>}
                 </span>
@@ -347,7 +347,7 @@ function CreateGrantForm({
     <div className="mt-3 flex flex-col gap-2">
       <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
         className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <select aria-label="Bilateral agreement" value={agreementId} onChange={(e) => setAgreementId(e.target.value)}
           className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900">
           <option value="">No linked agreement</option>
@@ -392,7 +392,7 @@ function AgreementRow({
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>tenant {agreement.enterprise_tenant_id.slice(0, 8)}&hellip; &middot; {agreement.currency} &middot; {(agreement.platform_fee_rate * 100).toFixed(1)}% platform fee</span>
         <span className={agreement.status === "active" ? "text-emerald-600" : "text-zinc-500"}>{agreement.status}</span>
       </div>
@@ -446,14 +446,14 @@ function CreateAgreementForm({ operatorId, onCreated }: { operatorId: string; on
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
             className="w-24 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Currency" />
           <input placeholder="Platform fee rate (0-1)" type="number" min={0} max={1} step="0.01" value={feeRate}
             onChange={(e) => setFeeRate(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Platform fee rate (0-1)" />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Min. commitment (hours, optional)" type="number" min={0} value={minCommitmentHours}
             onChange={(e) => setMinCommitmentHours(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Min. commitment (hours, optional)" />

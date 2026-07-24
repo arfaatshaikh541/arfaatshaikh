@@ -129,7 +129,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
 
   if (policies.isError && policies.error instanceof ApiError && policies.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s sovereignty policies.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -137,7 +137,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Sovereignty policies</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -172,7 +172,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
         </p>
         <ul className="flex flex-col gap-1 text-sm">
           {evaluations.data?.map((e) => (
-            <li key={e.id} className="flex items-center justify-between border-b border-zinc-100 py-1 dark:border-zinc-900">
+            <li key={e.id} className="flex items-center justify-between border-b border-zinc-100 py-1 dark:border-zinc-900 flex-wrap gap-1">
               <span>
                 v{e.policy_version} &middot; <span className={e.decision === "allow" ? "text-green-700 dark:text-green-400" : "text-red-600"}>{e.decision}</span>
                 {e.reason_codes.length > 0 && <span className="text-zinc-500"> ({e.reason_codes.join(", ")})</span>}
@@ -273,7 +273,7 @@ function PolicyCard({
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{policy.name} <span className="text-zinc-500">({policy.policy_key})</span></span>
         <span className="text-xs text-zinc-500">v{policy.version} &middot; {policy.status}</span>
       </div>
@@ -305,7 +305,7 @@ function PolicyCard({
       )}
 
       {canManage && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
           <input
             placeholder="Version #"
             value={rollbackVersion}
@@ -341,7 +341,7 @@ function PolicyCard({
               Confidential computing available
             </label>
           </div>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex gap-2 flex-wrap">
             <button onClick={runSimulate} className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium dark:border-zinc-700">
               Simulate (no evidence)
             </button>

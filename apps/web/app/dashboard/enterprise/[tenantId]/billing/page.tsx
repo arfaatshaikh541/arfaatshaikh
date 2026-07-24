@@ -133,7 +133,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s billing data.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -141,7 +141,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Usage, billing &amp; settlement</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -170,7 +170,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
           <ul className="mb-3 flex flex-col gap-2 text-sm">
             {quotes.data?.map((q) => (
               <li key={q.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{q.currency} {q.estimated_total.toFixed(2)}</span>
                   <span className="text-xs text-zinc-500">{new Date(q.created_at).toLocaleDateString()}</span>
                 </div>
@@ -217,7 +217,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
           <ul className="flex flex-col gap-1 text-sm">
             {creditNotes.data?.map((cn) => (
               <li key={cn.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{cn.amount.toFixed(2)} &middot; {cn.reason}</span>
                   <span className="text-zinc-500">{cn.status}</span>
                 </div>
@@ -234,7 +234,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
           <ul className="flex flex-col gap-1 text-sm">
             {disputes.data?.map((d) => (
               <li key={d.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{d.reason}</span>
                   <span className={d.status === "open" ? "text-amber-600" : "text-zinc-500"}>{d.status}</span>
                 </div>
@@ -273,7 +273,7 @@ function CreateQuoteForm({ tenantId, onCreated }: { tenantId: string; onCreated:
       <div className="flex flex-col gap-2">
         <input placeholder="Operator id" value={operatorId} onChange={(e) => setOperatorId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Operator id" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select aria-label="Usage metric" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             {USAGE_METRIC_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
@@ -305,7 +305,7 @@ function BudgetRow({ tenantId, budget, onChanged }: { tenantId: string; budget: 
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{budget.name}</span>
         <span className="text-zinc-500">{budget.status}</span>
       </div>
@@ -347,7 +347,7 @@ function CreateBudgetForm({ tenantId, onCreated }: { tenantId: string; onCreated
       <div className="flex flex-col gap-2">
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Name" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Threshold amount" type="number" min={0} value={thresholdAmount} onChange={(e) => setThresholdAmount(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Threshold amount" />
           <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
@@ -387,7 +387,7 @@ function InvoiceRow({ tenantId, invoice, canDispute, onChanged }: { tenantId: st
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{invoice.currency} {invoice.total.toFixed(2)}</span>
         <span className={invoice.status === "disputed" ? "text-red-600" : "text-zinc-500"}>{invoice.status}</span>
       </div>
@@ -400,7 +400,7 @@ function InvoiceRow({ tenantId, invoice, canDispute, onChanged }: { tenantId: st
         <div className="mt-2 flex flex-col gap-2">
           <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
             className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Reason" />
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button onClick={openDispute} disabled={!reason} className="text-xs text-red-600 underline disabled:opacity-50">Submit dispute</button>
             <button onClick={() => setDisputing(false)} className="text-xs underline">Cancel</button>
           </div>

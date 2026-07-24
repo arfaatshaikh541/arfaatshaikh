@@ -114,7 +114,7 @@ export default function DeploymentsPage({ params }: { params: Promise<{ tenantId
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s deployments.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -122,7 +122,7 @@ export default function DeploymentsPage({ params }: { params: Promise<{ tenantId
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Deployments</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -303,7 +303,7 @@ function DeploymentRow({
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div>
-            <div className="mb-1 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between flex-wrap gap-1">
               <h4 className="text-xs font-medium">Deployment plans</h4>
               {perms.deploy && deployment.status === "pending_plan_approval" && !latestPlan && (
                 <button onClick={draftPlan} className="text-xs underline">Draft a plan</button>
@@ -312,12 +312,12 @@ function DeploymentRow({
             <ul className="flex flex-col gap-1 text-xs text-zinc-500">
               {plans.data?.slice().sort((a, b) => b.version - a.version).map((p) => (
                 <li key={p.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span>v{p.version} &middot; {p.manifest_hash.slice(0, 12)}&hellip;</span>
                     <span>{p.status}</span>
                   </div>
                   {p.rejected_reason && <p className="mt-1">Rejected: {p.rejected_reason}</p>}
-                  <div className="mt-1 flex gap-3">
+                  <div className="mt-1 flex gap-3 flex-wrap">
                     {perms.deploy && p.status === "draft" && (
                       <button onClick={() => requestApproval(p.id)} className="underline">Request approval</button>
                     )}
@@ -342,7 +342,7 @@ function DeploymentRow({
 
           <div className="flex flex-wrap items-center gap-3">
             {perms.scale && deployment.status === "running" && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 flex-wrap">
                 <input type="number" min={1} value={replicaCount} onChange={(e) => setReplicaCount(e.target.value)}
                   aria-label="Replica count" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
                 <button onClick={scale} className="text-xs underline">Scale</button>
@@ -355,7 +355,7 @@ function DeploymentRow({
               <button onClick={resume} className="text-xs underline">Resume</button>
             )}
             {perms.rollback && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 flex-wrap">
                 <input type="number" min={1} value={rollbackVersion} onChange={(e) => setRollbackVersion(e.target.value)}
                   aria-label="Rollback target version" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
                 <button onClick={rollback} className="text-xs underline">Roll back to version</button>
@@ -457,7 +457,7 @@ function WorkloadSecretsSection({ tenantId }: { tenantId: string }) {
         className="mb-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Workload version ID" />
       <ul className="mb-3 flex flex-col gap-1 text-xs text-zinc-500">
         {secrets.data?.map((s) => (
-          <li key={s.id} className="flex items-center justify-between rounded border border-zinc-100 px-2 py-1 dark:border-zinc-900">
+          <li key={s.id} className="flex items-center justify-between rounded border border-zinc-100 px-2 py-1 dark:border-zinc-900 flex-wrap gap-1">
             <span>{s.key}</span>
             <button onClick={() => remove(s.id)} className="text-red-600 underline">Delete</button>
           </li>

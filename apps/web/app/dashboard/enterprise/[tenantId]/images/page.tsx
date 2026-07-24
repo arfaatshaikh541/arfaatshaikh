@@ -62,7 +62,7 @@ export default function ImagesPage({ params }: { params: Promise<{ tenantId: str
 
   if (images.isError && images.error instanceof ApiError && images.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s container image registry.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -70,7 +70,7 @@ export default function ImagesPage({ params }: { params: Promise<{ tenantId: str
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Container images &amp; supply chain</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -203,7 +203,7 @@ function ImageCard({
             <h4 className="text-xs font-medium">Vulnerability exceptions</h4>
             <ul className="flex flex-col gap-1 text-xs text-zinc-500">
               {exceptions.data?.map((e) => (
-                <li key={e.id} className="flex items-center justify-between">
+                <li key={e.id} className="flex items-center justify-between flex-wrap gap-1">
                   <span>{e.reason} ({e.status})</span>
                   {e.status === "pending" && canExceptionApprove && e.requested_by !== myUserId && (
                     <button onClick={() => approveException(e.id)} className="underline">Approve</button>

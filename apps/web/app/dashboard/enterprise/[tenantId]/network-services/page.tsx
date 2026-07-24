@@ -99,7 +99,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s network services.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -107,7 +107,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network services</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -121,7 +121,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
         <ul className="flex flex-col gap-2 text-sm">
           {offers.data?.map((o) => (
             <li key={o.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <span>{o.service_class}</span>
                 <span className="text-zinc-500">{o.available_bandwidth_gbps} Gbps available</span>
               </div>
@@ -169,7 +169,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
         <ul className="flex flex-col gap-2 text-sm">
           {healthEvents.data?.map((e) => (
             <li key={e.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <span>{e.event_type}</span>
                 <span className={e.severity === "critical" ? "text-red-600" : e.severity === "warning" ? "text-amber-600" : "text-zinc-500"}>
                   {e.severity}
@@ -210,7 +210,7 @@ function ReservationRow({
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{reservation.bandwidth_gbps} Gbps &middot; ${reservation.estimated_cost.toFixed(2)}</span>
         <span className="text-zinc-500">{reservation.status} / {reservation.provisioning_status}</span>
       </div>
@@ -219,7 +219,7 @@ function ReservationRow({
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {canCancel && reservation.status === "committed" && (
-        <div className="mt-2 flex gap-3">
+        <div className="mt-2 flex gap-3 flex-wrap">
           <button onClick={cancel} className="text-xs text-red-600 underline">Cancel</button>
         </div>
       )}
@@ -285,7 +285,7 @@ function EvaluateNetworkServiceForm({ tenantId, onEvaluated }: { tenantId: strin
               .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
               .map((ev) => (
                 <li key={ev.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span>{ev.service_class} {ev.rank ? `(rank ${ev.rank})` : ""}</span>
                     <span className={ev.decision === "eligible" ? "text-emerald-600" : "text-red-600"}>{ev.decision}</span>
                   </div>

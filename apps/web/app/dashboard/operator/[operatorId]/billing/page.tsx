@@ -170,7 +170,7 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator&apos;s billing data.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -178,7 +178,7 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Usage, billing &amp; settlement</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -236,7 +236,7 @@ export default function OperatorBillingPage({ params }: { params: Promise<{ oper
           <ul className="mt-3 flex flex-col gap-1 text-sm">
             {creditNotes.data?.map((cn) => (
               <li key={cn.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{cn.amount.toFixed(2)} &middot; {cn.reason}</span>
                   <span className="text-zinc-500">{cn.status}</span>
                 </div>
@@ -299,7 +299,7 @@ function PriceBookRow({ operatorId, book, canManage, onChanged }: { operatorId: 
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">v{book.version} ({book.currency})</span>
         <span className={book.status === "active" ? "text-emerald-600" : "text-zinc-500"}>{book.status}</span>
       </div>
@@ -339,7 +339,7 @@ function CreatePriceBookForm({ operatorId, onCreated }: { operatorId: string; on
       <div className="flex flex-col gap-2">
         <input placeholder="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Currency" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select aria-label="Usage metric" value={metricKey} onChange={(e) => setMetricKey(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             {USAGE_METRIC_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
@@ -388,7 +388,7 @@ function AggregateUsageForm({ operatorId }: { operatorId: string }) {
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
@@ -431,7 +431,7 @@ function GenerateInvoiceForm({ operatorId, canManage, onGenerated }: { operatorI
       <div className="flex flex-col gap-2">
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
@@ -470,7 +470,7 @@ function CreateSettlementForm({ operatorId, onCreated }: { operatorId: string; o
     <div className="mb-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
       <h3 className="mb-2 text-sm font-medium">Create a settlement</h3>
       <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
@@ -528,7 +528,7 @@ function CreateSettlementForAgreementForm({ operatorId, agreements, onCreated }:
             <option key={a.id} value={a.id}>tenant {a.enterprise_tenant_id.slice(0, 8)}&hellip; ({(a.platform_fee_rate * 100).toFixed(1)}% fee)</option>
           ))}
         </select>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Period start (RFC3339)" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
             className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Period start (RFC3339)" />
           <input placeholder="Period end (RFC3339)" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
@@ -571,7 +571,7 @@ function SettlementRow({ operatorId, settlement, canManage, onChanged }: { opera
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{settlement.currency} {settlement.gross_amount.toFixed(2)} gross / {settlement.net_amount.toFixed(2)} net</span>
         <span className="text-zinc-500">{settlement.status}</span>
       </div>
@@ -580,7 +580,7 @@ function SettlementRow({ operatorId, settlement, canManage, onChanged }: { opera
         {settlement.bilateral_agreement_id && <> &middot; from bilateral agreement (tenant {settlement.enterprise_tenant_id?.slice(0, 8)}&hellip;)</>}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         {canManage && settlement.status === "pending" && (
           <button onClick={reconcile} className="text-xs underline">Reconcile</button>
         )}
@@ -653,13 +653,13 @@ function InvoiceRow({ operatorId, invoice, canManage, onChanged }: { operatorId:
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{invoice.currency} {invoice.total.toFixed(2)}</span>
         <span className={invoice.status === "disputed" ? "text-red-600" : "text-zinc-500"}>{invoice.status}</span>
       </div>
       <p className="mt-1 text-xs text-zinc-500">Issued {new Date(invoice.issued_at).toLocaleString()}</p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         {canManage && invoice.status !== "paid" && invoice.status !== "void" && (
           <button onClick={markPaid} className="text-xs underline">Mark paid</button>
         )}
@@ -727,7 +727,7 @@ function CreateAdjustmentForm({ operatorId, invoiceId, settlementId, onCreated }
 
   return (
     <div className="mt-2 flex flex-col gap-2">
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <input placeholder="Amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
           className="w-28 rounded-md border border-zinc-300 px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Amount" />
         <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
@@ -769,7 +769,7 @@ function CreateCreditNoteForm({ operatorId, onCreated }: { operatorId: string; o
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Invoice id" />
         <input placeholder="Enterprise tenant id" value={tenantId} onChange={(e) => setTenantId(e.target.value)}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Enterprise tenant id" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input placeholder="Amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
             className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="Amount" />
           <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)}
@@ -800,7 +800,7 @@ function DisputeRow({ operatorId, dispute, canManage, onChanged }: { operatorId:
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{dispute.reason}</span>
         <span className={dispute.status === "open" ? "text-amber-600" : "text-zinc-500"}>{dispute.status}</span>
       </div>
@@ -810,7 +810,7 @@ function DisputeRow({ operatorId, dispute, canManage, onChanged }: { operatorId:
         <div className="mt-2 flex flex-col gap-2">
           <input placeholder="Resolution note" value={note} onChange={(e) => setNote(e.target.value)}
             className="rounded-md border border-zinc-300 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Resolution note" />
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button onClick={() => resolve("resolved")} className="text-xs underline">Resolve</button>
             <button onClick={() => resolve("rejected")} className="text-xs text-red-600 underline">Reject</button>
           </div>

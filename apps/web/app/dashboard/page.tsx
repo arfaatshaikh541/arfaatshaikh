@@ -36,8 +36,8 @@ export default function DashboardPage() {
   if (loading || !user) return null;
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
-      <div className="mb-8 flex items-center justify-between">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
+      <div className="mb-8 flex items-center justify-between flex-wrap gap-1">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <button onClick={logout} className="text-sm underline">
           Log out
@@ -45,7 +45,7 @@ export default function DashboardPage() {
       </div>
 
       <section className="mb-10">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between flex-wrap gap-1">
           <h2 className="text-lg font-medium">Enterprise tenants</h2>
           <Link href="/onboarding" className="text-sm underline">
             + New tenant
@@ -73,7 +73,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="mb-10">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between flex-wrap gap-1">
           <h2 className="text-lg font-medium">Operator accounts</h2>
           <Link href="/onboarding/operator" className="text-sm underline">
             + New operator

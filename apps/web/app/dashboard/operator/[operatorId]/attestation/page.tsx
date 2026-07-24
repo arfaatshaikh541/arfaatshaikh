@@ -75,7 +75,7 @@ export default function AttestationPage({ params }: { params: Promise<{ operator
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -83,7 +83,7 @@ export default function AttestationPage({ params }: { params: Promise<{ operator
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Confidential-computing attestation</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -183,7 +183,7 @@ function PolicyRow({
               <ul className="flex flex-col gap-1 text-xs text-zinc-500">
                 {results.data?.map((r) => (
                   <li key={r.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
                       <span>{new Date(r.evaluated_at).toLocaleString()}</span>
                       <span className={r.decision === "pass" ? "text-emerald-600" : "text-red-600"}>{r.decision}</span>
                     </div>

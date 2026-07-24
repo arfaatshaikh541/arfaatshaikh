@@ -37,11 +37,11 @@ function AcceptInvitationInner() {
     }
   };
 
-  if (loading) return <main id="main-content" className="flex flex-1 items-center justify-center p-8">Loading...</main>;
+  if (loading) return <main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8">Loading...</main>;
 
   if (!token) {
     return (
-      <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8 text-center">
         <p>No invitation token was provided.</p>
       </main>
     );
@@ -49,14 +49,14 @@ function AcceptInvitationInner() {
 
   if (!user) {
     return (
-      <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
+      <main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8 text-center">
         <div className="max-w-sm">
           <h1 className="mb-2 text-2xl font-semibold">Log in to accept your invitation</h1>
           <p className="mb-6 text-zinc-600 dark:text-zinc-400">
             Log in or register with the email address that received this invitation, then return to
             this link.
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 flex-wrap">
             <Link className="rounded-full bg-zinc-900 px-5 py-2 font-medium text-white dark:bg-white dark:text-zinc-900" href="/login">
               Log in
             </Link>
@@ -70,7 +70,7 @@ function AcceptInvitationInner() {
   }
 
   return (
-    <main id="main-content" className="flex flex-1 items-center justify-center p-8 text-center">
+    <main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8 text-center">
       <div className="max-w-sm">
         <h1 className="mb-4 text-2xl font-semibold">Accept invitation</h1>
         {status === "error" && <p className="mb-4 text-red-600">{message}</p>}
@@ -88,7 +88,7 @@ function AcceptInvitationInner() {
 
 export default function AcceptInvitationPage() {
   return (
-    <Suspense fallback={<main id="main-content" className="flex flex-1 items-center justify-center p-8">Loading...</main>}>
+    <Suspense fallback={<main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8">Loading...</main>}>
       <AcceptInvitationInner />
     </Suspense>
   );

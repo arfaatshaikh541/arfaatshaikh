@@ -75,7 +75,7 @@ export default function ClusterAgentsPage({ params }: { params: Promise<{ operat
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -83,7 +83,7 @@ export default function ClusterAgentsPage({ params }: { params: Promise<{ operat
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Cluster agents</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -190,7 +190,7 @@ function ClusterAgentRow({
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           {canManage && agent.status === "active" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <input placeholder="Namespace" value={namespace} onChange={(e) => setNamespace(e.target.value)}
                 className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" aria-label="Namespace" />
               <button onClick={requestValidation} className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">

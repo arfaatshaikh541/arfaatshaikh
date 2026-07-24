@@ -97,7 +97,7 @@ export default function WorkloadsPage({ params }: { params: Promise<{ tenantId: 
 
   if (workloads.isError && workloads.error instanceof ApiError && workloads.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s workloads.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -105,7 +105,7 @@ export default function WorkloadsPage({ params }: { params: Promise<{ tenantId: 
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Workloads</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -247,7 +247,7 @@ function WorkloadCard({
           <ul className="flex flex-col gap-2">
             {versions.data?.map((v) => (
               <li key={v.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>v{v.version}</span>
                   <span className="text-xs text-zinc-500">{v.status}</span>
                 </div>
@@ -356,7 +356,7 @@ function VersionComponentsPanel({ tenantId, versionId, canEdit }: { tenantId: st
       <ul className="flex flex-col gap-2">
         {components.data?.map((c) => (
           <li key={c.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-xs flex-wrap gap-1">
               <span>{c.name} <span className="text-zinc-500">({c.component_key})</span></span>
               {c.is_primary && <span className="text-zinc-500">primary</span>}
             </div>
@@ -424,7 +424,7 @@ function ComponentHealthChecksPanel({ tenantId, componentId, canEdit }: { tenant
       {error && <p className="text-xs text-red-600">{error}</p>}
       <ul className="flex flex-col gap-1 text-xs">
         {healthChecks.data?.map((hc) => (
-          <li key={hc.id} className="flex items-center justify-between">
+          <li key={hc.id} className="flex items-center justify-between flex-wrap gap-1">
             <span>{hc.check_type} {hc.path}</span>
             <span className="text-zinc-500">every {hc.interval_seconds}s</span>
           </li>

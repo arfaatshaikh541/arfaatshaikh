@@ -113,7 +113,7 @@ export default function PlatformPortalPage() {
 
   if ((user?.platform_roles?.length ?? 0) === 0) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not hold a platform administration role.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -121,7 +121,7 @@ export default function PlatformPortalPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Platform administration</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -202,7 +202,7 @@ export default function PlatformPortalPage() {
         <h2 className="mb-3 text-lg font-medium">Platform audit log</h2>
         <ul className="flex flex-col gap-1 text-sm">
           {platformAudit.data?.map((e) => (
-            <li key={e.seq} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900">
+            <li key={e.seq} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900 flex-wrap gap-1">
               <span>{e.action}</span>
               <span className="text-zinc-500">{new Date(e.occurred_at).toLocaleString()}</span>
             </li>
@@ -239,7 +239,7 @@ function TenantRow({ tenant, onChanged }: { tenant: TenantSummary; onChanged: ()
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{tenant.display_name} <span className="text-zinc-500">({tenant.country})</span></span>
         <span className="text-zinc-500">{tenant.status}</span>
       </div>
@@ -297,7 +297,7 @@ function OperatorRow({ operator, onChanged }: { operator: OperatorSummary; onCha
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{operator.display_name} <span className="text-zinc-500">({operator.country})</span></span>
         <span className="text-zinc-500">{operator.status} &middot; {operator.trust_level}</span>
       </div>
@@ -354,7 +354,7 @@ function SupportGrantRow({ grant, onChanged }: { grant: SupportAccessGrant; onCh
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{grant.scope_type} {grant.scope_id.slice(0, 8)}&hellip; &middot; {grant.reason}</span>
         <span className="text-zinc-500">
           {grant.revoked_at ? "revoked" : grant.approved_by ? "active" : "pending"}
@@ -362,7 +362,7 @@ function SupportGrantRow({ grant, onChanged }: { grant: SupportAccessGrant; onCh
       </div>
       <p className="mt-1 text-xs text-zinc-500">Expires {new Date(grant.expires_at).toLocaleString()}</p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3 text-xs">
+      <div className="mt-2 flex gap-3 text-xs flex-wrap">
         {isPending && <button onClick={approve} className="underline">Approve (dual control)</button>}
         {isActive && <button onClick={revoke} className="text-red-600 underline">Revoke</button>}
       </div>
@@ -513,12 +513,12 @@ function ModelProviderRow({ provider, onChanged }: { provider: ModelProvider; on
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{provider.name} <span className="text-zinc-500">({provider.key})</span></span>
         <span className="text-zinc-500">{provider.status}</span>
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3 text-xs">
+      <div className="mt-2 flex gap-3 text-xs flex-wrap">
         {provider.status === "active" && <button onClick={suspend} className="text-red-600 underline">Suspend</button>}
         {provider.status === "suspended" && <button onClick={reactivate} className="underline">Reactivate</button>}
       </div>

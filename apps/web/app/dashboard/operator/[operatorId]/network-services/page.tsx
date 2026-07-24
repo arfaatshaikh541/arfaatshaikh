@@ -88,7 +88,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -96,7 +96,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network service offers &amp; reservations</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -128,7 +128,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
           <ul className="flex flex-col gap-2 text-sm">
             {reservations.data?.map((r) => (
               <li key={r.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{r.bandwidth_gbps} Gbps &middot; ${r.estimated_cost.toFixed(2)}</span>
                   <span className="text-zinc-500">{r.status} / {r.provisioning_status}</span>
                 </div>
@@ -148,7 +148,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
           <ul className="flex flex-col gap-2 text-sm">
             {healthEvents.data?.map((e) => (
               <li key={e.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>{e.event_type}</span>
                   <span className={e.severity === "critical" ? "text-red-600" : e.severity === "warning" ? "text-amber-600" : "text-zinc-500"}>
                     {e.severity}
@@ -192,7 +192,7 @@ function OfferRow({
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{capabilityLabel} &middot; {offer.service_class}</span>
         <span className="text-zinc-500">{offer.status}</span>
       </div>
@@ -202,7 +202,7 @@ function OfferRow({
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       {canManage && (
-        <div className="mt-2 flex gap-3">
+        <div className="mt-2 flex gap-3 flex-wrap">
           {offer.status !== "active" && (
             <button onClick={() => setStatus("active")} className="text-xs underline">Activate</button>
           )}

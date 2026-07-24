@@ -36,7 +36,7 @@ export default function OperatorOnboardingPage() {
   };
 
   return (
-    <main id="main-content" className="flex flex-1 items-center justify-center p-8">
+    <main id="main-content" className="flex flex-1 items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-md rounded-xl border border-zinc-200 p-8 dark:border-zinc-800">
         <h1 className="mb-2 text-2xl font-semibold">Apply as a telecom operator</h1>
         <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">

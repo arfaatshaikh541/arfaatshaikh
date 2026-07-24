@@ -95,7 +95,7 @@ export default function ArtefactsPage({ params }: { params: Promise<{ tenantId: 
 
   if (artefacts.isError && artefacts.error instanceof ApiError && artefacts.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s artefacts.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -103,7 +103,7 @@ export default function ArtefactsPage({ params }: { params: Promise<{ tenantId: 
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Artefacts</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -138,14 +138,14 @@ export default function ArtefactsPage({ params }: { params: Promise<{ tenantId: 
         <ul className="flex flex-col gap-2">
           {artefacts.data?.map((a) => (
             <li key={a.id} className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <span>{a.purpose} &middot; {a.content_type}</span>
                 <span className="text-xs text-zinc-500">{a.status}</span>
               </div>
               <p className="mt-1 text-xs text-zinc-500">
                 {a.content_length ? `${a.content_length} bytes` : ""} &middot; malware scan: {a.malware_scan_status}
               </p>
-              <div className="mt-2 flex gap-3">
+              <div className="mt-2 flex gap-3 flex-wrap">
                 {a.status === "uploaded" && (
                   <button onClick={() => download(a.id)} className="text-xs underline">Download</button>
                 )}

@@ -123,7 +123,7 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s capacity and placement.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -131,7 +131,7 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Capacity &amp; placement</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -148,9 +148,9 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
         <ul className="flex flex-col gap-2 text-sm">
           {offers.data?.map((o) => (
             <li key={o.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <span>{o.accelerator_type}</span>
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 flex-wrap">
                   {o.degraded && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900 dark:bg-red-900 dark:text-red-100">degraded</span>}
                   <span className="text-zinc-500">{o.available_capacity} available</span>
                 </span>
@@ -170,7 +170,7 @@ export default function PlacementPage({ params }: { params: Promise<{ tenantId: 
           <ul className="flex flex-col gap-2 text-sm">
             {agreements.data?.map((a) => (
               <li key={a.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>operator {a.operator_id.slice(0, 8)}&hellip; &middot; {a.currency} &middot; {(a.platform_fee_rate * 100).toFixed(1)}% platform fee</span>
                   <span className={a.status === "active" ? "text-emerald-600" : "text-zinc-500"}>{a.status}</span>
                 </div>
@@ -253,7 +253,7 @@ function ReservationRow({
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span>{reservation.quantity} unit(s) &middot; ${reservation.estimated_cost.toFixed(2)}</span>
         <span className="text-zinc-500">{reservation.status}</span>
       </div>
@@ -262,7 +262,7 @@ function ReservationRow({
         {reservation.status === "held" && ` · expires ${new Date(reservation.expires_at).toLocaleString()}`}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         {reservation.status === "held" && canApprove && reservation.requested_by !== myUserId && (
           <button onClick={approveCommit} className="text-xs underline">Approve &amp; commit</button>
         )}
@@ -381,7 +381,7 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
               .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
               .map((ev) => (
                 <li key={ev.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span>{ev.accelerator_type} {ev.rank ? `(rank ${ev.rank})` : ""}</span>
                     <span className={ev.decision === "eligible" ? "text-emerald-600" : "text-red-600"}>{ev.decision}</span>
                   </div>

@@ -94,7 +94,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
 
   if (tenant.isError && tenant.error instanceof ApiError && tenant.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -102,7 +102,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">{tenant.data?.display_name ?? "..."}</h1>
       {tenant.data?.is_fictional_demo_data && (
@@ -206,7 +206,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <h2 className="mb-3 text-lg font-medium">Members</h2>
         <ul className="flex flex-col gap-2">
           {members.data?.map((m) => (
-            <li key={m.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
+            <li key={m.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 flex-wrap gap-1">
               <span>{m.user_id}</span>
               <span className="text-zinc-500">{m.role_name}</span>
             </li>
@@ -251,7 +251,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <h2 className="mb-3 text-lg font-medium">Audit log</h2>
         <ul className="flex flex-col gap-1 text-sm">
           {audit.data?.map((e) => (
-            <li key={e.seq} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900">
+            <li key={e.seq} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900 flex-wrap gap-1">
               <span>{e.action}</span>
               <span className="text-zinc-500">{new Date(e.occurred_at).toLocaleString()}</span>
             </li>

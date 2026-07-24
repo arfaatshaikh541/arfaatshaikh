@@ -91,7 +91,7 @@ export default function OperatorInfrastructurePage({ params }: { params: Promise
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this operator.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -99,7 +99,7 @@ export default function OperatorInfrastructurePage({ params }: { params: Promise
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
       <h1 className="mt-2 mb-6 text-2xl font-semibold">Infrastructure registry</h1>
 
@@ -138,7 +138,7 @@ export default function OperatorInfrastructurePage({ params }: { params: Promise
         <ul className="flex flex-col gap-2 text-sm">
           {snapshots.data?.map((s) => (
             <li key={s.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <span className="font-medium">{clusterName(s.cluster_id)}</span>
                 <span className="text-xs text-zinc-500">{s.trust_status} &middot; {new Date(s.collected_at).toLocaleString()}</span>
               </div>
@@ -161,7 +161,7 @@ function RegionsSection({ regions }: { regions: Region[] | undefined }) {
       </p>
       <ul className="flex flex-col gap-1 text-sm">
         {regions?.map((r) => (
-          <li key={r.id} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900">
+          <li key={r.id} className="flex justify-between border-b border-zinc-100 py-1 dark:border-zinc-900 flex-wrap gap-1">
             <span>{r.name} ({r.key})</span>
             <span className="text-zinc-500">{r.status}</span>
           </li>
@@ -209,7 +209,7 @@ function DataCentresSection({
       <h2 className="mb-3 text-lg font-medium">Data centres</h2>
       <ul className="flex flex-col gap-2">
         {dataCentres?.map((dc) => (
-          <li key={dc.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
+          <li key={dc.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 flex-wrap gap-1">
             <span>{dc.name} &middot; {dc.locality} &middot; {regionName(dc.region_id)}</span>
             <span className="text-zinc-500">{dc.status}</span>
           </li>
@@ -281,7 +281,7 @@ function ClustersSection({
       <h2 className="mb-3 text-lg font-medium">Clusters</h2>
       <ul className="flex flex-col gap-2">
         {clusters?.map((c) => (
-          <li key={c.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
+          <li key={c.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 flex-wrap gap-1">
             <span>{c.name} &middot; k8s {c.kubernetes_version || "unspecified"}</span>
             <span className="text-zinc-500">{c.status}</span>
           </li>
@@ -358,9 +358,9 @@ function AgentsSection({
       <h2 className="mb-3 text-lg font-medium">Operator agents</h2>
       <ul className="flex flex-col gap-2">
         {agents?.map((a) => (
-          <li key={a.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
+          <li key={a.id} className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800 flex-wrap gap-1">
             <span>{a.name}</span>
-            <span className="flex items-center gap-3">
+            <span className="flex items-center gap-3 flex-wrap">
               <span className="text-zinc-500">{a.status}</span>
               {canManage && a.status !== "revoked" && (
                 <button onClick={() => revoke(a.id)} className="text-xs text-red-600 underline">

@@ -134,7 +134,7 @@ export default function EnterpriseAssurancePage({ params }: { params: Promise<{ 
 
   if (members.isError && members.error instanceof ApiError && members.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s service assurance data.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -142,7 +142,7 @@ export default function EnterpriseAssurancePage({ params }: { params: Promise<{ 
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Service assurance</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -213,7 +213,7 @@ export default function EnterpriseAssurancePage({ params }: { params: Promise<{ 
           <ul className="flex flex-col gap-2 text-sm">
             {alerts.data?.map((a) => (
               <li key={a.id} className="rounded-lg border border-zinc-200 px-4 py-2 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>value {a.value_at_fire}</span>
                   <span className={a.status === "firing" ? "text-red-600" : "text-zinc-500"}>{a.status}</span>
                 </div>
@@ -272,7 +272,7 @@ function SLORow({ tenantId, slo, canManage, onChanged }: { tenantId: string; slo
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{slo.name}</span>
         <span className="text-zinc-500">{slo.status}</span>
       </div>
@@ -288,7 +288,7 @@ function SLORow({ tenantId, slo, canManage, onChanged }: { tenantId: string; slo
         </p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         <button onClick={evaluate} className="text-xs underline">Evaluate now</button>
         <button onClick={() => setHistoryOpen(!historyOpen)} className="text-xs underline">
           {historyOpen ? "Hide history" : "Evaluation history"}
@@ -300,7 +300,7 @@ function SLORow({ tenantId, slo, canManage, onChanged }: { tenantId: string; slo
       {historyOpen && (
         <ul className="mt-2 flex flex-col gap-1 rounded border border-zinc-100 p-2 text-xs dark:border-zinc-900">
           {history.data?.map((e) => (
-            <li key={e.id} className="flex items-center justify-between">
+            <li key={e.id} className="flex items-center justify-between flex-wrap gap-1">
               <span>{new Date(e.evaluated_at).toLocaleString()}</span>
               <span>{e.actual_percentage.toFixed(1)}% ({e.sample_size} samples) &middot; {e.status}</span>
             </li>
@@ -392,7 +392,7 @@ function IncidentRow({ tenantId, incident, canManage, onChanged }: { tenantId: s
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{incident.title}</span>
         <span className={incident.severity === "critical" ? "text-red-600" : incident.severity === "warning" ? "text-amber-600" : "text-zinc-500"}>
           {incident.severity}
@@ -402,7 +402,7 @@ function IncidentRow({ tenantId, incident, canManage, onChanged }: { tenantId: s
         {incident.status} &middot; opened {new Date(incident.opened_at).toLocaleString()}
       </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         {canManage && incident.status === "open" && <button onClick={acknowledge} className="text-xs underline">Acknowledge</button>}
         {canManage && incident.status !== "resolved" && <button onClick={resolve} className="text-xs text-red-600 underline">Resolve</button>}
         <button onClick={() => setTimelineOpen(!timelineOpen)} className="text-xs underline">
@@ -415,7 +415,7 @@ function IncidentRow({ tenantId, incident, canManage, onChanged }: { tenantId: s
             <p className="mb-1 font-medium">Events</p>
             <ul className="flex flex-col gap-1">
               {events.data?.map((e) => (
-                <li key={e.id} className="flex items-center justify-between">
+                <li key={e.id} className="flex items-center justify-between flex-wrap gap-1">
                   <span>{e.event_type}</span>
                   <span className="text-zinc-500">{new Date(e.created_at).toLocaleString()}</span>
                 </li>
@@ -427,7 +427,7 @@ function IncidentRow({ tenantId, incident, canManage, onChanged }: { tenantId: s
             <p className="mb-1 font-medium">Audit trail</p>
             <ul className="flex flex-col gap-1">
               {auditTrail.data?.map((e) => (
-                <li key={e.id} className="flex items-center justify-between">
+                <li key={e.id} className="flex items-center justify-between flex-wrap gap-1">
                   <span>{e.action}</span>
                   <span className="text-zinc-500">{new Date(e.occurred_at).toLocaleString()}</span>
                 </li>
@@ -505,7 +505,7 @@ function AlertRuleRow({ tenantId, rule, canManage, onChanged }: { tenantId: stri
 
   return (
     <li className="rounded-lg border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-800">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-medium">{rule.name}</span>
         <span className="text-zinc-500">{rule.status}</span>
       </div>
@@ -514,7 +514,7 @@ function AlertRuleRow({ tenantId, rule, canManage, onChanged }: { tenantId: stri
       </p>
       {lastAlert && <p className="mt-1 text-xs text-red-600">Firing: value {lastAlert.value_at_fire}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="mt-2 flex gap-3">
+      <div className="mt-2 flex gap-3 flex-wrap">
         <button onClick={evaluate} className="text-xs underline">Evaluate now</button>
         {canManage && (
           <button onClick={() => setStatus(rule.status === "active" ? "paused" : "active")} className="text-xs underline">
@@ -558,7 +558,7 @@ function CreateAlertRuleForm({ tenantId, onCreated }: { tenantId: string; onCrea
           {METRIC_SOURCES.map((m) => <option key={m} value={m}>{m}</option>)}
           <option value="slo_burn_rate">slo_burn_rate</option>
         </select>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select aria-label="Comparison operator" value={comparison} onChange={(e) => setComparison(e.target.value)}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
             <option value="lt">below</option>

@@ -91,7 +91,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
 
   if (models.isError && models.error instanceof ApiError && models.error.status === 403) {
     return (
-      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+      <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
         <p>You do not have access to this tenant&apos;s model registry.</p>
         <Link href="/dashboard" className="underline">Back to dashboard</Link>
       </main>
@@ -99,7 +99,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-8">
+    <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
       <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Model registry</h1>
       <p className="mb-6 text-sm text-zinc-500">
@@ -255,7 +255,7 @@ function ModelCard({
           <ul className="flex flex-col gap-2">
             {versions.data?.map((v) => (
               <li key={v.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span>v{v.version}</span>
                   <span className="text-xs text-zinc-500">
                     {v.status}
@@ -394,7 +394,7 @@ function VersionGrantsPanel({ tenantId, versionId }: { tenantId: string; version
       {error && <p className="text-xs text-red-600">{error}</p>}
       <ul className="flex flex-col gap-1">
         {grants.data?.map((g) => (
-          <li key={g.id} className="flex items-center justify-between text-xs">
+          <li key={g.id} className="flex items-center justify-between text-xs flex-wrap gap-1">
             <span>
               Tenant {g.grantee_tenant_id.slice(0, 8)}&hellip;
               {g.price_per_unit_override != null && <> &middot; override {g.price_per_unit_override}</>}
