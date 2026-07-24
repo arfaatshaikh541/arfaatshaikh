@@ -695,6 +695,96 @@ func main() {
 		}
 	}
 
+	// --- Service Assurance and Observability (Milestone 10) ------------------
+	// One SLO and one alert rule per side, each paired with a real evaluation
+	// snapshot computed by hand from the exact seed data above (never a
+	// fabricated number): Falcon's policy-compliance SLO reflects the 1
+	// eligible / 1 rejected placement_evaluations pair seeded above (50%,
+	// breached against an 80% target); EuroNorth's network-provisioning SLA
+	// reflects its own network_reservations row still sitting at
+	// provisioning_status='pending' (0%, since no cluster agent identity is
+	// seeded -- see this milestone's Known Limitations), which also drives a
+	// genuinely-firing alert and an open incident. All inserted directly
+	// rather than through the evaluate/create HTTP flow (like every other
+	// already-committed row in this script) but recording the same facts a
+	// real call would.
+	var falconSLOID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM slo_definitions WHERE enterprise_tenant_id = $1 AND name = $2`, falconTenantID, "Placement policy compliance").Scan(&falconSLOID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO slo_definitions (enterprise_tenant_id, name, metric_source, target_percentage, window_days, created_by)
+			VALUES ($1, 'Placement policy compliance', 'policy_compliance_rate', 80, 30, $2)
+			RETURNING id
+		`, falconTenantID, users[falconOwnerEmail].id).Scan(&falconSLOID); err != nil {
+			fatal("seed Falcon SLO", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO slo_evaluations (slo_definition_id, enterprise_tenant_id, actual_percentage, error_budget_remaining_percentage, status, sample_size, detail)
+			VALUES ($1, $2, 50, 30, 'breached', 2, '{"metric_source":"policy_compliance_rate","window_days":30}'::jsonb)
+		`, falconSLOID, falconTenantID); err != nil {
+			fatal("seed Falcon SLO evaluation", err)
+		}
+	}
+
+	var euroNorthReservationID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM network_reservations WHERE network_service_offer_id = $1`, euroNorthNetworkOfferID).Scan(&euroNorthReservationID); err != nil {
+		fatal("resolve EuroNorth network reservation for assurance seed", err)
+	}
+
+	var euroNorthSLOID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM slo_definitions WHERE operator_id = $1 AND name = $2`, euroNorthID, "Network reservation provisioning").Scan(&euroNorthSLOID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO slo_definitions (operator_id, name, metric_source, target_percentage, window_days, created_by)
+			VALUES ($1, 'Network reservation provisioning', 'network_reservation_provisioning', 95, 1, $2)
+			RETURNING id
+		`, euroNorthID, users[euroNorthOwnerEmail].id).Scan(&euroNorthSLOID); err != nil {
+			fatal("seed EuroNorth SLO", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO slo_evaluations (slo_definition_id, operator_id, actual_percentage, error_budget_remaining_percentage, status, sample_size, detail)
+			VALUES ($1, $2, 0, -5, 'breached', 1, '{"metric_source":"network_reservation_provisioning","window_days":1}'::jsonb)
+		`, euroNorthSLOID, euroNorthID); err != nil {
+			fatal("seed EuroNorth SLO evaluation", err)
+		}
+	}
+
+	var euroNorthAlertRuleID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM alert_rules WHERE operator_id = $1 AND name = $2`, euroNorthID, "Provisioning failure alert").Scan(&euroNorthAlertRuleID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO alert_rules (operator_id, name, metric_source, comparison, threshold, severity, created_by)
+			VALUES ($1, 'Provisioning failure alert', 'network_reservation_provisioning', 'lt', 50, 'warning', $2)
+			RETURNING id
+		`, euroNorthID, users[euroNorthOwnerEmail].id).Scan(&euroNorthAlertRuleID); err != nil {
+			fatal("seed EuroNorth alert rule", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO alerts (alert_rule_id, operator_id, value_at_fire, detail)
+			VALUES ($1, $2, 0, '{"metric_source":"network_reservation_provisioning","comparison":"lt","threshold":50}'::jsonb)
+		`, euroNorthAlertRuleID, euroNorthID); err != nil {
+			fatal("seed EuroNorth firing alert", err)
+		}
+	}
+
+	var euroNorthIncidentID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM incidents WHERE operator_id = $1 AND title = $2`, euroNorthID, "Network reservation stuck in pending provisioning").Scan(&euroNorthIncidentID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO incidents (operator_id, title, description, severity, resource_type, resource_id, opened_by)
+			VALUES ($1, 'Network reservation stuck in pending provisioning', 'No active cluster agent is available to provision this reservation in this environment.', 'warning', 'network_reservation', $2, $3)
+			RETURNING id
+		`, euroNorthID, euroNorthReservationID, users[euroNorthOwnerEmail].id).Scan(&euroNorthIncidentID); err != nil {
+			fatal("seed EuroNorth incident", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO incident_events (incident_id, operator_id, event_type, detail, created_by)
+			VALUES ($1, $2, 'opened', '{"severity":"warning"}'::jsonb, $3)
+		`, euroNorthIncidentID, euroNorthID, users[euroNorthOwnerEmail].id); err != nil {
+			fatal("seed EuroNorth incident event", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}
