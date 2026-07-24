@@ -110,8 +110,11 @@ export default function OperatorDetailPage({ params }: { params: Promise<{ opera
       <Link href={`/dashboard/operator/${operatorId}/attestation`} className="mb-2 inline-block text-sm underline">
         Confidential-computing attestation &rarr;
       </Link>
-      <Link href={`/dashboard/operator/${operatorId}/network-services`} className="mb-6 inline-block text-sm underline">
+      <Link href={`/dashboard/operator/${operatorId}/network-services`} className="mb-2 inline-block text-sm underline">
         Network service offers &amp; reservations &rarr;
+      </Link>
+      <Link href={`/dashboard/operator/${operatorId}/assurance`} className="mb-6 inline-block text-sm underline">
+        Service assurance &rarr;
       </Link>
 
       <section className="mb-8">

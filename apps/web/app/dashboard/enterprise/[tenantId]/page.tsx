@@ -120,6 +120,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <Link href={`/dashboard/enterprise/${tenantId}/network-services`} className="text-sm underline">
           Network services &rarr;
         </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/assurance`} className="text-sm underline">
+          Service assurance &rarr;
+        </Link>
       </section>
 
       <section className="mb-8">
