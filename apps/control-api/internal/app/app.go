@@ -178,6 +178,7 @@ func NewRouter(d Deps) *chi.Mux {
 	tenancy.MountTopLevel(router, tenancyHandlers)
 	operators.MountTopLevel(router, operatorsHandlers)
 	registry.MountTopLevel(router, registryHandlers, authz)
+	models.MountTopLevel(router, modelsHandlers, authz)
 	agents.MountMachineFacing(router, agentsHandlers)
 	deployments.MountMachineFacing(router, deploymentsHandlers)
 	attestation.MountMachineFacing(router, attestationHandlers)
