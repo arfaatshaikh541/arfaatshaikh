@@ -534,7 +534,8 @@ func main() {
 		eligibleExplanation, _ := json.Marshal(map[string]any{
 			"sovereignty":            map[string]any{"passed": true, "policies_evaluated": []any{}},
 			"security":               map[string]any{"confidential_computing_required": true, "offer_confidential_computing": true, "passed": true},
-			"commercial_eligibility": map[string]any{"passed": true, "note": "bilateral agreement gating is out of scope for Milestone 5"},
+			"commercial_eligibility": map[string]any{"passed": true, "price_override_applied": false},
+			"operator_availability":  map[string]any{"degraded": false, "degraded_reason": "", "passed": true},
 			"capacity":               map[string]any{"available_capacity": 16, "requested_quantity": 2, "passed": true},
 			"runtime_compatibility":  map[string]any{"required_accelerator_type": "", "offer_accelerator_type": "nvidia-h100", "passed": true},
 			"cost":                   map[string]any{"price_per_unit_hour": 3.25, "estimated_cost": 6.50},
@@ -845,6 +846,51 @@ func main() {
 			RETURNING id
 		`, falconTenantID, users[falconOwnerEmail].id).Scan(&falconBudgetID); err != nil {
 			fatal("seed Falcon budget", err)
+		}
+	}
+
+	// --- Federated Capacity Exchange (Milestone 12) ---------------------------
+	// One bilateral agreement (EuroNorth <-> Falcon, the same real pairing
+	// Milestone 11's price book/quote/budget already established) and one
+	// private capacity offer granted to Falcon at a tenant-specific price --
+	// deliberately the full extent of what this script seeds for this
+	// milestone. A settlement created against this agreement would need a
+	// real invoice, which needs a real usage event, which needs the same
+	// real cluster-agent identity this script has never fabricated (see
+	// Milestone 11's own Known Limitations) -- so no settlement is seeded
+	// here either, honestly reflecting what this sandbox's seed data can
+	// and cannot demonstrate. Nothing is marked degraded, since a fresh
+	// demo environment should never start in a self-declared outage state.
+	var euroNorthFalconAgreementID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM bilateral_agreements WHERE operator_id = $1 AND enterprise_tenant_id = $2`, euroNorthID, falconTenantID).Scan(&euroNorthFalconAgreementID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO bilateral_agreements (operator_id, enterprise_tenant_id, currency, platform_fee_rate, minimum_commitment_hours, notes, created_by)
+			VALUES ($1, $2, 'USD', 0.12, 100, 'Preferred-rate agreement for dedicated GPU capacity.', $3)
+			RETURNING id
+		`, euroNorthID, falconTenantID, users[euroNorthOwnerEmail].id).Scan(&euroNorthFalconAgreementID); err != nil {
+			fatal("seed EuroNorth-Falcon bilateral agreement", err)
+		}
+	}
+
+	var euroNorthPrivateOfferID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM capacity_offers WHERE operator_id = $1 AND cluster_id = $2 AND visibility = 'private'`, euroNorthID, euroNorthClusterID).Scan(&euroNorthPrivateOfferID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO capacity_offers (
+				operator_id, cluster_id, region_id, accelerator_type, total_capacity, available_capacity,
+				price_per_unit_hour, currency, confidential_computing_available, estimated_kwh_per_unit_hour, visibility, created_by
+			)
+			VALUES ($1, $2, $3, 'nvidia-h100', 8, 8, 1.80, 'USD', true, 0.55, 'private', $4)
+			RETURNING id
+		`, euroNorthID, euroNorthClusterID, euCentral, users[euroNorthOwnerEmail].id).Scan(&euroNorthPrivateOfferID); err != nil {
+			fatal("seed EuroNorth private capacity offer", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO capacity_offer_grants (capacity_offer_id, operator_id, enterprise_tenant_id, bilateral_agreement_id, price_per_unit_hour_override, created_by)
+			VALUES ($1, $2, $3, $4, 1.50, $5)
+		`, euroNorthPrivateOfferID, euroNorthID, falconTenantID, euroNorthFalconAgreementID, users[euroNorthOwnerEmail].id); err != nil {
+			fatal("seed EuroNorth-Falcon capacity offer grant", err)
 		}
 	}
 
