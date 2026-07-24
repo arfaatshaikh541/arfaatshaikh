@@ -38,6 +38,7 @@ import (
 	"gridkeep/control-api/internal/platform/cache"
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
+	"gridkeep/control-api/internal/platform/energyprovider"
 	"gridkeep/control-api/internal/platform/httpserver"
 	"gridkeep/control-api/internal/platform/mailer"
 	"gridkeep/control-api/internal/platform/pki"
@@ -144,7 +145,7 @@ func NewRouter(d Deps) *chi.Mux {
 	capacityOffersSvc := capacityoffers.NewService(d.Store)
 	capacityOffersHandlers := capacityoffers.NewHandlers(capacityOffersSvc, d.Logger)
 
-	placementSvc := placement.NewService(d.Store, policyEngineClient)
+	placementSvc := placement.NewService(d.Store, policyEngineClient, energyprovider.NewMockProvider())
 	placementHandlers := placement.NewHandlers(placementSvc, d.Logger)
 
 	secretsVault, err := secretsvault.New(d.SecretsVaultKey)
