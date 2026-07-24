@@ -1,0 +1,35 @@
+replicaCount: 2
+
+image:
+  repository: gridkeep-policy-engine
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8090
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# policy-engine is a stateless evaluator with no database of its own (policy
+# CRUD/versioning/dual-control lives in control-api -- see the package doc
+# on apps/policy-engine/src/policy_engine/app.py) and no secrets to inject.
+env:
+  CONTROL_API_ENV: production
+  POLICY_ENGINE_HOST: "0.0.0.0"
+
+# Standalone default (used only when this chart is deployed on its own,
+# not through the parent umbrella chart, which supplies its own global.*
+# values that override this). Empty means "no registry prefix" -- the
+# image reference falls back to a bare repository:tag.
+global:
+  imageRegistry: ""

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: control-api
+description: GRIDKEEP control-api -- the modular-monolith control plane
+type: application
+version: 0.1.0
+appVersion: "16.0.0"

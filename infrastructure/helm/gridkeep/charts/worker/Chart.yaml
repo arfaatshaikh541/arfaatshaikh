@@ -1,0 +1,6 @@
+apiVersion: v2
+name: worker
+description: GRIDKEEP worker -- Redpanda/Kafka event consumer
+type: application
+version: 0.1.0
+appVersion: "16.0.0"

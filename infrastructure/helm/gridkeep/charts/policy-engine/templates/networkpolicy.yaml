@@ -1,0 +1,25 @@
+# policy-engine is called only by control-api (internal/platform/policyengine's
+# HTTP client) -- never by tenants/operators directly, never through any
+# ingress. Restricting ingress to pods carrying control-api's own selector
+# label enforces that boundary at the cluster level, not just by omitting a
+# public route.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "policy-engine.fullname" . }}
+  labels:
+    {{- include "policy-engine.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "policy-engine.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: control-api
+      ports:
+        - port: http
+          protocol: TCP

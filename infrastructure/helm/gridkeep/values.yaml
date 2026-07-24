@@ -1,0 +1,82 @@
+# Global values shared across every subchart. Per-service overrides live
+# under that service's own top-level key (control-api / worker /
+# policy-engine / web), matching each subchart's own values.yaml shape.
+global:
+  imageRegistry: ghcr.io/example-org
+  imagePullPolicy: IfNotPresent
+  # Every service reads its DATABASE_URL/REDIS_URL/etc. from a Secret this
+  # chart does not create or template -- provisioning real connection
+  # strings and encryption keys belongs to whatever secret-management
+  # system a real deployment uses (Vault, External Secrets Operator, sealed
+  # secrets), never a plaintext Helm value committed to a values file. See
+  # each subchart's values.yaml "existingSecret" field.
+  environment: production
+
+control-api:
+  enabled: true
+  image:
+    repository: gridkeep-control-api
+    tag: "" # defaults to .Chart.AppVersion
+  replicaCount: 2
+  existingSecret: gridkeep-control-api-secrets
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  enabled: true
+  image:
+    repository: gridkeep-worker
+    tag: ""
+  replicaCount: 2
+  existingSecret: gridkeep-worker-secrets
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+policy-engine:
+  enabled: true
+  image:
+    repository: gridkeep-policy-engine
+    tag: ""
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+web:
+  enabled: true
+  image:
+    repository: gridkeep-web
+    tag: ""
+  replicaCount: 2
+  existingSecret: gridkeep-web-secrets
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  ingress:
+    enabled: true
+    className: nginx
+    host: app.example.com
+    tls: true

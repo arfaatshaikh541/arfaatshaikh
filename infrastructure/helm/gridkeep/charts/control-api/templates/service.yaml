@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "control-api.fullname" . }}
+  labels:
+    {{- include "control-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "control-api.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+---
+# Metrics get their own Service, distinct from the application-traffic one
+# above, so a NetworkPolicy (below) can restrict who may reach it
+# independently of who may reach the public API -- see
+# docs/architecture/observability.md's "never mounted onto the public API
+# router" note, which this Service/NetworkPolicy pairing enforces at the
+# cluster level, not just by choosing a different port in application code.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "control-api.fullname" . }}-metrics
+  labels:
+    {{- include "control-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "control-api.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.service.metricsPort }}
+      targetPort: metrics

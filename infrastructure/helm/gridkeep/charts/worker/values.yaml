@@ -1,0 +1,36 @@
+replicaCount: 2
+
+image:
+  repository: gridkeep-worker
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Holds KAFKA_BROKERS and any other worker-specific connection config this
+# module needs from the environment -- same "never a hardcoded default,
+# never a chart-templated plaintext value" rule as control-api's.
+existingSecret: gridkeep-worker-secrets
+
+service:
+  healthPort: 8091
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+env:
+  CONTROL_API_ENV: production
+
+# Standalone default (used only when this chart is deployed on its own,
+# not through the parent umbrella chart, which supplies its own global.*
+# values that override this). Empty means "no registry prefix" -- the
+# image reference falls back to a bare repository:tag.
+global:
+  imageRegistry: ""

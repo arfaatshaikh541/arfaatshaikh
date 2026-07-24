@@ -1,0 +1,46 @@
+replicaCount: 2
+
+image:
+  repository: gridkeep-web
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Holds NEXT_PUBLIC_CONTROL_API_URL and any other frontend-facing config.
+# NEXT_PUBLIC_* values are baked into the client bundle at build time (see
+# apps/web/Dockerfile's build ARG), not read at runtime the way a backend
+# service reads env vars -- this Secret/ConfigMap only covers genuinely
+# runtime-read values, if any exist for a given deployment.
+existingSecret: gridkeep-web-secrets
+
+service:
+  port: 3000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  host: app.example.com
+  tls: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+
+env:
+  NODE_ENV: production
+
+# Standalone default (used only when this chart is deployed on its own,
+# not through the parent umbrella chart, which supplies its own global.*
+# values that override this). Empty means "no registry prefix" -- the
+# image reference falls back to a bare repository:tag.
+global:
+  imageRegistry: ""

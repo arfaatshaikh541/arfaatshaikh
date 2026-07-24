@@ -1,0 +1,15 @@
+dependencies:
+- name: control-api
+  repository: file://charts/control-api
+  version: 0.1.0
+- name: worker
+  repository: file://charts/worker
+  version: 0.1.0
+- name: policy-engine
+  repository: file://charts/policy-engine
+  version: 0.1.0
+- name: web
+  repository: file://charts/web
+  version: 0.1.0
+digest: sha256:a158e722a2013dca3ff4f1cf9bfb955b7f5bfd26f9d7771c5b696ea8c641ab37
+generated: "2026-07-24T15:26:33.380157067Z"

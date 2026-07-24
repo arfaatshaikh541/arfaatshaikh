@@ -1,0 +1,36 @@
+# Enforces at the cluster level what docs/architecture/observability.md
+# documents as an application-level intent: the metrics port is for the
+# in-cluster Prometheus scraper only, never for the same traffic path as
+# the public API. Egress is left open here (see the comment below) --
+# restricting it to a specific managed Postgres/Redis endpoint requires
+# deployment-specific network information this generic chart cannot know;
+# a real deployment should narrow egress once its own network topology is
+# fixed, rather than have this chart guess at it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "control-api.fullname" . }}
+  labels:
+    {{- include "control-api.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "control-api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Application traffic: from anywhere in-namespace (typically an
+    # in-cluster ingress controller or gateway) on the http port only.
+    - ports:
+        - port: http
+          protocol: TCP
+    # Metrics: only from pods labeled as the cluster's Prometheus scraper.
+    # Adjust podSelector/namespaceSelector to match your actual monitoring
+    # stack's labels -- kube-prometheus-stack's defaults are shown here.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: metrics
+          protocol: TCP

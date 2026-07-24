@@ -1,0 +1,25 @@
+apiVersion: v2
+name: gridkeep
+description: >
+  GRIDKEEP Sovereign AI Network Exchange control plane -- control-api, worker,
+  policy-engine, and web, deployed together as the platform's own
+  infrastructure. Does not include each operator's own Kubernetes clusters
+  (those are external, connected via the mock/real cluster-agent pattern
+  internal/platform/clusteradapter defines) -- this chart deploys only
+  GRIDKEEP's own control-plane services.
+type: application
+version: 0.1.0
+appVersion: "16.0.0"
+dependencies:
+  - name: control-api
+    version: "0.1.0"
+    repository: "file://charts/control-api"
+  - name: worker
+    version: "0.1.0"
+    repository: "file://charts/worker"
+  - name: policy-engine
+    version: "0.1.0"
+    repository: "file://charts/policy-engine"
+  - name: web
+    version: "0.1.0"
+    repository: "file://charts/web"

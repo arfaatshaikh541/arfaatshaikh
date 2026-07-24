@@ -1,0 +1,3 @@
+# Packaged subchart archives produced by `helm dependency update` --
+# regenerable from the charts/*/ source directories, never hand-edited.
+charts/*.tgz
