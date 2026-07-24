@@ -28,7 +28,10 @@ var (
 	ErrUnknownRole              = errors.New("unknown role")
 	ErrInsufficientRoleToInvite = errors.New("cannot grant a role more privileged than your own")
 	ErrInvitationEmailMismatch  = errors.New("invitation was issued to a different email address")
+	ErrInvalidRankingMode       = errors.New("sustainability_ranking_mode must be one of cost_first, energy_first, carbon_first")
 )
+
+var validRankingModes = map[string]bool{"cost_first": true, "energy_first": true, "carbon_first": true}
 
 type Config struct {
 	InvitationTTL time.Duration
@@ -94,6 +97,36 @@ func (s *Service) GetTenant(ctx context.Context) (EnterpriseTenant, error) {
 		return EnterpriseTenant{}, fmt.Errorf("tenant not found")
 	}
 	return tenant, nil
+}
+
+// UpdateSustainabilityPreferences is Milestone 14's "energy preferences"/
+// "carbon preferences" mutation -- gated by the same settings.manage
+// permission as UpdateTenantSettings, since this is the same category of
+// action (a tenant configuring its own account-level behaviour).
+func (s *Service) UpdateSustainabilityPreferences(ctx context.Context, rankingMode string, maxCarbonIntensityGPerKWh *float64) error {
+	if !validRankingModes[rankingMode] {
+		return ErrInvalidRankingMode
+	}
+
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	authUser := actorFromScope(ctx)
+
+	if err := updateSustainabilityPreferences(ctx, scopedTx.Tx, *scope.TenantID, rankingMode, maxCarbonIntensityGPerKWh); err != nil {
+		return err
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: authUser,
+		ScopeType:   audit.ScopeEnterprise,
+		ScopeID:     scope.TenantID,
+		Action:      "tenancy.sustainability_preferences_updated",
+		TargetType:  "enterprise_tenant",
+		TargetID:    scope.TenantID,
+		Evidence:    map[string]any{"sustainability_ranking_mode": rankingMode, "max_carbon_intensity_g_per_kwh": maxCarbonIntensityGPerKWh},
+	}); err != nil {
+		return err
+	}
+	return scopedTx.Commit(ctx)
 }
 
 func (s *Service) UpdateTenantSettings(ctx context.Context, displayName string) error {

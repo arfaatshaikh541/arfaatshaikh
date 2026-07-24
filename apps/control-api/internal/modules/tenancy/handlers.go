@@ -90,6 +90,28 @@ func (h *Handlers) UpdateTenant(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "updated"})
 }
 
+type updateSustainabilityPreferencesRequest struct {
+	SustainabilityRankingMode string   `json:"sustainability_ranking_mode"`
+	MaxCarbonIntensityGPerKWh *float64 `json:"max_carbon_intensity_g_per_kwh"`
+}
+
+func (h *Handlers) UpdateSustainabilityPreferences(w http.ResponseWriter, r *http.Request) {
+	var req updateSustainabilityPreferencesRequest
+	if err := decodeJSON(r, &req); err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	if err := h.svc.UpdateSustainabilityPreferences(r.Context(), req.SustainabilityRankingMode, req.MaxCarbonIntensityGPerKWh); err != nil {
+		if errors.Is(err, ErrInvalidRankingMode) {
+			apierror.WriteJSON(w, r, h.logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, err.Error()))
+			return
+		}
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to update sustainability preferences", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "updated"})
+}
+
 func (h *Handlers) ListMembers(w http.ResponseWriter, r *http.Request) {
 	members, err := h.svc.ListMembers(r.Context())
 	if err != nil {

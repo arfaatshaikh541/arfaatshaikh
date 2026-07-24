@@ -40,6 +40,7 @@ func MountMeRoutes(r chi.Router, h *Handlers) {
 func MountTenantScoped(r chi.Router, h *Handlers, authz *rbac.Middleware) {
 	r.With(authz.RequireEnterpriseMembership()).Get("/", h.GetTenant)
 	r.With(authz.RequireEnterprisePermission("settings.manage")).Patch("/", h.UpdateTenant)
+	r.With(authz.RequireEnterprisePermission("settings.manage")).Patch("/sustainability-preferences", h.UpdateSustainabilityPreferences)
 	r.With(authz.RequireEnterpriseMembership()).Get("/members", h.ListMembers)
 	r.With(authz.RequireEnterprisePermission("users.manage")).Post("/invitations", h.CreateInvitation)
 }

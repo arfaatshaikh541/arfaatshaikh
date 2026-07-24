@@ -16,13 +16,23 @@ type conn interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-func createTenant(ctx context.Context, c conn, legalName, displayName, country string) (EnterpriseTenant, error) {
+const tenantColumns = `id, legal_name, display_name, country, status, is_fictional_demo_data, sustainability_ranking_mode, max_carbon_intensity_g_per_kwh, created_at`
+
+func scanTenant(row pgx.Row) (EnterpriseTenant, error) {
 	var t EnterpriseTenant
-	err := c.QueryRow(ctx, `
+	err := row.Scan(&t.ID, &t.LegalName, &t.DisplayName, &t.Country, &t.Status, &t.IsFictionalDemoData,
+		&t.SustainabilityRankingMode, &t.MaxCarbonIntensityGPerKWh, &t.CreatedAt)
+	return t, err
+}
+
+func createTenant(ctx context.Context, c conn, legalName, displayName, country string) (EnterpriseTenant, error) {
+	row := c.QueryRow(ctx, `
 		INSERT INTO enterprise_tenants (legal_name, display_name, country)
 		VALUES ($1, $2, $3)
-		RETURNING id, legal_name, display_name, country, status, is_fictional_demo_data, created_at
-	`, legalName, displayName, country).Scan(&t.ID, &t.LegalName, &t.DisplayName, &t.Country, &t.Status, &t.IsFictionalDemoData, &t.CreatedAt)
+		RETURNING `+tenantColumns,
+		legalName, displayName, country,
+	)
+	t, err := scanTenant(row)
 	if err != nil {
 		return EnterpriseTenant{}, fmt.Errorf("insert enterprise tenant: %w", err)
 	}
@@ -30,11 +40,8 @@ func createTenant(ctx context.Context, c conn, legalName, displayName, country s
 }
 
 func getTenantByID(ctx context.Context, c conn, id uuid.UUID) (EnterpriseTenant, bool, error) {
-	var t EnterpriseTenant
-	err := c.QueryRow(ctx, `
-		SELECT id, legal_name, display_name, country, status, is_fictional_demo_data, created_at
-		FROM enterprise_tenants WHERE id = $1
-	`, id).Scan(&t.ID, &t.LegalName, &t.DisplayName, &t.Country, &t.Status, &t.IsFictionalDemoData, &t.CreatedAt)
+	row := c.QueryRow(ctx, `SELECT `+tenantColumns+` FROM enterprise_tenants WHERE id = $1`, id)
+	t, err := scanTenant(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return EnterpriseTenant{}, false, nil
@@ -48,6 +55,22 @@ func updateTenantSettings(ctx context.Context, c conn, id uuid.UUID, displayName
 	_, err := c.Exec(ctx, `UPDATE enterprise_tenants SET display_name = $2, updated_at = now() WHERE id = $1`, id, displayName)
 	if err != nil {
 		return fmt.Errorf("update enterprise tenant: %w", err)
+	}
+	return nil
+}
+
+// updateSustainabilityPreferences is Milestone 14's own tenant-settings PATCH
+// -- kept as a separate function (and separate service method/route) from
+// updateTenantSettings because that endpoint always requires a non-empty
+// display_name, whereas a carbon ceiling of nil is a meaningful choice ("no
+// hard limit"), not a validation failure.
+func updateSustainabilityPreferences(ctx context.Context, c conn, id uuid.UUID, rankingMode string, maxCarbonIntensityGPerKWh *float64) error {
+	_, err := c.Exec(ctx, `
+		UPDATE enterprise_tenants SET sustainability_ranking_mode = $2, max_carbon_intensity_g_per_kwh = $3, updated_at = now()
+		WHERE id = $1
+	`, id, rankingMode, maxCarbonIntensityGPerKWh)
+	if err != nil {
+		return fmt.Errorf("update enterprise tenant sustainability preferences: %w", err)
 	}
 	return nil
 }
