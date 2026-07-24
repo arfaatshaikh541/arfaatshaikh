@@ -42,6 +42,23 @@ interface ModelVersion {
   status: string;
 }
 
+interface Component {
+  id: string;
+  component_key: string;
+  name: string;
+  container_image_id: string;
+  is_primary: boolean;
+}
+
+interface HealthCheck {
+  id: string;
+  check_type: string;
+  path: string;
+  interval_seconds: number;
+  timeout_seconds: number;
+  failure_threshold: number;
+}
+
 const WORKLOAD_TYPES = [
   "containerised_inference_api", "retrieval_augmented_generation_application", "private_ai_assistant",
   "computer_vision_inference", "speech_to_text_service", "text_to_speech_service", "embedding_service",
@@ -206,6 +223,15 @@ function WorkloadCard({
       setError(err instanceof ApiError ? err.message : "Failed to retire version.");
     }
   };
+  const deprecateVersion = async (versionId: string) => {
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/workload-versions/${versionId}/deprecate`, {});
+      invalidateVersions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to deprecate version.");
+    }
+  };
+  const [componentsOpenFor, setComponentsOpenFor] = useState<string | null>(null);
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
@@ -238,10 +264,17 @@ function WorkloadCard({
                   {v.status === "pending_publish" && canPublish && v.requested_by !== myUserId && (
                     <button onClick={() => approvePublish(v.id)} className="text-xs underline">Approve publish</button>
                   )}
+                  {v.status === "published" && canPublish && (
+                    <button onClick={() => deprecateVersion(v.id)} className="text-xs underline">Deprecate</button>
+                  )}
                   {v.status === "published" && canRetire && (
                     <button onClick={() => retireVersion(v.id)} className="text-xs text-red-600 underline">Retire</button>
                   )}
+                  <button onClick={() => setComponentsOpenFor(componentsOpenFor === v.id ? null : v.id)} className="text-xs underline">
+                    {componentsOpenFor === v.id ? "Hide components" : "Components"}
+                  </button>
                 </div>
+                {componentsOpenFor === v.id && <VersionComponentsPanel tenantId={tenantId} versionId={v.id} canEdit={canPublish} />}
               </li>
             ))}
             {versions.data?.length === 0 && <li className="text-xs text-zinc-500">No versions yet.</li>}
@@ -280,6 +313,140 @@ function WorkloadCard({
         </div>
       )}
     </li>
+  );
+}
+
+// VersionComponentsPanel lists a workload version's components and lets a
+// publisher add new ones -- consumes GET/POST .../components, which existed
+// with no frontend caller before Milestone 15.
+function VersionComponentsPanel({ tenantId, versionId, canEdit }: { tenantId: string; versionId: string; canEdit: boolean }) {
+  const [error, setError] = useState<string | null>(null);
+  const [componentKey, setComponentKey] = useState("");
+  const [name, setName] = useState("");
+  const [containerImageId, setContainerImageId] = useState("");
+  const [isPrimary, setIsPrimary] = useState(false);
+  const [healthChecksOpenFor, setHealthChecksOpenFor] = useState<string | null>(null);
+
+  const components = useQuery({
+    queryKey: ["workload-version-components", versionId],
+    queryFn: () => api.get<Component[]>(`/api/v1/enterprises/${tenantId}/workload-versions/${versionId}/components`),
+  });
+
+  const addComponent = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/workload-versions/${versionId}/components`, {
+        component_key: componentKey, name, container_image_id: containerImageId,
+        command: [], args: [], env: {}, is_primary: isPrimary,
+      });
+      setComponentKey("");
+      setName("");
+      setContainerImageId("");
+      setIsPrimary(false);
+      components.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to add component.");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 rounded border border-zinc-100 p-2 dark:border-zinc-900">
+      <h4 className="text-xs font-medium">Components</h4>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <ul className="flex flex-col gap-2">
+        {components.data?.map((c) => (
+          <li key={c.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
+            <div className="flex items-center justify-between text-xs">
+              <span>{c.name} <span className="text-zinc-500">({c.component_key})</span></span>
+              {c.is_primary && <span className="text-zinc-500">primary</span>}
+            </div>
+            <button
+              onClick={() => setHealthChecksOpenFor(healthChecksOpenFor === c.id ? null : c.id)}
+              className="mt-1 text-xs underline"
+            >
+              {healthChecksOpenFor === c.id ? "Hide health checks" : "Health checks"}
+            </button>
+            {healthChecksOpenFor === c.id && <ComponentHealthChecksPanel tenantId={tenantId} componentId={c.id} canEdit={canEdit} />}
+          </li>
+        ))}
+        {components.data?.length === 0 && <li className="text-xs text-zinc-500">No components yet.</li>}
+      </ul>
+      {canEdit && (
+        <div className="flex flex-wrap gap-2">
+          <input placeholder="Component key" value={componentKey} onChange={(e) => setComponentKey(e.target.value)}
+            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}
+            className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          <input placeholder="Container image ID" value={containerImageId} onChange={(e) => setContainerImageId(e.target.value)}
+            className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          <label className="flex items-center gap-1 text-xs">
+            <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} />
+            Primary
+          </label>
+          <button onClick={addComponent} disabled={!componentKey || !name || !containerImageId}
+            className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
+            Add component
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ComponentHealthChecksPanel consumes GET/POST
+// .../workload-components/{componentID}/health-checks, likewise previously
+// unreachable from the frontend.
+function ComponentHealthChecksPanel({ tenantId, componentId, canEdit }: { tenantId: string; componentId: string; canEdit: boolean }) {
+  const [error, setError] = useState<string | null>(null);
+  const [checkType, setCheckType] = useState("http");
+  const [path, setPath] = useState("");
+
+  const healthChecks = useQuery({
+    queryKey: ["component-health-checks", componentId],
+    queryFn: () => api.get<HealthCheck[]>(`/api/v1/enterprises/${tenantId}/workload-components/${componentId}/health-checks`),
+  });
+
+  const addHealthCheck = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/workload-components/${componentId}/health-checks`, {
+        check_type: checkType, path, command: [], interval_seconds: 10, timeout_seconds: 5, failure_threshold: 3,
+      });
+      setPath("");
+      healthChecks.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to add health check.");
+    }
+  };
+
+  return (
+    <div className="mt-1 flex flex-col gap-1 rounded border border-zinc-100 p-2 dark:border-zinc-900">
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <ul className="flex flex-col gap-1 text-xs">
+        {healthChecks.data?.map((hc) => (
+          <li key={hc.id} className="flex items-center justify-between">
+            <span>{hc.check_type} {hc.path}</span>
+            <span className="text-zinc-500">every {hc.interval_seconds}s</span>
+          </li>
+        ))}
+        {healthChecks.data?.length === 0 && <li className="text-zinc-500">No health checks yet.</li>}
+      </ul>
+      {canEdit && (
+        <div className="flex flex-wrap gap-2">
+          <select value={checkType} onChange={(e) => setCheckType(e.target.value)}
+            className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900">
+            <option value="http">http</option>
+            <option value="tcp">tcp</option>
+            <option value="command">command</option>
+          </select>
+          <input placeholder="Path (e.g. /health)" value={path} onChange={(e) => setPath(e.target.value)}
+            className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+          <button onClick={addHealthCheck} className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">
+            Add health check
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
