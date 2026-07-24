@@ -17,6 +17,7 @@ import (
 	"gridkeep/control-api/internal/modules/assurance"
 	"gridkeep/control-api/internal/modules/attestation"
 	"gridkeep/control-api/internal/modules/auditlog"
+	"gridkeep/control-api/internal/modules/billing"
 	"gridkeep/control-api/internal/modules/capacityoffers"
 	"gridkeep/control-api/internal/modules/deployments"
 	"gridkeep/control-api/internal/modules/identity"
@@ -33,6 +34,7 @@ import (
 	"gridkeep/control-api/internal/modules/tenancy"
 	"gridkeep/control-api/internal/modules/workloads"
 	attestationpkg "gridkeep/control-api/internal/platform/attestation"
+	"gridkeep/control-api/internal/platform/billingprovider"
 	"gridkeep/control-api/internal/platform/cache"
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
@@ -161,6 +163,9 @@ func NewRouter(d Deps) *chi.Mux {
 	assuranceSvc := assurance.NewService()
 	assuranceHandlers := assurance.NewHandlers(assuranceSvc, d.Logger)
 
+	billingSvc := billing.NewService(d.Store, billingprovider.NewMockProvider())
+	billingHandlers := billing.NewHandlers(billingSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -177,6 +182,7 @@ func NewRouter(d Deps) *chi.Mux {
 	deployments.MountMachineFacing(router, deploymentsHandlers)
 	attestation.MountMachineFacing(router, attestationHandlers)
 	networkservices.MountMachineFacing(router, networkServicesHandlers)
+	billing.MountMachineFacing(router, billingHandlers)
 
 	router.Route("/api/v1/me", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
@@ -199,6 +205,7 @@ func NewRouter(d Deps) *chi.Mux {
 		attestation.MountTenantScoped(r, attestationHandlers, authz)
 		networkservices.MountTenantScoped(r, networkServicesHandlers, authz)
 		assurance.MountTenantScoped(r, assuranceHandlers, authz)
+		billing.MountTenantScoped(r, billingHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {
@@ -213,6 +220,7 @@ func NewRouter(d Deps) *chi.Mux {
 		attestation.MountOperatorScoped(r, attestationHandlers, authz)
 		networkservices.MountOperatorScoped(r, networkServicesHandlers, authz)
 		assurance.MountOperatorScoped(r, assuranceHandlers, authz)
+		billing.MountOperatorScoped(r, billingHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz, func(r chi.Router) {

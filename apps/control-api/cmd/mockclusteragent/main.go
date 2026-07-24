@@ -38,6 +38,10 @@
 // in-memory internal/platform/networkadapter.Mock the same way
 // deployment_command is applied to clusteradapter.Mock, and the signed
 // outcome is reported back to the network-services-owned result endpoint.
+// Milestone 11 adds: if -usage-metric-key is given, this agent also
+// originates and signs one usage-event report of its own (not a response
+// to any pending control message) and submits it to the billing-owned
+// usage-events endpoint.
 //
 // Usage:
 //
@@ -45,7 +49,8 @@
 //	  -control-api-url http://localhost:8080 \
 //	  -cluster-agent-id <cluster_agent id from "register cluster agent"> \
 //	  -bootstrap-token <raw token from "register cluster agent"> \
-//	  -cluster-id <cluster id this agent is registered for>
+//	  -cluster-id <cluster id this agent is registered for> \
+//	  [-usage-metric-key <usage_metrics.key> -usage-quantity <n> -usage-deployment-id <id>]
 package main
 
 import (
@@ -109,11 +114,33 @@ type networkProvisionCommand struct {
 	ServiceClass  string  `json:"service_class,omitempty"`
 }
 
+// usageReportPayload mirrors control-api's internal (unexported)
+// usageReportPayload -- Milestone 11's signed, agent-pushed usage report.
+// Unlike every other message this agent sends, this is not a response to a
+// pending control message; the agent originates it on its own, the same
+// way SubmitCapacitySnapshot's payload is originated on the agent side
+// rather than answering a server-issued command.
+type usageReportPayload struct {
+	DeploymentID          *string `json:"deployment_id,omitempty"`
+	CapacityReservationID *string `json:"capacity_reservation_id,omitempty"`
+	NetworkReservationID  *string `json:"network_reservation_id,omitempty"`
+	UsageMetricKey        string  `json:"usage_metric_key"`
+	Quantity              float64 `json:"quantity"`
+	OccurredAt            string  `json:"occurred_at"`
+	Nonce                 string  `json:"nonce"`
+	SignedAt              string  `json:"signed_at"`
+}
+
 func main() {
 	controlAPIURL := flag.String("control-api-url", "http://localhost:8080", "control-api base URL")
 	agentID := flag.String("cluster-agent-id", "", "cluster_agent id returned by 'register cluster agent' (required)")
 	bootstrapToken := flag.String("bootstrap-token", "", "raw bootstrap token returned by 'register cluster agent' (required)")
 	expectedClusterID := flag.String("cluster-id", "", "cluster id this agent is registered for -- used for local enforcement (required)")
+	usageMetricKey := flag.String("usage-metric-key", "", "usage_metrics.key to report one signed usage event for (optional, Milestone 11)")
+	usageQuantity := flag.Float64("usage-quantity", 0, "quantity to report for -usage-metric-key")
+	usageDeploymentID := flag.String("usage-deployment-id", "", "deployment id this usage event is attributed to (exactly one of the three usage-*-id flags is required with -usage-metric-key)")
+	usageCapacityReservationID := flag.String("usage-capacity-reservation-id", "", "capacity reservation id this usage event is attributed to")
+	usageNetworkReservationID := flag.String("usage-network-reservation-id", "", "network reservation id this usage event is attributed to")
 	flag.Parse()
 
 	if *agentID == "" || *bootstrapToken == "" || *expectedClusterID == "" {
@@ -158,43 +185,62 @@ func main() {
 		fatal("poll pending control messages", err)
 	}
 	if len(messages) == 0 {
-		fmt.Println("mockclusteragent: no pending messages. Nothing to validate. Done.")
-		fmt.Println("Issued certificate (safe to print -- it is public key material, not a secret):")
-		fmt.Println(certPEM)
-		return
-	}
+		fmt.Println("mockclusteragent: no pending messages to validate.")
+	} else {
+		adapter := clusteradapter.NewMock()
+		netAdapter := networkadapter.NewMock()
+		for _, msg := range messages {
+			fmt.Printf("mockclusteragent: evaluating control message %s (%s)...\n", msg.ID, msg.MessageType)
 
-	adapter := clusteradapter.NewMock()
-	netAdapter := networkadapter.NewMock()
-	for _, msg := range messages {
-		fmt.Printf("mockclusteragent: evaluating control message %s (%s)...\n", msg.ID, msg.MessageType)
-
-		switch msg.MessageType {
-		case "deployment_command":
-			action, success, detail := executeDeploymentCommand(httpClient, *controlAPIURL, keyPEM, *agentID, caCertPEM, msg, adapter)
-			fmt.Printf("mockclusteragent: executed %q, success=%v: %s\n", action, success, detail)
-			if err := reportCommandResult(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, action, success, detail); err != nil {
-				fatal("report command result", err)
+			switch msg.MessageType {
+			case "deployment_command":
+				action, success, detail := executeDeploymentCommand(httpClient, *controlAPIURL, keyPEM, *agentID, caCertPEM, msg, adapter)
+				fmt.Printf("mockclusteragent: executed %q, success=%v: %s\n", action, success, detail)
+				if err := reportCommandResult(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, action, success, detail); err != nil {
+					fatal("report command result", err)
+				}
+				fmt.Println("mockclusteragent: signed command result submitted and accepted.")
+			case "network_service_provision":
+				action, reservationID, success, detail := executeNetworkProvisionCommand(caCertPEM, msg, netAdapter)
+				fmt.Printf("mockclusteragent: executed network %q for reservation %s, success=%v: %s\n", action, reservationID, success, detail)
+				if err := reportNetworkProvisionResult(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, action, reservationID, success, detail); err != nil {
+					fatal("report network provision result", err)
+				}
+				fmt.Println("mockclusteragent: signed network provision result submitted and accepted.")
+			default:
+				decision, reasonCodes := evaluatePlan(caCertPEM, msg, *expectedClusterID, adapter)
+				fmt.Printf("mockclusteragent: local enforcement decision: %s %v\n", decision, reasonCodes)
+				if err := respond(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, decision, reasonCodes); err != nil {
+					fatal("respond to control message", err)
+				}
+				fmt.Println("mockclusteragent: signed response submitted and accepted.")
 			}
-			fmt.Println("mockclusteragent: signed command result submitted and accepted.")
-		case "network_service_provision":
-			action, reservationID, success, detail := executeNetworkProvisionCommand(caCertPEM, msg, netAdapter)
-			fmt.Printf("mockclusteragent: executed network %q for reservation %s, success=%v: %s\n", action, reservationID, success, detail)
-			if err := reportNetworkProvisionResult(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, action, reservationID, success, detail); err != nil {
-				fatal("report network provision result", err)
-			}
-			fmt.Println("mockclusteragent: signed network provision result submitted and accepted.")
-		default:
-			decision, reasonCodes := evaluatePlan(caCertPEM, msg, *expectedClusterID, adapter)
-			fmt.Printf("mockclusteragent: local enforcement decision: %s %v\n", decision, reasonCodes)
-			if err := respond(httpClient, *controlAPIURL, keyPEM, *agentID, msg.ID, decision, reasonCodes); err != nil {
-				fatal("respond to control message", err)
-			}
-			fmt.Println("mockclusteragent: signed response submitted and accepted.")
 		}
 	}
 
+	if *usageMetricKey != "" {
+		fmt.Println("mockclusteragent: reporting one signed usage event...")
+		if err := reportUsage(httpClient, *controlAPIURL, keyPEM, *agentID,
+			optionalFlag(*usageDeploymentID), optionalFlag(*usageCapacityReservationID), optionalFlag(*usageNetworkReservationID),
+			*usageMetricKey, *usageQuantity); err != nil {
+			fatal("report usage", err)
+		}
+		fmt.Println("mockclusteragent: signed usage event submitted and accepted.")
+	}
+
 	fmt.Println("mockclusteragent: done.")
+	fmt.Println("Issued certificate (safe to print -- it is public key material, not a secret):")
+	fmt.Println(certPEM)
+}
+
+// optionalFlag turns an empty CLI flag string into a nil pointer -- the same
+// "empty string means absent" convention every optional flag in this file
+// uses at its call site.
+func optionalFlag(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // evaluatePlan is the local-enforcement step: independent signature
@@ -602,6 +648,53 @@ func reportNetworkProvisionResult(c *http.Client, baseURL, keyPEM, agentID, mess
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("report network provision result failed: HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
+// reportUsage signs its own JSON body (every field, including nonce and
+// signed_at, covered by the same signature) and submits it to the
+// billing-owned usage-events endpoint. Unlike reportCommandResult and
+// reportNetworkProvisionResult, this is not a response to a pending control
+// message this agent was told to execute -- it is a report the agent
+// originates on its own, the same way SubmitCapacitySnapshot's payload is
+// agent-originated rather than answering a server-issued command. Exactly
+// one of deploymentID/capacityReservationID/networkReservationID must be
+// set, mirroring control-api's own AgentReportUsage validation.
+func reportUsage(c *http.Client, baseURL, keyPEM, agentID string, deploymentID, capacityReservationID, networkReservationID *string, metricKey string, quantity float64) error {
+	body, err := json.Marshal(usageReportPayload{
+		DeploymentID:          deploymentID,
+		CapacityReservationID: capacityReservationID,
+		NetworkReservationID:  networkReservationID,
+		UsageMetricKey:        metricKey,
+		Quantity:              quantity,
+		OccurredAt:            time.Now().UTC().Format(time.RFC3339),
+		Nonce:                 fmt.Sprintf("usage-report-%d", time.Now().UnixNano()),
+		SignedAt:              time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	signature, err := pki.SignMessage(keyPEM, body)
+	if err != nil {
+		return fmt.Errorf("sign usage report: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/cluster-agents/"+agentID+"/usage-events", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Agent-Signature", signature)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("report usage failed: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	return nil
 }
