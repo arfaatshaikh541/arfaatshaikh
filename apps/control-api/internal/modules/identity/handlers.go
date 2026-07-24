@@ -194,8 +194,14 @@ func (h *Handlers) Me(w http.ResponseWriter, r *http.Request) {
 		apierror.WriteJSON(w, r, h.logger, apierror.ErrUnauthenticated)
 		return
 	}
+	platformRoles, err := h.svc.MyPlatformRoleKeys(r.Context(), authUser.UserID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to load platform roles", err))
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user_id": authUser.UserID,
+		"user_id":        authUser.UserID,
+		"platform_roles": platformRoles,
 	})
 }
 

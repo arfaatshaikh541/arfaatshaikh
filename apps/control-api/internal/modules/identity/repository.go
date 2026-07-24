@@ -328,3 +328,31 @@ func deleteMFASecret(ctx context.Context, c conn, userID uuid.UUID) error {
 	}
 	return nil
 }
+
+// listPlatformRoleKeys returns every active platform role key assigned to a
+// user -- read-only, UI-convenience information for Milestone 15's platform
+// portal (so the frontend can decide whether to show its nav link). This is
+// not an authorization boundary: every platform.* route still calls
+// rbac.RequirePlatformPermission independently on every request regardless
+// of what /auth/me reports.
+func listPlatformRoleKeys(ctx context.Context, c conn, userID uuid.UUID) ([]string, error) {
+	rows, err := c.Query(ctx, `
+		SELECT r.key FROM platform_role_assignments a
+		JOIN roles r ON r.id = a.role_id
+		WHERE a.user_id = $1 AND a.status = 'active'
+		ORDER BY r.key
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list platform role keys: %w", err)
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, fmt.Errorf("scan platform role key: %w", err)
+		}
+		out = append(out, key)
+	}
+	return out, rows.Err()
+}

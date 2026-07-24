@@ -79,6 +79,7 @@ export async function uploadToPresignedURL(uploadURL: string, file: File): Promi
 
 export interface CurrentUser {
   user_id: string;
+  platform_roles: string[];
 }
 
 export interface EnterpriseMembership {

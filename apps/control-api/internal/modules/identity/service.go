@@ -427,6 +427,13 @@ func (s *Service) ValidateSession(ctx context.Context, rawToken string) (AuthRes
 	return AuthResult{UserID: session.UserID, SessionID: session.ID, StepUpAt: session.StepUpAt}, nil
 }
 
+// MyPlatformRoleKeys returns every active platform role key assigned to a
+// user -- see listPlatformRoleKeys's own doc comment on why this is safe to
+// expose as read-only UI-convenience information.
+func (s *Service) MyPlatformRoleKeys(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	return listPlatformRoleKeys(ctx, s.store.Pool, userID)
+}
+
 // RequestPasswordReset always returns nil (success) regardless of whether
 // the email exists, to avoid confirming account existence. It only emails a
 // reset link when the account is real.
