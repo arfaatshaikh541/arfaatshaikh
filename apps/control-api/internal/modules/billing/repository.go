@@ -87,6 +87,33 @@ func resolveNetworkReservationOwnership(ctx context.Context, c conn, id uuid.UUI
 	return operatorID, tenantID, true, nil
 }
 
+// bilateralAgreementTerms is what CreateSettlementForAgreement needs from a
+// bilateral_agreements row -- read directly by SQL against a table
+// internal/modules/capacityoffers owns writes to, the same "each module owns
+// its own SQL against shared tables" convention this file already applies
+// to deployments/capacity_reservations/network_reservations above.
+type bilateralAgreementTerms struct {
+	enterpriseTenantID uuid.UUID
+	currency           string
+	platformFeeRate    float64
+	status             string
+}
+
+func getBilateralAgreementForOperator(ctx context.Context, c conn, operatorID, agreementID uuid.UUID) (bilateralAgreementTerms, bool, error) {
+	var t bilateralAgreementTerms
+	err := c.QueryRow(ctx, `
+		SELECT enterprise_tenant_id, currency, platform_fee_rate, status
+		FROM bilateral_agreements WHERE id = $1 AND operator_id = $2
+	`, agreementID, operatorID).Scan(&t.enterpriseTenantID, &t.currency, &t.platformFeeRate, &t.status)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return bilateralAgreementTerms{}, false, nil
+		}
+		return bilateralAgreementTerms{}, false, fmt.Errorf("resolve bilateral agreement: %w", err)
+	}
+	return t, true, nil
+}
+
 // clusterAgentIdentity resolves the owning operator and current valid
 // certificate PEM for a cluster agent -- duplicated from the same-named
 // helpers in internal/modules/agents/deployments/attestation/networkservices
@@ -601,6 +628,11 @@ func listInvoicesForOperator(ctx context.Context, c conn, operatorID uuid.UUID) 
 	return scanInvoices(rows, err)
 }
 
+func listInvoicesForOperatorAndTenant(ctx context.Context, c conn, operatorID, tenantID uuid.UUID) ([]Invoice, error) {
+	rows, err := c.Query(ctx, `SELECT `+invoiceColumns+` FROM invoices WHERE operator_id = $1 AND enterprise_tenant_id = $2 ORDER BY issued_at DESC`, operatorID, tenantID)
+	return scanInvoices(rows, err)
+}
+
 func scanInvoices(rows pgx.Rows, err error) ([]Invoice, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list invoices: %w", err)
@@ -661,21 +693,21 @@ func setInvoiceExternalRef(ctx context.Context, c conn, id uuid.UUID, ref string
 // Settlement records
 // ---------------------------------------------------------------------
 
-const settlementColumns = `id, operator_id, period_start, period_end, gross_amount, platform_fee_amount, net_amount,
-	currency, status, invoice_count, created_by, created_at, reconciled_at`
+const settlementColumns = `id, operator_id, enterprise_tenant_id, bilateral_agreement_id, period_start, period_end,
+	gross_amount, platform_fee_amount, net_amount, currency, status, invoice_count, created_by, created_at, reconciled_at`
 
 func scanSettlement(row pgx.Row) (SettlementRecord, error) {
 	var s SettlementRecord
-	err := row.Scan(&s.ID, &s.OperatorID, &s.PeriodStart, &s.PeriodEnd, &s.GrossAmount, &s.PlatformFeeAmount, &s.NetAmount,
-		&s.Currency, &s.Status, &s.InvoiceCount, &s.CreatedBy, &s.CreatedAt, &s.ReconciledAt)
+	err := row.Scan(&s.ID, &s.OperatorID, &s.EnterpriseTenantID, &s.BilateralAgreementID, &s.PeriodStart, &s.PeriodEnd,
+		&s.GrossAmount, &s.PlatformFeeAmount, &s.NetAmount, &s.Currency, &s.Status, &s.InvoiceCount, &s.CreatedBy, &s.CreatedAt, &s.ReconciledAt)
 	return s, err
 }
 
-func createSettlement(ctx context.Context, c conn, operatorID uuid.UUID, periodStart, periodEnd time.Time, gross, platformFee, net float64, currency string, invoiceCount int, createdBy uuid.UUID) (SettlementRecord, error) {
+func createSettlement(ctx context.Context, c conn, operatorID uuid.UUID, tenantID, agreementID *uuid.UUID, periodStart, periodEnd time.Time, gross, platformFee, net float64, currency string, invoiceCount int, createdBy uuid.UUID) (SettlementRecord, error) {
 	row := c.QueryRow(ctx, `
-		INSERT INTO settlement_records (operator_id, period_start, period_end, gross_amount, platform_fee_amount, net_amount, currency, invoice_count, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING `+settlementColumns, operatorID, periodStart, periodEnd, gross, platformFee, net, currency, invoiceCount, createdBy)
+		INSERT INTO settlement_records (operator_id, enterprise_tenant_id, bilateral_agreement_id, period_start, period_end, gross_amount, platform_fee_amount, net_amount, currency, invoice_count, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING `+settlementColumns, operatorID, tenantID, agreementID, periodStart, periodEnd, gross, platformFee, net, currency, invoiceCount, createdBy)
 	s, err := scanSettlement(row)
 	if err != nil {
 		return SettlementRecord{}, fmt.Errorf("insert settlement record: %w", err)

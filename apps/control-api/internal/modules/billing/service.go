@@ -41,6 +41,8 @@ var (
 	ErrReplay                  = errors.New("nonce already used or signing time outside the acceptance window")
 	ErrUsageReferenceInvalid   = errors.New("exactly one of deployment_id/capacity_reservation_id/network_reservation_id is required")
 	ErrUsageReferenceMismatch  = errors.New("referenced resource does not belong to this cluster agent's operator")
+	ErrAgreementNotFound       = errors.New("bilateral agreement not found")
+	ErrAgreementNotActive      = errors.New("bilateral agreement is not active")
 )
 
 type Service struct {
@@ -463,6 +465,26 @@ func (s *Service) ListBillingProviderEventsForInvoice(ctx context.Context, invoi
 // Settlements (operator-scoped)
 // ---------------------------------------------------------------------
 
+// sumInvoicesInPeriod totals the gross amount, count, and (best-effort)
+// currency of every issued/paid invoice whose issued_at falls in
+// [periodStart, periodEnd) -- the shared core both CreateSettlement and
+// CreateSettlementForAgreement use, so the two settlement paths can never
+// compute "how much was actually billed in this period" two different ways.
+func sumInvoicesInPeriod(invoices []Invoice, periodStart, periodEnd time.Time) (gross float64, count int, currency string) {
+	for _, inv := range invoices {
+		if inv.IssuedAt.Before(periodStart) || !inv.IssuedAt.Before(periodEnd) {
+			continue
+		}
+		if inv.Status != "paid" && inv.Status != "issued" {
+			continue
+		}
+		gross += inv.Total
+		count++
+		currency = inv.Currency
+	}
+	return gross, count, currency
+}
+
 func (s *Service) CreateSettlement(ctx context.Context, periodStart, periodEnd time.Time, platformFeeRate float64) (SettlementRecord, error) {
 	scope, _ := rbac.FromContext(ctx)
 	scopedTx, _ := rbac.TxFromContext(ctx)
@@ -473,27 +495,14 @@ func (s *Service) CreateSettlement(ctx context.Context, periodStart, periodEnd t
 	if err != nil {
 		return SettlementRecord{}, err
 	}
-	var gross float64
-	var invoiceCount int
-	var currency string
-	for _, inv := range invoices {
-		if inv.IssuedAt.Before(periodStart) || !inv.IssuedAt.Before(periodEnd) {
-			continue
-		}
-		if inv.Status != "paid" && inv.Status != "issued" {
-			continue
-		}
-		gross += inv.Total
-		invoiceCount++
-		currency = inv.Currency
-	}
+	gross, invoiceCount, currency := sumInvoicesInPeriod(invoices, periodStart, periodEnd)
 	if currency == "" {
 		currency = "USD"
 	}
 	platformFee := gross * platformFeeRate
 	net := gross - platformFee
 
-	rec, err := createSettlement(ctx, scopedTx.Tx, operatorID, periodStart, periodEnd, gross, platformFee, net, currency, invoiceCount, actor)
+	rec, err := createSettlement(ctx, scopedTx.Tx, operatorID, nil, nil, periodStart, periodEnd, gross, platformFee, net, currency, invoiceCount, actor)
 	if err != nil {
 		return SettlementRecord{}, err
 	}
@@ -517,6 +526,76 @@ func (s *Service) CreateSettlement(ctx context.Context, periodStart, periodEnd t
 		ActorUserID: &actor, ScopeType: audit.ScopeOperator, ScopeID: scope.OperatorID,
 		Action: "settlements.created", TargetType: "settlement_record", TargetID: &rec.ID,
 		Evidence: map[string]any{"gross_amount": gross, "net_amount": net, "invoice_count": invoiceCount},
+	}); err != nil {
+		return SettlementRecord{}, err
+	}
+	if err := scopedTx.Commit(ctx); err != nil {
+		return SettlementRecord{}, err
+	}
+	return rec, nil
+}
+
+// CreateSettlementForAgreement is Milestone 12's "settlement contracts"
+// requirement: unlike CreateSettlement (which accepts an ad-hoc platform
+// fee rate and sums every one of the operator's customers together), this
+// settlement is scoped to exactly the one enterprise tenant a bilateral
+// agreement covers, and priced at that agreement's own contracted
+// platform_fee_rate/currency -- read directly from bilateral_agreements,
+// never accepted from the request, the same "no frontend-calculated
+// settlement" discipline this milestone's approved scope requires.
+func (s *Service) CreateSettlementForAgreement(ctx context.Context, agreementID uuid.UUID, periodStart, periodEnd time.Time) (SettlementRecord, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+	operatorID := *scope.OperatorID
+
+	terms, exists, err := getBilateralAgreementForOperator(ctx, scopedTx.Tx, operatorID, agreementID)
+	if err != nil {
+		return SettlementRecord{}, err
+	}
+	if !exists {
+		return SettlementRecord{}, ErrAgreementNotFound
+	}
+	if terms.status != "active" {
+		return SettlementRecord{}, ErrAgreementNotActive
+	}
+
+	invoices, err := listInvoicesForOperatorAndTenant(ctx, scopedTx.Tx, operatorID, terms.enterpriseTenantID)
+	if err != nil {
+		return SettlementRecord{}, err
+	}
+	gross, invoiceCount, _ := sumInvoicesInPeriod(invoices, periodStart, periodEnd)
+	platformFee := gross * terms.platformFeeRate
+	net := gross - platformFee
+
+	rec, err := createSettlement(ctx, scopedTx.Tx, operatorID, &terms.enterpriseTenantID, &agreementID,
+		periodStart, periodEnd, gross, platformFee, net, terms.currency, invoiceCount, actor)
+	if err != nil {
+		return SettlementRecord{}, err
+	}
+
+	syncResult, syncErr := s.provider.Sync(ctx, billingprovider.Invoice{ID: rec.ID, Total: rec.NetAmount, Currency: rec.Currency})
+	detail := map[string]any{"net_amount": rec.NetAmount, "currency": rec.Currency, "bilateral_agreement_id": agreementID}
+	eventType := "settlement_sync_succeeded"
+	var externalRef *string
+	if syncErr != nil {
+		eventType = "settlement_sync_failed"
+		detail["error"] = syncErr.Error()
+	} else if syncResult.Synced {
+		ref := syncResult.ExternalRef
+		externalRef = &ref
+	}
+	if _, err := insertBillingProviderEvent(ctx, scopedTx.Tx, nil, &rec.ID, operatorID, &terms.enterpriseTenantID, "mock", eventType, externalRef, detail); err != nil {
+		return SettlementRecord{}, err
+	}
+
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopeOperator, ScopeID: scope.OperatorID,
+		Action: "settlements.created_for_agreement", TargetType: "settlement_record", TargetID: &rec.ID,
+		Evidence: map[string]any{
+			"bilateral_agreement_id": agreementID, "enterprise_tenant_id": terms.enterpriseTenantID,
+			"gross_amount": gross, "net_amount": net, "invoice_count": invoiceCount,
+		},
 	}); err != nil {
 		return SettlementRecord{}, err
 	}

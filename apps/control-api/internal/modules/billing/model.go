@@ -196,20 +196,28 @@ type Invoice struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
+// SettlementRecord's EnterpriseTenantID/BilateralAgreementID are nil for an
+// operator-wide settlement (the original Milestone 11 CreateSettlement
+// path, still unchanged); both are set for a settlement created against one
+// specific bilateral agreement (Milestone 12's CreateSettlementForAgreement),
+// which is scoped to that one tenant's invoices and priced at the
+// agreement's own contracted platform_fee_rate, never a request-supplied one.
 type SettlementRecord struct {
-	ID                uuid.UUID  `json:"id"`
-	OperatorID        uuid.UUID  `json:"operator_id"`
-	PeriodStart       time.Time  `json:"period_start"`
-	PeriodEnd         time.Time  `json:"period_end"`
-	GrossAmount       float64    `json:"gross_amount"`
-	PlatformFeeAmount float64    `json:"platform_fee_amount"`
-	NetAmount         float64    `json:"net_amount"`
-	Currency          string     `json:"currency"`
-	Status            string     `json:"status"`
-	InvoiceCount      int        `json:"invoice_count"`
-	CreatedBy         uuid.UUID  `json:"created_by"`
-	CreatedAt         time.Time  `json:"created_at"`
-	ReconciledAt      *time.Time `json:"reconciled_at,omitempty"`
+	ID                   uuid.UUID  `json:"id"`
+	OperatorID           uuid.UUID  `json:"operator_id"`
+	EnterpriseTenantID   *uuid.UUID `json:"enterprise_tenant_id,omitempty"`
+	BilateralAgreementID *uuid.UUID `json:"bilateral_agreement_id,omitempty"`
+	PeriodStart          time.Time  `json:"period_start"`
+	PeriodEnd            time.Time  `json:"period_end"`
+	GrossAmount          float64    `json:"gross_amount"`
+	PlatformFeeAmount    float64    `json:"platform_fee_amount"`
+	NetAmount            float64    `json:"net_amount"`
+	Currency             string     `json:"currency"`
+	Status               string     `json:"status"`
+	InvoiceCount         int        `json:"invoice_count"`
+	CreatedBy            uuid.UUID  `json:"created_by"`
+	CreatedAt            time.Time  `json:"created_at"`
+	ReconciledAt         *time.Time `json:"reconciled_at,omitempty"`
 }
 
 type Adjustment struct {

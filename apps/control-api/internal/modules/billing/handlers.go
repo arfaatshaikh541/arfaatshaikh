@@ -38,11 +38,11 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 func writeServiceError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
 	switch {
 	case errors.Is(err, ErrPriceBookNotFound), errors.Is(err, ErrBudgetNotFound), errors.Is(err, ErrInvoiceNotFound),
-		errors.Is(err, ErrSettlementNotFound), errors.Is(err, ErrDisputeNotFound):
+		errors.Is(err, ErrSettlementNotFound), errors.Is(err, ErrDisputeNotFound), errors.Is(err, ErrAgreementNotFound):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusNotFound, apierror.CodeNotFound, err.Error()))
 	case errors.Is(err, ErrPriceBookNotDraft), errors.Is(err, ErrSettlementNotPending), errors.Is(err, ErrDisputeNotOpen),
 		errors.Is(err, ErrNoActivePriceBook), errors.Is(err, ErrNoUsageForPeriod), errors.Is(err, ErrUnknownUsageMetric),
-		errors.Is(err, ErrDuplicateUsageEvent):
+		errors.Is(err, ErrDuplicateUsageEvent), errors.Is(err, ErrAgreementNotActive):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
 	case errors.Is(err, ErrAdjustmentTargetMissing), errors.Is(err, ErrUsageReferenceInvalid), errors.Is(err, ErrReplay):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, err.Error()))
@@ -460,6 +460,41 @@ func (h *Handlers) CreateSettlement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rec, err := h.svc.CreateSettlement(r.Context(), periodStart, periodEnd, req.PlatformFeeRate)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rec)
+}
+
+type createSettlementForAgreementRequest struct {
+	BilateralAgreementID string `json:"bilateral_agreement_id"`
+	PeriodStart          string `json:"period_start"`
+	PeriodEnd            string `json:"period_end"`
+}
+
+func (h *Handlers) CreateSettlementForAgreement(w http.ResponseWriter, r *http.Request) {
+	var req createSettlementForAgreementRequest
+	if err := decodeJSON(r, &req); err != nil || req.BilateralAgreementID == "" || req.PeriodStart == "" || req.PeriodEnd == "" {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	agreementID, err := uuid.Parse(req.BilateralAgreementID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	periodStart, err := parseTimeQuery(req.PeriodStart)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	periodEnd, err := parseTimeQuery(req.PeriodEnd)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	rec, err := h.svc.CreateSettlementForAgreement(r.Context(), agreementID, periodStart, periodEnd)
 	if err != nil {
 		writeServiceError(w, r, h.logger, err)
 		return

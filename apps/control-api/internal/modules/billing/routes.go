@@ -66,6 +66,7 @@ func MountOperatorScoped(r chi.Router, h *Handlers, authz *rbac.Middleware) {
 	r.With(authz.RequireOperatorPermission("operator.settlements.view")).Get("/invoices/{invoiceID}/adjustments", h.ListAdjustmentsForInvoice)
 
 	r.With(authz.RequireOperatorPermission("operator.settlements.manage")).Post("/settlements", h.CreateSettlement)
+	r.With(authz.RequireOperatorPermission("operator.settlements.manage")).Post("/settlements/for-agreement", h.CreateSettlementForAgreement)
 	r.With(authz.RequireOperatorPermission("operator.settlements.view")).Get("/settlements", h.ListSettlements)
 	r.With(authz.RequireOperatorPermission("operator.settlements.view")).Get("/settlements/{settlementID}", h.GetSettlement)
 	r.With(authz.RequireOperatorPermission("operator.settlements.manage")).Post("/settlements/{settlementID}/reconcile", h.ReconcileSettlement)
