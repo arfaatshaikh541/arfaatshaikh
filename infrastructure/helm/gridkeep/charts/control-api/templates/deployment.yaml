@@ -6,6 +6,18 @@ metadata:
     {{- include "control-api.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # maxSurge: 1 ensures at most one *new* pod is starting at a time during a
+  # rollout. Store.Migrate (internal/platform/db/migrate.go) runs on every
+  # process start and is checksum-idempotent, but is not advisory-lock
+  # guarded -- two brand-new pods applying the same not-yet-applied
+  # migration at the same instant could race. Old pods never re-run
+  # Migrate, so the only unsafe case is multiple *new* pods starting
+  # concurrently, which this setting rules out.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "control-api.selectorLabels" . | nindent 6 }}
