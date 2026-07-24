@@ -4,7 +4,11 @@
 // languages/hardware, retention/pricing metadata), capabilities,
 // benchmarks, safety evaluations, deployment profiles, and the
 // dual-control approval/retirement/revocation workflow (approved
-// architecture's Milestone 4 scope).
+// architecture's Milestone 4 scope). Milestone 13 (AI Model Exchange) adds
+// the cross-tenant layer on top: publishing an approved version to the
+// marketplace (public or granted-private visibility), structured pricing,
+// per-tenant access grants with price overrides, and provider onboarding --
+// see PublishVersion, CreateAccessGrant, and CreateProvider.
 package models
 
 import (
@@ -25,12 +29,19 @@ type Model struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
+// ModelVersion's Visibility/PricePerUnit/PricingUnit/Currency/PublishedAt are
+// Milestone 13's AI Model Exchange fields: a version is only selectable by
+// another tenant's workload once it is 'approved' AND either 'public' or
+// covered by an active ModelAccessGrant for that tenant -- see
+// EvaluateMarketplaceEligibility and the model_versions_marketplace_read RLS
+// policy (migration 0037). Every other field here predates this milestone.
 type ModelVersion struct {
 	ID                         uuid.UUID      `json:"id"`
 	ModelID                    uuid.UUID      `json:"model_id"`
 	TenantID                   uuid.UUID      `json:"enterprise_tenant_id"`
 	Version                    int            `json:"version"`
 	Status                     string         `json:"status"`
+	Visibility                 string         `json:"visibility"`
 	ProviderID                 *uuid.UUID     `json:"provider_id,omitempty"`
 	LicenceID                  uuid.UUID      `json:"licence_id"`
 	ChecksumSHA256             string         `json:"checksum_sha256"`
@@ -48,6 +59,10 @@ type ModelVersion struct {
 	OutputTypes                []string       `json:"output_types"`
 	RetentionPolicy            map[string]any `json:"retention_policy"`
 	PricingMetadata            map[string]any `json:"pricing_metadata"`
+	PricePerUnit               *float64       `json:"price_per_unit,omitempty"`
+	PricingUnit                string         `json:"pricing_unit"`
+	Currency                   string         `json:"currency"`
+	PublishedAt                *time.Time     `json:"published_at,omitempty"`
 	RequestedBy                uuid.UUID      `json:"requested_by"`
 	ApprovedBy                 *uuid.UUID     `json:"approved_by,omitempty"`
 	ApprovedAt                 *time.Time     `json:"approved_at,omitempty"`
@@ -99,11 +114,38 @@ type DeploymentProfile struct {
 }
 
 type Provider struct {
-	ID        uuid.UUID `json:"id"`
-	Key       string    `json:"key"`
-	Name      string    `json:"name"`
-	Website   string    `json:"website"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          uuid.UUID  `json:"id"`
+	Key         string     `json:"key"`
+	Name        string     `json:"name"`
+	Website     string     `json:"website"`
+	Status      string     `json:"status"`
+	OnboardedBy *uuid.UUID `json:"onboarded_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type CreateProviderInput struct {
+	Key     string
+	Name    string
+	Website string
+}
+
+// ModelAccessGrant is the per-tenant "invitation" a private model version
+// needs before another tenant's workloads may select it -- the same shape
+// and purpose as capacityoffers.CapacityOfferGrant (Milestone 12).
+type ModelAccessGrant struct {
+	ID                   uuid.UUID `json:"id"`
+	ModelVersionID       uuid.UUID `json:"model_version_id"`
+	OwnerTenantID        uuid.UUID `json:"owner_tenant_id"`
+	GranteeTenantID      uuid.UUID `json:"grantee_tenant_id"`
+	PricePerUnitOverride *float64  `json:"price_per_unit_override,omitempty"`
+	Status               string    `json:"status"`
+	CreatedBy            uuid.UUID `json:"created_by"`
+	CreatedAt            time.Time `json:"created_at"`
+}
+
+type CreateAccessGrantInput struct {
+	GranteeTenantID      uuid.UUID
+	PricePerUnitOverride *float64
 }
 
 type Licence struct {

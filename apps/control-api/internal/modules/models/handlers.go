@@ -36,13 +36,15 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeServiceError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
 	switch {
-	case errors.Is(err, ErrModelNotFound), errors.Is(err, ErrVersionNotFound), errors.Is(err, ErrLicenceNotFound):
+	case errors.Is(err, ErrModelNotFound), errors.Is(err, ErrVersionNotFound), errors.Is(err, ErrLicenceNotFound),
+		errors.Is(err, ErrGrantNotFound), errors.Is(err, ErrProviderNotFound):
 		apierror.WriteJSON(w, r, logger, apierror.ErrNotFound)
-	case errors.Is(err, ErrModelKeyExists):
+	case errors.Is(err, ErrModelKeyExists), errors.Is(err, ErrProviderKeyExists):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
-	case errors.Is(err, ErrNotADraft), errors.Is(err, ErrNotPendingApproval), errors.Is(err, ErrNotApproved), errors.Is(err, ErrNotApprovedOrRetired):
+	case errors.Is(err, ErrNotADraft), errors.Is(err, ErrNotPendingApproval), errors.Is(err, ErrNotApproved), errors.Is(err, ErrNotApprovedOrRetired),
+		errors.Is(err, ErrNotPublishable), errors.Is(err, ErrNotPublished), errors.Is(err, ErrProviderNotActive), errors.Is(err, ErrProviderNotSuspended):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
-	case errors.Is(err, ErrCannotSelfApprove):
+	case errors.Is(err, ErrCannotSelfApprove), errors.Is(err, ErrLicenceForbidsCommercial):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusForbidden, apierror.CodeForbidden, err.Error()))
 	default:
 		apierror.WriteJSON(w, r, logger, apierror.Wrap(500, apierror.CodeInternal, "model registry operation failed", err))
@@ -484,4 +486,240 @@ func (h *Handlers) ListArtefactLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// ---------------------------------------------------------------------
+// marketplace (Milestone 13: AI Model Exchange)
+// ---------------------------------------------------------------------
+
+type publishVersionRequest struct {
+	PricePerUnit *float64 `json:"price_per_unit"`
+	PricingUnit  string   `json:"pricing_unit"`
+	Currency     string   `json:"currency"`
+}
+
+func (h *Handlers) PublishVersion(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	var req publishVersionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	currency := req.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+	v, err := h.svc.PublishVersion(r.Context(), id, req.PricePerUnit, req.PricingUnit, currency)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (h *Handlers) UnpublishVersion(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	v, err := h.svc.UnpublishVersion(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+type createAccessGrantRequest struct {
+	GranteeTenantID      uuid.UUID `json:"grantee_tenant_id"`
+	PricePerUnitOverride *float64  `json:"price_per_unit_override"`
+}
+
+func (h *Handlers) CreateAccessGrant(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	var req createAccessGrantRequest
+	if err := decodeJSON(r, &req); err != nil || req.GranteeTenantID == uuid.Nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	g, err := h.svc.CreateAccessGrant(r.Context(), versionID, CreateAccessGrantInput(req))
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, g)
+}
+
+func (h *Handlers) ListAccessGrantsForVersion(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	out, err := h.svc.ListAccessGrantsForVersion(r.Context(), versionID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list model access grants", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) ListMyModelAccessGrants(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListMyModelAccessGrants(r.Context())
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list received model access grants", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) RevokeAccessGrant(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "grantID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	if err := h.svc.RevokeAccessGrant(r.Context(), id); err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) ListMarketplaceModelVersions(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListMarketplaceModelVersions(r.Context())
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list marketplace model versions", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) GetMarketplaceModelVersion(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	v, err := h.svc.GetMarketplaceModelVersion(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+func (h *Handlers) ListMarketplaceCapabilities(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	out, err := h.svc.ListMarketplaceCapabilities(r.Context(), versionID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list marketplace capabilities", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) ListMarketplaceBenchmarks(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	out, err := h.svc.ListMarketplaceBenchmarks(r.Context(), versionID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list marketplace benchmarks", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) ListMarketplaceSafetyEvaluations(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	out, err := h.svc.ListMarketplaceSafetyEvaluations(r.Context(), versionID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list marketplace safety evaluations", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handlers) ListMarketplaceDeploymentProfiles(w http.ResponseWriter, r *http.Request) {
+	versionID, err := uuid.Parse(chi.URLParam(r, "versionID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	out, err := h.svc.ListMarketplaceDeploymentProfiles(r.Context(), versionID)
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list marketplace deployment profiles", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// ---------------------------------------------------------------------
+// provider onboarding (Milestone 13)
+// ---------------------------------------------------------------------
+
+type createProviderRequest struct {
+	Key     string `json:"key"`
+	Name    string `json:"name"`
+	Website string `json:"website"`
+}
+
+func (h *Handlers) CreateProvider(w http.ResponseWriter, r *http.Request) {
+	var req createProviderRequest
+	if err := decodeJSON(r, &req); err != nil || req.Key == "" || req.Name == "" {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	p, err := h.svc.CreateProvider(r.Context(), CreateProviderInput(req))
+	if err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (h *Handlers) SuspendProvider(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "providerID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	if err := h.svc.SuspendProvider(r.Context(), id); err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handlers) ReactivateProvider(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "providerID"))
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
+		return
+	}
+	if err := h.svc.ReactivateProvider(r.Context(), id); err != nil {
+		writeServiceError(w, r, h.logger, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

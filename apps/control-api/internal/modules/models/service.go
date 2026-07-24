@@ -14,15 +14,23 @@ import (
 )
 
 var (
-	ErrModelNotFound        = errors.New("model not found")
-	ErrModelKeyExists       = errors.New("a model with this key already exists")
-	ErrVersionNotFound      = errors.New("model version not found")
-	ErrNotADraft            = errors.New("model version is not in draft status")
-	ErrNotPendingApproval   = errors.New("model version is not pending approval")
-	ErrCannotSelfApprove    = errors.New("the same user cannot both request and approve a model version")
-	ErrNotApproved          = errors.New("model version is not approved")
-	ErrNotApprovedOrRetired = errors.New("model version is not approved or retired")
-	ErrLicenceNotFound      = errors.New("licence not found")
+	ErrModelNotFound            = errors.New("model not found")
+	ErrModelKeyExists           = errors.New("a model with this key already exists")
+	ErrVersionNotFound          = errors.New("model version not found")
+	ErrNotADraft                = errors.New("model version is not in draft status")
+	ErrNotPendingApproval       = errors.New("model version is not pending approval")
+	ErrCannotSelfApprove        = errors.New("the same user cannot both request and approve a model version")
+	ErrNotApproved              = errors.New("model version is not approved")
+	ErrNotApprovedOrRetired     = errors.New("model version is not approved or retired")
+	ErrLicenceNotFound          = errors.New("licence not found")
+	ErrLicenceForbidsCommercial = errors.New("the model version's licence does not allow commercial use and cannot be published or granted")
+	ErrNotPublishable           = errors.New("model version must be approved before it can be published")
+	ErrNotPublished             = errors.New("model version is not currently published")
+	ErrGrantNotFound            = errors.New("model access grant not found")
+	ErrProviderKeyExists        = errors.New("a model provider with this key already exists")
+	ErrProviderNotFound         = errors.New("model provider not found")
+	ErrProviderNotActive        = errors.New("model provider is not active")
+	ErrProviderNotSuspended     = errors.New("model provider is not suspended")
 )
 
 type Service struct {
@@ -535,4 +543,307 @@ func (s *Service) ListArtefactLinks(ctx context.Context, versionID uuid.UUID) ([
 	scope, _ := rbac.FromContext(ctx)
 	scopedTx, _ := rbac.TxFromContext(ctx)
 	return listModelArtefacts(ctx, scopedTx.Tx, *scope.TenantID, versionID)
+}
+
+// ---------------------------------------------------------------------
+// marketplace (Milestone 13: AI Model Exchange)
+// ---------------------------------------------------------------------
+
+// requireCommercialUseLicence loads the version's own tenant-scoped record to
+// find its licence, then enforces that the licence actually allows
+// commercial use before permitting the version to be published or granted --
+// this is what turns AllowsCommercialUse from stored metadata (Milestone 4)
+// into a fail-closed rule (Milestone 13's "model licensing" requirement).
+func (s *Service) requireCommercialUseLicence(ctx context.Context, tx conn, tenantID, versionID uuid.UUID) (ModelVersion, error) {
+	v, exists, err := getModelVersionByID(ctx, tx, tenantID, versionID)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !exists {
+		return ModelVersion{}, ErrVersionNotFound
+	}
+	licence, exists, err := getLicenceByID(ctx, tx, v.LicenceID)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !exists {
+		return ModelVersion{}, ErrLicenceNotFound
+	}
+	if !licence.AllowsCommercialUse {
+		return ModelVersion{}, ErrLicenceForbidsCommercial
+	}
+	return v, nil
+}
+
+// PublishVersion lists an approved model version on the exchange: visible to
+// every tenant if public, or only to tenants holding an active access grant
+// if left private (a grant can still be issued either way -- see
+// CreateAccessGrant). Price is set here rather than via EditDraftVersion
+// because listing/pricing is a marketplace concern, not one of the frozen
+// technical facts a draft edit governs.
+func (s *Service) PublishVersion(ctx context.Context, id uuid.UUID, pricePerUnit *float64, pricingUnit, currency string) (ModelVersion, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	if _, err := s.requireCommercialUseLicence(ctx, scopedTx.Tx, *scope.TenantID, id); err != nil {
+		return ModelVersion{}, err
+	}
+
+	ok, err := publishModelVersion(ctx, scopedTx.Tx, id, pricePerUnit, pricingUnit, currency)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !ok {
+		return ModelVersion{}, ErrNotPublishable
+	}
+	v, exists, err := getModelVersionByID(ctx, scopedTx.Tx, *scope.TenantID, id)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !exists {
+		return ModelVersion{}, ErrVersionNotFound
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopeEnterprise, ScopeID: scope.TenantID,
+		Action: "models.version_published", TargetType: "model_version", TargetID: &id,
+		Evidence: map[string]any{"price_per_unit": pricePerUnit, "pricing_unit": pricingUnit, "currency": currency},
+	}); err != nil {
+		return ModelVersion{}, err
+	}
+	if err := scopedTx.Commit(ctx); err != nil {
+		return ModelVersion{}, err
+	}
+	return v, nil
+}
+
+func (s *Service) UnpublishVersion(ctx context.Context, id uuid.UUID) (ModelVersion, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	ok, err := unpublishModelVersion(ctx, scopedTx.Tx, id)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !ok {
+		return ModelVersion{}, ErrNotPublished
+	}
+	v, exists, err := getModelVersionByID(ctx, scopedTx.Tx, *scope.TenantID, id)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !exists {
+		return ModelVersion{}, ErrVersionNotFound
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopeEnterprise, ScopeID: scope.TenantID,
+		Action: "models.version_unpublished", TargetType: "model_version", TargetID: &id,
+	}); err != nil {
+		return ModelVersion{}, err
+	}
+	if err := scopedTx.Commit(ctx); err != nil {
+		return ModelVersion{}, err
+	}
+	return v, nil
+}
+
+// CreateAccessGrant is the owning tenant inviting one specific other tenant
+// to select this model version (required for a private version; optional,
+// price-override-only, for a public one) -- the same shape and same
+// commercial-use-licence gate as PublishVersion.
+func (s *Service) CreateAccessGrant(ctx context.Context, versionID uuid.UUID, in CreateAccessGrantInput) (ModelAccessGrant, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	if _, err := s.requireCommercialUseLicence(ctx, scopedTx.Tx, *scope.TenantID, versionID); err != nil {
+		return ModelAccessGrant{}, err
+	}
+
+	g, err := createAccessGrant(ctx, scopedTx.Tx, versionID, *scope.TenantID, in.GranteeTenantID, actor, in.PricePerUnitOverride)
+	if err != nil {
+		return ModelAccessGrant{}, err
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopeEnterprise, ScopeID: scope.TenantID,
+		Action: "models.access_granted", TargetType: "model_version", TargetID: &versionID,
+		Evidence: map[string]any{"grantee_tenant_id": in.GranteeTenantID, "price_per_unit_override": in.PricePerUnitOverride},
+	}); err != nil {
+		return ModelAccessGrant{}, err
+	}
+	if err := scopedTx.Commit(ctx); err != nil {
+		return ModelAccessGrant{}, err
+	}
+	return g, nil
+}
+
+func (s *Service) ListAccessGrantsForVersion(ctx context.Context, versionID uuid.UUID) ([]ModelAccessGrant, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listAccessGrantsForVersion(ctx, scopedTx.Tx, versionID)
+}
+
+// ListMyModelAccessGrants is the grantee side: the tenants I've been given
+// access to another tenant's model versions through.
+func (s *Service) ListMyModelAccessGrants(ctx context.Context) ([]ModelAccessGrant, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listReceivedAccessGrants(ctx, scopedTx.Tx, *scope.TenantID)
+}
+
+func (s *Service) RevokeAccessGrant(ctx context.Context, id uuid.UUID) error {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	scope, _ := rbac.FromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	ok, err := revokeAccessGrant(ctx, scopedTx.Tx, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrGrantNotFound
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopeEnterprise, ScopeID: scope.TenantID,
+		Action: "models.access_revoked", TargetType: "model_access_grant", TargetID: &id,
+	}); err != nil {
+		return err
+	}
+	return scopedTx.Commit(ctx)
+}
+
+// ListMarketplaceModelVersions browses other tenants' published model
+// versions, decorating each with this tenant's own contracted price (an
+// active grant's override, if any) in place of the public base price -- the
+// same "resolve the override once, return it in the row" discipline
+// internal/modules/placement.EvaluatePlacement already established in
+// Milestone 12, so the frontend never has to reconcile two numbers itself.
+func (s *Service) ListMarketplaceModelVersions(ctx context.Context) ([]ModelVersion, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+
+	versions, err := listMarketplaceModelVersions(ctx, scopedTx.Tx, *scope.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range versions {
+		override, err := activeGrantPriceOverride(ctx, scopedTx.Tx, versions[i].ID, *scope.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		if override != nil {
+			versions[i].PricePerUnit = override
+		}
+	}
+	return versions, nil
+}
+
+func (s *Service) GetMarketplaceModelVersion(ctx context.Context, id uuid.UUID) (ModelVersion, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+
+	v, exists, err := getMarketplaceModelVersion(ctx, scopedTx.Tx, id)
+	if err != nil {
+		return ModelVersion{}, err
+	}
+	if !exists {
+		return ModelVersion{}, ErrVersionNotFound
+	}
+	if override, err := activeGrantPriceOverride(ctx, scopedTx.Tx, id, *scope.TenantID); err != nil {
+		return ModelVersion{}, err
+	} else if override != nil {
+		v.PricePerUnit = override
+	}
+	return v, nil
+}
+
+func (s *Service) ListMarketplaceCapabilities(ctx context.Context, versionID uuid.UUID) ([]Capability, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listMarketplaceCapabilities(ctx, scopedTx.Tx, versionID)
+}
+
+func (s *Service) ListMarketplaceBenchmarks(ctx context.Context, versionID uuid.UUID) ([]Benchmark, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listMarketplaceBenchmarks(ctx, scopedTx.Tx, versionID)
+}
+
+func (s *Service) ListMarketplaceSafetyEvaluations(ctx context.Context, versionID uuid.UUID) ([]SafetyEvaluation, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listMarketplaceSafetyEvaluations(ctx, scopedTx.Tx, versionID)
+}
+
+func (s *Service) ListMarketplaceDeploymentProfiles(ctx context.Context, versionID uuid.UUID) ([]DeploymentProfile, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listMarketplaceDeploymentProfiles(ctx, scopedTx.Tx, versionID)
+}
+
+// ---------------------------------------------------------------------
+// provider onboarding (Milestone 13)
+// ---------------------------------------------------------------------
+
+func (s *Service) CreateProvider(ctx context.Context, in CreateProviderInput) (Provider, error) {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	if _, exists, err := getProviderByKey(ctx, scopedTx.Tx, in.Key); err != nil {
+		return Provider{}, err
+	} else if exists {
+		return Provider{}, ErrProviderKeyExists
+	}
+
+	p, err := createProvider(ctx, scopedTx.Tx, in.Key, in.Name, in.Website, actor)
+	if err != nil {
+		return Provider{}, err
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopePlatform,
+		Action: "models.provider_onboarded", TargetType: "model_provider", TargetID: &p.ID,
+		Evidence: map[string]any{"key": in.Key, "name": in.Name},
+	}); err != nil {
+		return Provider{}, err
+	}
+	if err := scopedTx.Commit(ctx); err != nil {
+		return Provider{}, err
+	}
+	return p, nil
+}
+
+func (s *Service) SuspendProvider(ctx context.Context, id uuid.UUID) error {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	ok, err := setProviderStatus(ctx, scopedTx.Tx, id, "suspended", "active")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrProviderNotActive
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopePlatform,
+		Action: "models.provider_suspended", TargetType: "model_provider", TargetID: &id,
+	}); err != nil {
+		return err
+	}
+	return scopedTx.Commit(ctx)
+}
+
+func (s *Service) ReactivateProvider(ctx context.Context, id uuid.UUID) error {
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	actor := actorFromContext(ctx)
+
+	ok, err := setProviderStatus(ctx, scopedTx.Tx, id, "active", "suspended")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrProviderNotSuspended
+	}
+	if err := audit.Record(ctx, scopedTx.Tx, audit.Event{
+		ActorUserID: &actor, ScopeType: audit.ScopePlatform,
+		Action: "models.provider_reactivated", TargetType: "model_provider", TargetID: &id,
+	}); err != nil {
+		return err
+	}
+	return scopedTx.Commit(ctx)
 }
