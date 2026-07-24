@@ -28,13 +28,27 @@ interface ModelVersion {
   model_id: string;
   version: number;
   status: string;
+  visibility: string;
   licence_id: string;
   checksum_sha256: string;
   permitted_geographies: string[];
   prohibited_geographies: string[];
+  supported_languages: string[];
+  price_per_unit?: number;
+  pricing_unit: string;
+  currency: string;
   requested_by: string;
   approved_by?: string;
   retirement_reason?: string;
+}
+
+interface ModelAccessGrant {
+  id: string;
+  model_version_id: string;
+  grantee_tenant_id: string;
+  price_per_unit_override?: number;
+  status: string;
+  created_at: string;
 }
 
 // Roles known (from docs/security/permission-matrix.md plus the new
@@ -44,6 +58,10 @@ interface ModelVersion {
 const CAN_REGISTER = new Set(["enterprise_owner", "enterprise_admin", "security_administrator", "ai_platform_engineer"]);
 const CAN_APPROVE = new Set(["enterprise_owner", "enterprise_admin", "security_administrator", "compliance_manager"]);
 const CAN_RETIRE = new Set(["enterprise_owner", "enterprise_admin", "security_administrator"]);
+// models.publish is a Milestone 1 permission never enforced until Milestone
+// 13's AI Model Exchange -- granted only to enterprise_owner/enterprise_admin
+// in the seeded permission matrix.
+const CAN_PUBLISH = new Set(["enterprise_owner", "enterprise_admin"]);
 
 export default function ModelsPage({ params }: { params: Promise<{ tenantId: string }> }) {
   const { tenantId } = use(params);
@@ -58,6 +76,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
   const canRegister = CAN_REGISTER.has(myRole);
   const canApprove = CAN_APPROVE.has(myRole);
   const canRetire = CAN_RETIRE.has(myRole);
+  const canPublish = CAN_PUBLISH.has(myRole);
 
   const models = useQuery({
     queryKey: ["models", tenantId],
@@ -100,6 +119,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
               myUserId={user?.user_id}
               canApprove={canApprove}
               canRetire={canRetire}
+              canPublish={canPublish}
             />
           ))}
           {models.data?.length === 0 && <li className="text-sm text-zinc-500">No models registered yet.</li>}
@@ -118,6 +138,7 @@ function ModelCard({
   myUserId,
   canApprove,
   canRetire,
+  canPublish,
 }: {
   tenantId: string;
   model: Model;
@@ -125,6 +146,7 @@ function ModelCard({
   myUserId: string | undefined;
   canApprove: boolean;
   canRetire: boolean;
+  canPublish: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const versions = useQuery({
@@ -193,6 +215,32 @@ function ModelCard({
       setError(err instanceof ApiError ? err.message : "Failed to revoke version.");
     }
   };
+  const [pricePerUnit, setPricePerUnit] = useState<Record<string, string>>({});
+  const [pricingUnit, setPricingUnit] = useState<Record<string, string>>({});
+  const publish = async (versionId: string) => {
+    setError(null);
+    try {
+      const price = pricePerUnit[versionId];
+      await api.post(`/api/v1/enterprises/${tenantId}/model-versions/${versionId}/publish`, {
+        price_per_unit: price ? Number(price) : null,
+        pricing_unit: pricingUnit[versionId] ?? "",
+        currency: "USD",
+      });
+      invalidateVersions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to publish version. The licence may forbid commercial use.");
+    }
+  };
+  const unpublish = async (versionId: string) => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/model-versions/${versionId}/unpublish`, {});
+      invalidateVersions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to unpublish version.");
+    }
+  };
+  const [grantsOpenFor, setGrantsOpenFor] = useState<string | null>(null);
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
@@ -209,7 +257,12 @@ function ModelCard({
               <li key={v.id} className="rounded border border-zinc-100 p-2 dark:border-zinc-900">
                 <div className="flex items-center justify-between">
                   <span>v{v.version}</span>
-                  <span className="text-xs text-zinc-500">{v.status}</span>
+                  <span className="text-xs text-zinc-500">
+                    {v.status}
+                    {v.status === "approved" && (
+                      <> &middot; {v.visibility === "public" ? "public listing" : "private (grant-only)"}</>
+                    )}
+                  </span>
                 </div>
                 {v.permitted_geographies?.length > 0 && (
                   <p className="text-xs text-zinc-500">Permitted: {v.permitted_geographies.join(", ")}</p>
@@ -217,7 +270,15 @@ function ModelCard({
                 {v.prohibited_geographies?.length > 0 && (
                   <p className="text-xs text-zinc-500">Prohibited: {v.prohibited_geographies.join(", ")}</p>
                 )}
-                <div className="mt-1 flex flex-wrap gap-2">
+                {v.supported_languages?.length > 0 && (
+                  <p className="text-xs text-zinc-500">Languages: {v.supported_languages.join(", ")}</p>
+                )}
+                {v.visibility === "public" && v.price_per_unit != null && (
+                  <p className="text-xs text-zinc-500">
+                    Listed at {v.currency} {v.price_per_unit}{v.pricing_unit ? ` / ${v.pricing_unit}` : ""}
+                  </p>
+                )}
+                <div className="mt-1 flex flex-wrap items-center gap-2">
                   {v.status === "draft" && (
                     <button onClick={() => requestApproval(v.id)} className="text-xs underline">Request approval</button>
                   )}
@@ -233,7 +294,32 @@ function ModelCard({
                       <button onClick={() => revoke(v.id)} className="text-xs text-red-600 underline">Revoke</button>
                     </>
                   )}
+                  {v.status === "approved" && canPublish && v.visibility === "private" && (
+                    <button onClick={() => publish(v.id)} className="text-xs underline">Publish to exchange</button>
+                  )}
+                  {v.status === "approved" && canPublish && v.visibility === "public" && (
+                    <button onClick={() => unpublish(v.id)} className="text-xs underline">Unpublish</button>
+                  )}
+                  {v.status === "approved" && canPublish && (
+                    <button
+                      onClick={() => setGrantsOpenFor(grantsOpenFor === v.id ? null : v.id)}
+                      className="text-xs underline"
+                    >
+                      {grantsOpenFor === v.id ? "Hide access grants" : "Manage access grants"}
+                    </button>
+                  )}
                 </div>
+                {v.status === "approved" && canPublish && v.visibility === "private" && (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <input placeholder="Price per unit (optional)" value={pricePerUnit[v.id] ?? ""}
+                      onChange={(e) => setPricePerUnit({ ...pricePerUnit, [v.id]: e.target.value })}
+                      className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                    <input placeholder="Pricing unit (e.g. per_1k_tokens)" value={pricingUnit[v.id] ?? ""}
+                      onChange={(e) => setPricingUnit({ ...pricingUnit, [v.id]: e.target.value })}
+                      className="w-48 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+                  </div>
+                )}
+                {grantsOpenFor === v.id && <VersionGrantsPanel tenantId={tenantId} versionId={v.id} />}
               </li>
             ))}
             {versions.data?.length === 0 && <li className="text-xs text-zinc-500">No versions yet.</li>}
@@ -262,6 +348,76 @@ function ModelCard({
         </div>
       )}
     </li>
+  );
+}
+
+// VersionGrantsPanel lets the owning tenant invite a specific other tenant to
+// select a private model version (or override a public one's price for that
+// tenant) -- the model exchange's equivalent of Milestone 12's
+// capacity_offer_grants panel.
+function VersionGrantsPanel({ tenantId, versionId }: { tenantId: string; versionId: string }) {
+  const grants = useQuery({
+    queryKey: ["model-access-grants", versionId],
+    queryFn: () => api.get<ModelAccessGrant[]>(`/api/v1/enterprises/${tenantId}/model-versions/${versionId}/access-grants`),
+  });
+  const [granteeTenantId, setGranteeTenantId] = useState("");
+  const [priceOverride, setPriceOverride] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const createGrant = async () => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/model-versions/${versionId}/access-grants`, {
+        grantee_tenant_id: granteeTenantId,
+        price_per_unit_override: priceOverride ? Number(priceOverride) : null,
+      });
+      setGranteeTenantId("");
+      setPriceOverride("");
+      grants.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to create access grant.");
+    }
+  };
+  const revokeGrant = async (grantId: string) => {
+    setError(null);
+    try {
+      await api.post(`/api/v1/enterprises/${tenantId}/model-access-grants/${grantId}/revoke`, {});
+      grants.refetch();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to revoke access grant.");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 rounded border border-zinc-100 p-2 dark:border-zinc-900">
+      <h4 className="text-xs font-medium">Access grants</h4>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <ul className="flex flex-col gap-1">
+        {grants.data?.map((g) => (
+          <li key={g.id} className="flex items-center justify-between text-xs">
+            <span>
+              Tenant {g.grantee_tenant_id.slice(0, 8)}&hellip;
+              {g.price_per_unit_override != null && <> &middot; override {g.price_per_unit_override}</>}
+              {" "}&middot; {g.status}
+            </span>
+            {g.status === "active" && (
+              <button onClick={() => revokeGrant(g.id)} className="text-red-600 underline">Revoke</button>
+            )}
+          </li>
+        ))}
+        {grants.data?.length === 0 && <li className="text-xs text-zinc-500">No access grants yet.</li>}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <input placeholder="Grantee tenant ID" value={granteeTenantId} onChange={(e) => setGranteeTenantId(e.target.value)}
+          className="w-56 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+        <input placeholder="Price override (optional)" value={priceOverride} onChange={(e) => setPriceOverride(e.target.value)}
+          className="w-44 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900" />
+        <button onClick={createGrant} disabled={!granteeTenantId}
+          className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
+          Grant access
+        </button>
+      </div>
+    </div>
   );
 }
 

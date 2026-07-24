@@ -105,6 +105,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <Link href={`/dashboard/enterprise/${tenantId}/models`} className="text-sm underline">
           Model registry &rarr;
         </Link>
+        <Link href={`/dashboard/enterprise/${tenantId}/model-marketplace`} className="text-sm underline">
+          AI model exchange &rarr;
+        </Link>
         <Link href={`/dashboard/enterprise/${tenantId}/images`} className="text-sm underline">
           Container images &amp; supply chain &rarr;
         </Link>
