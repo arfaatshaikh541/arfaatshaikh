@@ -1,0 +1,8 @@
+.git
+node_modules
+apps/web/node_modules
+apps/web/.next
+apps/*/node_modules
+docs
+infrastructure
+*.md
