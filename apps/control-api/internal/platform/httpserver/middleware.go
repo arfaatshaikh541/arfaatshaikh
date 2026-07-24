@@ -28,6 +28,11 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Cache-Control", "no-store")
+		// Browsers ignore Strict-Transport-Security on a plain-HTTP response
+		// (per spec), so this is safe to set unconditionally rather than
+		// gate on request scheme -- harmless in local development, effective
+		// the moment a real deployment terminates TLS in front of this.
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		// This is a JSON API with no HTML rendering of its own, so the
 		// strictest possible policy is safe: nothing may load or execute
 		// as a "document" in the context of this origin's responses.

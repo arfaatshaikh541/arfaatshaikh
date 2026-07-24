@@ -43,3 +43,30 @@ func TestCSRFProtection_AllowsGETWithoutToken(t *testing.T) {
 		t.Fatalf("expected GET /healthz to succeed without a CSRF token, got %d", resp.StatusCode)
 	}
 }
+
+// TestSecurityHeadersPresent is a regression test for a Milestone 16
+// application-security audit finding: Strict-Transport-Security was not
+// set anywhere. Locks in the full baseline (not just the fix) so a future
+// change can't silently drop any of these headers.
+func TestSecurityHeadersPresent(t *testing.T) {
+	srv, _, _ := testServer(t)
+	c := newClient(t, srv.URL)
+
+	resp, _ := c.get("/healthz")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected GET /healthz to succeed, got %d", resp.StatusCode)
+	}
+
+	for header, want := range map[string]string{
+		"X-Content-Type-Options":    "nosniff",
+		"X-Frame-Options":           "DENY",
+		"Referrer-Policy":           "same-origin",
+		"Cache-Control":             "no-store",
+		"Content-Security-Policy":   "default-src 'none'; frame-ancestors 'none'",
+		"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+	} {
+		if got := resp.Header.Get(header); got != want {
+			t.Fatalf("expected header %s to be %q, got %q", header, want, got)
+		}
+	}
+}
