@@ -222,3 +222,20 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   itself, not a new permission, is what makes the offer visible at all -- see
   `capacity_offers_enterprise_read`'s RLS policy in migration `0036`), and viewing the tenant's
   own bilateral agreements reuses the same `capacity.view`.
+- Milestone 13 also introduces **zero** new permission keys. Publishing a model version to the
+  exchange, unpublishing it, and creating/revoking a `model_access_grants` row
+  (`internal/modules/models`) all reuse `models.publish` ("Publish a model for use"), seeded in
+  Milestone 1 (`0002_rbac.up.sql`) and never enforced for real until this migration -- already
+  granted only to Enterprise Owner and Enterprise Administrator, the two roles whose existing
+  remit already covers commercializing a tenant's own approved assets. Provider onboarding
+  (`CreateProvider`/`SuspendProvider`/`ReactivateProvider`, mounted top-level like
+  Milestone 2's jurisdictions/regions) reuses `platform.model_catalogue.manage`, seeded in
+  Milestone 4 (`0018_model_catalogue.up.sql`) for the read-only global provider/licence
+  catalogue but never given a write endpoint until now -- still granted only to GRIDKEEP
+  Platform Super Administrator. Browsing the marketplace, viewing a version's grants, and
+  viewing received grants reuse the already-enforced `models.view`. A cross-tenant workload's
+  model-version selection (`internal/modules/workloads.validateSelections`) needs no new
+  permission either -- eligibility is decided by row visibility (RLS's
+  `model_versions_marketplace_read` policy plus the widened WHERE clause in
+  `modelVersionEligibilityFacts`), not by a permission check, the same "grant is visibility,
+  not a role" design Milestone 12 established for capacity.

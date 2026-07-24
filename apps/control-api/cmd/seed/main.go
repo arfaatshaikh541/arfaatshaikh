@@ -894,6 +894,68 @@ func main() {
 		}
 	}
 
+	// --- AI Model Exchange (Milestone 13) --------------------------------------
+	// Falcon's existing approved embedding model (Milestone 4) is published
+	// publicly at a real price -- demonstrating the marketplace's simplest
+	// case, no grant needed. A second, private model version is granted
+	// specifically to Atlas at a tenant-specific override price, the same
+	// "public offer vs. private plus grant" pairing Milestone 12 seeded for
+	// capacity. Both licences already allow commercial use (the same
+	// fictional-open-licence Milestone 4 seeded), so publishing/granting is
+	// not blocked -- a seed row using a commercial-use-forbidding licence
+	// would only ever demonstrate a rejected action, which the integration
+	// test already covers; the seed data instead shows the successful path.
+	if _, err := tx.Exec(ctx, `
+		UPDATE model_versions SET visibility = 'public', price_per_unit = 0.002, pricing_unit = 'per_1k_tokens', currency = 'USD', published_at = now()
+		WHERE id = $1 AND visibility <> 'public'
+	`, falconModelVersionID); err != nil {
+		fatal("publish Falcon model version to the exchange", err)
+	}
+
+	atlasTenantID := tenantID("Atlas Government Services Demo", "Atlas Government Services Demo", "AE", atlasOwnerEmail, "enterprise_sovereign")
+
+	var falconClassifierModelID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM models WHERE enterprise_tenant_id = $1 AND model_key = $2`, falconTenantID, "fictional-image-classifier").Scan(&falconClassifierModelID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO models (enterprise_tenant_id, model_key, name, description, provider_id)
+			VALUES ($1, 'fictional-image-classifier', 'Fictional Image Classifier', 'Fictional demo model -- not a real AI model', $2)
+			RETURNING id
+		`, falconTenantID, providerID).Scan(&falconClassifierModelID); err != nil {
+			fatal("seed Falcon image classifier model", err)
+		}
+	}
+
+	var falconClassifierVersionID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM model_versions WHERE model_id = $1 AND version = 1`, falconClassifierModelID).Scan(&falconClassifierVersionID)
+	if err != nil {
+		permittedJSON, _ := json.Marshal([]string{"AE"})
+		languagesJSON, _ := json.Marshal([]string{"en", "ar"})
+		workloadTypesJSON, _ := json.Marshal([]string{"batch_inference"})
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO model_versions (
+				model_id, enterprise_tenant_id, version, status, provider_id, licence_id, checksum_sha256,
+				permitted_geographies, supported_languages, supported_workload_types, requested_by, approved_by, approved_at
+			)
+			VALUES ($1, $2, 1, 'approved', $3, $4, $5, $6, $7, $8, $9, $10, now())
+			RETURNING id
+		`, falconClassifierModelID, falconTenantID, providerID, licenceID, strings.TrimPrefix(fakeDigest("falcon-image-classifier-v1"), "sha256:"),
+			permittedJSON, languagesJSON, workloadTypesJSON, users[falconOwnerEmail].id, users[falconComplianceEmail].id).Scan(&falconClassifierVersionID); err != nil {
+			fatal("seed Falcon image classifier model version", err)
+		}
+	}
+
+	var falconClassifierGrantID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM model_access_grants WHERE model_version_id = $1 AND grantee_tenant_id = $2`, falconClassifierVersionID, atlasTenantID).Scan(&falconClassifierGrantID)
+	if err != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO model_access_grants (model_version_id, owner_tenant_id, grantee_tenant_id, price_per_unit_override, created_by)
+			VALUES ($1, $2, $3, 0.0015, $4)
+		`, falconClassifierVersionID, falconTenantID, atlasTenantID, users[falconOwnerEmail].id); err != nil {
+			fatal("seed Falcon-Atlas model access grant", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}

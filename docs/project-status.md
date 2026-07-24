@@ -1930,6 +1930,174 @@ Federated Capacity Exchange"), confirming this was the intended extension point 
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 13 has not begun | ✅ confirmed -- no Milestone 13 code exists |
 
+## Milestone 13: AI Model Exchange
+
+Built per the approved architecture's Milestone 13 scope (model marketplace, model licensing,
+geography restrictions, language capabilities, pricing, model deployment profiles, model
+retirement, provider onboarding, enterprise model access). Like Milestone 12, this is
+**extension-first, not entity-first**: Milestone 4's `internal/modules/models` already built
+nearly every entity the approved scope implies (Model, ModelVersion with geography/language/
+pricing-metadata fields, Provider, Licence, DeploymentProfile, dual-control approval, retirement/
+revocation) as strictly tenant-private reference data. What Milestone 4 never built is the
+cross-tenant exchange layer on top of it, and two dormant permissions confirm this was the
+intended extension point: `models.publish` (seeded Milestone 1, migration `0002`, never enforced)
+and `platform.model_catalogue.manage` (seeded Milestone 4, migration `0018`, only ever gated a
+read-only catalogue).
+
+### What was built
+- **Schema** (migration `0037`, no new RBAC permissions migration -- see Deliberate security
+  decisions): `model_versions` gains `visibility` (`public`/`private`, default **private** --
+  deliberately the opposite default from `capacity_offers`, since a model is normally an
+  enterprise's own asset until it chooses to list it), structured `price_per_unit`/
+  `pricing_unit`/`currency` (distinct from the pre-existing free-form `pricing_metadata` JSONB),
+  and `published_at`; a `CHECK (visibility = 'private' OR status = 'approved')` constraint makes
+  "only an approved version can be listed" a database-level invariant, not just an
+  application-layer check, the same defense-in-depth `model_versions_no_self_approval` already
+  established. `model_access_grants` (new): the per-tenant "invitation" a private model version
+  needs, structurally identical to Milestone 12's `capacity_offer_grants`
+  (`owner_tenant_id`/`grantee_tenant_id`/`price_per_unit_override`/`status`,
+  `UNIQUE(model_version_id, grantee_tenant_id)`). Rather than replacing the existing
+  `model_versions_tenant_scope` policy (which applies to all commands), a **second, additional**
+  permissive `FOR SELECT` policy (`model_versions_marketplace_read`) is added -- Postgres ORs
+  permissive policies of the same command type together, the same coexistence
+  `bilateral_agreements_operator_scope` (ALL) and `bilateral_agreements_tenant_read` (SELECT)
+  already relied on, so no DROP/CREATE reordering risk this time. The same additional-SELECT-
+  policy pattern extends marketplace read access to `model_capabilities`/`model_benchmarks`/
+  `model_safety_evaluations`/`model_deployment_profiles`, so a prospective grantee can actually
+  evaluate a model before requesting access, not just see its bare existence. `model_providers`
+  gains `status` (`active`/`suspended`) and `onboarded_by` -- this milestone's provider onboarding,
+  turning what was seed-data-only reference data into a real lifecycle entity, the same gap
+  jurisdictions/regions had before Milestone 2 gave them real create endpoints.
+- **`internal/modules/models` extension**: `PublishVersion`/`UnpublishVersion` (list/delist an
+  approved version, set structured pricing); `CreateAccessGrant`/`ListAccessGrantsForVersion`/
+  `RevokeAccessGrant`/`ListMyModelAccessGrants` (owner and grantee sides of the invitation);
+  `ListMarketplaceModelVersions`/`GetMarketplaceModelVersion`/`ListMarketplaceCapabilities`/
+  `ListMarketplaceBenchmarks`/`ListMarketplaceSafetyEvaluations`/
+  `ListMarketplaceDeploymentProfiles` (cross-tenant browsing, relying on RLS rather than an
+  application-layer tenant filter, the same `listActiveOffers` discipline Milestone 5 established);
+  `CreateProvider`/`SuspendProvider`/`ReactivateProvider` (provider onboarding, mounted top-level
+  via a new `models.MountTopLevel`, mirroring `registry.MountTopLevel`'s jurisdictions/regions
+  shape exactly). `requireCommercialUseLicence` gates both `PublishVersion` and `CreateAccessGrant`
+  -- see Deliberate security decisions. `ListMarketplaceModelVersions`/`GetMarketplaceModelVersion`
+  resolve the caller's own active grant price override and overwrite `PricePerUnit` in the
+  returned row before it ever reaches the frontend, the same "resolve once, return it in the row"
+  discipline Milestone 12's `EvaluatePlacement` established for capacity pricing.
+- **`internal/modules/workloads` extension**: `modelVersionApprovalAndGeography` (renamed
+  `modelVersionEligibilityFacts`) widened its `WHERE` clause from strictly
+  `enterprise_tenant_id = $1` to `enterprise_tenant_id = $1 OR an active model_access_grants row
+  exists for $1` -- a workload can now select another tenant's marketplace model version, not
+  only its own tenant's. A new `validateLanguages` check enforces the approved scope's "language
+  capabilities" requirement the same way `validateGeography` already enforced geography:
+  `supported_languages` behaves as an allowlist (empty = no declared restriction, matching how
+  `permitted_geographies` already behaved), checked against a `required_languages` key in the same
+  free-form `residency_requirements` bag geography already uses -- no new workload-version column
+  needed.
+- **Frontend**: the enterprise model registry page gains visibility/pricing display, publish/
+  unpublish controls, and a per-version access-grants panel (create/revoke), the same shape
+  Milestone 12 added to the operator capacity page. A new
+  `/dashboard/enterprise/[tenantId]/model-marketplace` page lets a tenant browse other tenants'
+  public/granted model versions (with capabilities/benchmarks/safety-evaluations/deployment-
+  profiles visible per version) and see its own received access grants. No frontend for provider
+  onboarding -- consistent with this codebase never having built frontend for any other
+  platform-only reference-data action (regions/jurisdictions/container-registries have none
+  either); it is exercised only via the integration test and direct API calls, exactly like those.
+
+### Deliberate security decisions worth calling out
+- **Zero new RBAC permission keys this milestone**, the second such case in a row.
+  `models.publish` ("Publish a model for use") was seeded in Milestone 1 and never enforced for
+  real until this migration -- already granted only to Enterprise Owner and Enterprise
+  Administrator. `platform.model_catalogue.manage` was seeded in Milestone 4 for a read-only
+  catalogue and never given a write endpoint until now -- already granted only to GRIDKEEP
+  Platform Super Administrator. See `docs/security/permission-matrix.md` for the full breakdown.
+- **A licence that forbids commercial use blocks both publishing and granting**, not merely
+  displaying a warning. `AllowsCommercialUse` existed as stored metadata since Milestone 4 but was
+  never actually checked anywhere; `requireCommercialUseLicence` turns it into a fail-closed rule
+  enforced before either `PublishVersion` or `CreateAccessGrant` can proceed -- an approved,
+  perfectly valid model version with the wrong licence terms simply cannot enter the exchange.
+- **Private-model visibility is enforced entirely by RLS, not application-layer filtering** --
+  the same discipline Milestone 12 established for private capacity offers.
+  `listMarketplaceModelVersions`'s query carries no visibility/grant logic itself; it excludes only
+  the caller's own tenant (so "the marketplace" never echoes back a tenant's own catalogue) and
+  leaves every actual eligibility decision to `model_versions_marketplace_read`.
+- **A granted price override is resolved once and carried in the returned row, never left for the
+  frontend to reconcile against a separate "is there a grant" call** -- `ListMarketplaceModelVersions`
+  and `GetMarketplaceModelVersion` both overwrite `PricePerUnit` with the caller's own active
+  override before returning, mirroring exactly how Milestone 12's `EvaluatePlacement` resolved
+  `unitPrice` once per evaluation and reused it verbatim through to reservation-commit time.
+- **Cross-tenant model-version selection needs no new permission** -- `workloads.validateSelections`
+  still only checks `models.view`-equivalent visibility facts (via RLS-backed
+  `modelVersionEligibilityFacts`), never a role. Eligibility is entirely a function of "can this
+  session's tenant see this row at all," the same "a grant is visibility, not a role" principle
+  Milestone 12 established for capacity offers.
+- **`supported_languages` is an allowlist, not a blocklist, exactly mirroring `permitted_geographies`'s
+  existing semantics** -- an empty list means "no declared restriction" rather than "supports
+  nothing," so the language check does not fail every pre-Milestone-13 model version closed for a
+  field none of them ever populated.
+
+### Verification performed (not just claimed)
+- Migration `0037` applied cleanly against a real Postgres via the automated test suite; the new
+  `model_versions` columns and CHECK constraint, `model_providers.status`/`onboarded_by`, the new
+  `model_access_grants` table with its owner/grantee/platform-bypass RLS policies, and the five
+  additional marketplace-read SELECT policies were all confirmed present via direct queries under
+  `app.platform_bypass`. Also applied cleanly (and confirmed idempotent across two runs) against a
+  separate development database via the seed script, which runs migrations itself.
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across the
+  entire control-api module, including every extended module.
+- 1 new integration test,
+  `TestAIModelExchangeMarketplaceGrantsEligibilityAndLicensing`, run against a real Postgres over
+  real HTTP: publishing a version makes it visible to a second tenant with no grant; a private
+  version stays invisible until a grant exists, after which the grantee's marketplace view and
+  single-version fetch both show the grant's overridden price (`1.25`), not the base price; the
+  grantee's workload successfully selects the granted cross-tenant model version (geography and
+  language requirements both satisfied), then is rejected (400) when it declares a required
+  language the version does not support; revoking the grant removes both marketplace visibility and
+  workload-selection eligibility (400) in the same request shape; a licence with
+  `allows_commercial_use = false` blocks both publish and grant creation with 403; provider
+  onboarding succeeds for a platform administrator (201, `status: "active"`), suspending an
+  already-suspended provider is rejected (409), and a non-platform-admin's onboarding attempt is
+  rejected (403). All pass alongside the full pre-existing Milestone 1-12 suite (59 total
+  `internal/app` tests) with zero regressions; the full `go test ./... -p 1` run (serialized to
+  avoid this sandbox's known shared-test-database contention under `-p` > 1, documented in Known
+  Limitations since early milestones) is entirely green.
+- The fictional seed data **was** extended this milestone: Falcon's existing approved embedding
+  model version (Milestone 4) is published publicly at a real price; a new, private "image
+  classifier" model version is created for Falcon and granted specifically to Atlas at a
+  tenant-specific override price -- the same "public listing plus one private-plus-grant pairing"
+  shape Milestone 12 seeded for capacity. Verified idempotent by running the seed script twice
+  against a freshly created development database and confirming row counts did not change on the
+  second run.
+- Frontend: `eslint`, `tsc --noEmit`, and `next build` all pass with the extended model registry
+  page and new model-marketplace page included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 13 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Model marketplace | ✅ `model_versions.visibility`/`model_access_grants`, browsable via `ListMarketplaceModelVersions` |
+| Model licensing | ✅ unaffected structurally (Milestone 4's `model_licences`), newly **enforced**: forbids-commercial-use blocks publish/grant |
+| Geography restrictions | ✅ unaffected -- `permitted_geographies`/`prohibited_geographies`, now enforced cross-tenant too |
+| Language capabilities | ✅ new `validateLanguages` check, enforced the same way geography already was |
+| Pricing | ✅ new structured `price_per_unit`/`pricing_unit`/`currency` plus per-tenant grant overrides |
+| Model deployment profiles | ✅ unaffected structurally (Milestone 4), now marketplace-browsable via RLS |
+| Model retirement | ✅ unaffected -- `RetireVersion`/`RevokeVersion` predate this milestone |
+| Provider onboarding | ✅ `model_providers.status`, `CreateProvider`/`SuspendProvider`/`ReactivateProvider` |
+| Enterprise model access | ✅ `model_access_grants`, the per-tenant invitation a private version needs |
+| No AI-only placement/ranking decisions | ✅ unaffected -- this milestone introduces no placement/ranking logic at all |
+| Infrastructure/cluster/vault/model credentials never exposed to the frontend | ✅ unaffected -- no new credential material |
+| Backend permissions are enforced | ✅ zero new permission keys, every action gated by an existing, already-enforced permission |
+| Cross-tenant isolation holds | ✅ dual-scope RLS on `model_access_grants`, additional (not replacing) marketplace-read policies |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0037` applied cleanly against both the test database and a separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new integration test + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, `next build` |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 14 has not begun | ✅ confirmed -- no Milestone 14 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
