@@ -108,7 +108,7 @@ export default function EnterpriseNetworkServicesPage({ params }: { params: Prom
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network services</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Private connectivity, private 5G, and network-slice capacity across every operator on the

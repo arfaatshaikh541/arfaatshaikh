@@ -100,7 +100,7 @@ export default function OperatorInfrastructurePage({ params }: { params: Promise
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
+      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Operator overview</Link>
       <h1 className="mt-2 mb-6 text-2xl font-semibold">Infrastructure registry</h1>
 
       <RegionsSection regions={regions.data} />

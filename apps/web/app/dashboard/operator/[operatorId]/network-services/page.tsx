@@ -97,7 +97,7 @@ export default function OperatorNetworkServicesPage({ params }: { params: Promis
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
+      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Network service offers &amp; reservations</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Network services you publish here are built against your already-registered network

@@ -103,7 +103,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
+      <Link href="/dashboard" className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">{tenant.data?.display_name ?? "..."}</h1>
       {tenant.data?.is_fictional_demo_data && (
         <p className="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900 dark:text-amber-100">

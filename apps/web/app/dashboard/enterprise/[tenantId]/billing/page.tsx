@@ -142,7 +142,7 @@ export default function EnterpriseBillingPage({ params }: { params: Promise<{ te
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Usage, billing &amp; settlement</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Quotes and invoices below are always priced server-side against the chosen operator&apos;s

@@ -138,7 +138,7 @@ export default function TenantPoliciesPage({ params }: { params: Promise<{ tenan
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Sovereignty policies</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Deterministic, deny-by-default residency and sovereignty constraints, evaluated by the policy-engine

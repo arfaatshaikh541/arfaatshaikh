@@ -106,7 +106,7 @@ export default function WorkloadsPage({ params }: { params: Promise<{ tenantId: 
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Workloads</h1>
       <p className="mb-6 text-sm text-zinc-500">
         A workload version can only reference an <em>approved</em> container image and an{" "}
@@ -235,7 +235,7 @@ function WorkloadCard({
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-left">
+      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-start">
         <span className="font-medium">{workload.name} <span className="text-zinc-500">({workload.workload_type})</span></span>
         <span className="text-xs text-zinc-500">{workload.status} {expanded ? "−" : "+"}</span>
       </button>

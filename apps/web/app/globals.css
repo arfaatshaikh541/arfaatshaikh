@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Directional glyphs (e.g. the "<-" back-link arrow) point the wrong way
+   once dir flips to rtl -- entity characters don't mirror on their own,
+   only CSS logical properties do. */
+[dir="rtl"] .rtl-mirror {
+  display: inline-block;
+  transform: scaleX(-1);
+}

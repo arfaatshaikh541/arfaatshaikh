@@ -122,7 +122,7 @@ export default function PlatformPortalPage() {
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href="/dashboard" className="text-sm underline">&larr; Dashboard</Link>
+      <Link href="/dashboard" className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Dashboard</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Platform administration</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Platform-wide governance: every action below is independently re-checked server-side

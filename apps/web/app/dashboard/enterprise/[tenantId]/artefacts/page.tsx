@@ -104,7 +104,7 @@ export default function ArtefactsPage({ params }: { params: Promise<{ tenantId: 
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Artefacts</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Uploads go straight from your browser to storage via a short-lived, server-issued URL --

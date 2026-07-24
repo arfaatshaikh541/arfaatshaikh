@@ -44,7 +44,7 @@ export default function OperatorDeploymentsPage({ params }: { params: Promise<{ 
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
+      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Deployments</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Every deployment running on this operator&apos;s clusters, reported here read-only --
@@ -75,7 +75,7 @@ function OperatorDeploymentRow({ operatorId, deployment }: { operatorId: string;
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-left">
+      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-start">
         <span className="font-medium">{deployment.namespace} <span className="text-zinc-500">({deployment.replica_count} replicas)</span></span>
         <span className="text-xs text-zinc-500">{deployment.status} {expanded ? "−" : "+"}</span>
       </button>

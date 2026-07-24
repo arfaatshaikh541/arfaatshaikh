@@ -131,7 +131,7 @@ export default function OperatorAssurancePage({ params }: { params: Promise<{ op
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline">&larr; Operator overview</Link>
+      <Link href={`/dashboard/operator/${operatorId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Operator overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Service assurance</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Every metric below is read directly from data GRIDKEEP already records for other reasons

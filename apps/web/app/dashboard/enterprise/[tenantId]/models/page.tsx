@@ -100,7 +100,7 @@ export default function ModelsPage({ params }: { params: Promise<{ tenantId: str
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-3xl flex-1 p-4 sm:p-8">
-      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline">&larr; Tenant overview</Link>
+      <Link href={`/dashboard/enterprise/${tenantId}`} className="text-sm underline"><span aria-hidden="true" className="rtl-mirror">&larr;</span> Tenant overview</Link>
       <h1 className="mt-2 mb-1 text-2xl font-semibold">Model registry</h1>
       <p className="mb-6 text-sm text-zinc-500">
         Immutable-once-approved model versions with licence, geography, and safety-evaluation
@@ -244,7 +244,7 @@ function ModelCard({
 
   return (
     <li className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-left">
+      <button onClick={() => setExpanded(!expanded)} className="flex w-full items-center justify-between text-start">
         <span className="font-medium">{model.name} <span className="text-zinc-500">({model.model_key})</span></span>
         <span className="text-xs text-zinc-500">{model.status} {expanded ? "−" : "+"}</span>
       </button>
