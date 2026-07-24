@@ -14,6 +14,7 @@ import (
 
 	"gridkeep/control-api/internal/modules/agents"
 	"gridkeep/control-api/internal/modules/artefacts"
+	"gridkeep/control-api/internal/modules/assurance"
 	"gridkeep/control-api/internal/modules/attestation"
 	"gridkeep/control-api/internal/modules/auditlog"
 	"gridkeep/control-api/internal/modules/capacityoffers"
@@ -157,6 +158,9 @@ func NewRouter(d Deps) *chi.Mux {
 	networkServicesSvc := networkservices.NewService(d.Store, d.CA)
 	networkServicesHandlers := networkservices.NewHandlers(networkServicesSvc, d.Logger)
 
+	assuranceSvc := assurance.NewService()
+	assuranceHandlers := assurance.NewHandlers(assuranceSvc, d.Logger)
+
 	validator := identity.SessionValidatorAdapter{Service: identitySvc}
 	// These two routes authenticate a machine identity (a bootstrap token,
 	// or a request signature made with an issued certificate's private
@@ -194,6 +198,7 @@ func NewRouter(d Deps) *chi.Mux {
 		deployments.MountTenantScoped(r, deploymentsHandlers, authz)
 		attestation.MountTenantScoped(r, attestationHandlers, authz)
 		networkservices.MountTenantScoped(r, networkServicesHandlers, authz)
+		assurance.MountTenantScoped(r, assuranceHandlers, authz)
 	})
 
 	router.Route("/api/v1/operators/{operatorID}", func(r chi.Router) {
@@ -207,6 +212,7 @@ func NewRouter(d Deps) *chi.Mux {
 		deployments.MountOperatorScoped(r, deploymentsHandlers, authz)
 		attestation.MountOperatorScoped(r, attestationHandlers, authz)
 		networkservices.MountOperatorScoped(r, networkServicesHandlers, authz)
+		assurance.MountOperatorScoped(r, assuranceHandlers, authz)
 	})
 
 	platformadmin.Mount(router, platformHandlers, auditHandlers, authz, func(r chi.Router) {
