@@ -2258,6 +2258,164 @@ never a plain preference knob) -- both are genuinely new here.
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 15 has not begun | ✅ confirmed -- no Milestone 15 code exists |
 
+## Milestone 15: Enterprise and Operator Portals
+
+Built per the approved architecture's Milestone 15 scope, a **"Complete, not Build"** milestone:
+enterprise portal, operator portal, platform portal, workload/policy/deployment/capacity/pricing/
+settlement workflows, incidents, audit, accessibility, RTL, responsive design. Unlike every prior
+milestone, "complete" cannot be scoped from a blank slate -- it requires first establishing what
+already exists and where the real gaps are. That audit (an Explore-agent survey across every
+frontend page and every backend route, not a guess) found: the enterprise, operator, and platform-
+role-separation backend machinery was already essentially complete through Milestones 1-14, but
+**no platform portal frontend existed at all** (`platform_role_assignments` has existed since
+Milestone 1, `internal/modules/platformadmin` since Milestone 9, with zero UI ever built against
+it); the assurance pages surfaced SLOs/incidents/alerts but never an incident's own event timeline
+or its correlated audit trail, both already queryable backend endpoints since Milestone 9/10; the
+workload page could publish and retire a version but never deprecate one, edit its components, or
+manage per-component health checks, again all pre-existing backend capability; the operator billing
+page rendered invoices and settlements as the barest read-only list, with no mark-paid button and
+no UI at all for adjustments, provider events, or credit notes, despite every one of those write
+endpoints existing since Milestone 11/12; and the frontend had **zero** accessibility affordances
+(no skip link, placeholder-only form labels), **zero** responsive breakpoint utilities anywhere,
+and **zero** RTL/logical-property readiness. Policy, deployment, and capacity workflows were
+audited and found already adequate for their approved scope -- no changes were made to those pages
+this milestone.
+
+### What was built
+- **`platform_roles` on `/auth/me`**: `identity.Service.MyPlatformRoleKeys` (new
+  `listPlatformRoleKeys` repository query, read-only) returns the caller's own active platform role
+  keys alongside the existing user-id response. Documented explicitly as a UI-convenience
+  affordance, not an authorization boundary -- see Deliberate security decisions.
+- **New platform portal** (`apps/web/app/dashboard/platform/page.tsx`): tenant and operator status/
+  plan management, support-access-grant approve/revoke, jurisdiction/region taxonomy management,
+  AI model provider onboarding/suspend/reactivate, and the platform audit log -- all against
+  already-existing `internal/modules/platformadmin`/`registry`/`models` endpoints that simply had
+  no frontend before this milestone. Gated client-side on `platform_roles.length > 0` (a UX guard
+  only; every route it calls independently re-checks the permission server-side) and linked from a
+  new gated section on the main dashboard.
+- **`models.MountTopLevel` gains `GET /` (auth-only, no permission gate)**: the model-provider
+  catalogue is non-sensitive reference data, so any authenticated user can read it -- the same
+  precedent `registry.MountTopLevel` already set for jurisdictions/regions. The existing onboarding/
+  suspend/reactivate writes under the same path stay platform-permission-gated.
+- **Incident/SLO drill-downs** (enterprise and operator assurance pages): each SLO row gains an
+  expandable evaluation-history panel (`GET .../slos/{id}/evaluations`); each incident row gains an
+  expandable timeline combining its own event stream (`GET .../incidents/{id}/events`) and its
+  correlated audit trail (`GET .../audit-correlation/incident/{id}`) -- both endpoints have existed
+  since Milestone 9/10 and were simply never surfaced.
+- **Workload workflow completeness** (enterprise workloads page): a "Deprecate" action alongside the
+  existing "Retire" for published versions; an expandable components panel per version
+  (`VersionComponentsPanel`, list + create against `.../workload-versions/{id}/components`) and a
+  nested expandable health-checks panel per component (`ComponentHealthChecksPanel`, list + create
+  against `.../workload-components/{id}/health-checks`).
+- **Settlement workflow completeness** (operator billing page): invoices render through a new
+  `InvoiceRow` with a mark-paid action and an expandable adjustments/provider-events panel;
+  `SettlementRow` gains the identical expandable panel; a new Credit Notes section lists and issues
+  credit notes. `CreateAdjustmentForm` posts to the single shared `POST /adjustments` endpoint,
+  scoped to whichever of an invoice or a settlement the caller is viewing.
+- **Accessibility pass** (all ~30 frontend pages): a "Skip to main content" link in the root layout
+  targeting a new `id="main-content"` on every page's outermost `<main>`; every placeholder-only
+  `<input>` and unlabelled `<select>` in the dashboard (105 inputs, 41 selects) gained an
+  `aria-label`, since placeholder text is not an accessible name. The register/login/onboarding
+  pages already wrapped every field in a visible `<label>` and needed no changes.
+- **Responsive design pass** (all pages): outer padding steps down (`p-4` below the `sm` breakpoint,
+  `p-8` from `sm` up, previously a fixed `p-8` everywhere); every non-stacking flex row -- action-
+  button groups and title/status header rows -- gained `flex-wrap` so content reflows onto
+  additional lines instead of overflowing or forcing horizontal scroll on narrow viewports.
+- **RTL layout-direction readiness** (all pages): `text-left` became the logical `text-start`; the
+  fixed `&larr;` back-link glyph gets a new `.rtl-mirror` class, flipped via a `[dir="rtl"]` CSS
+  rule in `globals.css` (an HTML entity does not mirror on its own, only CSS logical properties
+  and explicit transforms do); a new `DirToggle` client component (fixed corner button, persisted
+  to `localStorage`) lets the mirrored layout actually be exercised in a browser today.
+
+### Bug found and fixed this milestone
+Adding the new top-level, auth-only `GET /api/v1/model-providers` route surfaced a real defect in
+`models.Service.ListProviders`: it read through `rbac.TxFromContext(ctx)`, which only exists on
+routes wrapped by `rbac.Middleware` -- calling it from a route wrapped only by
+`httpserver.RequireAuth()` produced a nil-pointer panic. Fixed by switching `ListProviders` to read
+directly off `s.store.Pool`, matching `registry.Service.ListJurisdictions`/`ListRegions`'s existing
+precedent for the same category of un-RLS'd global reference data. Caught by the new integration
+test before it reached any other environment, not discovered in production.
+
+### Deliberate security decisions worth calling out
+- **`platform_roles` is explicitly a UI-convenience field, not an authorization boundary.** Every
+  `platform.*` route continues to independently re-check the caller's permission on every request,
+  exactly as before this milestone -- the field only lets the frontend decide whether to show a
+  link, never whether to allow an action.
+- **The new top-level model-provider `GET` is deliberately unauthenticated-by-permission (but still
+  auth-required)** because it is non-sensitive catalogue data, not because platform-admin checks
+  were loosened anywhere: the onboarding/suspend/reactivate writes under the identical path remain
+  gated by the same platform permission as before.
+- **Zero new RBAC permission keys this milestone.** Every new frontend surface calls an
+  already-existing, already-permission-gated backend endpoint; the only genuinely new backend
+  surface is the top-level model-provider list, which is deliberately read-only reference data
+  requiring no permission at all, the same category `registry.MountTopLevel` already established.
+- **RTL readiness is layout-mirroring only, not translation.** No locale/i18n system was
+  introduced and no user-facing copy changed language; `DirToggle` exists purely so the mirrored
+  layout can be reviewed with the existing English copy, a deliberate, stated scope boundary against
+  overclaiming full Arabic/Hebrew readiness this milestone did not attempt.
+
+### Verification performed (not just claimed)
+- No new migration this milestone -- confirmed by dropping and recreating the test database, then
+  re-running the seed binary's own fresh-apply (migrations run automatically before seeding): schema
+  head remains `0038` from Milestone 14, applied cleanly, confirming nothing in Milestone 15's
+  backend changes touched or broke prior schema.
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across the
+  entire control-api module.
+- `go test -p 1 ./...` is entirely green, including the new `TestPlatformRolesExposedOnMeAndTopLevelProviderList`
+  integration test (verifies an ordinary user sees an empty `platform_roles` array and a
+  platform-admin sees exactly `["platform_super_administrator"]`; verifies an ordinary user can
+  `GET` but not `POST` `/api/v1/model-providers`) alongside the full pre-existing Milestone 1-14
+  suite, with zero regressions.
+- `apps/worker` (gofmt, vet, build, test) and `apps/policy-engine` (ruff, mypy, pytest -- run in a
+  fresh Python 3.12 virtualenv since this milestone touched neither module) both remain clean,
+  confirming no cross-module regression.
+- Frontend: `eslint`, `tsc --noEmit`, `vitest run` (5 tests, 2 files), and `next build` (all ~30
+  routes) pass cleanly after every one of the eight implementation steps above, not just at the end.
+- Playwright smoke checks against the dev server: no horizontal overflow (`scrollWidth ===
+  clientWidth`) at a 375px viewport on the login, register, onboarding, and home pages; toggling
+  `DirToggle` on the login page visibly mirrors form-field and link alignment, confirming the RTL
+  readiness is a genuine layout change, not just a cosmetic label flip.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+- **No seed data changes were required.** `platform-admin@gridkeep.io`'s
+  `platform_super_administrator` role assignment (seeded since Milestone 9) and the seeded
+  `model_providers` rows (since Milestone 13) are already sufficient to demonstrate every Milestone
+  15 surface; invoices, settlements, credit notes, and workload components are populated live
+  through the UI forms this milestone built, consistent with this codebase's established pattern of
+  not pre-seeding transactional/workflow data that a demo user can create through the product itself.
+
+### Milestone 15 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Enterprise portal | ✅ audited, already complete from prior milestones |
+| Operator portal | ✅ audited, already complete from prior milestones |
+| Platform portal | ✅ new -- `/dashboard/platform`, gated on `platform_roles` |
+| Workload workflows | ✅ completed -- deprecate action, component management, health checks |
+| Policy workflows | ✅ audited, already complete -- no changes needed |
+| Deployment workflows | ✅ audited, already complete -- no changes needed |
+| Capacity workflows | ✅ audited, already complete -- no changes needed |
+| Pricing workflows | ✅ audited, already complete -- no changes needed |
+| Settlement workflows | ✅ completed -- mark-paid, adjustments, provider events, credit notes |
+| Incidents | ✅ completed -- per-incident event timeline drill-down |
+| Audit | ✅ completed -- per-incident correlated audit-trail drill-down |
+| Accessibility | ✅ skip link, `main` landmark, `aria-label` on every placeholder-only input/select |
+| RTL | ✅ layout-mirroring readiness -- logical properties, `.rtl-mirror`, `DirToggle` (not translation, stated as an explicit scope boundary) |
+| Responsive design | ✅ responsive padding, `flex-wrap` on every non-stacking row, verified overflow-free at 375px |
+| No AI-only placement/ranking decisions | ✅ unaffected -- this milestone touched no ranking logic |
+| Infrastructure/cluster/vault/model/operator credentials never exposed to the frontend | ✅ unaffected -- no new credential surface introduced |
+| Backend permissions are enforced | ✅ zero new permission keys; `platform_roles` is explicitly non-authoritative |
+| Cross-tenant isolation holds | ✅ unaffected -- no new cross-tenant data path |
+| Audit records are created for all sensitive actions | ✅ unaffected -- every action this milestone's UI exposes already emitted its own audit event before this milestone |
+| Database migrations work | ✅ no new migration; confirmed the existing `0038` head still applies cleanly to a fresh database |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new integration test + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, vitest, `next build` |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 16 has not begun | ✅ confirmed -- no Milestone 16 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -2880,11 +3038,12 @@ See `docs/adr/`:
     is an unvalidated soft reference** — the same pattern `audit_events.target_type`/`target_id`
     already established since Milestone 1, not a new gap; no FK-checked ownership of the referenced
     resource is enforced, consistent with that precedent.
-49. **(Milestone 10) No dedicated audit-correlation UI** — `ListCorrelatedAuditEvents` is fully
-    supported by the API (`GET .../audit-correlation/{resourceType}/{resourceID}`) but the
-    dashboard does not yet render a resource picker for it, the same "scoped down to keep this
-    milestone's UI proportionate" reasoning Milestones 2/4/5 applied to their own deeper-detail-view
-    limitations.
+49. ~~**(Milestone 10) No dedicated audit-correlation UI**~~ — **resolved in Milestone 15**: each
+    incident row on both assurance pages now renders its own correlated audit trail
+    (`GET .../audit-correlation/incident/{id}`) inline in its timeline drill-down. A generic
+    resource-type/resource-id picker for arbitrary resources (not just incidents) still does not
+    exist — revisit only if a future milestone needs audit correlation for a resource type other
+    than incidents.
 50. **(Milestone 10) `cmd/mockclusteragent` is unaffected by this milestone and was not re-run
     live against `cmd/server`** — this milestone introduces no new agent-facing protocol; the same
     Docker Hub egress / unreachable-MinIO limitation documented since Milestone 4 (Known Limitation
@@ -2926,6 +3085,26 @@ See `docs/adr/`:
     instead via `TestBillingUsageAggregationInvoiceSettlementDisputeAndBudgetAlert`, an
     `httptest`-based integration test exercising the identical Go code paths (real ECDSA
     signing, real HTTP calls, a real database).
+56. **(Milestone 15) RTL readiness is layout-mirroring only, not translation.** No locale/i18n
+    system exists in this codebase or was introduced this milestone; `DirToggle` is a client-side
+    QA/demo aid persisted to the browser's own `localStorage`, not a user account setting, and no
+    Arabic/Hebrew (or any other) locale strings exist anywhere in the frontend. A future milestone
+    that wants real localized UI text would build a translation layer on top of the logical
+    properties this milestone put in place, not replace them.
+57. **(Milestone 15) No automated accessibility regression test was added.** The accessibility pass
+    (skip link, landmark, `aria-label` coverage) was verified through targeted, scripted auditing
+    (every `<input>`/`<select>` in the frontend was enumerated and checked) and manual review, not
+    a continuously-enforced automated gate (e.g. `axe-core` in CI). A regression that removes an
+    `aria-label` from a future edit would not be caught automatically.
+58. **(Milestone 15) No automated responsive/visual regression test was added.** The responsive
+    pass was verified with a single-viewport (375px) horizontal-overflow check via Playwright, plus
+    manual review of the mirrored/wrapped layouts — not a continuously-enforced, multi-breakpoint
+    automated suite. A future layout regression at an untested viewport width would not be caught
+    automatically.
+59. **(Milestone 15) Policy, deployment, capacity, and pricing workflow pages were audited but not
+    modified this milestone** — the audit judged them already adequate for the approved scope; that
+    judgment was not independently re-verified beyond the audit itself (no new tests or changes
+    were made against those specific pages this milestone).
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
@@ -3144,39 +3323,39 @@ findings from the subsequent independent review.
 
 ## Pending Approvals
 
-None outstanding for Milestones 1-10. Awaiting explicit approval before any Milestone 11 work
-begins.
+None outstanding for Milestones 1-15. Awaiting explicit approval before any Milestone 16 work
+begins. (This section previously stopped updating after Milestone 10 even as Milestones 11-15
+shipped -- each of their own `## Milestone N` sections above was kept current throughout, only this
+trailing pointer had gone stale. Corrected here rather than left misleading.)
 
 ## Next Action
 
-Milestone 10 (Service Assurance and Observability) is complete: built **correlation-first, not
-duplication-first** -- the approved scope's "Correlate: workload/cluster/GPU/network/model health,
-policy compliance, attestation, capacity, operator incidents" requirement is a read-time join
-across data this codebase already produces for entirely different reasons (`deployment_events`
-from Milestone 7, `network_reservations`/`network_health_events` from Milestone 9,
-`attestation_results` from Milestone 8, `policy_evaluation_records` from Milestone 3/5), never a
-new table duplicating any of it (`GetCorrelatedHealth`). What genuinely did not exist anywhere
-else and this milestone adds: SLOs (`slo_definitions`/`slo_evaluations`, either an operator's own
-infrastructure commitment or an enterprise's own workload target, evaluated **on demand** -- there
-is no live scheduler in this codebase, the same "`reclaimExpired` runs at the top of every call"
-precedent Milestone 5 established), Incidents (`incidents`/`incident_events`, dual-scope like
-`deployments`/`network_reservations`, full open/acknowledge/resolve lifecycle with an append-only
-timeline), and Alerts (`alert_rules`/`alerts`, evaluated on demand against the identical
-metric-computation layer SLOs use, firing/resolving **idempotently** -- re-evaluating an
-already-firing rule never creates a duplicate alert). Only 2 genuinely new permission keys
-(`assurance.view`, `slos.manage` -- the latter deliberately reused for alert-rule configuration
-too); incident lifecycle reuses the already-seeded `incidents.view`/`incidents.manage`/
-`operator.incidents.manage` from Milestone 1, and operator-side SLA/alert configuration reuses
-`operator.sla.manage` -- seeded in Milestone 1, never once granted to any role until this
-milestone, the clearest "roles anticipate milestones" case yet. Both frontend pages (operator and
-enterprise: correlated health, SLO/SLA management, incidents, alert rules and history) are built
-and pass the full validation battery. Unlike Milestone 6/7/8's deployment/attestation identity, the
-fictional seed data **was** extended this milestone with one SLO and one alert rule per side, each
-paired with a real evaluation snapshot computed by hand from data the seed script already produces
-(never a fabricated number) -- including an honest 0%-provisioned EuroNorth network reservation
-that genuinely breaches its own seeded SLA and fires its own seeded alert, verified idempotent
-across two runs. `withPlatformBypass` was not needed by this milestone (every query stays inside
-the caller's own already-scoped transaction), so the standalone-ADR trigger flagged since Milestone
-7 remains unresolved but not worsened. Await explicit approval (per working rule #4) before
-starting Milestone 11 (Usage, Billing and Settlement) work. **No Milestone 11 code has been
-written.**
+Milestone 15 (Enterprise and Operator Portals) is complete: a **"Complete, not Build"** milestone,
+scoped by first auditing every existing frontend page and backend route rather than assuming what
+was missing. The audit found the enterprise and operator portals, and the policy/deployment/
+capacity/pricing workflows, already adequate from prior milestones -- no changes were made to those
+surfaces. What it found genuinely missing and this milestone built: a platform portal frontend
+(`/dashboard/platform`, the first UI ever built against `internal/modules/platformadmin`, dormant
+since Milestone 9), `platform_roles` on `/auth/me` (a UI-convenience field, explicitly not an
+authorization boundary -- every `platform.*` route still independently re-checks server-side),
+per-incident event-timeline and correlated-audit-trail drill-downs on both assurance pages, workload
+version deprecation plus component/health-check management, and full settlement-workflow UI
+(mark-paid, adjustments, provider events, credit notes) that had existed as backend endpoints since
+Milestone 11/12 but never had a frontend. It also completed the three cross-cutting requirements no
+earlier milestone had touched: an accessibility pass (skip link, `main` landmark, `aria-label` on
+every placeholder-only input/select across ~30 pages), a responsive design pass (the frontend had
+zero breakpoint utilities before this milestone; now every page uses responsive padding and
+`flex-wrap` on non-stacking rows, verified overflow-free at a 375px viewport), and RTL
+layout-direction readiness (logical Tailwind properties, a `.rtl-mirror` class for the one
+directional glyph in the app, and a `DirToggle` component to actually exercise the mirrored layout --
+explicitly layout-mirroring readiness only, not translation, since no locale/i18n system exists or
+was introduced). Zero new RBAC permission keys; the only new backend surface is a deliberately
+unauthenticated-by-permission top-level model-provider `GET` (non-sensitive catalogue data, matching
+`registry.MountTopLevel`'s existing precedent), which also surfaced and fixed a genuine nil-pointer
+bug in `models.Service.ListProviders` (it was reading through an RBAC-scoped transaction that does
+not exist on auth-only routes) before it reached any other environment. No new migration and no new
+seed data were required -- the already-seeded `platform_super_administrator` role assignment and
+`model_providers` rows are sufficient to demonstrate every new surface, and invoices/settlements/
+credit notes/workload components are populated live through the UI forms this milestone built.
+Await explicit approval (per working rule #4) before starting Milestone 16 (Production Hardening)
+work. **No Milestone 16 code has been written.**
