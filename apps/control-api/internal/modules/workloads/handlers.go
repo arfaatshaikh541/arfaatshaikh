@@ -43,7 +43,7 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, logger *slog.Logg
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusConflict, apierror.CodeConflict, err.Error()))
 	case errors.Is(err, ErrCannotSelfApprove):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusForbidden, apierror.CodeForbidden, err.Error()))
-	case errors.Is(err, ErrImageNotApproved), errors.Is(err, ErrModelVersionNotApproved), errors.Is(err, ErrModelGeographyMismatch):
+	case errors.Is(err, ErrImageNotApproved), errors.Is(err, ErrModelVersionNotApproved), errors.Is(err, ErrModelGeographyMismatch), errors.Is(err, ErrModelLanguageMismatch):
 		apierror.WriteJSON(w, r, logger, apierror.New(http.StatusBadRequest, apierror.CodeValidation, err.Error()))
 	default:
 		apierror.WriteJSON(w, r, logger, apierror.Wrap(500, apierror.CodeInternal, "workload registry operation failed", err))

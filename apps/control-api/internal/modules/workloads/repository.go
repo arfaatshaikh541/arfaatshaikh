@@ -345,30 +345,51 @@ func imageIsApproved(ctx context.Context, c conn, tenantID, imageID uuid.UUID) (
 	return status == "approved", nil
 }
 
-// modelVersionApprovalAndGeography returns the model version's status and
-// permitted/prohibited geography lists, used to enforce that only an
-// approved model version can be selected, and that the workload's declared
-// residency requirements are compatible with the model's geographic
-// restrictions.
-func modelVersionApprovalAndGeography(ctx context.Context, c conn, tenantID, modelVersionID uuid.UUID) (status string, permitted, prohibited []string, err error) {
-	var permittedRaw, prohibitedRaw []byte
+// modelVersionEligibilityFacts returns the model version's status and
+// permitted/prohibited geography and supported language lists, used to
+// enforce that only an approved model version can be selected, and that the
+// workload's declared residency/language requirements are compatible with
+// the model's restrictions.
+//
+// Milestone 13 (AI Model Exchange) widened the WHERE clause: a workload may
+// select a model version belonging to another tenant if that tenant has
+// been granted marketplace access to it (model_access_grants), not only a
+// version its own tenant registered. This mirrors -- and is additionally
+// enforced by -- the model_versions_marketplace_read RLS policy (migration
+// 0037): RLS decides what the session can see at all, this WHERE clause
+// states the exact business condition explicitly.
+func modelVersionEligibilityFacts(ctx context.Context, c conn, tenantID, modelVersionID uuid.UUID) (status string, permitted, prohibited, supportedLanguages []string, err error) {
+	var permittedRaw, prohibitedRaw, languagesRaw []byte
 	err = c.QueryRow(ctx, `
-		SELECT status, permitted_geographies, prohibited_geographies
-		FROM model_versions WHERE enterprise_tenant_id = $1 AND id = $2
-	`, tenantID, modelVersionID).Scan(&status, &permittedRaw, &prohibitedRaw)
+		SELECT status, permitted_geographies, prohibited_geographies, supported_languages
+		FROM model_versions
+		WHERE id = $2
+		  AND (
+		    enterprise_tenant_id = $1
+		    OR EXISTS (
+		        SELECT 1 FROM model_access_grants g
+		        WHERE g.model_version_id = model_versions.id
+		          AND g.grantee_tenant_id = $1
+		          AND g.status = 'active'
+		    )
+		  )
+	`, tenantID, modelVersionID).Scan(&status, &permittedRaw, &prohibitedRaw, &languagesRaw)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return "", nil, nil, nil
+			return "", nil, nil, nil, nil
 		}
-		return "", nil, nil, fmt.Errorf("get model version for validation: %w", err)
+		return "", nil, nil, nil, fmt.Errorf("get model version for validation: %w", err)
 	}
 	if err := json.Unmarshal(permittedRaw, &permitted); err != nil {
-		return "", nil, nil, fmt.Errorf("unmarshal permitted geographies: %w", err)
+		return "", nil, nil, nil, fmt.Errorf("unmarshal permitted geographies: %w", err)
 	}
 	if err := json.Unmarshal(prohibitedRaw, &prohibited); err != nil {
-		return "", nil, nil, fmt.Errorf("unmarshal prohibited geographies: %w", err)
+		return "", nil, nil, nil, fmt.Errorf("unmarshal prohibited geographies: %w", err)
 	}
-	return status, permitted, prohibited, nil
+	if err := json.Unmarshal(languagesRaw, &supportedLanguages); err != nil {
+		return "", nil, nil, nil, fmt.Errorf("unmarshal supported languages: %w", err)
+	}
+	return status, permitted, prohibited, supportedLanguages, nil
 }
 
 // ---------------------------------------------------------------------

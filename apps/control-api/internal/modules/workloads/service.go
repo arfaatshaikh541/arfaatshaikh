@@ -22,8 +22,9 @@ var (
 	ErrCannotSelfApprove       = errors.New("the same user cannot both request and approve a workload version publish")
 	ErrNotPublished            = errors.New("workload version is not published")
 	ErrImageNotApproved        = errors.New("the referenced container image is not approved and cannot be selected")
-	ErrModelVersionNotApproved = errors.New("the referenced model version is not approved and cannot be selected")
+	ErrModelVersionNotApproved = errors.New("the referenced model version is not approved, or this tenant has no marketplace access to it, and it cannot be selected")
 	ErrModelGeographyMismatch  = errors.New("the workload's residency requirements are incompatible with the selected model version's geographic restrictions")
+	ErrModelLanguageMismatch   = errors.New("the workload's required languages are not supported by the selected model version")
 )
 
 type Service struct {
@@ -120,12 +121,15 @@ func (s *Service) RetireWorkload(ctx context.Context, id uuid.UUID) (Workload, e
 }
 
 // validateSelections enforces that a container image can only be selected
-// while 'approved' and a model version only while 'approved', and that the
-// workload's declared residency requirements are compatible with the
-// selected model version's permitted/prohibited geographies -- this is
-// where "retired or revoked images/models cannot be selected for new
-// workload versions" and "model licences and geographic restrictions are
-// enforced" are actually implemented, not just documented.
+// while 'approved' and a model version only while 'approved' AND selectable
+// by this tenant (its own version, or another tenant's marketplace version
+// it holds an active access grant for -- Milestone 13), and that the
+// workload's declared residency/language requirements are compatible with
+// the selected model version's permitted/prohibited geographies and
+// supported languages -- this is where "retired or revoked images/models
+// cannot be selected for new workload versions" and "model licences,
+// geographic restrictions, and language capabilities are enforced" are
+// actually implemented, not just documented.
 func (s *Service) validateSelections(ctx context.Context, tx conn, tenantID uuid.UUID, in VersionInput) error {
 	if in.ContainerImageID != nil {
 		approved, err := imageIsApproved(ctx, tx, tenantID, *in.ContainerImageID)
@@ -137,7 +141,7 @@ func (s *Service) validateSelections(ctx context.Context, tx conn, tenantID uuid
 		}
 	}
 	if in.ModelVersionID != nil {
-		status, permitted, prohibited, err := modelVersionApprovalAndGeography(ctx, tx, tenantID, *in.ModelVersionID)
+		status, permitted, prohibited, supportedLanguages, err := modelVersionEligibilityFacts(ctx, tx, tenantID, *in.ModelVersionID)
 		if err != nil {
 			return err
 		}
@@ -145,6 +149,9 @@ func (s *Service) validateSelections(ctx context.Context, tx conn, tenantID uuid
 			return ErrModelVersionNotApproved
 		}
 		if err := validateGeography(in.ResidencyRequirements, permitted, prohibited); err != nil {
+			return err
+		}
+		if err := validateLanguages(in.ResidencyRequirements, supportedLanguages); err != nil {
 			return err
 		}
 	}
@@ -164,6 +171,27 @@ func validateGeography(residency map[string]any, permitted, prohibited []string)
 		}
 		if len(permittedSet) > 0 && !permittedSet[country] {
 			return fmt.Errorf("%w: %q is not permitted", ErrModelGeographyMismatch, country)
+		}
+	}
+	return nil
+}
+
+// validateLanguages enforces the workload's declared required_languages
+// (carried in the same free-form residency_requirements bag geography
+// already uses) against the model version's supported_languages. Like
+// permitted_geographies, an empty supported_languages list means "no
+// declared restriction" rather than "supports nothing" -- most seeded model
+// versions never declare this field, and treating it as a blocklist would
+// fail every one of them closed for no reason.
+func validateLanguages(residency map[string]any, supportedLanguages []string) error {
+	requiredLanguages := extractStringSlice(residency, "required_languages")
+	if len(requiredLanguages) == 0 || len(supportedLanguages) == 0 {
+		return nil
+	}
+	supportedSet := toSet(supportedLanguages)
+	for _, language := range requiredLanguages {
+		if !supportedSet[language] {
+			return fmt.Errorf("%w: %q is not supported", ErrModelLanguageMismatch, language)
 		}
 	}
 	return nil
