@@ -207,3 +207,18 @@ GROUP BY r.scope_type, r.key, r.name ORDER BY r.scope_type, r.key;
   database-level `UNIQUE (cluster_agent_id, nonce)` constraint (not just the usual pre-insert
   `SELECT` check every other nonce-protected table in this codebase uses) since usage events
   directly drive billing amounts.
+- Milestone 12 introduces **zero** new permission keys -- the richest "roles anticipate
+  milestones" case this project has found yet, richer even than Milestone 11's five. Bilateral
+  agreement and capacity-offer-grant management (`internal/modules/capacityoffers`) reuses
+  `operator.agreements.manage` ("Manage operator-enterprise agreements"), seeded in Milestone 1
+  and never enforced for real until this migration -- already granted to Operator Platform Owner
+  (blanket), Operator Product Manager, and Operator Compliance Officer, exactly the roles whose
+  existing remit ("offerings and agreements", "agreements and audit") already anticipated this.
+  Marking an offer degraded and toggling its visibility reuse the already-enforced
+  `operator.capacity.manage`. Settlement-contract creation
+  (`internal/modules/billing.CreateSettlementForAgreement`) reuses the already-enforced
+  `operator.settlements.manage` from Milestone 11. On the enterprise side, seeing a private
+  offer once granted requires nothing beyond the already-enforced `capacity.view` (the grant
+  itself, not a new permission, is what makes the offer visible at all -- see
+  `capacity_offers_enterprise_read`'s RLS policy in migration `0036`), and viewing the tenant's
+  own bilateral agreements reuses the same `capacity.view`.

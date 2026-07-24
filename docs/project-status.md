@@ -1744,6 +1744,192 @@ distinction between a raw inbound webhook and a processed billing event without 
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 12 has not begun | ✅ confirmed — no Milestone 12 code exists |
 
+## Milestone 12: Federated Capacity Exchange
+
+Built per the approved architecture's Milestone 12 scope (operator offers, private offers,
+bilateral agreements, enterprise eligibility, cross-operator placement, settlement contracts,
+capacity federation, operator routing, degraded-mode handling, federation audit). This milestone
+is deliberately **extension-first, not entity-first**: the approved scope's "Entities" list
+(CapacityOffer, OfferVersion, OfferScope, OfferPricing, OfferAvailability, OfferSLA,
+OfferJurisdiction, OfferSecurityProfile, OfferSettlementRule, Reservation, ReservationHold,
+ReservationCommit, ReservationRelease, SettlementRecord, SettlementDispute) is overwhelmingly
+already built by Milestones 5 and 11 -- `capacity_offers`/`capacity_reservations`/
+`settlement_records`/`billing_disputes` already cover every one of those except OfferScope and
+the bilateral relationship underneath it, which is what this milestone genuinely adds.
+Milestone 5's own `EvaluatePlacement` carried a placeholder comment for exactly this gap since
+the day it was written ("bilateral OperatorEnterpriseAgreement gating is Milestone 12's
+Federated Capacity Exchange"), confirming this was the intended extension point all along.
+
+### What was built
+- **Schema** (migration `0036`, no new RBAC permissions migration -- see Deliberate security
+  decisions): `capacity_offers` gains `visibility` (`public`/`private`) and
+  `degraded`/`degraded_reason`. `bilateral_agreements` (new): the operator-enterprise commercial
+  relationship *and* its own settlement-contract terms in one row (`platform_fee_rate`,
+  `currency`, optional `minimum_commitment_hours`/`minimum_commitment_amount` -- recorded and
+  surfaced but not enforced, the same "recorded, not blocking" choice Milestone 11 already made
+  for `budgets.hard_limit`); always exactly one operator and one enterprise tenant (both
+  `NOT NULL`, `UNIQUE(operator_id, enterprise_tenant_id)`), the same dual-scope shape
+  `invoices`/`credit_notes` already established, extended here with a `..._tenant_read`
+  SELECT-only policy so the tenant can see its own agreement (an operator-authored row the
+  tenant never writes to). `capacity_offer_grants` (new): the per-tenant "invitation" a private
+  offer needs to be visible/reservable at all, with an optional per-tenant
+  `price_per_unit_hour_override` and an optional (nullable) link to a `bilateral_agreements` row
+  -- a grant can exist as a simple invitation with no full commercial agreement behind it yet.
+  `capacity_offers_enterprise_read`'s RLS policy is replaced (not widened) to require
+  `visibility = 'public' OR an active grant exists for this tenant` -- the private-offer
+  visibility rule is enforced entirely at the database layer, transparently, the same way every
+  other "who can see this row" rule in this codebase already is. `settlement_records` gains
+  nullable `enterprise_tenant_id`/`bilateral_agreement_id` columns (both `NULL` for Milestone
+  11's original operator-wide settlement path, both set for a settlement created against one
+  specific agreement) plus a tenant-read RLS policy.
+- **`internal/modules/capacityoffers` extension** (operator-facing): `CreateAgreement`/
+  `ListAgreements`/`TerminateAgreement`; `CreateGrant`/`ListGrantsForOffer`/`RevokeGrant`
+  (`CreateGrant` validates that an optional linked agreement belongs to the same enterprise
+  tenant as the grant itself -- a grant can never silently attach to a different tenant's
+  commercial terms); `UpdateOffer` extended with `visibility`/`degraded`/`degraded_reason`
+  fields, reusing the exact same create-new-then-supersede-free "PATCH in place" flow every
+  other offer field already used. Every mutation is audited
+  (`bilateral_agreements.created`/`.terminated`, `capacity_offer_grants.created`/`.revoked`,
+  and `capacity_offers.updated`'s evidence extended with visibility/degraded state) -- this
+  milestone's "federation audit" requirement, satisfied entirely by reusing Milestone 1's
+  `audit.Record` mechanism rather than a new dedicated audit table, the same "audit correlation
+  reuses `audit_events`" precedent Milestone 10 already established.
+- **`internal/modules/placement` extension** (enterprise-facing): `EvaluatePlacement`'s Step 4
+  ("commercial eligibility") is real for the first time -- a private offer with no active grant
+  for the calling tenant never reaches the eligibility loop at all (already filtered out by
+  `capacity_offers_enterprise_read`'s RLS policy at the `listActiveOffers` query), so every offer
+  that *does* reach the loop is, by construction, one the tenant is commercially eligible to see;
+  a grant's optional per-tenant price override, when present, is applied to both the cost
+  estimate and the actual reservation's `price_per_unit_hour` (fetched once per evaluation via
+  `listActiveGrantPriceOverrides`, avoiding an N+1 lookup). A new "operator availability" check
+  excludes any offer its operator has self-declared degraded, with an explicit
+  `OPERATOR_DEGRADED` reason code -- this milestone's "degraded-mode handling"/"operator
+  routing" requirement: a request that would have reserved against a degraded offer is instead
+  routed to the next eligible, non-degraded candidate by the same ranking loop that already
+  existed. `ListMyAgreements` lets a tenant see its own bilateral agreements, reading
+  `bilateral_agreements` directly by SQL (a table `capacityoffers` owns writes to), the same
+  "each module owns its own SQL against shared tables" convention established since Milestone 9.
+- **`internal/modules/billing` extension**: `CreateSettlementForAgreement` -- this milestone's
+  "settlement contracts" requirement -- reads a bilateral agreement's own
+  `platform_fee_rate`/`currency`/`enterprise_tenant_id` directly from `bilateral_agreements`
+  (never accepted from the request, tightening Milestone 11's own `CreateSettlement`, which
+  still accepts an ad-hoc rate for operators with no bilateral agreement covering a given
+  settlement), sums only that one tenant's issued/paid invoices in the period, and creates a
+  settlement scoped to exactly that tenant. `sumInvoicesInPeriod` is extracted so both
+  settlement paths compute "what was actually billed in this period" identically, never two
+  different ways.
+- **Frontend**: the operator capacity page gains visibility/degraded-mode controls, per-offer
+  grant issuance/revocation, and bilateral agreement lifecycle management (create/terminate);
+  the operator billing page gains settlement-contract creation (deliberately with no fee-rate
+  input field, since the server never accepts one for this path); the enterprise placement page
+  gains a degraded badge on offers and a read-only view of the tenant's own bilateral
+  agreements. No new frontend routes -- every Milestone 12 capability extends an existing page.
+
+### Deliberate security decisions worth calling out
+- **Zero new RBAC permission keys this milestone** -- the richest "roles anticipate milestones"
+  case this project has found yet, richer even than Milestone 11's five. `operator.agreements.manage`
+  ("Manage operator-enterprise agreements") was seeded in Milestone 1 and never enforced for
+  real until this migration; `operator.capacity.manage`/`operator.settlements.manage`/
+  `capacity.view` were already enforced by earlier milestones and needed no widening. See
+  `docs/security/permission-matrix.md` for the full breakdown.
+- **Private-offer visibility is enforced entirely by RLS, not application-layer filtering.**
+  `capacity_offers_enterprise_read`'s replaced policy is the single place "can this tenant see
+  this offer" is decided; `EvaluatePlacement` never needs its own "is this offer private and
+  ungranted" check because an ungranted private offer is never returned by the query in the
+  first place -- the same transparent-filtering discipline `price_books_enterprise_read`/
+  `network_service_offers_enterprise_read` already established.
+- **A grant's linked bilateral agreement is validated to belong to the same enterprise tenant as
+  the grant itself**, at the application layer (`CreateGrant`), since the database's FK
+  constraint alone cannot express "these two foreign keys must agree on a third column."
+- **Degraded-mode exclusion is an explained rejection, never a silent hide.** A degraded offer
+  stays fully visible (it is not RLS-filtered); it is excluded from *placement eligibility* with
+  an explicit `OPERATOR_DEGRADED` reason code, so a tenant evaluating placement can see exactly
+  why a candidate they could otherwise see was not reservable -- consistent with every other
+  eligibility check in this codebase (never a rejection without a reason code).
+- **A reservation's price is resolved once, during evaluation, and reused verbatim at commit
+  time -- never re-read from `reserveCapacity`'s own return value**, which would give the
+  offer's base price, not the tenant's possibly-overridden one. Both reads happen inside the
+  same database transaction, so there is no window for the resolved price to drift between
+  evaluation and reservation.
+- **`CreateSettlementForAgreement` has no fee-rate parameter at all**, unlike
+  `CreateSettlement`'s ad-hoc `platform_fee_rate` -- the approved scope's "no
+  frontend-calculated settlement" requirement applied one level further than Milestone 11 already
+  applied it: even the *server's own* general settlement path still accepts a caller-supplied
+  rate (appropriate for an operator with no formal agreement covering a given customer), but the
+  agreement-scoped path admits no such input surface at all.
+
+### Verification performed (not just claimed)
+- Migration `0036` applied cleanly against a real Postgres via the automated test suite; the new
+  `visibility`/`degraded`/`degraded_reason` columns, the replaced
+  `capacity_offers_enterprise_read` policy, both new tables (`bilateral_agreements` with its
+  `UNIQUE(operator_id, enterprise_tenant_id)` and dual read/write RLS policies,
+  `capacity_offer_grants` with its own dual read/write RLS policies), and `settlement_records`'
+  two new nullable columns plus its new tenant-read policy all confirmed present via direct
+  queries. Also applied cleanly against the separate `gridkeep` development database (verified
+  via `psql \d` and direct `SELECT`s under both `app.platform_bypass` and a real
+  `app.tenant_id`/`app.operator_id` session).
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including every extended module.
+- 1 new integration test,
+  `TestFederatedCapacityExchangePrivateOffersDegradedModeAndSettlementContracts`, run against a
+  real Postgres via real HTTP with real ECDSA signatures: a private capacity offer is confirmed
+  invisible to a tenant with no grant, then confirmed visible after a grant is issued; a real
+  reservation against that offer is priced at the tenant-specific override (verified exactly:
+  $3.00/unit, not the offer's own $5.00 base price, for an exact $6.00 total on 2 units), with
+  the persisted evaluation's `commercial_eligibility.price_override_applied` asserted `true`;
+  marking the same offer degraded and re-evaluating produces a rejected evaluation carrying the
+  exact `OPERATOR_DEGRADED` reason code and no reservation; a bilateral agreement's own 15%
+  platform fee rate (never supplied in the settlement-for-agreement request) is asserted to
+  produce the exact net amount ($68.00 net on $80.00 gross of real, signed usage) on a
+  settlement correctly scoped to that one tenant. All pass alongside the full pre-existing
+  Milestone 1-11 suite (58 total `internal/app` tests) with zero regressions.
+- The fictional seed data **was** extended this milestone: one bilateral agreement and one
+  private capacity offer with a tenant-specific price-override grant, both for the same real
+  EuroNorth/Falcon National Bank pairing Milestone 11's price book/quote/budget already
+  established -- no settlement is seeded (it would need a real invoice, which needs a real usage
+  event, which needs the same cluster-agent identity this script has never fabricated -- see
+  Known Limitations), and nothing is marked degraded, so a fresh demo environment never starts in
+  a self-declared outage state. Milestone 5's own hand-crafted placement-evaluation explanation
+  blob (inserted directly, not through the real evaluate flow) was also updated to match the
+  real shape `EvaluatePlacement` now produces. Verified idempotent by running the seed script
+  twice against a freshly created development database and confirming row counts did not change
+  on the second run.
+- Frontend: `eslint`, `tsc --noEmit`, and `next build` all pass with the extended capacity,
+  billing, and placement pages included.
+- `docker compose config -q` validates; full runtime validation remains blocked by this sandbox's
+  Docker Hub egress policy (see Known Limitations, same as every prior milestone).
+
+### Milestone 12 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Operator offers | ✅ unaffected/extended -- `capacity_offers`, now with visibility and degraded-mode state |
+| Private offers | ✅ `capacity_offers.visibility = 'private'`, gated entirely by RLS against `capacity_offer_grants` |
+| Bilateral agreements | ✅ `bilateral_agreements`, operator-authored, tenant-readable |
+| Enterprise eligibility | ✅ `capacity_offer_grants`, the per-tenant "invitation" a private offer needs |
+| Cross-operator placement | ✅ unaffected -- `EvaluatePlacement` already ranked across every operator's offers since Milestone 5 |
+| Settlement contracts | ✅ `CreateSettlementForAgreement`, priced at the agreement's own server-read fee rate |
+| Capacity federation | ✅ private offers + bilateral pricing, the federation layer over Milestone 5's marketplace |
+| Operator routing | ✅ a degraded offer is excluded from eligibility, routing placement to the next eligible candidate |
+| Degraded-mode handling | ✅ `capacity_offers.degraded`/`degraded_reason`, an explained `OPERATOR_DEGRADED` rejection |
+| Federation audit | ✅ every agreement/grant/degraded-mode mutation audited via Milestone 1's `audit.Record` |
+| No uncontrolled speculative marketplace | ✅ unaffected -- every offer is operator-authored, every reservation is atomic and capacity-checked |
+| No hidden fees | ✅ a settlement-for-agreement's fee rate is always read server-side from the agreement, never accepted from a request |
+| No frontend-calculated settlement | ✅ `CreateSettlementForAgreement` takes no fee-rate parameter at all |
+| No AI-only placement/ranking decisions | ✅ unaffected -- degraded-mode exclusion and grant pricing are both deterministic, explained checks in the same plain-sort ranking loop |
+| Infrastructure/cluster/vault credentials never exposed to the frontend | ✅ unaffected -- this milestone introduces no new credential material |
+| Backend permissions are enforced | ✅ zero new permission keys, every action gated by an existing, already-enforced permission |
+| Cross-tenant/cross-operator isolation holds | ✅ dual-scope RLS on `bilateral_agreements`/`capacity_offer_grants`/`settlement_records`, replaced RLS on `capacity_offers` |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0036` applied cleanly against both the test database and the separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 1 new integration test + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, `next build` |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial -- `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 13 has not begun | ✅ confirmed -- no Milestone 13 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
