@@ -665,7 +665,8 @@ func (s *Service) ListOperatorAlerts(ctx context.Context) ([]Alert, error) {
 // resolve idempotently.
 func evaluateAlertRule(ctx context.Context, tx conn, rule AlertRule) (*Alert, error) {
 	var value float64
-	if rule.MetricSource == "slo_burn_rate" {
+	switch rule.MetricSource {
+	case "slo_burn_rate":
 		if rule.ResourceID == nil {
 			return nil, fmt.Errorf("slo_burn_rate alert rule %s has no resource_id (slo_definition id)", rule.ID)
 		}
@@ -678,7 +679,16 @@ func evaluateAlertRule(ctx context.Context, tx conn, rule AlertRule) (*Alert, er
 		} else {
 			value = 100 - evals[0].ActualPercentage
 		}
-	} else {
+	case "budget_utilization":
+		if rule.ResourceID == nil {
+			return nil, fmt.Errorf("budget_utilization alert rule %s has no resource_id (budget id)", rule.ID)
+		}
+		pct, err := computeBudgetUtilization(ctx, tx, *rule.ResourceID)
+		if err != nil {
+			return nil, err
+		}
+		value = pct
+	default:
 		windowStart := time.Now().Add(-24 * time.Hour)
 		pct, _, err := computeMetric(ctx, tx, rule.MetricSource, rule.OperatorID, rule.EnterpriseTenantID, rule.ResourceID, windowStart)
 		if err != nil {

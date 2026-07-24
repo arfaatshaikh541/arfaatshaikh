@@ -571,6 +571,53 @@ func computePolicyComplianceRate(ctx context.Context, c conn, operatorID, tenant
 	return scanRatio(ctx, c, query, args)
 }
 
+// computeBudgetUtilization returns what percentage of a budget's own
+// threshold_amount has been consumed by usage across every operator within
+// the budget's own period_days window ending now -- read directly against
+// internal/modules/billing's tables (budgets/usage_events/price_books/
+// price_rules), the same "each module owns its own SQL against shared
+// tables" convention this module already applies to deployment_events/
+// network_reservations/attestation_results/policy_evaluation_records
+// above. Usage is priced by joining each event to its own operator's
+// active price book, since a tenant's usage can span multiple operators
+// with different price books; a metric with no matching price rule on its
+// operator's active book contributes nothing (it is not billed, so it does
+// not count against the budget either -- the same "no price rule, not
+// billed" choice internal/modules/billing.GenerateInvoice makes). Called
+// as evaluateAlertRule's budget_utilization special case, not through
+// computeMetric's dispatcher, because its window is the budget's own
+// period_days rather than the fixed 24-hour default -- the same departure
+// slo_burn_rate already established for SLO windows.
+func computeBudgetUtilization(ctx context.Context, c conn, budgetID uuid.UUID) (float64, error) {
+	var tenantID uuid.UUID
+	var periodDays int
+	var thresholdAmount float64
+	err := c.QueryRow(ctx, `SELECT enterprise_tenant_id, period_days, threshold_amount FROM budgets WHERE id = $1`, budgetID).
+		Scan(&tenantID, &periodDays, &thresholdAmount)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, fmt.Errorf("budget %s not found", budgetID)
+		}
+		return 0, fmt.Errorf("load budget: %w", err)
+	}
+	if thresholdAmount == 0 {
+		return 0, nil
+	}
+
+	var spent float64
+	err = c.QueryRow(ctx, `
+		SELECT COALESCE(SUM(ue.quantity * pr.unit_price), 0)
+		FROM usage_events ue
+		JOIN price_books pb ON pb.operator_id = ue.operator_id AND pb.status = 'active'
+		JOIN price_rules pr ON pr.price_book_id = pb.id AND pr.usage_metric_key = ue.usage_metric_key
+		WHERE ue.enterprise_tenant_id = $1 AND ue.occurred_at >= now() - make_interval(days => $2)
+	`, tenantID, periodDays).Scan(&spent)
+	if err != nil {
+		return 0, fmt.Errorf("compute budget spend: %w", err)
+	}
+	return spent / thresholdAmount * 100, nil
+}
+
 // appendOwnerFilter adds "AND <operatorCol> = $n" or "AND <tenantCol> = $n"
 // to query depending on which of operatorID/tenantID is set -- exactly one
 // is, by every caller's own CHECK-constraint-enforced invariant.
