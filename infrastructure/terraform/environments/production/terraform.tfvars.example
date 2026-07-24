@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and adjust before running `terraform apply`.
+# artefacts_bucket_name in particular MUST be changed -- S3 bucket names are
+# globally unique across all of AWS, so the default in variables.tf will
+# collide with someone else's bucket.
+
+aws_region            = "us-east-1"
+environment           = "production"
+artefacts_bucket_name = "gridkeep-production-artefacts-CHANGE-ME"

@@ -1,0 +1,10 @@
+# Local working-directory artifacts from `terraform init`/`plan` -- never
+# hand-edited, always regenerable, and (for the lock file) potentially
+# platform-specific to whatever machine ran init.
+**/.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform.tfvars
