@@ -72,7 +72,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <section>
+      <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-medium">Operator accounts</h2>
           <Link href="/onboarding/operator" className="text-sm underline">
@@ -97,6 +97,19 @@ export default function DashboardPage() {
           <p className="text-sm text-zinc-500">You are not a member of any operator account yet.</p>
         )}
       </section>
+
+      {(user.platform_roles?.length ?? 0) > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Platform administration</h2>
+          <Link
+            href="/dashboard/platform"
+            className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-900"
+          >
+            <span>Platform portal</span>
+            <span className="text-sm text-zinc-500">{user.platform_roles.join(", ")}</span>
+          </Link>
+        </section>
+      )}
     </main>
   );
 }

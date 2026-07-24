@@ -48,9 +48,16 @@ func actorFromContext(ctx context.Context) uuid.UUID {
 	return uuid.Nil
 }
 
+// ListProviders reads directly off the pool, not a scoped transaction --
+// model_providers carries no RLS at all (it is platform-curated global
+// reference data, the same role jurisdictions/regions play), and this
+// method is now called from both a tenant-scoped route (which has an rbac-
+// wrapped context) and Milestone 15's top-level, auth-only route (which does
+// not), the same "reads require only an authenticated session" pattern
+// registry.Service.ListJurisdictions/ListRegions already use for the
+// identical reason.
 func (s *Service) ListProviders(ctx context.Context) ([]Provider, error) {
-	scopedTx, _ := rbac.TxFromContext(ctx)
-	return listProviders(ctx, scopedTx.Tx)
+	return listProviders(ctx, s.store.Pool)
 }
 
 func (s *Service) ListLicences(ctx context.Context) ([]Licence, error) {

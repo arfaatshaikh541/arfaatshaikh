@@ -14,6 +14,13 @@ import (
 func MountTopLevel(r chi.Router, h *Handlers, authz *rbac.Middleware) {
 	r.Route("/api/v1/model-providers", func(r chi.Router) {
 		r.Use(httpserver.RequireAuth())
+		// A top-level read alongside the tenant-scoped one in
+		// MountTenantScoped below -- Milestone 15's platform portal needs to
+		// browse existing providers (to suspend/reactivate them) without
+		// being nested under any one tenant, the same "reads require only an
+		// authenticated session" reasoning registry.MountTopLevel already
+		// applies to jurisdictions/regions.
+		r.Get("/", h.ListProviders)
 		r.With(authz.RequirePlatformPermission("platform.model_catalogue.manage")).Post("/", h.CreateProvider)
 		r.With(authz.RequirePlatformPermission("platform.model_catalogue.manage")).Post("/{providerID}/suspend", h.SuspendProvider)
 		r.With(authz.RequirePlatformPermission("platform.model_catalogue.manage")).Post("/{providerID}/reactivate", h.ReactivateProvider)
