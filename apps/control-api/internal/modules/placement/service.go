@@ -52,6 +52,16 @@ func (s *Service) ListActiveOffers(ctx context.Context) ([]OfferSummary, error) 
 	return listActiveOffers(ctx, scopedTx.Tx)
 }
 
+// ListMyAgreements returns every bilateral agreement covering this tenant,
+// across every operator that has established one -- Milestone 12's
+// "enterprise eligibility" requirement made visible to the enterprise
+// itself, not just the operator side.
+func (s *Service) ListMyAgreements(ctx context.Context) ([]AgreementSummary, error) {
+	scope, _ := rbac.FromContext(ctx)
+	scopedTx, _ := rbac.TxFromContext(ctx)
+	return listAgreementsForTenant(ctx, scopedTx.Tx, *scope.TenantID)
+}
+
 func (s *Service) ListPlacementRequests(ctx context.Context) ([]PlacementRequest, error) {
 	scope, _ := rbac.FromContext(ctx)
 	scopedTx, _ := rbac.TxFromContext(ctx)
@@ -78,6 +88,7 @@ type eligibleCandidate struct {
 	evaluation PlacementEvaluation
 	offerID    uuid.UUID
 	operatorID uuid.UUID
+	unitPrice  float64
 }
 
 // EvaluatePlacement runs the approved architecture's 14-step placement
@@ -116,6 +127,10 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		return EvaluatePlacementResult{}, err
 	}
 	sovereigntyPolicies, err := listPublishedSovereigntyPolicies(ctx, scopedTx.Tx, tenantID)
+	if err != nil {
+		return EvaluatePlacementResult{}, err
+	}
+	grantPriceOverrides, err := listActiveGrantPriceOverrides(ctx, scopedTx.Tx, tenantID)
 	if err != nil {
 		return EvaluatePlacementResult{}, err
 	}
@@ -190,12 +205,35 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 			isEligible = false
 		}
 
-		// Step 4: commercial eligibility -- bilateral OperatorEnterpriseAgreement
-		// gating is Milestone 12's Federated Capacity Exchange; this
-		// milestone's single-operator marketplace has no such gate yet.
+		// Step 4: commercial eligibility -- a private offer with no active
+		// capacity_offer_grants row for this tenant never reaches this loop
+		// at all (capacity_offers_enterprise_read's RLS policy already
+		// filtered it out at the listActiveOffers query), so every offer
+		// that does reach here is, by construction, one this tenant is
+		// commercially eligible to see. unitPriceOverride is non-nil only
+		// when an active grant carries a per-tenant price for this offer.
+		unitPrice := offer.PricePerUnitHour
+		unitPriceOverride, hasOverride := grantPriceOverrides[offer.ID]
+		if hasOverride {
+			unitPrice = unitPriceOverride
+		}
 		explanation["commercial_eligibility"] = map[string]any{
-			"passed": true,
-			"note":   "bilateral agreement gating is out of scope for Milestone 5; see Milestone 12",
+			"passed": true, "price_override_applied": hasOverride,
+		}
+
+		// Operator availability -- an operator that has self-declared this
+		// offer degraded is excluded with an explained reason code, never
+		// silently hidden. This is Milestone 12's "degraded-mode
+		// handling"/"operator routing": a request that would have reserved
+		// against a degraded offer is instead routed to the next eligible,
+		// non-degraded candidate by the same ranking loop below.
+		availabilityPassed := !offer.Degraded
+		explanation["operator_availability"] = map[string]any{
+			"degraded": offer.Degraded, "degraded_reason": offer.DegradedReason, "passed": availabilityPassed,
+		}
+		if !availabilityPassed {
+			reasonCodes = append(reasonCodes, "OPERATOR_DEGRADED")
+			isEligible = false
 		}
 
 		// Step 5: capacity.
@@ -226,10 +264,12 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		explanation["network_constraints"] = map[string]any{"passed": true, "note": "not enforced until Milestone 9"}
 		explanation["failover_compatibility"] = map[string]any{"passed": true, "note": "not enforced in this milestone"}
 
-		// Step 9: cost and energy estimates.
-		estimatedCost := float64(quantity) * offer.PricePerUnitHour
+		// Step 9: cost and energy estimates -- priced at unitPrice, the
+		// tenant's own grant override when one applies, never the offer's
+		// base price in that case.
+		estimatedCost := float64(quantity) * unitPrice
 		estimatedEnergy := float64(quantity) * offer.EstimatedKWhPerUnitHour
-		explanation["cost"] = map[string]any{"price_per_unit_hour": offer.PricePerUnitHour, "estimated_cost": estimatedCost}
+		explanation["cost"] = map[string]any{"price_per_unit_hour": unitPrice, "estimated_cost": estimatedCost}
 		explanation["energy"] = map[string]any{"estimated_kwh_per_unit_hour": offer.EstimatedKWhPerUnitHour, "estimated_energy_kwh": estimatedEnergy}
 
 		decision := "rejected"
@@ -243,7 +283,7 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		}
 		evaluations = append(evaluations, eval)
 		if isEligible {
-			eligible = append(eligible, eligibleCandidate{evaluation: eval, offerID: offer.ID, operatorID: offer.OperatorID})
+			eligible = append(eligible, eligibleCandidate{evaluation: eval, offerID: offer.ID, operatorID: offer.OperatorID, unitPrice: unitPrice})
 		}
 	}
 
@@ -284,16 +324,21 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		// candidate lost the capacity race between evaluation and
 		// reservation -- the contention handling this milestone requires.
 		for _, candidate := range eligible {
-			pricePerUnitHour, ok, err := reserveCapacity(ctx, scopedTx.Tx, candidate.offerID, quantity)
+			// reserveCapacity's own returned price is the offer's base
+			// price, not this tenant's possibly-overridden one -- the
+			// reservation is priced at candidate.unitPrice (resolved during
+			// evaluation, in the same transaction, so it cannot have
+			// drifted), never at whatever reserveCapacity itself returns.
+			_, ok, err := reserveCapacity(ctx, scopedTx.Tx, candidate.offerID, quantity)
 			if err != nil {
 				return EvaluatePlacementResult{}, err
 			}
 			if !ok {
 				continue
 			}
-			estimatedCost := float64(quantity) * pricePerUnitHour
+			estimatedCost := float64(quantity) * candidate.unitPrice
 			reservation, err := createReservation(ctx, scopedTx.Tx, tenantID, candidate.operatorID, req.ID, candidate.offerID,
-				quantity, pricePerUnitHour, estimatedCost, facts.DeploymentApprovalRequired, actor, evaluatedAt.Add(holdTTL))
+				quantity, candidate.unitPrice, estimatedCost, facts.DeploymentApprovalRequired, actor, evaluatedAt.Add(holdTTL))
 			if err != nil {
 				return EvaluatePlacementResult{}, err
 			}

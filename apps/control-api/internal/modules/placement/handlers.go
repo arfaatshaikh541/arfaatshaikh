@@ -55,6 +55,15 @@ func (h *Handlers) ListActiveOffers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handlers) ListMyAgreements(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListMyAgreements(r.Context())
+	if err != nil {
+		apierror.WriteJSON(w, r, h.logger, apierror.Wrap(500, apierror.CodeInternal, "failed to list bilateral agreements", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 type createPlacementRequestRequest struct {
 	WorkloadVersionID string `json:"workload_version_id"`
 	Quantity          int    `json:"quantity"`

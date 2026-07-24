@@ -10,6 +10,7 @@ import (
 // /api/v1/enterprises/{tenantID} by app.go.
 func MountTenantScoped(r chi.Router, h *Handlers, authz *rbac.Middleware) {
 	r.With(authz.RequireEnterprisePermission("capacity.view")).Get("/capacity-offers", h.ListActiveOffers)
+	r.With(authz.RequireEnterprisePermission("capacity.view")).Get("/bilateral-agreements", h.ListMyAgreements)
 
 	r.With(authz.RequireEnterprisePermission("reservations.create")).Post("/placement-requests", h.EvaluatePlacement)
 	r.With(authz.RequireEnterprisePermission("capacity.view")).Get("/placement-requests", h.ListPlacementRequests)

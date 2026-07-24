@@ -31,7 +31,7 @@ type conn interface {
 func listActiveOffers(ctx context.Context, c conn) ([]OfferSummary, error) {
 	rows, err := c.Query(ctx, `
 		SELECT id, operator_id, region_id, accelerator_type, available_capacity, price_per_unit_hour,
-			currency, confidential_computing_available, estimated_kwh_per_unit_hour
+			currency, confidential_computing_available, estimated_kwh_per_unit_hour, degraded, degraded_reason
 		FROM capacity_offers WHERE status = 'active' ORDER BY id
 	`)
 	if err != nil {
@@ -43,10 +43,71 @@ func listActiveOffers(ctx context.Context, c conn) ([]OfferSummary, error) {
 	for rows.Next() {
 		var o OfferSummary
 		if err := rows.Scan(&o.ID, &o.OperatorID, &o.RegionID, &o.AcceleratorType, &o.AvailableCapacity,
-			&o.PricePerUnitHour, &o.Currency, &o.ConfidentialComputingAvailable, &o.EstimatedKWhPerUnitHour); err != nil {
+			&o.PricePerUnitHour, &o.Currency, &o.ConfidentialComputingAvailable, &o.EstimatedKWhPerUnitHour,
+			&o.Degraded, &o.DegradedReason); err != nil {
 			return nil, fmt.Errorf("scan capacity offer: %w", err)
 		}
 		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// grantPriceOverride is the one field EvaluatePlacement needs from a
+// capacity_offer_grants row -- the per-tenant price this specific tenant
+// pays instead of the offer's own base price, when one has been granted.
+type grantPriceOverride struct {
+	capacityOfferID uuid.UUID
+	unitPrice       float64
+}
+
+// listActiveGrantPriceOverrides fetches every active grant with a
+// non-null price override for this tenant, keyed by offer id, in one round
+// trip -- avoiding an N+1 lookup inside EvaluatePlacement's per-offer loop.
+// Grant existence for private-offer *visibility* is already handled
+// transparently by capacity_offers' own RLS policy (a private offer with no
+// grant for this tenant never appears in listActiveOffers' result at all);
+// this query exists purely for pricing, which RLS cannot express.
+func listActiveGrantPriceOverrides(ctx context.Context, c conn, tenantID uuid.UUID) (map[uuid.UUID]float64, error) {
+	rows, err := c.Query(ctx, `
+		SELECT capacity_offer_id, price_per_unit_hour_override FROM capacity_offer_grants
+		WHERE enterprise_tenant_id = $1 AND status = 'active' AND price_per_unit_hour_override IS NOT NULL
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list active capacity offer grant price overrides: %w", err)
+	}
+	defer rows.Close()
+	out := map[uuid.UUID]float64{}
+	for rows.Next() {
+		var o grantPriceOverride
+		if err := rows.Scan(&o.capacityOfferID, &o.unitPrice); err != nil {
+			return nil, fmt.Errorf("scan capacity offer grant price override: %w", err)
+		}
+		out[o.capacityOfferID] = o.unitPrice
+	}
+	return out, rows.Err()
+}
+
+// listAgreementsForTenant reads bilateral_agreements directly -- a table
+// internal/modules/capacityoffers owns writes to -- the same "each module
+// owns its own SQL against shared tables" convention this codebase has
+// applied since Milestone 9. Visibility is already restricted to this
+// tenant's own agreements by bilateral_agreements_tenant_read's RLS policy.
+func listAgreementsForTenant(ctx context.Context, c conn, tenantID uuid.UUID) ([]AgreementSummary, error) {
+	rows, err := c.Query(ctx, `
+		SELECT id, operator_id, status, currency, platform_fee_rate, created_at
+		FROM bilateral_agreements WHERE enterprise_tenant_id = $1 ORDER BY created_at DESC
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list bilateral agreements for tenant: %w", err)
+	}
+	defer rows.Close()
+	out := []AgreementSummary{}
+	for rows.Next() {
+		var a AgreementSummary
+		if err := rows.Scan(&a.ID, &a.OperatorID, &a.Status, &a.Currency, &a.PlatformFeeRate, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan bilateral agreement: %w", err)
+		}
+		out = append(out, a)
 	}
 	return out, rows.Err()
 }
