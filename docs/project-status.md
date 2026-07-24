@@ -1533,6 +1533,217 @@ milestone adds: SLOs, Incidents, and Alerts.
 | `docs/project-status.md` is updated | ✅ this document |
 | Milestone 11 has not begun | ✅ confirmed -- no Milestone 11 code exists |
 
+## Milestone 11: Usage, Billing and Settlement
+
+Built per the approved architecture's Milestone 11 scope (usage metering, metered pricing,
+ad-hoc quotes, budgets/alerts, invoice generation, operator settlement/reconciliation,
+adjustments/credit notes, billing disputes, a billing-provider integration abstraction).
+Several of the approved scope's "Entities" are deliberately **not** rebuilt: `SubscriptionPlan`/
+`Feature`/`PlanFeature`/`EnterpriseSubscription`/`OperatorSubscription` already exist from
+Milestone 1 (migration `0007`) and this milestone never touches them; `ReservationEstimate` is
+not a new table (`capacity_reservations.estimated_cost` from Milestone 5 and
+`network_reservations.estimated_cost` from Milestone 9 already satisfy "estimate before
+deployment" for reservation-bound costs — the new `quotes` table covers only the standalone,
+ad-hoc case); `BillingEvent` and `WebhookEvent` fold into one `billing_provider_events` table,
+since no real external billing gateway is reachable in this sandbox and there is no meaningful
+distinction between a raw inbound webhook and a processed billing event without one.
+
+### What was built
+- **Schema** (migration `0034`): `usage_metrics` (a static, unRLS'd catalogue of 15 metered
+  metrics — cpu/GPU seconds, storage, network, model requests/tokens, reservation hours,
+  confidential-computing premium, support hours — seeded by the migration itself, the same
+  treatment `subscription_plans`/`features` already got); `usage_events` (append-only via its own
+  deny-mutation trigger, dual-scope RLS; the **one** genuinely new duplicate-protection mechanism
+  this codebase has added — a real database-level `UNIQUE (cluster_agent_id, nonce)` constraint,
+  not the usual pre-insert `SELECT` check every other nonce-protected table uses, because usage
+  events directly drive billing amounts and the correctness bar is correspondingly higher);
+  `usage_aggregations` (a mutable, upsertable rollup, `UNIQUE (operator_id, enterprise_tenant_id,
+  usage_metric_key, period_start, period_end)`, idempotently recomputable as more events land
+  before a period closes); `price_books`/`price_rules` (an operator's own pricing, or a
+  platform-default book when `operator_id IS NULL`; a partial-unique-index "one active book per
+  owner" invariant reusing Milestone 8's `attestation_policies` pattern, extended with a second
+  index specifically for the nullable-operator platform-default case, since a plain partial
+  unique index over a nullable column does not enforce uniqueness among `NULL`s; `price_rules` is
+  the first table in this codebase whose RLS policies re-join to a parent table (`price_books`)
+  rather than denormalizing its own scope columns, since it has no independent write path apart
+  from its book); `quotes` (immutable ad-hoc estimate snapshots, tenant-scoped); `budgets`
+  (enterprise-owned spend configuration, `hard_limit` recorded but not enforced — see Known
+  Limitations); `invoices`/`settlement_records`/`adjustments`/`credit_notes`/`billing_disputes`/
+  `billing_provider_events` (dual- or single-scope RLS as appropriate to who legitimately needs
+  visibility; `adjustments` and `billing_provider_events` each use a
+  `CHECK (num_nonnulls(invoice_id, settlement_id) = 1)` constraint, the same shape Milestone 8's
+  `network_capabilities` and Milestone 10's `slo_definitions`/`alert_rules` already established).
+  The migration also widens `alert_rules.metric_source` to accept `budget_utilization`, reusing
+  Milestone 10's alerting infrastructure rather than building a parallel budget-alert system.
+- **Schema** (migration `0035`): only 3 genuinely new permission keys — `budgets.manage`/
+  `billing.dispute` (enterprise) and `operator.settlements.manage` (operator). Everything else
+  reuses a remarkably rich set of permission vocabulary Milestone 1 seeded specifically in
+  anticipation of this milestone: `usage.view`/`billing.view` (enterprise, already granted to
+  `finops_manager`/`application_owner`) and `operator.pricing.manage`/`operator.usage.view`/
+  `operator.settlements.view` (operator, already granted to `operator_finance_manager`/
+  `operator_product_manager`/`operator_auditor`) — five keys seeded in Milestone 1 and never
+  granted for real enforcement until this migration, the richest "roles anticipate milestones"
+  case this project has found yet.
+- **`internal/platform/billingprovider`** (new): mirrors `internal/platform/attestation`'s
+  `Provider` abstraction and rationale — control-api itself calls it directly (the opposite trust
+  direction from `clusteradapter`/`networkadapter`, which are agent-side). `MockProvider`
+  deterministically fabricates an external reference and reports success; no failure mode is
+  simulated, since there is no real gateway whose failure modes would be meaningful to fabricate.
+- **`internal/modules/billing`** (new module, operator + enterprise + machine-facing):
+  `CreatePriceBook`/`ListPriceBooks`/`GetPriceBook`/`ActivatePriceBook` (activation archives
+  whatever was previously active for the same owner and activates the target — create-new-then-
+  supersede-old, never an in-place edit of a book that may already back real invoices);
+  `CreateQuote` (resolves the chosen operator's active price book, computes every line item's
+  unit price and amount server-side from `unitPriceFor`, never accepts a price from the request
+  — the approved scope's "no frontend price trust" requirement); `CreateBudget`/`ListBudgets`/
+  `ArchiveBudget`; `AggregateUsage` (on demand, upserts `usage_aggregations` by grouping
+  `usage_events` in a window — no live scheduler in this codebase, the same "`reclaimExpired` runs
+  at the top of every call" precedent Milestone 5 established and Milestone 10 already reused);
+  `GenerateInvoice` (re-aggregates first to guarantee freshness, resolves the active price book,
+  computes every line item/subtotal/tax/total server-side, issues the invoice, then syncs it to
+  the configured `billingprovider.Provider` and records the outcome as an immutable
+  `billing_provider_events` row); `CreateSettlement`/`ReconcileSettlement` (sums the operator's
+  own `issued`/`paid` invoices in the requested period, applies the platform fee rate, syncs to
+  the billing provider the same way an invoice does); `CreateAdjustment`/`CreateCreditNote`
+  (operator-only, against either an invoice or a settlement); `CreateDispute`/`ResolveDispute`
+  (a tenant opens a dispute against its own invoice, which flips the invoice to `disputed`; the
+  operator resolves it, which flips a `resolved` outcome back to `issued`); `AgentReportUsage`
+  (machine-authenticated — mirrors `internal/modules/agents.SubmitCapacitySnapshot`'s push shape
+  rather than `AgentReportCommandResult`'s response-to-a-command shape, since a usage report is
+  something the agent originates on its own: signature verified against the agent's current
+  certificate, exactly one of `deployment_id`/`capacity_reservation_id`/`network_reservation_id`
+  resolved server-side to its owning operator/tenant — never trusted from the payload directly —
+  and the resolved operator required to match the reporting agent's own operator; duplicate/
+  replayed reports are rejected at the database level by `usage_events`' own unique constraint).
+  Every cross-module read (an enterprise session reading another operator's active price book for
+  a quote; `computeBudgetUtilization` reading usage/pricing across operators) is satisfied by
+  `price_books`/`price_rules`' own enterprise-read RLS policies without needing
+  `withPlatformBypass` — this milestone does not trigger the "Nth use" documentation obligation
+  Milestones 7/8/9 flagged, the same "not needed" conclusion Milestone 10 already reached.
+- **`internal/modules/assurance` extension**: `computeBudgetUtilization` (new, reads
+  `budgets`+`usage_events`+`price_books`+`price_rules` directly by SQL — cross-module SQL, no Go
+  import needed, the same "each module owns its own SQL against shared tables" convention this
+  module already applies to `deployment_events`/`network_reservations`/`attestation_results`/
+  `policy_evaluation_records`) prices usage against each event's own operator's active price book
+  and divides by the referenced budget's `threshold_amount`. `evaluateAlertRule` gained a
+  `budget_utilization` case alongside the existing `slo_burn_rate` one, reading the referenced
+  budget's own `period_days` window rather than the fixed 24-hour default — the same departure
+  `slo_burn_rate` already established for SLO windows.
+- **`cmd/mockclusteragent` extension**: an optional `-usage-metric-key`/`-usage-quantity`/
+  `-usage-deployment-id`/`-usage-capacity-reservation-id`/`-usage-network-reservation-id` flag
+  set. When given, the agent signs and submits one usage-event report of its own, originated
+  rather than answering a pending control message — the same push shape
+  `SubmitCapacitySnapshot`'s payload already established on the agent side.
+- **Frontend**: `/dashboard/operator/[operatorId]/billing` (price book draft/rule authoring and
+  activation, on-demand usage aggregation, invoice generation, settlement creation and
+  reconciliation, dispute resolution) and `/dashboard/enterprise/[tenantId]/billing` (aggregated
+  usage view, ad-hoc quote requests, budget lifecycle, invoice view with dispute submission,
+  credit-note view). Both linked from their respective overview pages. Every quote/invoice total
+  shown is always the server-computed figure; neither page ever supplies a price.
+
+### Deliberate security decisions worth calling out
+- **`usage_events` has a real, database-level `UNIQUE (cluster_agent_id, nonce)` constraint**,
+  unlike every other nonce-protected table in this codebase (`control_messages` and friends),
+  which rely on a pre-insert `SELECT` check. Usage events directly drive billing amounts, raising
+  the correctness bar above the established convention — `insertUsageEvent` catches the
+  `23505` unique-violation and maps it to `ErrDuplicateUsageEvent`, verified live by
+  `TestBillingUsageAggregationInvoiceSettlementDisputeAndBudgetAlert`'s replay assertion (409, not
+  a silent second acceptance).
+- **`price_rules` is the first table in this codebase whose RLS policies re-join to a parent
+  table** (`price_books`) instead of denormalizing its own `operator_id`/`enterprise_tenant_id`
+  columns — every other table so far has copied its owner columns directly onto itself. This is
+  a deliberate, narrow departure: `price_rules` has no independent write path apart from its
+  parent book (rules are only ever created as part of `createPriceBook`), so there is no scenario
+  where the join would diverge from what denormalized columns would have shown.
+- **Pricing is backend-authoritative throughout, with no exception.** Every quote and invoice
+  line item is computed server-side from the price book active at computation/issue time; neither
+  the create-quote request body nor the generate-invoice request body accepts a price, a unit
+  price, or a total — only usage-metric keys and quantities (for a quote) or a tenant id and
+  period (for an invoice). This is the approved scope's "no frontend price trust" requirement,
+  applied without exception across every money-computing code path this milestone adds.
+- **`AgentReportUsage` never trusts `operator_id`/`enterprise_tenant_id` from the machine-signed
+  payload.** Exactly one of `deployment_id`/`capacity_reservation_id`/`network_reservation_id` is
+  required, and the owning operator/tenant is resolved server-side from whichever reference is
+  set; the resolved operator is then required to match the reporting agent's own operator before
+  any row is written. This extends the "never trust tenant_id/operator_id from a caller when it
+  can be resolved from an already-authenticated reference" discipline this codebase has applied
+  to every session-authenticated route since Milestone 1 to a machine caller for the first time.
+- **`budgets.manage`/`billing.dispute`/`operator.settlements.manage` are the only 3 new
+  permission keys this milestone**, deliberately minimal given how much of Milestone 1's own
+  vocabulary was already seeded in anticipation of this milestone (see What was built above).
+  `budgets.manage` is kept narrower than `usage.view`/`billing.view` since a tenant's own spend
+  budget is private financial configuration it sets for itself, not something a broad
+  billing-viewer needs to write.
+
+### Verification performed (not just claimed)
+- Migrations `0034`/`0035` applied cleanly against a real Postgres via the automated test suite;
+  every new table, its RLS policies (including `price_rules`' parent-join policies and the
+  two-index "one active price book per owner, including the platform-default case" invariant),
+  the three append-only triggers (`usage_events`, `adjustments`, `billing_provider_events`), the
+  `usage_events` unique constraint, and all three new permission keys confirmed present via direct
+  queries. Also applied cleanly against the separate `gridkeep` development database (verified via
+  `psql \d` and direct `SELECT`s under `app.platform_bypass`).
+- `gofmt -l .`, `go vet ./...`, and `golangci-lint run ./...` all report clean (0 issues) across
+  the entire control-api module, including the new `billing` module and `billingprovider`
+  package.
+- 2 new tests: `internal/platform/billingprovider`'s `TestMockProviderSyncsDeterministically`
+  (unit, verifies the same invoice id always produces the identical external reference on retry),
+  and `internal/app`'s `TestBillingUsageAggregationInvoiceSettlementDisputeAndBudgetAlert`
+  (integration, run against a real Postgres via real HTTP): a real cluster agent (reusing
+  Milestone 9's network-service fixture) signs and reports one real usage event against a
+  committed network reservation, replaying the identical nonce is rejected (409, not silently
+  re-accepted); the operator drafts and activates a price book; the operator aggregates usage and
+  generates an invoice, asserting the exact computed total (20 units × $3.00 = $60); a tenant
+  requests a quote against the same active price book and gets the exact same per-unit pricing
+  (5 × $3.00 = $15); the tenant opens a dispute (invoice flips to `disputed`), the operator
+  resolves it (invoice flips back to `issued`); the operator creates and reconciles a settlement,
+  asserting the exact gross/net split (60 gross, 54 net at a 10% platform fee); a budget with a
+  $30 threshold against $60 of real priced usage produces a `budget_utilization` alert asserting
+  the exact computed 200% utilization. All pass alongside the full pre-existing Milestone 1-10
+  suite (57 total `internal/app` tests) with zero regressions.
+- The fictional seed data **was** extended this milestone, within the honest limits Known
+  Limitation 51 documents: one active price book for EuroNorth (priced from its own
+  already-seeded offer prices, not new arbitrary numbers), one ad-hoc quote for Falcon National
+  Bank computed against it, and one budget for Falcon National Bank. `usage_events` and
+  everything that depends on it are deliberately not seeded (no real cluster agent identity
+  exists anywhere in the seed script — the same gap Milestone 9/10 already noted). Verified
+  idempotent by running the seed script twice against a freshly created development database and
+  confirming row counts did not change on the second run; also verified via `psql` under
+  `SET app.platform_bypass = 'true'` that the RLS-protected rows are genuinely present (a plain,
+  unscoped `psql` session correctly sees zero rows for `quotes`/`budgets`, which have no
+  session-GUC-independent read policy the way `price_books`' enterprise-read policy does — this
+  is RLS working as designed, not a seeding failure).
+- Frontend: `eslint`, `tsc --noEmit`, and `next build` all pass with the two new billing routes
+  included.
+
+### Milestone 11 acceptance checklist
+
+| Requirement | Status |
+|---|---|
+| Usage metering | ✅ `usage_metrics` catalogue + signed, agent-reported `usage_events` with DB-level nonce uniqueness |
+| Metered pricing | ✅ `price_books`/`price_rules`, one active book per owner (operator or platform default), backend-computed line items throughout |
+| Ad-hoc quotes | ✅ `quotes`, priced server-side against the chosen operator's active price book |
+| Budgets and alerts | ✅ `budgets` + a `budget_utilization` alert-rule case reusing Milestone 10's alerting infrastructure |
+| Invoice generation | ✅ `GenerateInvoice`, re-aggregates for freshness, backend-authoritative pricing, syncs to the billing provider |
+| Operator settlement and reconciliation | ✅ `CreateSettlement`/`ReconcileSettlement`, sums real issued/paid invoices |
+| Adjustments and credit notes | ✅ `adjustments` (append-only, against an invoice or settlement)/`credit_notes` |
+| Billing disputes | ✅ full open (tenant) → resolve (operator) lifecycle, invoice status reflects it |
+| Billing-provider integration abstraction | ✅ `internal/platform/billingprovider.Provider`, `MockProvider` the only implementation |
+| Operator and enterprise views | ✅ every price-book/usage/invoice/settlement/dispute capability exists on the correct side |
+| No AI-only placement/ranking decisions | ✅ unaffected — this milestone introduces no placement or ranking decisions of any kind |
+| Infrastructure/cluster/vault credentials never exposed to the frontend | ✅ unaffected — this milestone introduces no new credential material |
+| Backend permissions are enforced | ✅ three new permission keys plus five reused-for-real-enforcement-for-the-first-time ones, all gated correctly |
+| Cross-tenant/cross-operator isolation holds | ✅ dual-scope RLS on `usage_events`/`usage_aggregations`/`invoices`/`credit_notes`/`billing_disputes`, owner-exclusive RLS on `price_books`/`quotes`/`budgets`/`settlement_records`, parent-join RLS on `price_rules` |
+| Audit records are created for all sensitive actions | ✅ every mutating service method calls `audit.Record` in the same transaction |
+| Database migrations work | ✅ `0034`/`0035` applied cleanly against both the test database and the separate development database, confirmed idempotent |
+| Backend formatting, linting and type checking pass | ✅ gofmt, `go vet`, `golangci-lint` (0 issues) |
+| Backend unit, integration and security tests pass | ✅ 2 new tests + full pre-existing suite, no regressions |
+| Frontend linting, type checking and tests pass | ✅ eslint, tsc, `next build` |
+| Production builds pass | ✅ control-api (server/seed/mockconnector/mockclusteragent), `next build` |
+| Docker validation passes | Partial — `docker compose config -q` valid; full runtime validation blocked by sandbox egress policy (see Known Limitations) |
+| `docs/project-status.md` is updated | ✅ this document |
+| Milestone 12 has not begun | ✅ confirmed — no Milestone 12 code exists |
+
 ## Independent Security Audit of Milestone 1 (post-implementation, prior to Milestone 2)
 
 An independent adversarial audit (code review + live exploitation against a running instance,
@@ -2164,6 +2375,43 @@ See `docs/adr/`:
     live against `cmd/server`** — this milestone introduces no new agent-facing protocol; the same
     Docker Hub egress / unreachable-MinIO limitation documented since Milestone 4 (Known Limitation
     15) is the reason no milestone since has run `cmd/server` live in this sandbox at all.
+51. **(Milestone 11) `usage_events` and everything downstream of it are not seeded** —
+    `usage_events`, `usage_aggregations`, `invoices`, `settlement_records`, `adjustments`,
+    `credit_notes`, `billing_disputes`, and `billing_provider_events` all ultimately require a
+    real, currently-valid `cluster_agent_id` with a genuine ECDSA signature (usage events
+    directly drive billing amounts, so this milestone deliberately did not fabricate one, the
+    same gap Milestone 9/10 already noted for network-reservation provisioning). The fictional
+    seed data instead includes only what is honestly derivable without one: one active price
+    book (priced from EuroNorth's own already-seeded offer prices), one ad-hoc quote, and one
+    budget. The full usage-to-settlement pipeline (signed report → aggregation → invoice →
+    dispute → settlement → budget alert) is proven instead by
+    `TestBillingUsageAggregationInvoiceSettlementDisputeAndBudgetAlert`, which exercises real
+    ECDSA signatures against a real, HTTP-bootstrapped cluster agent identity end to end. This
+    also resolves Milestone 9's Known Limitation 43 (`NetworkUsageRecord`/metering-billing "not
+    built") — it is now built, just not seeded, for the reason above.
+52. **(Milestone 11) Budgets do not block new reservations or deployments.** `hard_limit` is
+    recorded and surfaced, and a `budget_utilization` alert rule can genuinely fire against real
+    usage, but no enforcement point in `EvaluateAndReserve` (Milestone 5/9) or deployment
+    creation (Milestone 7) checks a tenant's budget before committing. Documented explicitly in
+    migration `0034`'s header comment as deliberately out of scope this milestone; a future
+    milestone that wants spend-blocking enforcement should add the check at those call sites.
+53. **(Milestone 11) Only a `mock` billing provider is implemented** — mirrors Milestone 8's own
+    single-provider precedent for attestation. `MockProvider` deterministically fabricates an
+    external reference and reports success; there is no real payment/billing gateway reachable
+    from this sandbox (the same category of constraint as MinIO/Docker Hub), and no claim is
+    made that any real money has moved. A real provider (Stripe, Chargebee, an operator's own
+    invoicing system) is future work for whichever milestone integrates one.
+54. **(Milestone 11) Settlement creation is on-demand, not a periodic close.** A settlement sums
+    every `issued`/`paid` invoice for the calling operator within the requested period at the
+    moment `CreateSettlement` is called — there is no live scheduler that automatically closes a
+    settlement period, the same "no live scheduler" limitation Milestone 10 already documented
+    for SLO/alert evaluation (Known Limitation 46).
+55. **(Milestone 11) `cmd/mockclusteragent`'s new usage-reporting flow has not been run against a
+    live `cmd/server` process in this sandboxed session** — the same Docker Hub egress /
+    unreachable-MinIO limitation documented since Milestone 4 (Known Limitation 15); validated
+    instead via `TestBillingUsageAggregationInvoiceSettlementDisputeAndBudgetAlert`, an
+    `httptest`-based integration test exercising the identical Go code paths (real ECDSA
+    signing, real HTTP calls, a real database).
 
 ## Security Findings — implementation-phase (superseded/complemented by the audit above)
 
