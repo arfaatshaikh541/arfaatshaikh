@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+
+	"gridkeep/control-api/internal/platform/metrics"
 )
 
 // NewRouter builds the base router with global middleware. Modules mount
@@ -57,13 +59,24 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			start := time.Now()
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 			next.ServeHTTP(ww, r)
+			duration := time.Since(start)
 			logger.InfoContext(r.Context(), "http_request",
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", ww.Status(),
-				"duration_ms", time.Since(start).Milliseconds(),
+				"duration_ms", duration.Milliseconds(),
 				"request_id", chimw.GetReqID(r.Context()),
 			)
+			// Route *pattern* (e.g. "/api/v1/enterprises/{tenantID}"), not
+			// the raw path -- see metrics.Observe's own doc comment for why
+			// this matters for cardinality. Falls back to "unmatched" for a
+			// request no route ever matched (e.g. a 404), since chi leaves
+			// the pattern empty in that case.
+			routePattern := chi.RouteContext(r.Context()).RoutePattern()
+			if routePattern == "" {
+				routePattern = "unmatched"
+			}
+			metrics.Observe(r.Method, routePattern, ww.Status(), duration)
 		})
 	}
 }

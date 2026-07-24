@@ -13,9 +13,10 @@ import (
 )
 
 type Config struct {
-	Env  string
-	Host string
-	Port string
+	Env         string
+	Host        string
+	Port        string
+	MetricsPort string
 
 	DatabaseURL string
 
@@ -64,6 +65,7 @@ func Load() (*Config, error) {
 		Env:                 getEnv("CONTROL_API_ENV", "development"),
 		Host:                getEnv("CONTROL_API_HOST", "0.0.0.0"),
 		Port:                getEnv("CONTROL_API_PORT", "8080"),
+		MetricsPort:         getEnv("CONTROL_API_METRICS_PORT", "9090"),
 		DatabaseURL:         os.Getenv("DATABASE_URL"),
 		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		SessionCookieName:   getEnv("SESSION_COOKIE_NAME", "gridkeep_session"),

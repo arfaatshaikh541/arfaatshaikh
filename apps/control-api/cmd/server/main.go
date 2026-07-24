@@ -18,6 +18,7 @@ import (
 	"gridkeep/control-api/internal/platform/config"
 	dbpkg "gridkeep/control-api/internal/platform/db"
 	"gridkeep/control-api/internal/platform/logging"
+	"gridkeep/control-api/internal/platform/metrics"
 	"gridkeep/control-api/internal/platform/pki"
 	"gridkeep/control-api/internal/platform/storage"
 )
@@ -113,11 +114,31 @@ func main() {
 		}
 	}()
 
+	// Metrics are served on their own port, deliberately never mounted onto
+	// the public API router -- a real deployment should restrict this port
+	// to the in-cluster Prometheus scraper via network policy, never expose
+	// it through the same ingress/load balancer as application traffic. See
+	// docs/architecture/observability.md.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", metrics.Handler())
+	metricsSrv := &http.Server{
+		Addr:              cfg.Host + ":" + cfg.MetricsPort,
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	go func() {
+		logger.Info("metrics listening", "addr", metricsSrv.Addr)
+		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("metrics server error", "error", err)
+		}
+	}()
+
 	<-ctx.Done()
 	logger.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	_ = metricsSrv.Shutdown(shutdownCtx)
 }
 
 // loadMFAKey reads MFA_ENCRYPTION_KEY (base64-encoded 32 bytes) from the
