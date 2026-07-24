@@ -46,6 +46,9 @@ interface PlacementEvaluation {
   rank?: number;
   estimated_cost: number;
   estimated_energy_kwh: number;
+  carbon_intensity_g_per_kwh: number;
+  renewable_percentage: number;
+  estimated_carbon_kg: number;
   reason_codes: string[];
   explanation: Record<string, unknown>;
 }
@@ -69,6 +72,9 @@ interface PlacementRequest {
   quantity: number;
   simulate: boolean;
   status: string;
+  non_urgent: boolean;
+  schedule_window_start?: string;
+  schedule_window_end?: string;
 }
 
 interface EvaluatePlacementResult {
@@ -276,6 +282,9 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
   const [versionId, setVersionId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [simulate, setSimulate] = useState(false);
+  const [nonUrgent, setNonUrgent] = useState(false);
+  const [scheduleWindowStart, setScheduleWindowStart] = useState("");
+  const [scheduleWindowEnd, setScheduleWindowEnd] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EvaluatePlacementResult | null>(null);
 
@@ -298,6 +307,9 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
         workload_version_id: versionId,
         quantity: Number(quantity),
         simulate,
+        non_urgent: nonUrgent,
+        schedule_window_start: nonUrgent && scheduleWindowStart ? new Date(scheduleWindowStart).toISOString() : null,
+        schedule_window_end: nonUrgent && scheduleWindowEnd ? new Date(scheduleWindowEnd).toISOString() : null,
       });
       setResult(res);
       onEvaluated();
@@ -330,6 +342,29 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
           <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} />
           Simulate only (do not reserve capacity)
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={nonUrgent} onChange={(e) => setNonUrgent(e.target.checked)} />
+          Non-urgent -- willing to wait for a schedule window
+        </label>
+        {nonUrgent && (
+          <div className="flex flex-col gap-2 rounded border border-zinc-100 p-2 text-xs dark:border-zinc-900">
+            <p className="text-zinc-500">
+              Leave both blank to just deprioritize this request; set both to hard-gate the
+              reservation to that window (no scheduler exists to retry automatically -- evaluate
+              again once the window opens).
+            </p>
+            <label className="flex flex-col gap-1">
+              Window start
+              <input type="datetime-local" value={scheduleWindowStart} onChange={(e) => setScheduleWindowStart(e.target.value)}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            </label>
+            <label className="flex flex-col gap-1">
+              Window end
+              <input type="datetime-local" value={scheduleWindowEnd} onChange={(e) => setScheduleWindowEnd(e.target.value)}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+            </label>
+          </div>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button onClick={evaluate} disabled={!versionId || !quantity}
           className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900">
@@ -353,6 +388,10 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
                   <p className="mt-1 text-zinc-500">
                     Cost ${ev.estimated_cost.toFixed(2)} &middot; {ev.estimated_energy_kwh.toFixed(2)} kWh estimated
                   </p>
+                  <p className="mt-1 text-zinc-500">
+                    {ev.carbon_intensity_g_per_kwh.toFixed(0)} gCO2/kWh &middot; {ev.renewable_percentage.toFixed(0)}% renewable
+                    &middot; {ev.estimated_carbon_kg.toFixed(3)} kg CO2 estimated
+                  </p>
                   {ev.reason_codes.length > 0 && (
                     <p className="mt-1 text-zinc-500">Reasons: {ev.reason_codes.join(", ")}</p>
                   )}
@@ -362,6 +401,12 @@ function EvaluatePlacementForm({ tenantId, onEvaluated }: { tenantId: string; on
           {result.reservation ? (
             <p className="text-xs text-emerald-600">
               Reservation created: {result.reservation.status} (${result.reservation.estimated_cost.toFixed(2)})
+            </p>
+          ) : result.request.status === "deferred" ? (
+            <p className="text-xs text-amber-600">
+              Deferred -- this request&apos;s schedule window has not opened yet. No capacity was
+              reserved; evaluate again once the window opens (there is no scheduler to retry this
+              automatically).
             </p>
           ) : (
             !simulate && <p className="text-xs text-amber-600">No capacity could be reserved for this request.</p>

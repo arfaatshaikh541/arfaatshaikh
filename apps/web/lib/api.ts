@@ -108,5 +108,7 @@ export interface EnterpriseTenant {
   country: string;
   status: string;
   is_fictional_demo_data: boolean;
+  sustainability_ranking_mode: string;
+  max_carbon_intensity_g_per_kwh?: number;
   created_at: string;
 }

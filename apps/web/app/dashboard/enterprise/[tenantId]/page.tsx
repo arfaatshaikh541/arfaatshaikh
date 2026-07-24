@@ -30,6 +30,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
   const [inviteRole, setInviteRole] = useState("application_owner");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSent, setInviteSent] = useState(false);
+  const [rankingMode, setRankingMode] = useState<string | null>(null);
+  const [carbonCeiling, setCarbonCeiling] = useState<string | null>(null);
+  const [sustainabilityError, setSustainabilityError] = useState<string | null>(null);
 
   const tenant = useQuery({
     queryKey: ["tenant", tenantId],
@@ -56,6 +59,22 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
   // client displays.
   const myRole = members.data?.find((m) => m.user_id === user?.user_id)?.role_key;
   const canManageUsers = !members.isError && ADMIN_ROLES.has(myRole ?? "");
+
+  const effectiveRankingMode = rankingMode ?? tenant.data?.sustainability_ranking_mode ?? "cost_first";
+  const effectiveCarbonCeiling = carbonCeiling ?? (tenant.data?.max_carbon_intensity_g_per_kwh?.toString() ?? "");
+
+  const saveSustainabilityPreferences = async () => {
+    setSustainabilityError(null);
+    try {
+      await api.patch(`/api/v1/enterprises/${tenantId}/sustainability-preferences`, {
+        sustainability_ranking_mode: effectiveRankingMode,
+        max_carbon_intensity_g_per_kwh: effectiveCarbonCeiling === "" ? null : Number(effectiveCarbonCeiling),
+      });
+      queryClient.invalidateQueries({ queryKey: ["tenant", tenantId] });
+    } catch (err) {
+      setSustainabilityError(err instanceof ApiError ? err.message : "Failed to update sustainability preferences.");
+    }
+  };
 
   const sendInvite = async () => {
     setInviteError(null);
@@ -136,6 +155,51 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           {entitlements.data?.plan_name ?? "No active subscription"}
         </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-medium">Sustainability preferences</h2>
+        <p className="mb-3 text-sm text-zinc-500">
+          Every placement evaluation carries a resolved carbon intensity and renewable percentage
+          for each candidate offer. The ranking mode decides which factor breaks ties first; the
+          carbon ceiling, if set, excludes any offer above it entirely rather than merely ranking
+          it lower.
+        </p>
+        {canManageUsers ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <label className="text-xs font-medium text-zinc-500">Ranking mode</label>
+            <select
+              value={effectiveRankingMode}
+              onChange={(e) => setRankingMode(e.target.value)}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="cost_first">Cost first</option>
+              <option value="energy_first">Energy first</option>
+              <option value="carbon_first">Carbon first</option>
+            </select>
+            <label className="text-xs font-medium text-zinc-500">Max carbon intensity (gCO2/kWh, optional)</label>
+            <input
+              placeholder="No hard limit"
+              value={effectiveCarbonCeiling}
+              onChange={(e) => setCarbonCeiling(e.target.value)}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            {sustainabilityError && <p className="text-sm text-red-600">{sustainabilityError}</p>}
+            <button
+              onClick={saveSustainabilityPreferences}
+              className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900"
+            >
+              Save preferences
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">
+            Current mode: {tenant.data?.sustainability_ranking_mode ?? "cost_first"}
+            {tenant.data?.max_carbon_intensity_g_per_kwh != null && (
+              <> &middot; ceiling {tenant.data.max_carbon_intensity_g_per_kwh} gCO2/kWh</>
+            )}
+          </p>
+        )}
       </section>
 
       <section className="mb-8">
