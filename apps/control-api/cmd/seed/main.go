@@ -785,6 +785,69 @@ func main() {
 		}
 	}
 
+	// --- Usage, Billing and Settlement (Milestone 11) -------------------------
+	// A price book, one ad-hoc quote, and one budget -- deliberately the
+	// full extent of what this script honestly seeds for this milestone.
+	// usage_events requires a real, currently-valid cluster_agent_id (with a
+	// real signature and nonce this script has never fabricated for any
+	// table); with no cluster agent identity seeded anywhere in this script
+	// (see this milestone's Known Limitations, the same gap Milestone 10's
+	// own network-provisioning SLO already documents), there is no honest
+	// usage_events row to seed, and therefore no honest usage_aggregations,
+	// invoice, settlement, adjustment, credit note, or billing dispute
+	// either -- every one of those depends on a real usage event or a real
+	// invoice this script cannot fabricate without inventing a signature.
+	// The price book's rules deliberately reuse EuroNorth's own already-seeded
+	// offer prices (1.80 for its capacity offer, 2.50 for its network
+	// service offer) rather than picking new arbitrary numbers, and the
+	// quote's line item is a real 10 * 2.50 computation, not a fabricated
+	// total.
+	var euroNorthPriceBookID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM price_books WHERE operator_id = $1 AND version = 1`, euroNorthID).Scan(&euroNorthPriceBookID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO price_books (operator_id, version, currency, status, created_by, activated_at)
+			VALUES ($1, 1, 'USD', 'active', $2, now())
+			RETURNING id
+		`, euroNorthID, users[euroNorthOwnerEmail].id).Scan(&euroNorthPriceBookID); err != nil {
+			fatal("seed EuroNorth price book", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO price_rules (price_book_id, usage_metric_key, unit_price) VALUES
+				($1, 'reservation_hours', 1.80),
+				($1, 'network_slice_gbps_hours', 2.50)
+		`, euroNorthPriceBookID); err != nil {
+			fatal("seed EuroNorth price rules", err)
+		}
+	}
+
+	var falconQuoteID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM quotes WHERE enterprise_tenant_id = $1 AND operator_id = $2`, falconTenantID, euroNorthID).Scan(&falconQuoteID)
+	if err != nil {
+		quoteLineItems, _ := json.Marshal([]map[string]any{
+			{"usage_metric_key": "network_slice_gbps_hours", "quantity": 10.0, "unit_price": 2.50, "amount": 25.0},
+		})
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO quotes (enterprise_tenant_id, operator_id, price_book_id, line_items, estimated_total, currency, requested_by)
+			VALUES ($1, $2, $3, $4, 25.0, 'USD', $5)
+			RETURNING id
+		`, falconTenantID, euroNorthID, euroNorthPriceBookID, quoteLineItems, users[falconOwnerEmail].id).Scan(&falconQuoteID); err != nil {
+			fatal("seed Falcon quote", err)
+		}
+	}
+
+	var falconBudgetID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM budgets WHERE enterprise_tenant_id = $1 AND name = $2`, falconTenantID, "Monthly network spend").Scan(&falconBudgetID)
+	if err != nil {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO budgets (enterprise_tenant_id, name, period_days, threshold_amount, currency, hard_limit, created_by)
+			VALUES ($1, 'Monthly network spend', 30, 500, 'USD', false, $2)
+			RETURNING id
+		`, falconTenantID, users[falconOwnerEmail].id).Scan(&falconBudgetID); err != nil {
+			fatal("seed Falcon budget", err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		fatal("commit seed transaction", err)
 	}
