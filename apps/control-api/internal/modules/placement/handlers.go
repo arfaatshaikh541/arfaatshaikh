@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -65,9 +66,12 @@ func (h *Handlers) ListMyAgreements(w http.ResponseWriter, r *http.Request) {
 }
 
 type createPlacementRequestRequest struct {
-	WorkloadVersionID string `json:"workload_version_id"`
-	Quantity          int    `json:"quantity"`
-	Simulate          bool   `json:"simulate"`
+	WorkloadVersionID   string     `json:"workload_version_id"`
+	Quantity            int        `json:"quantity"`
+	Simulate            bool       `json:"simulate"`
+	NonUrgent           bool       `json:"non_urgent"`
+	ScheduleWindowStart *time.Time `json:"schedule_window_start"`
+	ScheduleWindowEnd   *time.Time `json:"schedule_window_end"`
 }
 
 func (h *Handlers) EvaluatePlacement(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +85,7 @@ func (h *Handlers) EvaluatePlacement(w http.ResponseWriter, r *http.Request) {
 		apierror.WriteJSON(w, r, h.logger, apierror.ErrValidation)
 		return
 	}
-	result, err := h.svc.EvaluatePlacement(r.Context(), versionID, req.Quantity, req.Simulate)
+	result, err := h.svc.EvaluatePlacement(r.Context(), versionID, req.Quantity, req.Simulate, req.NonUrgent, req.ScheduleWindowStart, req.ScheduleWindowEnd)
 	if err != nil {
 		writeServiceError(w, r, h.logger, err)
 		return

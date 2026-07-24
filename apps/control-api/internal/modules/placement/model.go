@@ -39,6 +39,22 @@
 // check above already follows -- this is "operator routing"/"degraded-mode
 // handling", not a new numbered step of its own (it slots in alongside
 // steps 3-8's other eligibility checks).
+//
+// Milestone 14 adds a "sustainability" woven-in check alongside step 9's
+// cost/energy estimate: a mock grid-carbon-intensity/renewable-mix snapshot
+// is resolved per offer's region (internal/platform/energyprovider), a
+// tenant's optional max_carbon_intensity_g_per_kwh ceiling is enforced as a
+// hard eligibility check (CARBON_INTENSITY_EXCEEDS_LIMIT), and the resolved
+// values are persisted on the evaluation as durable sustainability evidence.
+// Step 10's ranking becomes tenant-configurable via
+// enterprise_tenants.sustainability_ranking_mode (cost_first/energy_first/
+// carbon_first) -- still a plain, deterministic sort, never an ML/LLM-based
+// decision. A non-urgent placement request may also declare a schedule
+// window; if the window has not opened yet, step 13's reservation is
+// skipped entirely (the request is marked 'deferred' rather than
+// 'reserved') -- evaluated lazily on this call, the same "no scheduler
+// exists" discipline reservation-expiry reclamation already established
+// (see reclaimExpired's own doc comment).
 package placement
 
 import (
@@ -81,32 +97,50 @@ type AgreementSummary struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+// NonUrgent/ScheduleWindowStart/ScheduleWindowEnd are Milestone 14's
+// "schedule windows"/"non-urgent workload scheduling": a request may declare
+// itself willing to wait for a specific window rather than be placed
+// immediately. Both window bounds are optional even when NonUrgent is true --
+// unset bounds mean "non-urgent, but no specific window", which only affects
+// ranking (a tenant's sustainability_ranking_mode), not whether a reservation
+// may be attempted right away.
 type PlacementRequest struct {
-	ID                 uuid.UUID `json:"id"`
-	EnterpriseTenantID uuid.UUID `json:"enterprise_tenant_id"`
-	WorkloadVersionID  uuid.UUID `json:"workload_version_id"`
-	Quantity           int       `json:"quantity"`
-	Simulate           bool      `json:"simulate"`
-	Status             string    `json:"status"`
-	RequestedBy        uuid.UUID `json:"requested_by"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	ID                  uuid.UUID  `json:"id"`
+	EnterpriseTenantID  uuid.UUID  `json:"enterprise_tenant_id"`
+	WorkloadVersionID   uuid.UUID  `json:"workload_version_id"`
+	Quantity            int        `json:"quantity"`
+	Simulate            bool       `json:"simulate"`
+	Status              string     `json:"status"`
+	NonUrgent           bool       `json:"non_urgent"`
+	ScheduleWindowStart *time.Time `json:"schedule_window_start,omitempty"`
+	ScheduleWindowEnd   *time.Time `json:"schedule_window_end,omitempty"`
+	RequestedBy         uuid.UUID  `json:"requested_by"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
+// CarbonIntensityGPerKWh/RenewablePercentage/EstimatedCarbonKg are
+// Milestone 14's sustainability evidence -- the grid snapshot resolved for
+// this offer's region at evaluation time, and the resulting estimate for
+// this specific quantity, persisted the same way EstimatedEnergyKWh already
+// was for energy since Milestone 5.
 type PlacementEvaluation struct {
-	ID                 uuid.UUID      `json:"id"`
-	PlacementRequestID uuid.UUID      `json:"placement_request_id"`
-	CapacityOfferID    uuid.UUID      `json:"capacity_offer_id"`
-	OperatorID         uuid.UUID      `json:"operator_id"`
-	RegionID           uuid.UUID      `json:"region_id"`
-	AcceleratorType    string         `json:"accelerator_type"`
-	Decision           string         `json:"decision"`
-	Rank               *int           `json:"rank,omitempty"`
-	EstimatedCost      float64        `json:"estimated_cost"`
-	EstimatedEnergyKWh float64        `json:"estimated_energy_kwh"`
-	ReasonCodes        []string       `json:"reason_codes"`
-	Explanation        map[string]any `json:"explanation"`
-	CreatedAt          time.Time      `json:"created_at"`
+	ID                     uuid.UUID      `json:"id"`
+	PlacementRequestID     uuid.UUID      `json:"placement_request_id"`
+	CapacityOfferID        uuid.UUID      `json:"capacity_offer_id"`
+	OperatorID             uuid.UUID      `json:"operator_id"`
+	RegionID               uuid.UUID      `json:"region_id"`
+	AcceleratorType        string         `json:"accelerator_type"`
+	Decision               string         `json:"decision"`
+	Rank                   *int           `json:"rank,omitempty"`
+	EstimatedCost          float64        `json:"estimated_cost"`
+	EstimatedEnergyKWh     float64        `json:"estimated_energy_kwh"`
+	CarbonIntensityGPerKWh float64        `json:"carbon_intensity_g_per_kwh"`
+	RenewablePercentage    float64        `json:"renewable_percentage"`
+	EstimatedCarbonKg      float64        `json:"estimated_carbon_kg"`
+	ReasonCodes            []string       `json:"reason_codes"`
+	Explanation            map[string]any `json:"explanation"`
+	CreatedAt              time.Time      `json:"created_at"`
 }
 
 type Reservation struct {

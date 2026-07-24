@@ -112,6 +112,27 @@ func listAgreementsForTenant(ctx context.Context, c conn, tenantID uuid.UUID) ([
 	return out, rows.Err()
 }
 
+// sustainabilityPreferences is the two fields EvaluatePlacement needs from
+// an enterprise_tenants row -- read directly by SQL (a table
+// internal/modules/tenancy owns writes to), the same "each module owns its
+// own SQL against shared tables" convention listAgreementsForTenant already
+// follows for bilateral_agreements.
+type sustainabilityPreferences struct {
+	rankingMode               string
+	maxCarbonIntensityGPerKWh *float64
+}
+
+func getSustainabilityPreferences(ctx context.Context, c conn, tenantID uuid.UUID) (sustainabilityPreferences, error) {
+	var p sustainabilityPreferences
+	err := c.QueryRow(ctx, `
+		SELECT sustainability_ranking_mode, max_carbon_intensity_g_per_kwh FROM enterprise_tenants WHERE id = $1
+	`, tenantID).Scan(&p.rankingMode, &p.maxCarbonIntensityGPerKWh)
+	if err != nil {
+		return sustainabilityPreferences{}, fmt.Errorf("get tenant sustainability preferences: %w", err)
+	}
+	return p, nil
+}
+
 // regionCountryCode resolves a region to its jurisdiction's ISO country
 // code -- the "country" field a sovereignty-policy candidate is evaluated
 // against.
@@ -228,15 +249,24 @@ func insertPolicyEvaluationRecord(ctx context.Context, c conn, tenantID, policyI
 // Placement requests / evaluations
 // ---------------------------------------------------------------------
 
-func createPlacementRequest(ctx context.Context, c conn, tenantID, versionID uuid.UUID, quantity int, simulate bool, requestedBy uuid.UUID) (PlacementRequest, error) {
+const placementRequestColumns = `id, enterprise_tenant_id, workload_version_id, quantity, simulate, status,
+	non_urgent, schedule_window_start, schedule_window_end, requested_by, created_at, updated_at`
+
+func scanPlacementRequest(row pgx.Row) (PlacementRequest, error) {
 	var req PlacementRequest
-	err := c.QueryRow(ctx, `
-		INSERT INTO placement_requests (enterprise_tenant_id, workload_version_id, quantity, simulate, requested_by)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, enterprise_tenant_id, workload_version_id, quantity, simulate, status, requested_by, created_at, updated_at
-	`, tenantID, versionID, quantity, simulate, requestedBy).Scan(
-		&req.ID, &req.EnterpriseTenantID, &req.WorkloadVersionID, &req.Quantity, &req.Simulate,
-		&req.Status, &req.RequestedBy, &req.CreatedAt, &req.UpdatedAt)
+	err := row.Scan(&req.ID, &req.EnterpriseTenantID, &req.WorkloadVersionID, &req.Quantity, &req.Simulate, &req.Status,
+		&req.NonUrgent, &req.ScheduleWindowStart, &req.ScheduleWindowEnd, &req.RequestedBy, &req.CreatedAt, &req.UpdatedAt)
+	return req, err
+}
+
+func createPlacementRequest(ctx context.Context, c conn, tenantID, versionID uuid.UUID, quantity int, simulate bool, nonUrgent bool, scheduleWindowStart, scheduleWindowEnd *time.Time, requestedBy uuid.UUID) (PlacementRequest, error) {
+	row := c.QueryRow(ctx, `
+		INSERT INTO placement_requests (enterprise_tenant_id, workload_version_id, quantity, simulate, non_urgent, schedule_window_start, schedule_window_end, requested_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING `+placementRequestColumns,
+		tenantID, versionID, quantity, simulate, nonUrgent, scheduleWindowStart, scheduleWindowEnd, requestedBy,
+	)
+	req, err := scanPlacementRequest(row)
 	if err != nil {
 		return PlacementRequest{}, fmt.Errorf("insert placement request: %w", err)
 	}
@@ -253,7 +283,7 @@ func markPlacementRequestStatus(ctx context.Context, c conn, id uuid.UUID, statu
 
 func listPlacementRequests(ctx context.Context, c conn, tenantID uuid.UUID) ([]PlacementRequest, error) {
 	rows, err := c.Query(ctx, `
-		SELECT id, enterprise_tenant_id, workload_version_id, quantity, simulate, status, requested_by, created_at, updated_at
+		SELECT `+placementRequestColumns+`
 		FROM placement_requests WHERE enterprise_tenant_id = $1 ORDER BY created_at DESC
 	`, tenantID)
 	if err != nil {
@@ -263,9 +293,8 @@ func listPlacementRequests(ctx context.Context, c conn, tenantID uuid.UUID) ([]P
 
 	var out []PlacementRequest
 	for rows.Next() {
-		var req PlacementRequest
-		if err := rows.Scan(&req.ID, &req.EnterpriseTenantID, &req.WorkloadVersionID, &req.Quantity, &req.Simulate,
-			&req.Status, &req.RequestedBy, &req.CreatedAt, &req.UpdatedAt); err != nil {
+		req, err := scanPlacementRequest(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scan placement request: %w", err)
 		}
 		out = append(out, req)
@@ -273,7 +302,29 @@ func listPlacementRequests(ctx context.Context, c conn, tenantID uuid.UUID) ([]P
 	return out, rows.Err()
 }
 
-func insertEvaluation(ctx context.Context, c conn, tenantID, requestID, offerID, operatorID, regionID uuid.UUID, acceleratorType, decision string, cost, energy float64, reasonCodes []string, explanation map[string]any) (PlacementEvaluation, error) {
+const placementEvaluationColumns = `id, placement_request_id, capacity_offer_id, operator_id, region_id, accelerator_type,
+	decision, rank, estimated_cost, estimated_energy_kwh, carbon_intensity_g_per_kwh, renewable_percentage,
+	estimated_carbon_kg, reason_codes, explanation, created_at`
+
+func scanEvaluation(row pgx.Row) (PlacementEvaluation, error) {
+	var e PlacementEvaluation
+	var reasonRaw, explanationRaw []byte
+	err := row.Scan(&e.ID, &e.PlacementRequestID, &e.CapacityOfferID, &e.OperatorID, &e.RegionID, &e.AcceleratorType,
+		&e.Decision, &e.Rank, &e.EstimatedCost, &e.EstimatedEnergyKWh, &e.CarbonIntensityGPerKWh, &e.RenewablePercentage,
+		&e.EstimatedCarbonKg, &reasonRaw, &explanationRaw, &e.CreatedAt)
+	if err != nil {
+		return PlacementEvaluation{}, err
+	}
+	if err := json.Unmarshal(reasonRaw, &e.ReasonCodes); err != nil {
+		return PlacementEvaluation{}, fmt.Errorf("decode reason codes: %w", err)
+	}
+	if err := json.Unmarshal(explanationRaw, &e.Explanation); err != nil {
+		return PlacementEvaluation{}, fmt.Errorf("decode explanation: %w", err)
+	}
+	return e, nil
+}
+
+func insertEvaluation(ctx context.Context, c conn, tenantID, requestID, offerID, operatorID, regionID uuid.UUID, acceleratorType, decision string, cost, energy, carbonIntensity, renewablePercentage, estimatedCarbonKg float64, reasonCodes []string, explanation map[string]any) (PlacementEvaluation, error) {
 	reasonCodesJSON, err := json.Marshal(reasonCodes)
 	if err != nil {
 		return PlacementEvaluation{}, fmt.Errorf("encode reason codes: %w", err)
@@ -282,26 +333,19 @@ func insertEvaluation(ctx context.Context, c conn, tenantID, requestID, offerID,
 	if err != nil {
 		return PlacementEvaluation{}, fmt.Errorf("encode explanation: %w", err)
 	}
-	var e PlacementEvaluation
-	var reasonRaw, explanationRaw []byte
-	err = c.QueryRow(ctx, `
+	row := c.QueryRow(ctx, `
 		INSERT INTO placement_evaluations (
 			enterprise_tenant_id, placement_request_id, capacity_offer_id, operator_id, region_id,
-			accelerator_type, decision, estimated_cost, estimated_energy_kwh, reason_codes, explanation
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, placement_request_id, capacity_offer_id, operator_id, region_id, accelerator_type,
-			decision, rank, estimated_cost, estimated_energy_kwh, reason_codes, explanation, created_at
-	`, tenantID, requestID, offerID, operatorID, regionID, acceleratorType, decision, cost, energy, reasonCodesJSON, explanationJSON).Scan(
-		&e.ID, &e.PlacementRequestID, &e.CapacityOfferID, &e.OperatorID, &e.RegionID, &e.AcceleratorType,
-		&e.Decision, &e.Rank, &e.EstimatedCost, &e.EstimatedEnergyKWh, &reasonRaw, &explanationRaw, &e.CreatedAt)
+			accelerator_type, decision, estimated_cost, estimated_energy_kwh, carbon_intensity_g_per_kwh,
+			renewable_percentage, estimated_carbon_kg, reason_codes, explanation
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		RETURNING `+placementEvaluationColumns,
+		tenantID, requestID, offerID, operatorID, regionID, acceleratorType, decision, cost, energy,
+		carbonIntensity, renewablePercentage, estimatedCarbonKg, reasonCodesJSON, explanationJSON,
+	)
+	e, err := scanEvaluation(row)
 	if err != nil {
 		return PlacementEvaluation{}, fmt.Errorf("insert placement evaluation: %w", err)
-	}
-	if err := json.Unmarshal(reasonRaw, &e.ReasonCodes); err != nil {
-		return PlacementEvaluation{}, fmt.Errorf("decode reason codes: %w", err)
-	}
-	if err := json.Unmarshal(explanationRaw, &e.Explanation); err != nil {
-		return PlacementEvaluation{}, fmt.Errorf("decode explanation: %w", err)
 	}
 	return e, nil
 }
@@ -316,8 +360,7 @@ func setEvaluationRank(ctx context.Context, c conn, id uuid.UUID, rank int) erro
 
 func listEvaluationsForRequest(ctx context.Context, c conn, tenantID, requestID uuid.UUID) ([]PlacementEvaluation, error) {
 	rows, err := c.Query(ctx, `
-		SELECT id, placement_request_id, capacity_offer_id, operator_id, region_id, accelerator_type,
-			decision, rank, estimated_cost, estimated_energy_kwh, reason_codes, explanation, created_at
+		SELECT `+placementEvaluationColumns+`
 		FROM placement_evaluations WHERE enterprise_tenant_id = $1 AND placement_request_id = $2
 		ORDER BY (rank IS NULL), rank, estimated_cost
 	`, tenantID, requestID)
@@ -328,17 +371,9 @@ func listEvaluationsForRequest(ctx context.Context, c conn, tenantID, requestID 
 
 	var out []PlacementEvaluation
 	for rows.Next() {
-		var e PlacementEvaluation
-		var reasonRaw, explanationRaw []byte
-		if err := rows.Scan(&e.ID, &e.PlacementRequestID, &e.CapacityOfferID, &e.OperatorID, &e.RegionID, &e.AcceleratorType,
-			&e.Decision, &e.Rank, &e.EstimatedCost, &e.EstimatedEnergyKWh, &reasonRaw, &explanationRaw, &e.CreatedAt); err != nil {
+		e, err := scanEvaluation(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scan placement evaluation: %w", err)
-		}
-		if err := json.Unmarshal(reasonRaw, &e.ReasonCodes); err != nil {
-			return nil, fmt.Errorf("decode reason codes: %w", err)
-		}
-		if err := json.Unmarshal(explanationRaw, &e.Explanation); err != nil {
-			return nil, fmt.Errorf("decode explanation: %w", err)
 		}
 		out = append(out, e)
 	}

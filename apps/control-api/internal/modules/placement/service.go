@@ -11,6 +11,7 @@ import (
 	"gridkeep/control-api/internal/modules/rbac"
 	"gridkeep/control-api/internal/platform/audit"
 	dbpkg "gridkeep/control-api/internal/platform/db"
+	"gridkeep/control-api/internal/platform/energyprovider"
 	"gridkeep/control-api/internal/platform/httpserver"
 	"gridkeep/control-api/internal/platform/policyengine"
 )
@@ -32,12 +33,13 @@ var (
 )
 
 type Service struct {
-	store        *dbpkg.Store
-	policyEngine *policyengine.Client
+	store          *dbpkg.Store
+	policyEngine   *policyengine.Client
+	energyProvider energyprovider.Provider
 }
 
-func NewService(store *dbpkg.Store, policyEngineClient *policyengine.Client) *Service {
-	return &Service{store: store, policyEngine: policyEngineClient}
+func NewService(store *dbpkg.Store, policyEngineClient *policyengine.Client, energyProvider energyprovider.Provider) *Service {
+	return &Service{store: store, policyEngine: policyEngineClient, energyProvider: energyProvider}
 }
 
 func actorFromContext(ctx context.Context) uuid.UUID {
@@ -95,8 +97,14 @@ type eligibleCandidate struct {
 // order, steps 1-13, against every currently active capacity offer for one
 // placement request. See model.go's package doc for the full step
 // breakdown. simulate=true stops after ranking/explanation -- no capacity
-// is ever reserved.
-func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, quantity int, simulate bool) (EvaluatePlacementResult, error) {
+// is ever reserved. nonUrgent/scheduleWindowStart/scheduleWindowEnd are
+// Milestone 14's schedule window: when nonUrgent is true and both bounds are
+// set, no reservation is attempted at all unless evaluatedAt falls inside
+// the window -- the request is marked 'deferred' instead of 'reserved', to
+// be retried later (there is no scheduler to retry it automatically; see
+// reclaimExpired's own doc comment on this codebase's lazy, on-demand
+// discipline for anything time-based).
+func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, quantity int, simulate, nonUrgent bool, scheduleWindowStart, scheduleWindowEnd *time.Time) (EvaluatePlacementResult, error) {
 	scope, _ := rbac.FromContext(ctx)
 	scopedTx, _ := rbac.TxFromContext(ctx)
 	actor := actorFromContext(ctx)
@@ -117,7 +125,7 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		return EvaluatePlacementResult{}, ErrVersionNotPublished
 	}
 
-	req, err := createPlacementRequest(ctx, scopedTx.Tx, tenantID, versionID, quantity, simulate, actor)
+	req, err := createPlacementRequest(ctx, scopedTx.Tx, tenantID, versionID, quantity, simulate, nonUrgent, scheduleWindowStart, scheduleWindowEnd, actor)
 	if err != nil {
 		return EvaluatePlacementResult{}, err
 	}
@@ -131,6 +139,10 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		return EvaluatePlacementResult{}, err
 	}
 	grantPriceOverrides, err := listActiveGrantPriceOverrides(ctx, scopedTx.Tx, tenantID)
+	if err != nil {
+		return EvaluatePlacementResult{}, err
+	}
+	prefs, err := getSustainabilityPreferences(ctx, scopedTx.Tx, tenantID)
 	if err != nil {
 		return EvaluatePlacementResult{}, err
 	}
@@ -236,6 +248,31 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 			isEligible = false
 		}
 
+		// Sustainability -- Milestone 14: resolve this offer's region's
+		// current grid carbon intensity/renewable mix from the mock energy
+		// provider, and enforce the tenant's optional hard carbon ceiling.
+		// Unlike operator availability (which excludes only a self-declared
+		// degraded offer), this is a tenant-chosen constraint: an offer
+		// otherwise perfectly fine is excluded only because this specific
+		// tenant asked never to be placed above a given carbon intensity.
+		snapshot, err := s.energyProvider.FetchGridSnapshot(ctx, offer.RegionID, evaluatedAt)
+		if err != nil {
+			return EvaluatePlacementResult{}, err
+		}
+		estimatedCarbonKg := float64(quantity) * offer.EstimatedKWhPerUnitHour * snapshot.CarbonIntensityGPerKWh / 1000
+		carbonPassed := prefs.maxCarbonIntensityGPerKWh == nil || snapshot.CarbonIntensityGPerKWh <= *prefs.maxCarbonIntensityGPerKWh
+		explanation["sustainability"] = map[string]any{
+			"carbon_intensity_g_per_kwh":     snapshot.CarbonIntensityGPerKWh,
+			"renewable_percentage":           snapshot.RenewablePercentage,
+			"estimated_carbon_kg":            estimatedCarbonKg,
+			"max_carbon_intensity_g_per_kwh": prefs.maxCarbonIntensityGPerKWh,
+			"passed":                         carbonPassed,
+		}
+		if !carbonPassed {
+			reasonCodes = append(reasonCodes, "CARBON_INTENSITY_EXCEEDS_LIMIT")
+			isEligible = false
+		}
+
 		// Step 5: capacity.
 		capacityPassed := offer.AvailableCapacity >= quantity
 		explanation["capacity"] = map[string]any{
@@ -277,7 +314,8 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 			decision = "eligible"
 		}
 		eval, err := insertEvaluation(ctx, scopedTx.Tx, tenantID, req.ID, offer.ID, offer.OperatorID, offer.RegionID,
-			offer.AcceleratorType, decision, estimatedCost, estimatedEnergy, reasonCodes, explanation)
+			offer.AcceleratorType, decision, estimatedCost, estimatedEnergy, snapshot.CarbonIntensityGPerKWh,
+			snapshot.RenewablePercentage, estimatedCarbonKg, reasonCodes, explanation)
 		if err != nil {
 			return EvaluatePlacementResult{}, err
 		}
@@ -287,19 +325,31 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 		}
 	}
 
-	// Step 10: rank eligible targets -- a plain, deterministic sort (cost,
-	// then energy, then offer id for a stable tie-break), never an
+	// Step 10: rank eligible targets -- a plain, deterministic sort, never an
 	// ML/LLM-based decision: every placement decision must be explainable,
-	// and a non-deterministic ranking cannot be.
+	// and a non-deterministic ranking cannot be. The primary/secondary keys
+	// (cost, energy, carbon) are reordered by the tenant's own
+	// sustainability_ranking_mode (Milestone 14's "cost and energy
+	// trade-offs" requirement); the offer id tie-break is always last,
+	// exactly as before this milestone.
+	rankKeys := func(e PlacementEvaluation) [3]float64 {
+		switch prefs.rankingMode {
+		case "energy_first":
+			return [3]float64{e.EstimatedEnergyKWh, e.EstimatedCost, e.EstimatedCarbonKg}
+		case "carbon_first":
+			return [3]float64{e.EstimatedCarbonKg, e.EstimatedCost, e.EstimatedEnergyKWh}
+		default: // cost_first
+			return [3]float64{e.EstimatedCost, e.EstimatedEnergyKWh, e.EstimatedCarbonKg}
+		}
+	}
 	sort.SliceStable(eligible, func(i, j int) bool {
-		a, b := eligible[i].evaluation, eligible[j].evaluation
-		if a.EstimatedCost != b.EstimatedCost {
-			return a.EstimatedCost < b.EstimatedCost
+		a, b := rankKeys(eligible[i].evaluation), rankKeys(eligible[j].evaluation)
+		for k := 0; k < 3; k++ {
+			if a[k] != b[k] {
+				return a[k] < b[k]
+			}
 		}
-		if a.EstimatedEnergyKWh != b.EstimatedEnergyKWh {
-			return a.EstimatedEnergyKWh < b.EstimatedEnergyKWh
-		}
-		return a.CapacityOfferID.String() < b.CapacityOfferID.String()
+		return eligible[i].evaluation.CapacityOfferID.String() < eligible[j].evaluation.CapacityOfferID.String()
 	})
 	rankByEvaluationID := make(map[uuid.UUID]int, len(eligible))
 	for i := range eligible {
@@ -318,7 +368,22 @@ func (s *Service) EvaluatePlacement(ctx context.Context, versionID uuid.UUID, qu
 
 	result := EvaluatePlacementResult{Request: req, Evaluations: evaluations}
 
-	if !simulate {
+	// Milestone 14: a non-urgent request with both schedule window bounds
+	// set does not attempt a reservation at all outside that window -- even
+	// against an otherwise perfectly eligible candidate. This is evaluated
+	// lazily, right now, against evaluatedAt; there is no scheduler in this
+	// codebase to wake up and retry once the window opens (see
+	// reclaimExpired's doc comment), so a caller must call EvaluatePlacement
+	// again once the window has opened.
+	outsideScheduleWindow := nonUrgent && scheduleWindowStart != nil && scheduleWindowEnd != nil &&
+		(evaluatedAt.Before(*scheduleWindowStart) || !evaluatedAt.Before(*scheduleWindowEnd))
+
+	if !simulate && outsideScheduleWindow {
+		if err := markPlacementRequestStatus(ctx, scopedTx.Tx, req.ID, "deferred"); err != nil {
+			return EvaluatePlacementResult{}, err
+		}
+		result.Request.Status = "deferred"
+	} else if !simulate {
 		// Step 12/13: reserve capacity atomically against the top-ranked
 		// candidate, retrying down the ranked list if a lower-ranked
 		// candidate lost the capacity race between evaluation and
