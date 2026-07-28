@@ -122,11 +122,11 @@ export function Blades() {
   const metalMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#1c1c1f",
-        metalness: 0.92,
-        roughness: 0.2,
-        emissive: new THREE.Color("#3a0000"),
-        emissiveIntensity: 0.5,
+        color: "#050506",
+        metalness: 0.95,
+        roughness: 0.14,
+        emissive: new THREE.Color("#4a0000"),
+        emissiveIntensity: 0.12,
         flatShading: true,
       }),
     []
@@ -137,7 +137,7 @@ export function Blades() {
       new THREE.MeshBasicMaterial({
         color: "#ff1a12",
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.1,
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
@@ -154,15 +154,15 @@ export function Blades() {
   }, [geometry, metalMaterial, glowMaterial]);
 
   useFrame(() => {
-    const heat = sceneState.coreBrightness * 0.35 + sceneState.hoverIntensity * 0.5 + sceneState.pulseStrength;
+    const heat = sceneState.coreBrightness * 0.2 + sceneState.hoverIntensity * 0.6 + sceneState.pulseStrength * 1.3;
     metalMaterial.emissiveIntensity = THREE.MathUtils.lerp(
       metalMaterial.emissiveIntensity,
-      0.45 + heat,
+      0.08 + heat,
       0.08
     );
     glowMaterial.opacity = THREE.MathUtils.lerp(
       glowMaterial.opacity,
-      0.2 + sceneState.hoverIntensity * 0.35 + sceneState.pulseStrength * 0.4,
+      0.06 + sceneState.hoverIntensity * 0.4 + sceneState.pulseStrength * 0.45,
       0.08
     );
   });
