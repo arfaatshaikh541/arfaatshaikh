@@ -9,6 +9,9 @@ import { SphereCore } from "./SphereCore";
 import { Flames } from "./Flames";
 import { OrbitRings } from "./OrbitRings";
 import { PlasmaColumn } from "./PlasmaColumn";
+import { Blades } from "./Blades";
+import { ElectricArcs } from "./ElectricArcs";
+import { HoverPulseController } from "./HoverPulseController";
 
 export function SphereRig() {
   const groupRef = useRef<THREE.Group>(null);
@@ -21,6 +24,11 @@ export function SphereRig() {
         sceneState.parallaxY * 0.3,
         0.05
       );
+      groupRef.current.rotation.z = THREE.MathUtils.lerp(
+        groupRef.current.rotation.z,
+        sceneState.parallaxX * -0.12,
+        0.05
+      );
     }
   });
 
@@ -30,8 +38,11 @@ export function SphereRig() {
       <SphereShell radius={1.55} openAmountMultiplier={0.45} dimmed />
       <SphereShell radius={1.72} openAmountMultiplier={1} />
       <Flames />
+      <ElectricArcs />
+      <Blades />
       <OrbitRings />
       <PlasmaColumn />
+      <HoverPulseController />
     </group>
   );
 }

@@ -45,10 +45,13 @@ export function ChapterScroll() {
           const y = distance * translateAmount;
           el.style.opacity = String(opacity);
           el.style.transform = `translateY(${y}px)`;
+          // The wrapper itself stays pointer-events:none (see className)
+          // so it never blocks hover/click on the 3D sphere beneath it —
+          // only the CTA link inside becomes interactive when reachable.
           const isReachable = opacity > 0.4;
-          el.style.pointerEvents = isReachable ? "auto" : "none";
-          const link = el.querySelector("a");
+          const link = el.querySelector<HTMLAnchorElement>("a");
           if (link) {
+            link.style.pointerEvents = isReachable ? "auto" : "none";
             if (isReachable) link.removeAttribute("tabindex");
             else link.setAttribute("tabindex", "-1");
           }
@@ -83,7 +86,7 @@ export function ChapterScroll() {
               ref={(el) => {
                 copyRefs.current[index] = el;
               }}
-              className="container-edge absolute inset-0 flex flex-col justify-center"
+              className="container-edge pointer-events-none absolute inset-0 flex flex-col justify-center"
               style={{ opacity: index === 0 ? 1 : 0 }}
             >
               <p className="font-mono text-xs uppercase tracking-[0.25em] text-[var(--color-blood-red)] md:text-sm">

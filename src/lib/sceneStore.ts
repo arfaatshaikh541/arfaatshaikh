@@ -26,6 +26,13 @@ export const sceneState = {
   vignette: 0.55,
   chromaticAb: 0.1,
   heatDistortion: 0.15,
+  bladeOpen: 0.08,
+
+  // Interaction-driven — set by pointer/click/gyro handlers, NOT by scroll
+  // chapters (see CHAPTER_KEYS below, which deliberately omits these).
+  hoverIntensity: 0,
+  pulseStrength: 0,
+  pulseZOffset: 0,
 };
 
 export type SceneState = typeof sceneState;
@@ -50,6 +57,7 @@ const CHAPTER_KEYS: (keyof SceneState)[] = [
   "vignette",
   "chromaticAb",
   "heatDistortion",
+  "bladeOpen",
 ];
 
 function lerp(a: number, b: number, t: number): number {
@@ -94,6 +102,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.6,
     chromaticAb: 0.08,
     heatDistortion: 0.08,
+    bladeOpen: 0.05,
   },
   // 1 Awakening
   {
@@ -115,6 +124,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.55,
     chromaticAb: 0.12,
     heatDistortion: 0.22,
+    bladeOpen: 0.16,
   },
   // 2 AI
   {
@@ -136,6 +146,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.5,
     chromaticAb: 0.18,
     heatDistortion: 0.35,
+    bladeOpen: 0.38,
   },
   // 3 Automation
   {
@@ -157,6 +168,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.48,
     chromaticAb: 0.16,
     heatDistortion: 0.4,
+    bladeOpen: 0.5,
   },
   // 4 Software
   {
@@ -178,6 +190,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.5,
     chromaticAb: 0.14,
     heatDistortion: 0.3,
+    bladeOpen: 0.32,
   },
   // 5 Cybersecurity
   {
@@ -199,6 +212,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.55,
     chromaticAb: 0.1,
     heatDistortion: 0.2,
+    bladeOpen: 0.12,
   },
   // 6 Cloud & DevOps
   {
@@ -220,6 +234,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.5,
     chromaticAb: 0.1,
     heatDistortion: 0.18,
+    bladeOpen: 0.28,
   },
   // 7 GRIDKEEP
   {
@@ -241,6 +256,7 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.5,
     chromaticAb: 0.12,
     heatDistortion: 0.2,
+    bladeOpen: 0.42,
   },
   // 8 Contact
   {
@@ -262,5 +278,6 @@ export const CHAPTER_STATES: SceneState[] = [
     vignette: 0.42,
     chromaticAb: 0.22,
     heatDistortion: 0.5,
+    bladeOpen: 0.85,
   },
 ];

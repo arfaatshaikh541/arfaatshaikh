@@ -51,8 +51,8 @@ export function SphereShell({ radius, openAmountMultiplier, dimmed = false }: Sp
     );
     mat.uniforms.uBrightness.value = THREE.MathUtils.lerp(
       mat.uniforms.uBrightness.value,
-      sceneState.coreBrightness,
-      0.06
+      sceneState.coreBrightness + sceneState.hoverIntensity * 0.4 + sceneState.pulseStrength * 0.9,
+      0.08
     );
     mat.uniforms.uSplit.value = THREE.MathUtils.lerp(
       mat.uniforms.uSplit.value,

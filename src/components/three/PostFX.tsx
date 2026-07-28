@@ -31,7 +31,10 @@ export function PostFX({ highQuality }: { highQuality: boolean }) {
       heatRef.current.setIntensity(sceneState.heatDistortion);
     }
 
-    const nextBloom = quantize(sceneState.bloomStrength, 0.05);
+    const nextBloom = quantize(
+      sceneState.bloomStrength + sceneState.hoverIntensity * 0.3 + sceneState.pulseStrength * 0.8,
+      0.05
+    );
     if (Math.abs(nextBloom - bloomIntensity) >= 0.05) setBloomIntensity(nextBloom);
 
     const nextVignette = quantize(sceneState.vignette, 0.03);

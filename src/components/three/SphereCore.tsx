@@ -30,15 +30,19 @@ export function SphereCore() {
     const mat = materialRef.current;
     if (!mat) return;
     mat.uniforms.uTime.value += delta;
+    const targetBrightness =
+      sceneState.coreBrightness + sceneState.hoverIntensity * 0.5 + sceneState.pulseStrength * 1.1;
     mat.uniforms.uBrightness.value = THREE.MathUtils.lerp(
       mat.uniforms.uBrightness.value,
-      sceneState.coreBrightness,
-      0.06
+      targetBrightness,
+      0.08
     );
+    const targetTurbulence =
+      sceneState.turbulence + sceneState.hoverIntensity * 0.3 + sceneState.pulseStrength * 0.6;
     mat.uniforms.uTurbulence.value = THREE.MathUtils.lerp(
       mat.uniforms.uTurbulence.value,
-      sceneState.turbulence,
-      0.06
+      targetTurbulence,
+      0.08
     );
     mat.uniforms.uSplit.value = THREE.MathUtils.lerp(
       mat.uniforms.uSplit.value,
