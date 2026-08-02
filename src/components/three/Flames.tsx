@@ -48,13 +48,15 @@ function FlameJet({ direction, seed }: { direction: THREE.Vector3; seed: number 
     if (groupRef.current) {
       const scale = 0.7 + sceneState.flameIntensity * 0.9;
       groupRef.current.scale.setScalar(scale);
+      // Jets push outward as the shell "separates" further apart in the
+      // more turbulent chapters, instead of sitting at a fixed radius.
+      const radius = 1.62 * (1 + sceneState.separation * 0.3);
+      groupRef.current.position.copy(direction).multiplyScalar(radius);
     }
   });
 
-  const position = direction.clone().multiplyScalar(1.62);
-
   return (
-    <group ref={groupRef} position={position}>
+    <group ref={groupRef} position={direction.clone().multiplyScalar(1.62)}>
       <Billboard>
         <mesh position={[0, 0.42, 0]}>
           <planeGeometry args={[0.75, 1.1, 1, 24]} />

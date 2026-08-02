@@ -1,15 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { Suspense, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
-import { SphereShell } from "./SphereShell";
-import { SphereCore } from "./SphereCore";
 import { Flames } from "./Flames";
 import { OrbitRings } from "./OrbitRings";
 import { PlasmaColumn } from "./PlasmaColumn";
-import { Blades } from "./Blades";
+import { CoreModel } from "./CoreModel";
 import { ElectricArcs } from "./ElectricArcs";
 import { HoverPulseController } from "./HoverPulseController";
 
@@ -34,12 +32,11 @@ export function SphereRig() {
 
   return (
     <group ref={groupRef}>
-      <SphereCore />
-      <SphereShell radius={1.55} openAmountMultiplier={0.45} dimmed />
-      <SphereShell radius={1.72} openAmountMultiplier={1} />
+      <Suspense fallback={null}>
+        <CoreModel />
+      </Suspense>
       <Flames />
       <ElectricArcs />
-      <Blades />
       <OrbitRings />
       <PlasmaColumn />
       <HoverPulseController />

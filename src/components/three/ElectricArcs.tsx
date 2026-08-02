@@ -58,7 +58,9 @@ function randomStart(): THREE.Vector3 {
 }
 
 function randomEnd(): THREE.Vector3 {
-  return randomDirection().multiplyScalar(2.0 + Math.random() * 0.5);
+  // Arcs reach further out as the shell "opens" wider in later chapters.
+  const reach = 2.0 + sceneState.shellOpen * 1.1;
+  return randomDirection().multiplyScalar(reach + Math.random() * 0.5);
 }
 
 export function ElectricArcs() {

@@ -1,5 +1,9 @@
 # Models
 
-Not currently used — the sphere is built entirely from procedural `THREE.SphereGeometry` + custom shaders (see `src/components/three/`), so no `.glb`/`.gltf` model files are required.
+`hero-core.glb` is the hero object's primary visual — a single sculpted mesh (ball + wrapping blade forms + baked crack detail) loaded by `src/components/three/CoreModel.tsx` via `@react-three/drei`'s `useGLTF`, inside a `<Suspense>` boundary so the rest of the scene renders immediately while it streams in.
 
-This folder exists for future secondary 3D assets (e.g. a GRIDKEEP logo mark rendered in 3D, or scene set-dressing). Load any model added here lazily with `@react-three/drei`'s `useGLTF`, wrapped in `React.Suspense`, and dispose of it in a cleanup effect to avoid leaking GPU memory.
+It started as a 941k-triangle / 29.6 MB export with three 4096×4096 textures — far too heavy for real-time use — and was optimized with [`@gltf-transform/cli`](https://gltf-transform.dev/) down to ~32k triangles and 1024×1024 textures (1.48 MB total): `simplify --ratio 0.035`, `resize --width 1024 --height 1024`, then `optimize` (weld/dedup/prune). No Draco/Meshopt geometry compression was applied, so it stays a plain glTF parseable by `GLTFLoader` with no extra decoder assets to ship for static hosting.
+
+`CoreModel.tsx` also works around one thing about the source export: its PBR material has fully metallic scalar factors baked in (metalness/roughness effectively 1.0), which reads as near-black with no environment map — this scene is lit with direct lights only (no HDRI, to keep the build self-contained), so the component pulls `metalness`/`roughness` down to values that still catch those lights directly, recenters the mesh on its own geometry bounding box (the export's pivot sits at the bottom, not the visual center), and reuses the baked basecolor texture as an `emissiveMap` so the painted-on cracks can brighten on hover/click/scroll instead of staying a flat baked image.
+
+If you regenerate or replace this asset, keep the export as a single mesh with `POSITION`/`NORMAL`/`TEXCOORD_0` + a `pbrMetallicRoughness` material (baseColor/normal/metallicRoughness textures) — `CoreModel.tsx`'s traversal expects exactly that shape. Re-run the same `gltf-transform` pipeline before committing a new version; nothing here needs to exceed a few MB.
