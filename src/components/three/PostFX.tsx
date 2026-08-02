@@ -48,10 +48,10 @@ export function PostFX({ highQuality }: { highQuality: boolean }) {
     <EffectComposer multisampling={highQuality ? 4 : 0}>
       <Bloom
         intensity={bloomIntensity}
-        luminanceThreshold={0.15}
-        luminanceSmoothing={0.35}
+        luminanceThreshold={0.32}
+        luminanceSmoothing={0.5}
         mipmapBlur
-        radius={0.85}
+        radius={0.7}
       />
       <ChromaticAberration
         offset={new THREE.Vector2(chromaOffset, chromaOffset * 0.6)}

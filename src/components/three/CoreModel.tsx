@@ -53,6 +53,11 @@ export function CoreModel() {
     // down to something that still catches those lights directly.
     material.metalness = 0.55;
     material.roughness = 0.32;
+    // Reflections come from the procedural Lightformer rig in
+    // HeroEnvironment (SphereScene.tsx), not a baked HDRI — dialed down
+    // from the default 1.0 so the metal picks up real specular streaks
+    // without washing out the emissive glow underneath.
+    material.envMapIntensity = 0.7;
     material.emissiveMap = material.map;
     material.emissive = new THREE.Color("#ff2a1a");
     material.emissiveIntensity = 0.12;
