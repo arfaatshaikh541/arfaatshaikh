@@ -16,17 +16,17 @@ import { SphereErrorBoundary } from "./SphereErrorBoundary";
 // bakes these Lightformer shapes into a small PMREM cubemap at runtime) so
 // the model's metal blades pick up real reflections instead of only flat
 // direct-light highlights. `background={false}` keeps it out of the visible
-// backdrop — it only feeds material reflections. Two-tone by design: a warm
-// rect above/behind echoes the core's own glow bouncing off the metal, a
-// cool thin rim strip to the side gives the blades a hard specular edge for
-// contrast, and a very dim ambient ring keeps the rest of each blade from
-// going flat black.
+// backdrop — it only feeds material reflections. A neutral white panel is
+// the dominant key light here so the metal's specular highlights read as
+// gunmetal, not tinted red; a small warm rect and a cool thin rim strip are
+// accents on top of that, not the main reflection source.
 function HeroEnvironment() {
   return (
     <Environment resolution={128} background={false}>
-      <Lightformer form="rect" intensity={3} color="#ff3a1a" position={[1.5, 2.5, 2]} scale={[5, 5, 1]} />
+      <Lightformer form="rect" intensity={2.4} color="#d8d8dc" position={[1.5, 2.5, 2]} scale={[5, 5, 1]} />
+      <Lightformer form="rect" intensity={0.9} color="#ff3a1a" position={[2, 1, 2.5]} scale={[2, 2, 1]} />
       <Lightformer form="rect" intensity={1.8} color="#3ac6ff" position={[-3, 0.5, 1.5]} scale={[0.5, 4, 1]} />
-      <Lightformer form="ring" intensity={0.5} color="#402018" position={[0, -3, -2]} scale={[6, 6, 1]} />
+      <Lightformer form="ring" intensity={0.4} color="#1c1c1e" position={[0, -3, -2]} scale={[6, 6, 1]} />
     </Environment>
   );
 }

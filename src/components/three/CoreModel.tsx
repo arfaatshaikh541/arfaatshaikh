@@ -60,7 +60,7 @@ export function CoreModel() {
     material.envMapIntensity = 0.7;
     material.emissiveMap = material.map;
     material.emissive = new THREE.Color("#ff2a1a");
-    material.emissiveIntensity = 0.12;
+    material.emissiveIntensity = 0.08;
     material.transparent = true;
     material.opacity = 1;
     material.needsUpdate = true;
@@ -84,7 +84,7 @@ export function CoreModel() {
       1.4 + sceneState.turbulence * 2.6 + sceneState.hoverIntensity * 1.6 + sceneState.pulseStrength * 3.5;
     const heartbeat = Math.pow(Math.max(0, Math.sin(state.clock.elapsedTime * heartbeatSpeed)), 3);
     const pulseAmplitude =
-      0.5 + sceneState.coreBrightness * 0.6 + sceneState.hoverIntensity * 0.9 + sceneState.pulseStrength * 1.8;
+      0.22 + sceneState.coreBrightness * 0.35 + sceneState.hoverIntensity * 0.9 + sceneState.pulseStrength * 1.8;
 
     if (material) {
       const heat =
@@ -92,7 +92,7 @@ export function CoreModel() {
         sceneState.hoverIntensity * 0.55 +
         sceneState.pulseStrength * 1.1;
       smoothedHeat.current = THREE.MathUtils.lerp(smoothedHeat.current, heat, 0.08);
-      material.emissiveIntensity = 0.12 + smoothedHeat.current + heartbeat * pulseAmplitude;
+      material.emissiveIntensity = 0.08 + smoothedHeat.current + heartbeat * pulseAmplitude;
       material.opacity = THREE.MathUtils.lerp(
         material.opacity,
         1 - sceneState.splitAmount * 0.7,
