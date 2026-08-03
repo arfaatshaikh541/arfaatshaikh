@@ -1,21 +1,4 @@
-const CAPABILITIES = [
-  "Artificial Intelligence",
-  "AI Agents",
-  "Business Automation",
-  "Custom Software",
-  "SaaS Development",
-  "Web Development",
-  "Immersive Web Experiences",
-  "Cybersecurity",
-  "Cloud Infrastructure",
-  "DevOps",
-  "CRM & ERP Systems",
-  "API Integrations",
-  "Data Dashboards",
-  "UI/UX & Product Design",
-  "Business Process Engineering",
-  "Digital Strategy",
-];
+import { capabilities } from "@/data/capabilities";
 
 export function CapabilitiesSection() {
   return (
@@ -30,7 +13,7 @@ export function CapabilitiesSection() {
       </div>
 
       <ul className="container-edge mt-12 flex flex-wrap gap-3">
-        {CAPABILITIES.map((item) => (
+        {capabilities.map((item) => (
           <li
             key={item}
             className="border border-[var(--color-line)] px-5 py-3 font-mono text-xs uppercase tracking-[0.08em] text-[var(--color-off-white)] transition-colors hover:border-[var(--color-blood-red)] hover:text-[var(--color-blood-red)]"

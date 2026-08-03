@@ -1,4 +1,6 @@
 import { siteConfig, absoluteUrl } from "@/lib/seo";
+import { capabilities } from "@/data/capabilities";
+import { services } from "@/data/services";
 import type { Article, Service, Project, FAQ } from "@/types";
 
 export function personSchema() {
@@ -24,6 +26,11 @@ export function personSchema() {
       "@type": "CollegeOrUniversity",
       name: "Bachelor's degree in Computer Science",
     },
+    // Real, already-published capability list (src/data/capabilities.ts) —
+    // not a fabricated skills claim, just the same content shown on the
+    // homepage's Capabilities section, in a form search engines can parse
+    // as entities rather than plain text.
+    knowsAbout: capabilities,
   };
 }
 
@@ -45,6 +52,23 @@ export function organizationSchema() {
     },
     description:
       "GRIDKEEP is a founder-led technology studio focused on AI, AI agents, automation, custom software, SaaS development, cybersecurity, cloud and DevOps, and immersive web experiences.",
+    // Real services from src/data/services.ts, each with its own indexable
+    // page — an OfferCatalog of what's actually offered, not a marketing
+    // flourish.
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: "Services",
+      itemListElement: services.map((service, index) => ({
+        "@type": "Offer",
+        position: index + 1,
+        itemOffered: {
+          "@type": "Service",
+          name: service.name,
+          description: service.tagline,
+          url: absoluteUrl(`/services/${service.slug}`),
+        },
+      })),
+    },
   };
 }
 
@@ -85,6 +109,24 @@ export function breadcrumbSchema(items: { name: string; path: string }[]) {
       position: index + 1,
       name: item.name,
       item: absoluteUrl(item.path),
+    })),
+  };
+}
+
+export function itemListSchema(
+  name: string,
+  items: { name: string; path: string; description?: string }[]
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      description: item.description,
+      url: absoluteUrl(item.path),
     })),
   };
 }

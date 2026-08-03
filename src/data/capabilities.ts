@@ -1,0 +1,18 @@
+export const capabilities: string[] = [
+  "Artificial Intelligence",
+  "AI Agents",
+  "Business Automation",
+  "Custom Software",
+  "SaaS Development",
+  "Web Development",
+  "Immersive Web Experiences",
+  "Cybersecurity",
+  "Cloud Infrastructure",
+  "DevOps",
+  "CRM & ERP Systems",
+  "API Integrations",
+  "Data Dashboards",
+  "UI/UX & Product Design",
+  "Business Process Engineering",
+  "Digital Strategy",
+];

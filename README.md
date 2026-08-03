@@ -1,6 +1,6 @@
 # Arfaat Shaikh — Creative Engineer Portfolio
 
-A cinematic, scroll-driven Next.js portfolio for Arfaat Shaikh (Creative Engineer, founder of GRIDKEEP). The centrepiece is a custom-shaded WebGL sphere — a cracked obsidian shell with a live plasma core — that transforms across nine chapters as the homepage scrolls, built with Three.js, React Three Fiber, and GSAP ScrollTrigger.
+A Next.js portfolio for Arfaat Shaikh (Creative Engineer, founder of GRIDKEEP). The centrepiece is a custom-shaded WebGL hero object — a cracked, heartbeat-pulsing metal shell over a real authored model — built with Three.js, React Three Fiber, and GSAP. The homepage is a standard stacked-sections layout (static hero → about → featured work → services → founder → GRIDKEEP → capabilities → philosophy → tech stack → contact) rather than a scroll-jacked narrative, so content is fully server-rendered and indexable without depending on scroll position or JS execution — see "SEO" below.
 
 ## Stack
 
@@ -39,7 +39,7 @@ src/
   components/
     layout/                Root layout chrome: SmoothScrollProvider, Footer
     navigation/             Nav (desktop + mobile), ScrollProgress, SocialRail, SectionRail
-    sections/               Homepage + shared page sections (ChapterScroll, ServiceOverview, ...)
+    sections/               Homepage + shared page sections (Hero, AboutSnapshot, ServiceOverview, ...)
     three/                  The 3D sphere system (see below)
     ui/                     PageHeader, Breadcrumbs, CtaLink
     seo/                    JsonLd (renders structured data <script> tags)
@@ -63,7 +63,7 @@ public/
 
 ### The 3D hero system (`src/components/three/`)
 
-The hero object is layered, not a single mesh:
+The hero object is layered, not a single mesh. It's mounted today by `src/components/sections/Hero.tsx`, a static, normal-flow section (text and a bounded canvas side by side, `<h1>` server-rendered like any other page) — not a scroll-jacked full-viewport pin. That means `sceneState`'s chapter-driven fields (`coreBrightness`, `turbulence`, `shellOpen`, etc., referenced throughout this section) simply sit at their constant module-level defaults from `src/lib/sceneStore.ts` for the whole visit; only `hoverIntensity`, `pulseStrength`, and gyro/pointer parallax actually change at runtime by default. The scroll-narrative wiring described below (`ChapterScroll.tsx` + `heroChapters.ts`) still exists and still works — it's just not what the homepage renders — kept in case a future page wants that treatment instead of, or alongside, the static hero.
 
 - **`CoreModel.tsx`** — the primary visual: a real authored model (`public/models/hero-core.glb`, ~32k triangles / 1.48 MB after optimization — see that folder's README for the full pipeline), loaded with `@react-three/drei`'s `useGLTF` inside a `<Suspense>` boundary. On load it recenters the mesh on its own geometry bounding box (the export's pivot sits at the bottom, not the visual center), normalizes its scale, pulls the baked material's metalness/roughness down from fully-metallic (which reads as near-black without an environment map — this scene is lit with direct lights only, no HDRI, to stay self-contained) to values that catch the scene's lights directly, and reuses its own basecolor texture as an `emissiveMap` so the painted-on cracks glow. That glow isn't a flat brightness value: a sharp, asymmetric "heartbeat" pulse (`Math.sin(...)` cubed, so it spends most of its time dark and spikes bright and fast rather than breathing smoothly) drives `emissiveIntensity` every frame, with both its speed and punch ramping up with scroll turbulence, hover, and click — calm at rest, increasingly frantic like it's straining toward detonation deeper into the more intense chapters. A faint scale throb in lockstep with the same heartbeat makes the whole object physically pulse on each beat. Also responds to `pulseStrength` (scale kick), `bladeOpen` (a subtle swell), and `splitAmount` (fades out for the Contact chapter's climax).
 - **`Flames.tsx`** / **`PlasmaColumn.tsx`** — camera-facing (`Billboard`) planes using hand-written `fireVertex.glsl` / `fireFragment.glsl`: noise-based flame shapes, additive blending, per-flame random flicker. Flame jets sit at five fixed directions around the model and push further outward as `sceneState.separation` increases in the more turbulent chapters.
@@ -81,9 +81,9 @@ The hero object is layered, not a single mesh:
 
 An earlier iteration built the shell, core, and blades as hand-written GLSL shaders and procedural geometry (no external assets at all, since no authored model existed yet) — that code is gone now that a real sculpted model is in place, but `src/shaders/` still has `fireVertex.glsl` / `fireFragment.glsl` / `noise.glsl` for the flame jets and plasma column, which remain fully procedural.
 
-**Scroll wiring** (`src/lib/sceneStore.ts` + `src/components/sections/ChapterScroll.tsx`): `sceneState` is a plain mutable object (deliberately *not* React state — it's read every frame in `useFrame`, and routing 60fps updates through React would be wasted re-renders). `CHAPTER_STATES` holds one target snapshot of `sceneState` per chapter (dormant → awakening → AI → automation → software → cybersecurity → cloud → GRIDKEEP → contact). A single `ScrollTrigger` spanning the whole hero wrapper calls `applyChapterProgress(progress, CHAPTER_STATES)` on every scroll tick, which lerps between the two nearest chapter snapshots — so the sphere transforms continuously, not via a snap/fade between fixed states. The hero copy for each chapter is a stacked, absolutely-positioned layer inside the same sticky viewport as the canvas; opacity/translate are set imperatively from the same scroll callback (not React state) for the same performance reason. Note that only the CTA link inside each chapter's copy layer is ever `pointer-events: auto` — the layer itself stays `pointer-events: none` so it never blocks hover/click from reaching the sphere underneath.
+**`sceneState`** (`src/lib/sceneStore.ts`) is a plain mutable object, deliberately *not* React state — it's read every frame in `useFrame`, and routing 60fps updates through React would be wasted re-renders. Hover, click, and gyro/pointer parallax all write to this *same* object, so they compose rather than conflict: a click pulse spikes `pulseStrength` on top of whatever `hoverIntensity` already is, and both feed into the model's heartbeat, the flames, the arcs, the lights, and bloom simultaneously.
 
-Hover, click, gyro, and scroll all write to the *same* `sceneState` object, so they compose rather than conflict: e.g. scrolling into a high-turbulence chapter while hovering adds the two brightness/turbulence contributions together, and a click pulse spikes on top of whatever the current chapter and hover state already are.
+**Scroll wiring (dormant by default)** — `ChapterScroll.tsx` + `heroChapters.ts`: `CHAPTER_STATES` holds one target snapshot of `sceneState` per chapter (dormant → awakening → AI → automation → software → cybersecurity → cloud → GRIDKEEP → contact). A `ScrollTrigger` spanning a full-viewport sticky wrapper calls `applyChapterProgress(progress, CHAPTER_STATES)` on every scroll tick, lerping between the two nearest snapshots so the object transforms continuously rather than snapping between fixed states, with each chapter's copy as a stacked, absolutely-positioned layer whose opacity/translate are set from the same scroll callback. This is a complete, working alternative to the static `Hero.tsx` — swap which one a page renders to get the cinematic scroll-narrative treatment back — but nothing on the current site calls `applyChapterProgress`, so `CHAPTER_STATES`' non-interaction fields never actually change today.
 
 **Why a raw-loader rule instead of importing `.glsl` as JS strings directly:** Turbopack (Next 16's default bundler) doesn't parse arbitrary file extensions out of the box. `next.config.ts` adds a `turbopack.rules` entry mapping `*.glsl` to `raw-loader` (an officially Turbopack-supported webpack loader) so every shader can live in its own real `.glsl` file and still be imported as a plain string in TypeScript — see `src/types/glsl.d.ts` for the matching module declaration.
 
@@ -92,7 +92,7 @@ Hover, click, gyro, and scroll all write to the *same* `sceneState` object, so t
 ## Routes
 
 ```
-/                          Cinematic homepage (9-chapter 3D hero + standard sections)
+/                          Homepage (static hero + about/value tiles + featured work + standard sections)
 /about
 /services                  Hub
 /services/[slug]           ai-automation · software-saas · cybersecurity · cloud-devops · web-experiences
@@ -113,15 +113,16 @@ Hover, click, gyro, and scroll all write to the *same* `sceneState` object, so t
 
 ## Content
 
-All page copy lives in typed data files under `src/data/` — `services.ts`, `projects.ts`, `insights.ts`, `heroChapters.ts` — so content changes never require touching a page template. Per the brief, nothing invented: no fake metrics, testimonials, client logos, awards, or years of experience. Project statuses use honest labels (`Concept` / `In Development` / `Internal Product` / `Client Platform`).
+All page copy lives in typed data files under `src/data/` — `services.ts`, `projects.ts`, `insights.ts`, `heroChapters.ts`, `techStack.ts`, `process.ts`, `capabilities.ts`, `valueProps.ts` — so content changes never require touching a page template. Per the brief, nothing invented: no fake metrics, testimonials, client logos, awards, or years of experience. Project statuses use honest labels (`Concept` / `In Development` / `Internal Product` / `Client Platform`). The homepage's "About Me" band (`AboutSnapshot.tsx`) makes this concrete: instead of a stat row of made-up numbers (years of experience, project counts, client counts), its four tiles (`valueProps.ts`) are qualitative capability claims — "Full-Stack," "AI-Native," and so on — that don't assert anything unverifiable.
 
 ## SEO
 
 - Per-page `Metadata` via `buildMetadata()` (`src/lib/seo.ts`): unique title/description, canonical URL, Open Graph + Twitter card.
-- JSON-LD via `<JsonLd />` + builders in `src/lib/schema.ts`: `Person`, `Organization`, `WebSite` (global, in `layout.tsx`), plus per-page `ProfilePage`, `Service`, `BreadcrumbList`, `Article`, `FAQPage`, `ContactPage`, `CreativeWork`.
-- `src/app/sitemap.ts` and `src/app/robots.ts` (Next.js file-convention, generate real `sitemap.xml` / `robots.txt`).
+- JSON-LD via `<JsonLd />` + builders in `src/lib/schema.ts`: `Person` (with `knowsAbout` listing the real capabilities from `src/data/capabilities.ts`), `Organization` (with a `hasOfferCatalog` of real services from `src/data/services.ts`), `WebSite` (all three global, in `layout.tsx`), plus per-page `ProfilePage`, `Service`, `BreadcrumbList`, `Article`, `FAQPage`, `ContactPage`, `CreativeWork`, and a generic `itemListSchema()` used on the homepage for its services and featured-projects lists.
+- `src/app/sitemap.ts` and `src/app/robots.ts` (Next.js file-convention, generate real `sitemap.xml` / `robots.txt`) — every real route, including dynamic service/project/article slugs and `/tech-stack` and `/process`.
 - `src/app/opengraph-image.tsx` generates a real branded PNG (via `next/og`) as the default social preview image for any page that doesn't set its own.
-- All 3D-hero copy (headlines, descriptions, CTAs) is real server-rendered HTML layered over the canvas — nothing meaningful is locked inside WebGL.
+- The homepage hero (`Hero.tsx`) is a normal server-rendered section — a real `<h1>`, paragraph, and links in the initial HTML, with the WebGL canvas as a `next/dynamic(..., { ssr: false })` chunk beside it rather than something the text is painted over. That's a deliberate Core Web Vitals choice as much as an SEO one: the LCP candidate is text that's already in the document, not gated behind a canvas boot, and there's no `ScrollTrigger`-pinned multi-viewport-height wrapper on the homepage doing layout/scroll work on every tick.
+- All 3D-hero copy (headlines, descriptions, CTAs) is real HTML — nothing meaningful is locked inside WebGL, on either the static `Hero.tsx` or the dormant `ChapterScroll.tsx` alternative.
 
 ## Contact form
 
