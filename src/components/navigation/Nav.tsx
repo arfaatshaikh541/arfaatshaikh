@@ -15,8 +15,25 @@ const NAV_LINKS = [
   { label: "Projects", href: "/projects" },
   { label: "GRIDKEEP", href: "/gridkeep" },
   { label: "Insights", href: "/insights" },
+  { label: "Tech Stack", href: "/tech-stack" },
+  { label: "Process", href: "/process" },
   { label: "Contact", href: "/contact" },
 ];
+
+function LogoMark() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="30"
+      height="30"
+      viewBox="0 0 30 30"
+      className="shrink-0"
+    >
+      <path d="M15 2 L27 26 L19 26 L15 17 L11 26 L3 26 Z" fill="var(--color-blood-red)" />
+      <path d="M15 2 L27 26 L19 26 L15 17 Z" fill="var(--color-hot-red)" opacity="0.55" />
+    </svg>
+  );
+}
 
 export function Nav() {
   const pathname = usePathname();
@@ -72,11 +89,16 @@ export function Nav() {
     <header className="fixed inset-x-0 top-0 z-[100]">
       <ScrollProgress />
       <div className="container-edge flex h-16 items-center justify-between border-b border-[var(--color-line)] bg-black/70 backdrop-blur-md md:h-20">
-        <Link
-          href="/"
-          className="font-display text-xl uppercase tracking-wide text-[var(--color-off-white)] md:text-2xl"
-        >
-          Arfaat<span className="text-[var(--color-blood-red)]">.</span>
+        <Link href="/" className="flex items-center gap-2.5">
+          <LogoMark />
+          <span className="flex flex-col leading-none">
+            <span className="font-display text-lg uppercase tracking-wide text-[var(--color-off-white)] md:text-xl">
+              Arfaat<span className="text-[var(--color-blood-red)]">.</span>
+            </span>
+            <span className="hidden font-mono text-[9px] uppercase tracking-[0.3em] text-[var(--color-muted)] sm:block">
+              Shaikh
+            </span>
+          </span>
         </Link>
 
         <nav
@@ -92,7 +114,7 @@ export function Nav() {
                   aria-controls="services-menu"
                   onClick={() => setServicesOpen((v) => !v)}
                   className={cn(
-                    "flex items-center gap-1 rounded px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-off-white)]",
+                    "flex items-center gap-1 rounded px-2.5 py-2 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-off-white)] xl:px-3 xl:text-xs xl:tracking-[0.12em]",
                     isActive(link.href) && "text-[var(--color-off-white)]"
                   )}
                 >
@@ -153,7 +175,7 @@ export function Nav() {
                 href={link.href}
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
-                  "relative rounded px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-off-white)]",
+                  "relative rounded px-2.5 py-2 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--color-muted)] transition-colors hover:text-[var(--color-off-white)] xl:px-3 xl:text-xs xl:tracking-[0.12em]",
                   isActive(link.href) && "text-[var(--color-off-white)]"
                 )}
               >
@@ -169,7 +191,7 @@ export function Nav() {
         <button
           ref={mobileToggleRef}
           type="button"
-          className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 lg:hidden"
+          className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full border border-[var(--color-line)] transition-colors hover:border-[var(--color-blood-red)] lg:hidden"
           aria-expanded={mobileOpen}
           aria-controls="mobile-menu"
           aria-label={mobileOpen ? "Close menu" : "Open menu"}

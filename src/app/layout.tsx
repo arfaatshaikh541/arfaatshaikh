@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Big_Shoulders } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/navigation/Nav";
+import { SocialRail } from "@/components/navigation/SocialRail";
+import { SectionRail } from "@/components/navigation/SectionRail";
 import { Footer } from "@/components/layout/Footer";
 import { SmoothScrollProvider } from "@/components/layout/SmoothScrollProvider";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -68,6 +70,8 @@ export default function RootLayout({
         </a>
         <SmoothScrollProvider>
           <Nav />
+          <SocialRail />
+          <SectionRail />
           <main id="main-content" className="flex-1">
             {children}
           </main>

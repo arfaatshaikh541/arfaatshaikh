@@ -38,13 +38,14 @@ src/
   app/                     Routes (App Router). See "Routes" below.
   components/
     layout/                Root layout chrome: SmoothScrollProvider, Footer
-    navigation/             Nav (desktop + mobile), ScrollProgress
+    navigation/             Nav (desktop + mobile), ScrollProgress, SocialRail, SectionRail
     sections/               Homepage + shared page sections (ChapterScroll, ServiceOverview, ...)
     three/                  The 3D sphere system (see below)
     ui/                     PageHeader, Breadcrumbs, CtaLink
     seo/                    JsonLd (renders structured data <script> tags)
     forms/                  ContactForm
-  data/                    Typed content: services.ts, projects.ts, insights.ts, heroChapters.ts
+  data/                    Typed content: services.ts, projects.ts, insights.ts, heroChapters.ts,
+                           techStack.ts, process.ts
   lib/                     seo.ts (metadata builder), schema.ts (JSON-LD builders), sceneStore.ts,
                            contact.ts (shared form validation), utils.ts
   shaders/                 Raw .glsl source, imported via a Turbopack raw-loader rule
@@ -56,6 +57,10 @@ public/
                                           exactly what to drop in and where to wire it up
 ```
 
+### Persistent chrome (`src/components/navigation/`)
+
+`SocialRail.tsx` and `SectionRail.tsx` are fixed-position elements mounted globally in `layout.tsx` (left edge: a "Scroll" label + email icon; right edge: a numbered Home/About/Services/Projects/Contact quick-nav that highlights the current section). Both are hidden below the `2xl` breakpoint — `container-edge`'s padding is capped at `5rem`, and the rails need that full margin to clear wide grid content (e.g. `/tech-stack`'s two-column cards) without overlapping it, so they only show once the viewport is wide enough to guarantee the gap. `SocialRail` only renders an email icon, deliberately — LinkedIn/GitHub/Instagram icons would need real profile URLs, and (per this project's brief) nothing gets invented, dead `#` links included.
+
 ### The 3D hero system (`src/components/three/`)
 
 The hero object is layered, not a single mesh:
@@ -65,6 +70,7 @@ The hero object is layered, not a single mesh:
 - **`ElectricArcs.tsx`** — 6 procedural lightning bolts arcing around the core, generated with classic recursive midpoint displacement and re-rolled every ~90ms for a flicker (not a smooth glide). Reach grows with `sceneState.shellOpen`; intensity scales with scroll turbulence, hover, and click pulses.
 - **`Particles.tsx`** — two `THREE.Points` fields (smoke + embers) sharing one canvas-generated soft-dot texture (no external image), with lower counts on narrow viewports.
 - **`OrbitRings.tsx`** — segmented (non-continuous) rings with small emissive nodes for the Cloud/DevOps chapter — deliberately not a "Saturn ring."
+- **`Pedestal.tsx`** — a glowing platform beneath the hero object: concentric flat rings, a ring of tick marks, and a beam (a flipped, re-centered `ConeGeometry` so its sharp point touches the platform and it widens going back up toward the model) — all `meshBasicMaterial` with additive blending, no textures or shaders. Sits as a sibling in `SphereRig`'s rotating group (not nested inside `CoreModel`'s own scaled group), so it stays a fixed offset below the model regardless of the model's own heartbeat/swell scale animation.
 - **`HoverPulseController.tsx`** — an invisible (opacity-0 but still raycastable) hit-test sphere using r3f's built-in pointer events for hover (ramps `sceneState.hoverIntensity`) and click (a GSAP "energy pulse": a quick spike in `sceneState.pulseStrength` plus a small camera punch-in via `pulseZOffset`), both consumed by the model, flames, arcs, lights, and bloom.
 - **`Lighting.tsx`** — ambient + two directional key lights (one warm rim fill) + two flickering internal red point lights + a rim light, all boosted by hover/pulse alongside `coreBrightness`.
 - **`HeroEnvironment`** (in `SphereScene.tsx`) — a fully procedural reflection environment via `@react-three/drei`'s `<Environment>` + `<Lightformer>`: a warm rect panel and a cool thin strip baked into a small PMREM cubemap entirely at runtime (`resolution={128}`, `background={false}`), no HDRI file and no network fetch. This is what gives `CoreModel`'s metal blades real specular reflections instead of only flat direct-light highlights — `material.envMapIntensity` on the model is dialed down from the default 1.0 so it reads as reflective without washing out the emissive glow.
@@ -95,6 +101,8 @@ Hover, click, gyro, and scroll all write to the *same* `sceneState` object, so t
 /gridkeep
 /insights                  Hub
 /insights/[slug]           6 original articles
+/tech-stack                Full technology stack by category
+/process                   How an engagement actually runs, step by step
 /contact                   Form -> public/contact-handler.php (see "Contact form" below)
 /privacy
 /terms

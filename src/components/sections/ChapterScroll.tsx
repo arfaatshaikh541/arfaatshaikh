@@ -49,12 +49,11 @@ export function ChapterScroll() {
           // so it never blocks hover/click on the 3D sphere beneath it —
           // only the CTA link inside becomes interactive when reachable.
           const isReachable = opacity > 0.4;
-          const link = el.querySelector<HTMLAnchorElement>("a");
-          if (link) {
+          el.querySelectorAll<HTMLAnchorElement>("a").forEach((link) => {
             link.style.pointerEvents = isReachable ? "auto" : "none";
             if (isReachable) link.removeAttribute("tabindex");
             else link.setAttribute("tabindex", "-1");
-          }
+          });
         });
 
         if (scrollCueRef.current) {
@@ -104,17 +103,33 @@ export function ChapterScroll() {
               <p className="mt-6 max-w-lg text-base leading-relaxed text-[var(--color-muted)] md:text-lg">
                 {chapter.description}
               </p>
-              {chapter.cta && (
-                <Link
-                  href={chapter.cta.href}
-                  tabIndex={index === 0 ? undefined : -1}
-                  className="group mt-8 inline-flex w-fit items-center gap-3 border border-[var(--color-line)] px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] text-[var(--color-off-white)] transition-colors hover:border-[var(--color-blood-red)] hover:text-[var(--color-blood-red)]"
-                >
-                  {chapter.cta.label}
-                  <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
-                    →
-                  </span>
-                </Link>
+              {(chapter.cta || chapter.secondaryCta) && (
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  {chapter.cta && (
+                    <Link
+                      href={chapter.cta.href}
+                      tabIndex={index === 0 ? undefined : -1}
+                      className="group inline-flex w-fit items-center gap-3 border border-[var(--color-blood-red)] bg-[var(--color-blood-red)] px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] text-black transition-colors hover:bg-transparent hover:text-[var(--color-blood-red)]"
+                    >
+                      {chapter.cta.label}
+                      <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+                        →
+                      </span>
+                    </Link>
+                  )}
+                  {chapter.secondaryCta && (
+                    <Link
+                      href={chapter.secondaryCta.href}
+                      tabIndex={index === 0 ? undefined : -1}
+                      className="group inline-flex w-fit items-center gap-3 border border-[var(--color-line)] px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] text-[var(--color-off-white)] transition-colors hover:border-[var(--color-blood-red)] hover:text-[var(--color-blood-red)]"
+                    >
+                      {chapter.secondaryCta.label}
+                      <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">
+                        →
+                      </span>
+                    </Link>
+                  )}
+                </div>
               )}
             </div>
           ))}

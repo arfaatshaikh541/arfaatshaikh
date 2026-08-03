@@ -10,6 +10,7 @@ import { PlasmaColumn } from "./PlasmaColumn";
 import { CoreModel } from "./CoreModel";
 import { ElectricArcs } from "./ElectricArcs";
 import { HoverPulseController } from "./HoverPulseController";
+import { Pedestal } from "./Pedestal";
 
 export function SphereRig() {
   const groupRef = useRef<THREE.Group>(null);
@@ -39,6 +40,7 @@ export function SphereRig() {
       <ElectricArcs />
       <OrbitRings />
       <PlasmaColumn />
+      <Pedestal />
       <HoverPulseController />
     </group>
   );

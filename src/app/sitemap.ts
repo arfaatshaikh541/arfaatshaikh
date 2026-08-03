@@ -16,6 +16,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${siteConfig.url}/projects`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: `${siteConfig.url}/gridkeep`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${siteConfig.url}/insights`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${siteConfig.url}/tech-stack`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${siteConfig.url}/process`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${siteConfig.url}/contact`, lastModified: now, changeFrequency: "yearly", priority: 0.6 },
     { url: `${siteConfig.url}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
     { url: `${siteConfig.url}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },

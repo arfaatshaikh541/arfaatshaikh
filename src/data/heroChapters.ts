@@ -4,6 +4,7 @@ export interface HeroChapter {
   title: string;
   description: string;
   cta?: { label: string; href: string };
+  secondaryCta?: { label: string; href: string };
 }
 
 export const heroChapters: HeroChapter[] = [
@@ -13,6 +14,8 @@ export const heroChapters: HeroChapter[] = [
     title: "Something is\nbuilt to wake.",
     description:
       "Based in the United Arab Emirates. Founder of GRIDKEEP. I build the systems that most companies are afraid to build.",
+    cta: { label: "Explore my work", href: "/projects" },
+    secondaryCta: { label: "Let's connect", href: "/contact" },
   },
   {
     id: "awakening",

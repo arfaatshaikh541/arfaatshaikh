@@ -58,6 +58,8 @@ export function Footer() {
               { label: "Projects", href: "/projects" },
               { label: "GRIDKEEP", href: "/gridkeep" },
               { label: "Insights", href: "/insights" },
+              { label: "Tech Stack", href: "/tech-stack" },
+              { label: "Process", href: "/process" },
               { label: "Contact", href: "/contact" },
               { label: "Privacy Policy", href: "/privacy" },
               { label: "Terms & Conditions", href: "/terms" },
