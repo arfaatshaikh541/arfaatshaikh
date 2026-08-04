@@ -138,6 +138,51 @@ function Beam() {
   );
 }
 
+// A ring that's invisible at rest and only appears on click — expanding
+// outward past the outermost FlatRing and fading as it goes, like an
+// impact wave rippling out from the model. Detects the click by watching
+// for pulseStrength's rising edge (HoverPulseController spikes it to 1 in
+// ~0.1s) rather than owning its own trigger, so it stays in lockstep with
+// every other pulse-driven reaction without a second event wire-up.
+function Shockwave() {
+  const ref = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const prevPulse = useRef(0);
+  const elapsed = useRef(Infinity);
+  const DURATION = 1.1;
+
+  useFrame((_, delta) => {
+    if (sceneState.pulseStrength > prevPulse.current + 0.3) {
+      elapsed.current = 0;
+    }
+    prevPulse.current = sceneState.pulseStrength;
+
+    if (elapsed.current <= DURATION) {
+      const t = elapsed.current / DURATION;
+      if (ref.current) ref.current.scale.setScalar(0.4 + t * 3.2);
+      if (materialRef.current) materialRef.current.opacity = (1 - t) * 0.85;
+      elapsed.current += delta;
+    } else if (materialRef.current) {
+      materialRef.current.opacity = 0;
+    }
+  });
+
+  return (
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.95, 1, 72]} />
+      <meshBasicMaterial
+        ref={materialRef}
+        color="#ff3b20"
+        transparent
+        opacity={0}
+        side={THREE.DoubleSide}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
 export function Pedestal() {
   return (
     <group position={[0, PLATFORM_Y, 0]}>
@@ -147,6 +192,7 @@ export function Pedestal() {
       <FlatRing radius={1.7} thickness={0.006} speed={-0.03} opacity={0.28} />
       <TickMarks radius={1.7} count={28} />
       <Beam />
+      <Shockwave />
     </group>
   );
 }

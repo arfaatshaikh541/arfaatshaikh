@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
+import { playHeroIntro } from "./HeroIntro";
 
 const MODEL_PATH = "/models/hero-core.glb";
 // The model's ball-and-blade silhouette, scaled so its longest axis lands
@@ -66,6 +67,11 @@ export function CoreModel() {
     material.needsUpdate = true;
     materialRef.current = material;
 
+    // The model is only ever visible from this point on — Suspense keeps
+    // this whole component unmounted until the GLB resolves, so this is
+    // the first moment there's actually a mesh for the intro to animate.
+    playHeroIntro();
+
     const maxDimension = Math.max(size.x, size.y, size.z) || 1;
     return TARGET_DIAMETER / maxDimension;
   }, [scene]);
@@ -109,7 +115,7 @@ export function CoreModel() {
         sceneState.bladeOpen * 0.06 +
         sceneState.pulseStrength * 0.05 +
         heartbeat * 0.025 * (0.4 + sceneState.hoverIntensity + sceneState.pulseStrength);
-      group.scale.setScalar(scale * swell);
+      group.scale.setScalar(scale * swell * sceneState.introScale);
     }
   });
 

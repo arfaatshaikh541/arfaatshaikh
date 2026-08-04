@@ -33,6 +33,10 @@ export const sceneState = {
   hoverIntensity: 0,
   pulseStrength: 0,
   pulseZOffset: 0,
+
+  // Played once by HeroIntro on mount, from a near-zero starting value up
+  // to 1 — also excluded from CHAPTER_KEYS so scroll never touches it.
+  introScale: 1,
 };
 
 export type SceneState = typeof sceneState;

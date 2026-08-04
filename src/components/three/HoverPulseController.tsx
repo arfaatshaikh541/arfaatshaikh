@@ -35,7 +35,8 @@ export function HoverPulseController() {
     gsap.killTweensOf(sceneState);
 
     const pulseDuration = prefersReducedMotion.current ? 0.4 : 1;
-    const punchAmount = prefersReducedMotion.current ? -0.08 : -0.45;
+    const punchAmount = prefersReducedMotion.current ? -0.08 : -0.55;
+    const chromaSpike = prefersReducedMotion.current ? 0.15 : 1.5;
 
     gsap
       .timeline()
@@ -46,6 +47,14 @@ export function HoverPulseController() {
       .timeline()
       .to(sceneState, { pulseZOffset: punchAmount, duration: 0.14, ease: "power2.out" })
       .to(sceneState, { pulseZOffset: 0, duration: 0.8, ease: "elastic.out(1, 0.55)" });
+
+    // A brief RGB-split glitch on impact — settles back well before the
+    // slower bloom/beam/shockwave reactions finish, so it reads as the
+    // sharp leading edge of the hit rather than a lingering effect.
+    gsap
+      .timeline()
+      .to(sceneState, { chromaticAb: chromaSpike, duration: 0.08, ease: "power2.out" })
+      .to(sceneState, { chromaticAb: 0.1, duration: 0.5, ease: "power3.out" });
   };
 
   const onEnter = (event: ThreeEvent<PointerEvent>) => {
