@@ -6,14 +6,19 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
 import { playHeroIntro } from "./HeroIntro";
+import { Fireball } from "./Fireball";
 import noiseGLSL from "@/shaders/noise.glsl";
 
 const MODEL_PATH = "/models/hero-core-v2.glb";
 // The model's ball-and-blade silhouette, scaled so its longest axis lands
 // here. The procedural outer shell has a 1.72 radius (3.44 diameter) — this
 // is sized to read as the dominant sculptural layer around/beyond it, with
-// the shell, core, and particles glowing through its natural gaps.
-const TARGET_DIAMETER = 4.3;
+// the shell, core, and particles glowing through its natural gaps. Sized
+// down from an earlier 4.3: combined with the wing-drift below, that
+// footprint was tall enough to clip against the hero canvas's own
+// overflow-hidden bounds at common viewport sizes — the blade tips just
+// vanished mid-shape instead of fitting inside the frame.
+const TARGET_DIAMETER = 3.6;
 
 // This asset is a genuinely multi-part sculpt (14 separate meshes, named
 // tripo_part_0..13 by the tool that generated it) rather than one baked
@@ -39,7 +44,7 @@ export function CoreModel() {
   const groupRef = useRef<THREE.Group>(null);
   const coreMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const coreShaderRef = useRef<THREE.WebGLProgramParametersWithUniforms | null>(null);
-  const glowMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const fireballIntensity = useRef(0);
   const driftPartsRef = useRef<DriftEntry[]>([]);
   const smoothedHeat = useRef(0);
   const fireTime = useRef(0);
@@ -202,16 +207,14 @@ export function CoreModel() {
       material.emissiveIntensity = CRACK_GLOW_BOOST * (0.08 + smoothedHeat.current + heartbeat * pulseAmplitude);
     }
 
-    if (glowMaterialRef.current) {
-      // A soft additive glow sitting just inside the core mesh — the
-      // crack shader above lights the shell's surface, but a sphere the
-      // light can bleed through (rather than only sit on) is what makes
-      // it read as fire INSIDE the thing rather than a lit-up rind. Kept
-      // small and dim relative to the shell — this is meant to peek
-      // through the cracks, not wash out the whole model under bloom.
-      const glow = 0.1 + smoothedHeat.current * 0.55 + heartbeat * pulseAmplitude * 0.4;
-      glowMaterialRef.current.opacity = THREE.MathUtils.clamp(glow, 0, 0.65);
-    }
+    // Drives the Fireball's brightness — same heartbeat math as the crack
+    // shader so both read as the same fire, just one lighting the shell's
+    // surface and the other actually filling the volume behind it.
+    fireballIntensity.current = THREE.MathUtils.clamp(
+      0.35 + smoothedHeat.current * 0.8 + heartbeat * pulseAmplitude * 0.6,
+      0,
+      1.4
+    );
 
     if (coreShaderRef.current) {
       // Fire speeds up right along with the heartbeat — calm embers at
@@ -230,9 +233,12 @@ export function CoreModel() {
     // as one rigid piece. Driven by hover/click, plus a scroll
     // contribution riding on bladeOpen (HeroScrollParallax's own signal,
     // rest value 0.08) — so scrolling the hero out of view pulls the
-    // wings apart the same way interacting with it does.
-    const scrollDrift = Math.max(0, sceneState.bladeOpen - 0.08) * 1.5;
-    const driftAmount = scrollDrift + sceneState.hoverIntensity * 0.16 + sceneState.pulseStrength * 0.42;
+    // wings apart the same way interacting with it does. Reined in from
+    // an earlier pass whose peak separation, combined with the model's
+    // own footprint, pushed blade tips past the hero canvas's clipped
+    // bounds at common viewport sizes.
+    const scrollDrift = Math.max(0, sceneState.bladeOpen - 0.08) * 1.0;
+    const driftAmount = scrollDrift + sceneState.hoverIntensity * 0.11 + sceneState.pulseStrength * 0.3;
     for (const { mesh, direction, driftScale } of driftPartsRef.current) {
       mesh.position.lerp(
         direction.clone().multiplyScalar(driftAmount * driftScale),
@@ -256,17 +262,7 @@ export function CoreModel() {
   return (
     <group ref={groupRef} scale={scale}>
       <primitive object={scene} />
-      <mesh position={glowPosition} scale={glowRadius * 0.55}>
-        <sphereGeometry args={[1, 24, 24]} />
-        <meshBasicMaterial
-          ref={glowMaterialRef}
-          color="#ff5a2a"
-          transparent
-          opacity={0}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
+      <Fireball position={glowPosition} radius={glowRadius} intensityRef={fireballIntensity} />
     </group>
   );
 }
