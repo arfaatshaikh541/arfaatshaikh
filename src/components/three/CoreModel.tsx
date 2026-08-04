@@ -6,6 +6,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
 import { playHeroIntro } from "./HeroIntro";
+import noiseGLSL from "@/shaders/noise.glsl";
 
 const MODEL_PATH = "/models/hero-core-v2.glb";
 // The model's ball-and-blade silhouette, scaled so its longest axis lands
@@ -37,8 +38,10 @@ export function CoreModel() {
   const { scene } = useGLTF(MODEL_PATH);
   const groupRef = useRef<THREE.Group>(null);
   const coreMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
+  const coreShaderRef = useRef<THREE.WebGLProgramParametersWithUniforms | null>(null);
   const driftPartsRef = useRef<DriftEntry[]>([]);
   const smoothedHeat = useRef(0);
+  const fireTime = useRef(0);
 
   // One-time setup derived from the loaded asset: recenter the whole rig
   // on its own combined geometry, compute a normalized scale, assign a
@@ -86,11 +89,30 @@ export function CoreModel() {
       emissiveIntensity: 0.08,
       vertexColors: true,
     });
+    // Fire inside the cracks: the cavity mask alone (a static multiply)
+    // reads as a lit vein, not flame — this adds actual motion, sampling
+    // fbm noise in the model's own local space so it flows upward and
+    // flickers over time, still confined to the cracks by the same
+    // vColor.r mask.
     coreMaterial.onBeforeCompile = (shader) => {
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "#include <emissivemap_fragment>",
-        "#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor.r;"
-      );
+      shader.uniforms.uTime = { value: 0 };
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vLocalPos;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvLocalPos = position;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>\nvarying vec3 vLocalPos;\nuniform float uTime;\n${noiseGLSL}`
+        )
+        .replace(
+          "#include <emissivemap_fragment>",
+          `#include <emissivemap_fragment>
+           float fireFlow = fbm(vLocalPos * 5.5 + vec3(0.0, -uTime * 0.7, 0.0), 4);
+           float fireFlicker = fbm(vLocalPos * 11.0 + vec3(uTime * 1.3, 0.0, 0.0), 2);
+           float fire = clamp(0.5 + fireFlow * 0.4 + fireFlicker * 0.25, 0.0, 1.4);
+           totalEmissiveRadiance *= vColor.r * fire;`
+        );
+      coreShaderRef.current = shader;
     };
     coreMaterialRef.current = coreMaterial;
 
@@ -132,7 +154,7 @@ export function CoreModel() {
     return TARGET_DIAMETER / maxDimension;
   }, [scene]);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const material = coreMaterialRef.current;
     const group = groupRef.current;
     const t = state.clock.elapsedTime;
@@ -158,6 +180,15 @@ export function CoreModel() {
       // as barely-there — boosted so the veins actually read as molten.
       const CRACK_GLOW_BOOST = 4.5;
       material.emissiveIntensity = CRACK_GLOW_BOOST * (0.08 + smoothedHeat.current + heartbeat * pulseAmplitude);
+    }
+
+    if (coreShaderRef.current) {
+      // Fire speeds up right along with the heartbeat — calm embers at
+      // rest, roiling flame under hover/click. Accumulated by delta
+      // (not derived from elapsedTime directly) so the speed can change
+      // smoothly without the noise field jumping/snapping.
+      fireTime.current += delta * (1 + sceneState.hoverIntensity * 0.6 + sceneState.pulseStrength * 1.2);
+      coreShaderRef.current.uniforms.uTime.value = fireTime.current;
     }
 
     // The wings drift outward along each part's own resting direction —
