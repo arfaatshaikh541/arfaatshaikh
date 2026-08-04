@@ -54,31 +54,44 @@ export function CoreModel() {
     const center = overallBox.getCenter(new THREE.Vector3());
     const size = overallBox.getSize(new THREE.Vector3());
 
-    // Polished-chrome response matched to the reference art: high
-    // metalness and low roughness so the HeroEnvironment Lightformer rig
-    // carries real specular streaks across the blades.
+    // Brushed-titanium response, not a mirror ball: enough metalness and
+    // clearcoat to read as polished, but roughened up and toned down from
+    // an earlier pass that blew out to near-white under the key light and
+    // read as a toy. Cooler gunmetal base instead of near-white silver.
     const chromeMaterial = new THREE.MeshPhysicalMaterial({
-      color: "#c9cdd4",
-      metalness: 0.88,
-      roughness: 0.24,
-      clearcoat: 0.35,
-      clearcoatRoughness: 0.2,
-      envMapIntensity: 1.1,
-    });
-    // The core sphere has no texture to fall back on — its cracked look
-    // comes entirely from the sculpted grooves catching light, plus a
-    // flat emissive tint animated the same way the old baked-texture
-    // model's emissive map was (heartbeat pulse in useFrame below).
-    const coreMaterial = new THREE.MeshPhysicalMaterial({
-      color: "#0d0906",
-      metalness: 0.65,
-      roughness: 0.32,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.22,
+      color: "#8f959c",
+      metalness: 0.85,
+      roughness: 0.34,
+      clearcoat: 0.22,
+      clearcoatRoughness: 0.32,
       envMapIntensity: 0.9,
-      emissive: new THREE.Color("#ff2a1a"),
-      emissiveIntensity: 0.08,
     });
+    // The core sphere has no texture to fall back on. Its geometry is
+    // sculpted with real crack grooves, though, so the asset-prep pipeline
+    // (see public/models/README.md) bakes a per-vertex "cavity" value into
+    // COLOR_0 by comparing each vertex's neighboring face normals — flat
+    // areas agree and land near 0, sharp crease lines disagree and spike
+    // toward 1. onBeforeCompile below multiplies the emissive by that
+    // value, so the glow only ever shows up IN the cracks — dark obsidian
+    // everywhere else — instead of the whole sphere reading as a solid
+    // glowing ball.
+    const coreMaterial = new THREE.MeshPhysicalMaterial({
+      color: "#0a0605",
+      metalness: 0.55,
+      roughness: 0.42,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.35,
+      envMapIntensity: 0.55,
+      emissive: new THREE.Color("#ff3018"),
+      emissiveIntensity: 0.08,
+      vertexColors: true,
+    });
+    coreMaterial.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <emissivemap_fragment>",
+        "#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor.r;"
+      );
+    };
     coreMaterialRef.current = coreMaterial;
 
     const drift: DriftEntry[] = [];
@@ -139,7 +152,12 @@ export function CoreModel() {
       const heat =
         sceneState.coreBrightness * 0.22 + sceneState.hoverIntensity * 0.55 + sceneState.pulseStrength * 1.1;
       smoothedHeat.current = THREE.MathUtils.lerp(smoothedHeat.current, heat, 0.08);
-      material.emissiveIntensity = 0.08 + smoothedHeat.current + heartbeat * pulseAmplitude;
+      // Now that the emissive only lights the cavity-masked crack lines
+      // (a small fraction of the sphere's surface) instead of the whole
+      // ball, the same intensity that used to read as a solid glow reads
+      // as barely-there — boosted so the veins actually read as molten.
+      const CRACK_GLOW_BOOST = 4.5;
+      material.emissiveIntensity = CRACK_GLOW_BOOST * (0.08 + smoothedHeat.current + heartbeat * pulseAmplitude);
     }
 
     // The wings drift outward along each part's own resting direction —

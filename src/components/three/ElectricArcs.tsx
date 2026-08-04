@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
 
-const ARC_COUNT = 6;
+const ARC_COUNT = 4;
 const SEGMENT_ITERATIONS = 4;
 const REGEN_INTERVAL = 0.09; // seconds between reshuffling arc paths — gives a flicker, not a smooth glide
 
@@ -33,7 +33,7 @@ function displaceMidpoints(points: THREE.Vector3[], wildness: number): THREE.Vec
 
 function generateArcPositions(start: THREE.Vector3, end: THREE.Vector3): Float32Array {
   let points = [start, end];
-  let wildness = 0.55;
+  let wildness = 0.32;
   for (let i = 0; i < SEGMENT_ITERATIONS; i++) {
     points = displaceMidpoints(points, wildness);
     wildness *= 0.55;
@@ -101,10 +101,10 @@ export function ElectricArcs() {
 
   useFrame((_, delta) => {
     const targetOpacity = THREE.MathUtils.clamp(
-      0.12 +
-        sceneState.turbulence * 0.25 +
-        sceneState.hoverIntensity * 0.5 +
-        sceneState.pulseStrength * 0.8,
+      0.035 +
+        sceneState.turbulence * 0.12 +
+        sceneState.hoverIntensity * 0.4 +
+        sceneState.pulseStrength * 0.85,
       0,
       1
     );
