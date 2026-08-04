@@ -142,10 +142,30 @@ export function CoreModel() {
       // size for the glow sphere (this is why it briefly filled the screen).
       if (name === CORE_PART) {
         child.material = coreMaterial;
+        // The two blades don't form a closed cage — at most azimuthal
+        // viewing angles a real arc of the sphere sits outside their
+        // coverage regardless of vertical position (that part is handled
+        // by SphereRig constraining rotation to a curated safe arc
+        // instead of a full spin). Shrinking the core slightly gives
+        // extra margin within that arc rather than fighting the geometry
+        // at 1:1 scale. multiplyScalar, not setScalar: this asset's
+        // geometry is quantized, and GLTFLoader bakes the dequantization
+        // factor into this exact node's own `scale` — overwriting it
+        // (setScalar) discards that and the mesh balloons to the
+        // *normalized* geometry's size instead of the real one.
+        child.scale.multiplyScalar(0.88);
         const coreBox = new THREE.Box3().setFromObject(child);
         const coreSize = coreBox.getSize(new THREE.Vector3());
         corePosition = coreBox.getCenter(new THREE.Vector3()).sub(center);
         coreRadius = Math.max(coreSize.x, coreSize.y, coreSize.z) / 2;
+        // The sphere's own center sits almost exactly at the model's
+        // vertical midpoint, but the two blades only really "close over"
+        // it below their own crown — nudging it (and the fireball, which
+        // shares this position) down settles it into the part of the
+        // silhouette the blades actually wrap around.
+        const CORE_VERTICAL_NUDGE = -0.2;
+        child.position.y += CORE_VERTICAL_NUDGE;
+        corePosition.y += CORE_VERTICAL_NUDGE;
         return;
       }
       child.material = chromeMaterial;
