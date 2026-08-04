@@ -88,7 +88,15 @@ function ParticleField({ count, texture, color, size, speed, spread, opacityScal
     }
     posAttr.needsUpdate = true;
 
-    material.opacity = Math.min(0.9, sceneState.particleMix * opacityScale);
+    // particleMix itself only ever moves via the retired scroll-chapter
+    // system (no live writer since it was pulled), which left these
+    // fields sitting at their near-invisible defaults — reacting to the
+    // same hover/click/scroll(turbulence) signals driving the rest of
+    // the hero wakes the embers up into an actual rising-spark effect
+    // instead of a barely-there haze.
+    const fireLevel =
+      sceneState.turbulence * 0.15 + sceneState.hoverIntensity * 0.25 + sceneState.pulseStrength * 0.45;
+    material.opacity = Math.min(0.9, (sceneState.particleMix + fireLevel) * opacityScale);
     points.visible = material.opacity > 0.01;
   });
 

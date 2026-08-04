@@ -39,6 +39,7 @@ export function CoreModel() {
   const groupRef = useRef<THREE.Group>(null);
   const coreMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
   const coreShaderRef = useRef<THREE.WebGLProgramParametersWithUniforms | null>(null);
+  const glowMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const driftPartsRef = useRef<DriftEntry[]>([]);
   const smoothedHeat = useRef(0);
   const fireTime = useRef(0);
@@ -52,7 +53,7 @@ export function CoreModel() {
   // loaded `scene` (a stable, cached reference from useGLTF) — mutating
   // here rather than in an effect avoids a first-frame flash at the
   // wrong scale/position.
-  const scale = useMemo(() => {
+  const { scale, glowPosition, glowRadius } = useMemo(() => {
     const overallBox = new THREE.Box3().setFromObject(scene);
     const center = overallBox.getCenter(new THREE.Vector3());
     const size = overallBox.getSize(new THREE.Vector3());
@@ -109,20 +110,37 @@ export function CoreModel() {
           `#include <emissivemap_fragment>
            float fireFlow = fbm(vLocalPos * 5.5 + vec3(0.0, -uTime * 0.7, 0.0), 4);
            float fireFlicker = fbm(vLocalPos * 11.0 + vec3(uTime * 1.3, 0.0, 0.0), 2);
-           float fire = clamp(0.5 + fireFlow * 0.4 + fireFlicker * 0.25, 0.0, 1.4);
-           totalEmissiveRadiance *= vColor.r * fire;`
+           float fire = clamp(0.55 + fireFlow * 0.45 + fireFlicker * 0.3, 0.0, 1.5);
+           // Softened power curve widens the mask beyond the hairline crease
+           // itself, so the glow reads as a thicker molten vein instead of a
+           // thin lit line.
+           float crackMask = pow(vColor.r, 0.6);
+           totalEmissiveRadiance *= crackMask * fire;`
         );
       coreShaderRef.current = shader;
     };
     coreMaterialRef.current = coreMaterial;
 
     const drift: DriftEntry[] = [];
+    let corePosition = new THREE.Vector3();
+    let coreRadius = 0.2;
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
       const name = child.name;
 
+      // Box3().setFromObject(child), not child.geometry.computeBoundingBox():
+      // this asset's geometry is quantized, so the raw position attribute
+      // is normalized integers — the real scale only gets applied via the
+      // object's world matrix. Reading the geometry directly returns the
+      // *normalized* bounding box instead — coincidentally still a valid
+      // direction vector for the drift below, but a wildly wrong absolute
+      // size for the glow sphere (this is why it briefly filled the screen).
       if (name === CORE_PART) {
         child.material = coreMaterial;
+        const coreBox = new THREE.Box3().setFromObject(child);
+        const coreSize = coreBox.getSize(new THREE.Vector3());
+        corePosition = coreBox.getCenter(new THREE.Vector3()).sub(center);
+        coreRadius = Math.max(coreSize.x, coreSize.y, coreSize.z) / 2;
         return;
       }
       child.material = chromeMaterial;
@@ -132,9 +150,7 @@ export function CoreModel() {
       else if (BASE_PARTS.has(name)) driftScale = 0.35;
       if (driftScale === 0) return;
 
-      child.geometry.computeBoundingBox();
-      const box = child.geometry.boundingBox;
-      if (!box) return;
+      const box = new THREE.Box3().setFromObject(child);
       const partCenter = box.getCenter(new THREE.Vector3());
       const direction = partCenter.clone().sub(center);
       if (direction.lengthSq() < 1e-6) return;
@@ -151,7 +167,11 @@ export function CoreModel() {
     playHeroIntro();
 
     const maxDimension = Math.max(size.x, size.y, size.z) || 1;
-    return TARGET_DIAMETER / maxDimension;
+    return {
+      scale: TARGET_DIAMETER / maxDimension,
+      glowPosition: corePosition,
+      glowRadius: coreRadius,
+    };
   }, [scene]);
 
   useFrame((state, delta) => {
@@ -178,8 +198,19 @@ export function CoreModel() {
       // (a small fraction of the sphere's surface) instead of the whole
       // ball, the same intensity that used to read as a solid glow reads
       // as barely-there — boosted so the veins actually read as molten.
-      const CRACK_GLOW_BOOST = 4.5;
+      const CRACK_GLOW_BOOST = 5.5;
       material.emissiveIntensity = CRACK_GLOW_BOOST * (0.08 + smoothedHeat.current + heartbeat * pulseAmplitude);
+    }
+
+    if (glowMaterialRef.current) {
+      // A soft additive glow sitting just inside the core mesh — the
+      // crack shader above lights the shell's surface, but a sphere the
+      // light can bleed through (rather than only sit on) is what makes
+      // it read as fire INSIDE the thing rather than a lit-up rind. Kept
+      // small and dim relative to the shell — this is meant to peek
+      // through the cracks, not wash out the whole model under bloom.
+      const glow = 0.1 + smoothedHeat.current * 0.55 + heartbeat * pulseAmplitude * 0.4;
+      glowMaterialRef.current.opacity = THREE.MathUtils.clamp(glow, 0, 0.65);
     }
 
     if (coreShaderRef.current) {
@@ -225,6 +256,17 @@ export function CoreModel() {
   return (
     <group ref={groupRef} scale={scale}>
       <primitive object={scene} />
+      <mesh position={glowPosition} scale={glowRadius * 0.55}>
+        <sphereGeometry args={[1, 24, 24]} />
+        <meshBasicMaterial
+          ref={glowMaterialRef}
+          color="#ff5a2a"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }
