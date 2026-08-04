@@ -8,7 +8,7 @@ import { sceneState } from "@/lib/sceneStore";
 // A glowing platform beneath the hero object — concentric rings, a ring of
 // tick marks, and a beam of light connecting the object to the ground — all
 // procedural (no textures), reusing the same additive-red language as the
-// rest of the hero (Flames, ElectricArcs, OrbitRings). Sits at a fixed
+// rest of the hero (ElectricArcs, OrbitRings). Sits at a fixed
 // offset below the model rather than as a child of CoreModel's own scaled
 // group, since it needs to stay grounded regardless of the model's swell/
 // heartbeat scale animation.

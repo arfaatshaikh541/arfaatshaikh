@@ -4,7 +4,6 @@ import { Suspense, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { sceneState } from "@/lib/sceneStore";
-import { Flames } from "./Flames";
 import { OrbitRings } from "./OrbitRings";
 import { PlasmaColumn } from "./PlasmaColumn";
 import { CoreModel } from "./CoreModel";
@@ -36,7 +35,6 @@ export function SphereRig() {
       <Suspense fallback={null}>
         <CoreModel />
       </Suspense>
-      <Flames />
       <ElectricArcs />
       <OrbitRings />
       <PlasmaColumn />
