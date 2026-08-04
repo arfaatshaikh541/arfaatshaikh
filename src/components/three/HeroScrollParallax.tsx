@@ -11,8 +11,14 @@ if (typeof window !== "undefined") {
 
 // Values match the sceneState defaults in sceneStore.ts — the model sits
 // exactly where it already does until the visitor starts scrolling.
-const FROM = { camZ: 6.2, rotationSpeed: 0.06, targetY: 0, turbulence: 0.15, bladeOpen: 0.08 };
-const TO = { camZ: 5.3, rotationSpeed: 0.19, targetY: 0.16, turbulence: 0.4, bladeOpen: 0.26 };
+// bladeOpen and coreBrightness aren't just cosmetic here: CoreModel reads
+// bladeOpen to add scroll-driven separation on top of the wings' existing
+// hover/click drift, and coreBrightness feeds the same heartbeat
+// brightness/speed math the fire-in-the-cracks shader already uses — so
+// scrolling doesn't just move the camera, it visibly pulls the model
+// apart and stokes the glow.
+const FROM = { camZ: 6.2, rotationSpeed: 0.06, targetY: 0, turbulence: 0.15, bladeOpen: 0.08, coreBrightness: 0.35 };
+const TO = { camZ: 5.3, rotationSpeed: 0.19, targetY: 0.16, turbulence: 0.4, bladeOpen: 0.4, coreBrightness: 0.8 };
 
 /**
  * Renders nothing itself — locates the nearest <section> ancestor (the
@@ -41,6 +47,7 @@ export function HeroScrollParallax() {
         sceneState.targetY = gsap.utils.interpolate(FROM.targetY, TO.targetY, p);
         sceneState.turbulence = gsap.utils.interpolate(FROM.turbulence, TO.turbulence, p);
         sceneState.bladeOpen = gsap.utils.interpolate(FROM.bladeOpen, TO.bladeOpen, p);
+        sceneState.coreBrightness = gsap.utils.interpolate(FROM.coreBrightness, TO.coreBrightness, p);
       },
       onLeaveBack: () => {
         sceneState.camZ = FROM.camZ;
@@ -48,6 +55,7 @@ export function HeroScrollParallax() {
         sceneState.targetY = FROM.targetY;
         sceneState.turbulence = FROM.turbulence;
         sceneState.bladeOpen = FROM.bladeOpen;
+        sceneState.coreBrightness = FROM.coreBrightness;
       },
     });
 

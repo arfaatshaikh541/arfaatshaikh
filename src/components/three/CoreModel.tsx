@@ -184,20 +184,24 @@ export function CoreModel() {
 
     if (coreShaderRef.current) {
       // Fire speeds up right along with the heartbeat — calm embers at
-      // rest, roiling flame under hover/click. Accumulated by delta
-      // (not derived from elapsedTime directly) so the speed can change
-      // smoothly without the noise field jumping/snapping.
-      fireTime.current += delta * (1 + sceneState.hoverIntensity * 0.6 + sceneState.pulseStrength * 1.2);
+      // rest, roiling flame under hover/click, and simmering faster as
+      // the hero scrolls past (turbulence is HeroScrollParallax's own
+      // scroll-progress signal). Accumulated by delta (not derived from
+      // elapsedTime directly) so the speed can change smoothly without
+      // the noise field jumping/snapping.
+      fireTime.current +=
+        delta * (1 + sceneState.turbulence * 0.9 + sceneState.hoverIntensity * 0.6 + sceneState.pulseStrength * 1.2);
       coreShaderRef.current.uniforms.uTime.value = fireTime.current;
     }
 
     // The wings drift outward along each part's own resting direction —
     // a literal "coming apart" instead of the whole rig only ever moving
-    // as one rigid piece. Driven by the same hover/click signals already
-    // wired up elsewhere (not the old scroll-chapter fields, which have
-    // no live writer since the chapter system was retired), so it just
-    // works with whatever's already driving the rest of the hero.
-    const driftAmount = sceneState.hoverIntensity * 0.16 + sceneState.pulseStrength * 0.42;
+    // as one rigid piece. Driven by hover/click, plus a scroll
+    // contribution riding on bladeOpen (HeroScrollParallax's own signal,
+    // rest value 0.08) — so scrolling the hero out of view pulls the
+    // wings apart the same way interacting with it does.
+    const scrollDrift = Math.max(0, sceneState.bladeOpen - 0.08) * 1.5;
+    const driftAmount = scrollDrift + sceneState.hoverIntensity * 0.16 + sceneState.pulseStrength * 0.42;
     for (const { mesh, direction, driftScale } of driftPartsRef.current) {
       mesh.position.lerp(
         direction.clone().multiplyScalar(driftAmount * driftScale),
