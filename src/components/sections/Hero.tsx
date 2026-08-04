@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SphereCanvasLazy } from "@/components/three/SphereCanvasLazy";
+import { HeroScrollParallax } from "@/components/three/HeroScrollParallax";
 
 // A static hero — no ScrollTrigger pin, no chapter-driven narrative. The 3D
 // object still idles/breathes and reacts to hover, click, and gyroscope
@@ -10,6 +11,7 @@ import { SphereCanvasLazy } from "@/components/three/SphereCanvasLazy";
 export function Hero() {
   return (
     <section className="relative overflow-hidden border-b border-[var(--color-line)] bg-black">
+      <HeroScrollParallax />
       <div className="container-edge grid gap-12 py-32 pt-36 lg:grid-cols-2 lg:items-center lg:gap-8 lg:py-40 lg:pt-40">
         <div className="relative z-10">
           <p className="font-mono text-xs uppercase tracking-[0.25em] text-[var(--color-blood-red)] md:text-sm">
