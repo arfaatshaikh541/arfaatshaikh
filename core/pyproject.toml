@@ -1,0 +1,32 @@
+[project]
+name = "aura-core"
+version = "0.1.0"
+description = "AURA headless core runtime: persistent memory, model routing, deterministic action lane, and a real streaming chat API."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<0.116",
+  "uvicorn>=0.32,<0.33",
+  "pydantic>=2.9,<3",
+  "sqlalchemy>=2.0,<2.1",
+  "httpx>=0.27,<0.28",
+  "click>=8.1,<9",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<9", "pytest-asyncio>=0.24,<0.25"]
+
+[project.scripts]
+aura = "aura_core.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
