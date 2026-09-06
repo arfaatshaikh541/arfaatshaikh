@@ -128,7 +128,7 @@ Blocker taxonomy used (exactly as specified):
 | Unit (C# AuraVoice.Core.Tests) | 24 passing |
 | Unit (C# AuraShell.Core.Tests) | 13 passing |
 | End-to-end (`test_end_to_end.py`) | 2 scenarios, both hand-orchestrated (proves the pieces compose; does not prove an autonomous loop, because none existed) |
-| Endurance (`tests/endurance/`) | **Did not exist before this pass** |
+| Endurance (`tests/endurance/`) | `test_synthetic_memory_history.py` (bounded ~1,000-record memory validation) and `test_restart_resume.py` (section 23's "reboot-resume scenario": a full `build_runtime()` teardown/rebuild against the same on-disk database, proving mandate/workstream/decision state survives exactly, and a task claimed-but-never-completed before the "crash" is reaped and genuinely finished by the *new* Runtime object). The full 72-hour-equivalent accelerated scenario and the upgrade/failed-upgrade scenarios (need the not-yet-built installer) are still not done. |
 | Synthetic long-memory validation | **Did not exist before this pass** |
 | Windows acceptance harness | `WINDOWS-COMMISSIONING.ps1` exists and was run once for real by the owner (5 PASS / 7 FAIL / 6 SKIP, failures traced to environment setup issues, not code — see conversation history) |
 
@@ -157,6 +157,12 @@ closure lands, in the order it actually happened:
    listening" / "shut down") intercepted before the reasoning call.
 5. **Browser CAPTCHA detection/escalation**, verified against a real
    local page with a genuine reCAPTCHA-shaped DOM node.
+6. **Reboot-resume endurance test** (`tests/endurance/test_restart_resume.py`)
+   — section 23's scenario run for real: an entire `Runtime` object torn
+   down and rebuilt from scratch against the same on-disk database,
+   proving mandate/workstream/decision state survives exactly and a
+   task abandoned mid-execution before the "crash" is reaped and
+   genuinely finished by the new Runtime, not just marked retriable.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
