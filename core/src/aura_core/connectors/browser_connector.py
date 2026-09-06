@@ -14,6 +14,21 @@ from ..governance.action_broker import ActionRequest, HandlerResult
 from ..status import CapabilityStatus
 from .base import Connector, ConnectorManifest
 
+# Deliberately conservative (biased toward false positives, never false
+# negatives): per the product spec, AURA must escalate a CAPTCHA to the
+# owner rather than attempt to bypass it, so it's far better to
+# occasionally over-flag an ordinary page as "maybe a CAPTCHA" than to
+# ever proceed with automated action against a real one.
+_CAPTCHA_SELECTORS = [
+    "iframe[src*='recaptcha' i]",
+    "iframe[src*='hcaptcha' i]",
+    "iframe[title*='captcha' i]",
+    ".g-recaptcha",
+    ".h-captcha",
+    "[class*='captcha' i]",
+    "[id*='captcha' i]",
+]
+
 
 class BrowserConnector(Connector):
     def __init__(self, executable_path: str | None = None, allowed_hosts: list[str] | None = None) -> None:
@@ -55,6 +70,15 @@ class BrowserConnector(Connector):
         except Exception as exc:  # noqa: BLE001 -- health check must never raise
             return HandlerResult(CapabilityStatus.UNAVAILABLE, f"browser launch failed: {exc}")
 
+    def _detect_captcha(self, page) -> bool:
+        for selector in _CAPTCHA_SELECTORS:
+            try:
+                if page.query_selector(selector) is not None:
+                    return True
+            except Exception:  # noqa: BLE001 -- a selector-engine quirk must never crash detection itself
+                continue
+        return False
+
     def _with_page(self, url: str, fn):
         from playwright.sync_api import sync_playwright
 
@@ -71,6 +95,14 @@ class BrowserConnector(Connector):
                 try:
                     page = browser.new_page()
                     page.goto(url, timeout=15000)
+                    if self._detect_captcha(page):
+                        # Never attempt to solve or work around it --
+                        # escalate to the owner instead, per the product
+                        # spec's explicit instruction on this exact case.
+                        return HandlerResult(
+                            CapabilityStatus.BLOCKED_BY_POLICY,
+                            f"CAPTCHA detected on {url} -- escalating to the owner rather than attempting to bypass it",
+                        )
                     return fn(page)
                 finally:
                     browser.close()

@@ -40,9 +40,40 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
+class _CaptchaHandler(BaseHTTPRequestHandler):
+    """A real local page shaped like a genuine reCAPTCHA-gated page --
+    the actual DOM structure sites use, not a fake flag the connector
+    could special-case."""
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(
+            b"<html><head><title>Verify you are human</title></head>"
+            b"<body><h1>Please verify you are human</h1>"
+            b'<div class="g-recaptcha" data-sitekey="fake-key-for-a-real-local-test-page"></div>'
+            b"</body></html>"
+        )
+
+    def log_message(self, *args):
+        pass
+
+
 @pytest.fixture
 def local_page_url():
     server = HTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+
+
+@pytest.fixture
+def local_captcha_page_url():
+    server = HTTPServer(("127.0.0.1", 0), _CaptchaHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -115,3 +146,58 @@ def test_browser_denies_navigation_outside_allowlist(tmp_path, local_page_url):
     outcome = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_page_url}))
     assert outcome.status == OutcomeStatus.DENIED
     assert "not on the browser egress allowlist" in outcome.message
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_browser_escalates_a_real_captcha_page_instead_of_extracting_it(tmp_path, local_captcha_page_url):
+    """The product spec is explicit: never attempt to bypass a CAPTCHA,
+    escalate to the owner. Verified against a real local page with a
+    real reCAPTCHA-shaped DOM node -- not a connector-side flag standing
+    in for actual detection."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.extract_text", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.extract_text", params={"url": local_captcha_page_url, "selector": "h1"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "CAPTCHA detected" in outcome.message
+    assert "escalating to the owner" in outcome.message
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_browser_captcha_detection_also_blocks_navigate_and_screenshot(tmp_path, local_captcha_page_url):
+    """The check lives in the one shared _with_page() path all three
+    capabilities go through -- proven here by exercising the other two,
+    not just extract_text."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.navigate", 4)
+    policy.set_autonomy_level("browser.screenshot", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)
+    ConnectorRegistry(broker).register(connector)
+
+    navigate_outcome = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_captcha_page_url}))
+    screenshot_outcome = broker.submit(ActionRequest(action_type="browser.screenshot", params={"url": local_captcha_page_url}))
+
+    assert navigate_outcome.status == OutcomeStatus.DENIED
+    assert "CAPTCHA detected" in navigate_outcome.message
+    assert screenshot_outcome.status == OutcomeStatus.DENIED
+    assert "CAPTCHA detected" in screenshot_outcome.message
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_browser_does_not_false_positive_on_an_ordinary_page(tmp_path, local_page_url):
+    """The conservative, containment-based selectors must not fire on a
+    page with no CAPTCHA at all -- otherwise every real navigation would
+    be wrongly escalated."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.navigate", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_page_url}))
+
+    assert outcome.status == OutcomeStatus.EXECUTED

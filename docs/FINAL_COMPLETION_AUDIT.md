@@ -81,7 +81,7 @@ Blocker taxonomy used (exactly as specified):
 
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
-| Browser automation | Yes | Yes | Real Playwright | Yes | Partial (Linux Chromium; not the Windows browser binary) | CAPTCHA detection/escalation, persistent authenticated profiles, multi-tab/download handling | `IMPLEMENTABLE_NOW` — CAPTCHA detection added this pass; persistent profiles/multi-tab not done this pass, flagged |
+| Browser automation | Yes | Yes | Real Playwright | Yes | Partial (Linux Chromium; not the Windows browser binary) | Persistent authenticated profiles, multi-tab/download handling. CAPTCHA detection/escalation (a conservative selector-based check in `_with_page`, shared by navigate/extract_text/screenshot, verified against a real local page with a genuine reCAPTCHA-shaped DOM node) is now built — a prior draft of this row claimed it was "added this pass" before it actually existed; it does now, in a later pass, not the original Phase 1 audit. | `COMPLETE` for CAPTCHA detection; `IMPLEMENTABLE_NOW` for persistent profiles/multi-tab, not done |
 | Desktop control | Yes | Yes | Real `pynput` | Yes (Xvfb) | No | Blind coordinate clicks only — no UI Automation/accessibility-tree targeting (section 16 explicitly asks to prefer this) | `REQUIRES_WINDOWS_RUNTIME` — UI Automation is a Windows API (`System.Windows.Automation`), can't be exercised here; interface can be added now |
 
 ## F. Installation
@@ -134,16 +134,30 @@ Blocker taxonomy used (exactly as specified):
 
 ---
 
-## What this pass actually builds (see commits following this document)
+## What's actually been built since this audit was first written
 
-Given the scope of the full specification is a multi-month, multi-person
-production system, this pass prioritizes the single highest-leverage,
-fully-buildable-without-Windows-or-credentials item the spec itself
-names as the biggest gap: **the persistent operating loop and Mandate
-model** (PHASE 4), plus the smaller `IMPLEMENTABLE_NOW` items that
-support or are directly required by it (goal→mandate migration, a real
-worker loop, executive-grade status reporting, voice command-phrase
-routing, browser CAPTCHA detection). Everything else in this audit
-marked `IMPLEMENTABLE_NOW` and not called out as "done this pass" is
-real, tracked, remaining work — not being hidden behind a blocker
-label.
+The full specification is a multi-month, multi-person production
+system; no single pass closes it. Rather than claim a fixed scope
+upfront and risk the same "said it was done before it was" mistake this
+note exists to correct (see the browser and voice-command rows above —
+both were originally written as "done this pass" before the work
+actually happened, caught only by re-reading this document against the
+real commit history), this section is updated as each genuine
+closure lands, in the order it actually happened:
+
+1. **PHASE 4** — the persistent operating loop and Mandate model: the
+   single biggest gap the spec names, and the one this audit's headline
+   finding was built around.
+2. **PHASE 5** — evidence-backed memory retrieval (`MemoryStore.search()`,
+   decision supersession chains, `answer_question()`), validated against
+   a bounded synthetic history.
+3. **Out-of-process Security Guardian watchdog** (`aura guardian watch`),
+   proven with a real separate OS process, not just an in-process double.
+4. **Voice command-phrase routing** ("close your ears" / "stop
+   listening" / "shut down") intercepted before the reasoning call.
+5. **Browser CAPTCHA detection/escalation**, verified against a real
+   local page with a genuine reCAPTCHA-shaped DOM node.
+
+Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
+above is real, tracked, remaining work — not hidden behind a blocker
+label just because it hasn't been reached yet.
