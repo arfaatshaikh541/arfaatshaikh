@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 
 import pytest
@@ -70,16 +71,24 @@ def test_health_check_is_unavailable_without_a_display():
     # this test process was observed to leave later tests' mouse queries
     # returning stale/default positions rather than the real ones.
     # Isolating this negative case avoids polluting that shared state.
+    #
+    # sys.executable, not a bare "python3": a bare name resolves against
+    # whatever's first on PATH, which silently becomes the wrong
+    # interpreter (no aura_core installed) whenever this suite is invoked
+    # via an absolute interpreter path without the venv's bin/Scripts
+    # directory having been prepended to PATH first -- exactly how
+    # WINDOWS-COMMISSIONING.ps1 invokes pytest. Caught by actually running
+    # that script end to end rather than assuming the invocation style.
     env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
     result = subprocess.run(
-        ["python3", "-c", (
+        [sys.executable, "-c", (
             "from aura_core.connectors.desktop_connector import DesktopControlConnector;"
             "r = DesktopControlConnector().health_check();"
             "print(r.status.value)"
         )],
         env=env, capture_output=True, text=True, timeout=15,
     )
-    assert result.stdout.strip() == CapabilityStatus.UNAVAILABLE.value
+    assert result.stdout.strip() == CapabilityStatus.UNAVAILABLE.value, result.stderr
 
 
 def test_move_mouse_executes_a_real_xtest_call_against_the_display(tmp_path, virtual_display):

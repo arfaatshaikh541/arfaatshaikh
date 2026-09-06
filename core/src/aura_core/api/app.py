@@ -16,6 +16,7 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from ..config import Settings
 from ..executive import GoalNotReadyError
@@ -111,7 +112,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/connectors")
     async def list_connectors() -> list[dict]:
-        runtime.connectors.refresh_all()
+        # A health check can do genuinely blocking work (BrowserConnector
+        # launches a real browser via Playwright's *sync* API, which
+        # raises outright if called on a thread already running an asyncio
+        # event loop -- as this endpoint's own thread is). Running it in
+        # FastAPI's thread pool avoids that, the same way FastAPI already
+        # handles a plain `def` path operation.
+        await run_in_threadpool(runtime.connectors.refresh_all)
         return [
             {
                 "name": m.name, "auth_method": m.auth_method,
