@@ -264,5 +264,25 @@ def goals_review() -> None:
             click.echo(f"{outcome.goal_id}: task {outcome.task_id} -- {outcome.decision.statement}")
 
 
+@main.command()
+def diagnose() -> None:
+    """Print an aggregate diagnostic snapshot: capability status, audit
+    chain integrity, and recent Security Guardian activity."""
+    from .diagnostics import collect_diagnostics
+
+    runtime = build_runtime()
+    report = collect_diagnostics(runtime.audit, runtime.guardian)
+
+    click.echo(f"Audit chain valid: {report.audit_chain_valid} ({report.audit_entries_checked} entries)")
+    click.echo("Recent Guardian events:")
+    if not report.recent_guardian_events:
+        click.echo("  none")
+    for event in report.recent_guardian_events:
+        click.echo(f"  {event['detected_at']} [{event['action_taken']}] {event['rule_name']}: {event['detail']}")
+    click.echo("Capability status:")
+    for name, info in report.capability_status.items():
+        click.echo(f"  {name:30s} {info['status']:18s} {info['detail']}")
+
+
 if __name__ == "__main__":
     main()
