@@ -151,6 +151,53 @@ aura status
 `model.ollama` should now report `LIVE`. If it doesn't, `aura status`'s
 detail column tells you exactly what the health check saw.
 
+### Download the voice models
+
+Wake word, speech-to-text, and text-to-speech need real model files that
+are never committed to the repo (100+ MB, binary). `aura_core.voice`
+looks for them under `core/.models/` by default (override with
+`AURA_VOICE_MODELS_DIR` or the individual `AURA_WAKEWORD_*`/`AURA_STT_*`/
+`AURA_TTS_*` variables in `voice/config.py`). Run this once, from `core/`,
+with your venv activated:
+
+**Windows (PowerShell):**
+```powershell
+python -c "import openwakeword.utils as u; u.download_models(target_directory='.models/openwakeword')"
+
+New-Item -ItemType Directory -Force -Path .models\sherpa-stt | Out-Null
+Invoke-WebRequest -Uri "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2" -OutFile stt.tar.bz2
+tar -xjf stt.tar.bz2 -C .models\sherpa-stt
+Remove-Item stt.tar.bz2
+
+New-Item -ItemType Directory -Force -Path .models\sherpa-tts | Out-Null
+Invoke-WebRequest -Uri "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-low.tar.bz2" -OutFile tts.tar.bz2
+tar -xjf tts.tar.bz2 -C .models\sherpa-tts
+Remove-Item tts.tar.bz2
+
+# The TTS archive bundles its own espeak-ng-data -- point AURA_TTS_ESPEAK_DATA
+# at it for this session (add it to your profile / a .env to make it permanent):
+$env:AURA_TTS_ESPEAK_DATA = (Resolve-Path ".models\sherpa-tts\vits-piper-en_US-amy-low\espeak-ng-data").Path
+```
+
+**Linux/macOS:**
+```bash
+python -c "import openwakeword.utils as u; u.download_models(target_directory='.models/openwakeword')"
+
+mkdir -p .models/sherpa-stt .models/sherpa-tts
+curl -L -o /tmp/stt.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.en.tar.bz2"
+tar -xjf /tmp/stt.tar.bz2 -C .models/sherpa-stt
+curl -L -o /tmp/tts.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-low.tar.bz2"
+tar -xjf /tmp/tts.tar.bz2 -C .models/sherpa-tts
+
+export AURA_TTS_ESPEAK_DATA="$(pwd)/.models/sherpa-tts/vits-piper-en_US-amy-low/espeak-ng-data"
+```
+
+Then `python install/preflight.py` (or the `voice_models`/`espeak_ng_data`
+lines of `WINDOWS-COMMISSIONING.ps1`'s preflight section) should report
+`PASS`, and `aura status` should show `voice.wake_word`/`voice.stt`/
+`voice.tts` as `LIVE` once the API server has started at least once (the
+check runs at server startup, not at import time).
+
 ### Chat, with real streaming
 
 ```bash
