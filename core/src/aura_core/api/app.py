@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..executive import GoalNotReadyError
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -39,6 +40,15 @@ class EnqueueTaskRequest(BaseModel):
     payload: dict = {}
     depends_on: list[str] = []
     max_attempts: int = 3
+
+
+class CreateGoalRequest(BaseModel):
+    statement: str
+    success_metric: str | None = None
+    budget: dict | None = None
+    stop_conditions: list[str] = []
+    priority: int = 3
+    review_interval_seconds: int = 86400
 
 
 def _sse(event: str, data: str) -> bytes:
@@ -158,6 +168,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             depends_on=request.depends_on, max_attempts=request.max_attempts,
         )
         return {"id": task.id, "status": task.status}
+
+    @app.post("/goals")
+    async def create_goal(request: CreateGoalRequest) -> dict:
+        goal = runtime.goals.create(
+            request.statement, priority=request.priority,
+            success_metric=request.success_metric, budget=request.budget,
+            stop_conditions=request.stop_conditions,
+            review_interval_seconds=request.review_interval_seconds,
+        )
+        return {"id": goal.id, "status": goal.status}
+
+    @app.post("/goals/{goal_id}/activate")
+    async def activate_goal(goal_id: str) -> dict:
+        try:
+            goal = runtime.goals.activate(goal_id)
+        except GoalNotReadyError as exc:
+            return {"error": str(exc)}
+        return {"id": goal.id, "status": goal.status}
+
+    @app.get("/goals")
+    async def list_goals() -> list[dict]:
+        return [
+            {
+                "id": g.id, "statement": g.statement, "status": g.status,
+                "progress": g.progress, "priority": g.priority,
+            }
+            for g in runtime.goals.list_active()
+        ]
+
+    @app.post("/goals/review")
+    async def review_goals() -> list[dict]:
+        outcomes = await runtime.executive.run_review_cycle()
+        return [
+            {"goal_id": o.goal_id, "task_id": o.task_id, "error": o.error}
+            for o in outcomes
+        ]
 
     @app.post("/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:

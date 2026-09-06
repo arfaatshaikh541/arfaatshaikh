@@ -208,5 +208,61 @@ def tasks_enqueue(task_type: str, payload: str) -> None:
     click.echo(f"Enqueued {task.id} [{task.status}]")
 
 
+@main.group()
+def goals() -> None:
+    """Create, activate, and review goals."""
+
+
+@goals.command("create")
+@click.argument("statement")
+@click.option("--success-metric", default=None)
+@click.option("--budget", default=None, help="JSON budget object")
+@click.option("--stop-condition", "stop_conditions", multiple=True)
+def goals_create(statement: str, success_metric: str | None, budget: str | None, stop_conditions: tuple[str, ...]) -> None:
+    import json as _json
+
+    runtime = build_runtime()
+    goal = runtime.goals.create(
+        statement, success_metric=success_metric,
+        budget=_json.loads(budget) if budget else None,
+        stop_conditions=list(stop_conditions),
+    )
+    click.echo(f"Created {goal.id} [{goal.status}]")
+
+
+@goals.command("activate")
+@click.argument("goal_id")
+def goals_activate(goal_id: str) -> None:
+    from .executive import GoalNotReadyError
+
+    runtime = build_runtime()
+    try:
+        goal = runtime.goals.activate(goal_id)
+        click.echo(f"[{goal.status}] {goal.id}")
+    except GoalNotReadyError as exc:
+        click.echo(f"Not ready: {exc}", err=True)
+        raise SystemExit(1)
+
+
+@goals.command("list")
+def goals_list() -> None:
+    runtime = build_runtime()
+    for goal in runtime.goals.list_active():
+        click.echo(f"{goal.id} [{goal.status}] progress={goal.progress:.0%} {goal.statement}")
+
+
+@goals.command("review")
+def goals_review() -> None:
+    runtime = build_runtime()
+    outcomes = asyncio.run(runtime.executive.run_review_cycle())
+    if not outcomes:
+        click.echo("No goals due for review.")
+    for outcome in outcomes:
+        if outcome.error:
+            click.echo(f"{outcome.goal_id}: error: {outcome.error}")
+        else:
+            click.echo(f"{outcome.goal_id}: task {outcome.task_id} -- {outcome.decision.statement}")
+
+
 if __name__ == "__main__":
     main()

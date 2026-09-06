@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from .actions import TriggerMap, build_default_handlers, build_default_triggers
 from .config import Settings, load_settings
+from .executive import ExecutiveIntelligence, GoalEngine
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
 from .memory import MemoryStore, WorldModelStore
@@ -42,6 +43,8 @@ class Runtime:
     broker: ActionBroker
     guardian: SecurityGuardian
     tasks: TaskEngine
+    goals: GoalEngine
+    executive: ExecutiveIntelligence
     triggers: TriggerMap
     model_router: ModelRouter
 
@@ -81,9 +84,12 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     ollama = OllamaProvider(host=settings.ollama_host, model=settings.ollama_model)
     model_router = ModelRouter(primary=ollama, allow_test_fallback=settings.allow_test_provider)
 
+    goals = GoalEngine(settings.database_url)
+    executive = ExecutiveIntelligence(goals, tasks, memory, model_router)
+
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit,
-        broker=broker, guardian=guardian, tasks=tasks,
+        broker=broker, guardian=guardian, tasks=tasks, goals=goals, executive=executive,
         triggers=triggers, model_router=model_router,
     )
