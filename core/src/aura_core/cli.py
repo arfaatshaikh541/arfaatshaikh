@@ -182,6 +182,26 @@ def guardian_freeze(reason: str) -> None:
     click.echo(f"Frozen. Guardian event {event.id} recorded.")
 
 
+@guardian.command("watch")
+@click.option("--poll-interval-seconds", default=5.0)
+def guardian_watch(poll_interval_seconds: float) -> None:
+    """Run Security Guardian as an independent watchdog -- meant to run
+    as its own OS process, separate from whatever process is actually
+    submitting actions (the API server, a CLI invocation), so a hung or
+    compromised core process can't silently stop the one thing
+    overseeing it. Needs no IPC of its own: PolicyEngine's kill switch
+    and the audit log are both real, persisted, shared SQLite state, so
+    this process sees the same audit entries and can engage the same
+    kill switch as any other AURA process pointed at the same database.
+    Ctrl+C to stop."""
+    from .guardian import GuardianWatchdog
+
+    runtime = build_runtime()
+    watchdog = GuardianWatchdog(runtime.guardian, poll_interval_seconds=poll_interval_seconds)
+    click.echo(f"Watching the audit log independently every {poll_interval_seconds}s. Ctrl+C to stop.")
+    watchdog.run_forever()
+
+
 @main.group()
 def connectors() -> None:
     """Inspect registered connectors and their real, live-checked health."""
