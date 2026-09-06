@@ -1,10 +1,11 @@
 namespace AuraVoice.Core;
 
-/// <summary>Detects a wake phrase (e.g. "AURA") in a stream of audio
-/// frames. A real implementation (Porcupine, or an open on-device
-/// keyword-spotting model) needs a trained/licensed model this codebase
-/// does not bundle — see apps/voice/README.md. NullWakeWordDetector below
-/// is the honest default: it never fires, so the system fails closed
+/// <summary>Detects a wake phrase in a stream of audio frames. The real,
+/// wired-in default is HttpWakeWordDetector (HttpProviders.cs), backed by
+/// aura_core's /voice/wake-word/check endpoint — a genuine local
+/// openWakeWord/ONNX model, no cloud dependency, no license key required.
+/// NullWakeWordDetector below is the honest fallback for a caller with no
+/// detector configured at all: it never fires, so the system fails closed
 /// (never falsely "wakes") rather than guessing.</summary>
 public interface IWakeWordDetector
 {
@@ -16,9 +17,10 @@ public sealed class NullWakeWordDetector : IWakeWordDetector
     public bool ProcessFrame(ReadOnlySpan<short> frame) => false;
 }
 
-/// <summary>Converts captured audio to text. A real implementation (Vosk,
-/// whisper.cpp, or a cloud STT API) is not wired in this codebase yet —
-/// see apps/voice/README.md for the integration points and why.</summary>
+/// <summary>Converts captured audio to text. The real, wired-in default is
+/// HttpSpeechToText (HttpProviders.cs), backed by aura_core's
+/// /voice/stt/transcribe endpoint — a genuine local sherpa-onnx
+/// Whisper-tiny.en model, no cloud dependency.</summary>
 public interface ISpeechToText
 {
     Task<string> TranscribeAsync(ReadOnlyMemory<short> audio, int sampleRateHz, CancellationToken ct = default);
@@ -32,9 +34,12 @@ public sealed class NullSpeechToText : ISpeechToText
             "(this is intentionally a hard failure, not a silent empty transcript).");
 }
 
-/// <summary>Speaks text aloud. A real implementation (Windows SAPI via
-/// System.Speech, or a cloud TTS API) is not wired in this codebase yet —
-/// see apps/voice/README.md.</summary>
+/// <summary>Speaks text aloud. Two real implementations exist: HttpTextToSpeech
+/// (AuraVoice.Windows) — aura_core's /voice/tts/speak endpoint, a genuine
+/// local sherpa-onnx/Piper voice, consistent across every machine AURA
+/// runs on — and SapiTextToSpeech (AuraVoice.Windows.Speech) for Windows'
+/// own built-in SAPI voice. AuraVoice.Windows.Host picks between them via
+/// AURA_VOICE_TTS_ENGINE.</summary>
 public interface ITextToSpeech
 {
     Task SpeakAsync(string text, CancellationToken ct = default);

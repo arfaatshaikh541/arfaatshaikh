@@ -5,10 +5,13 @@ namespace AuraVoice.Windows;
 /// <summary>
 /// Wires the microphone, VAD, wake-word detector, STT, TTS, and the pure
 /// VoiceSessionController together into the actual always-listening loop.
-/// Real, structurally complete code — compiled successfully in this
-/// session — but never executed against real audio (no microphone in this
-/// build environment, and the wake-word/STT engines are NullXxx
-/// placeholders until you wire in Porcupine/Vosk per apps/voice/README.md).
+/// AuraVoice.Windows.Host is the composition root that constructs this
+/// with the real, wired-in providers (HttpWakeWordDetector/HttpSpeechToText
+/// backed by aura_core's local openWakeWord/sherpa-onnx models, plus
+/// ConversationOrchestrator for the reasoning round-trip and conversation
+/// timeout) — see apps/voice/README.md. Real, structurally complete code —
+/// compiled successfully in this session — but never executed against
+/// real audio, since there is no microphone in this build environment.
 /// Silence-based end-of-utterance detection (SilenceFramesToEndUtterance)
 /// is a reasonable starting heuristic, not a tuned constant — expect to
 /// adjust it once real audio is flowing through this on real hardware.

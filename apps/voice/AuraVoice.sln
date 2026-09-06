@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuraVoice.Windows", "AuraVo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuraVoice.Windows.Speech", "AuraVoice.Windows.Speech\AuraVoice.Windows.Speech.csproj", "{AD0D3787-2D73-47FD-A715-B8C8344119CF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuraVoice.Windows.Host", "AuraVoice.Windows.Host\AuraVoice.Windows.Host.csproj", "{53DD173B-0C01-49FC-B400-22EC093C5E91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{AD0D3787-2D73-47FD-A715-B8C8344119CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AD0D3787-2D73-47FD-A715-B8C8344119CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AD0D3787-2D73-47FD-A715-B8C8344119CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53DD173B-0C01-49FC-B400-22EC093C5E91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53DD173B-0C01-49FC-B400-22EC093C5E91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53DD173B-0C01-49FC-B400-22EC093C5E91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53DD173B-0C01-49FC-B400-22EC093C5E91}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
