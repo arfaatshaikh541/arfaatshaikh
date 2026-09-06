@@ -7,11 +7,13 @@ assembled first and revealed character-by-character.
 """
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import numpy as np
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -20,6 +22,7 @@ from ..executive import GoalNotReadyError
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
+from ..voice import OpenWakeWordDetector, SherpaPiperTextToSpeech, SherpaWhisperSpeechToText
 
 
 class ChatRequest(BaseModel):
@@ -51,17 +54,47 @@ class CreateGoalRequest(BaseModel):
     review_interval_seconds: int = 86400
 
 
+class WakeWordCheckRequest(BaseModel):
+    audio_base64: str  # base64-encoded 16-bit PCM mono samples
+
+
+class TranscribeRequest(BaseModel):
+    audio_base64: str
+    sample_rate: int = 16000
+
+
+class SpeakRequest(BaseModel):
+    text: str
+    speed: float = 1.0
+
+
 def _sse(event: str, data: str) -> bytes:
     payload = json.dumps({"event": event, "data": data})
     return f"data: {payload}\n\n".encode()
 
 
+def _check_voice_provider(name: str, provider) -> None:
+    if provider.is_available():
+        registry.set(name, CapabilityStatus.LIVE, "model loaded and verified")
+    else:
+        registry.set(name, CapabilityStatus.UNAVAILABLE, "model files not found or failed to load -- see core/RUNBOOK.md")
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     runtime: Runtime = build_runtime(settings)
+    wake_word_detector = OpenWakeWordDetector()
+    speech_to_text = SherpaWhisperSpeechToText()
+    text_to_speech = SherpaPiperTextToSpeech()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         registry.set("api.server", CapabilityStatus.LIVE, "uvicorn server running")
+        # Real checks: each constructs/loads its model on first call, so
+        # this genuinely proves (or disproves) usability at startup,
+        # rather than assuming LIVE from configuration alone.
+        _check_voice_provider("voice.wake_word", wake_word_detector)
+        _check_voice_provider("voice.stt", speech_to_text)
+        _check_voice_provider("voice.tts", text_to_speech)
         yield
         registry.set("api.server", CapabilityStatus.UNAVAILABLE, "server stopped")
 
@@ -226,5 +259,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 yield _sse("done", "unavailable")
 
         return StreamingResponse(stream(), media_type="text/event-stream")
+
+    @app.post("/voice/wake-word/check")
+    async def wake_word_check(request: WakeWordCheckRequest) -> dict:
+        try:
+            audio = np.frombuffer(base64.b64decode(request.audio_base64), dtype=np.int16)
+            score = wake_word_detector.score(audio)
+        except Exception as exc:  # noqa: BLE001 -- report honestly, don't crash the request
+            raise HTTPException(status_code=503, detail=f"wake-word detector unavailable: {exc}") from exc
+        return {"score": score, "detected": score >= 0.5}
+
+    @app.post("/voice/stt/transcribe")
+    async def stt_transcribe(request: TranscribeRequest) -> dict:
+        try:
+            audio = np.frombuffer(base64.b64decode(request.audio_base64), dtype=np.int16)
+            text = speech_to_text.transcribe(audio, sample_rate=request.sample_rate)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=f"speech-to-text unavailable: {exc}") from exc
+        return {"text": text}
+
+    @app.post("/voice/tts/speak")
+    async def tts_speak(request: SpeakRequest) -> Response:
+        try:
+            wav_bytes = text_to_speech.synthesize_to_wav_bytes(request.text, speed=request.speed)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=f"text-to-speech unavailable: {exc}") from exc
+        return Response(content=wav_bytes, media_type="audio/wav")
 
     return app
