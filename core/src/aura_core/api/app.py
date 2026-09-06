@@ -109,6 +109,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def status() -> dict:
         return registry.snapshot()
 
+    @app.get("/connectors")
+    async def list_connectors() -> list[dict]:
+        runtime.connectors.refresh_all()
+        return [
+            {
+                "name": m.name, "auth_method": m.auth_method,
+                "required_credentials": m.required_credentials,
+                "capabilities": m.capabilities, "notes": m.notes,
+                "status": registry.snapshot().get(f"connector.{m.name}"),
+            }
+            for m in runtime.connectors.manifests()
+        ]
+
     @app.get("/commitments")
     async def commitments() -> list[dict]:
         return [

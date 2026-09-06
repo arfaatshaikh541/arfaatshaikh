@@ -71,20 +71,25 @@ registry.set("model.ollama", CapabilityStatus.UNAVAILABLE, "not yet health-check
 registry.set("actions.deterministic", CapabilityStatus.LIVE, "in-process registry, no external dependency")
 registry.set("api.server", CapabilityStatus.UNAVAILABLE, "not started")
 
-# Capabilities named in the mega-prompt that this build deliberately does not
-# implement yet. Listed explicitly so "what's missing" is never ambiguous.
+# Capabilities that are code-complete and tested with real local
+# implementations, but whose true status can only be known once
+# build_runtime() actually runs a health check (voice models need to be
+# downloaded to .models/; connectors are registered at startup). Seeded
+# here as NOT_CONNECTED/UNAVAILABLE so a query before startup is honest,
+# never seeded as LIVE from configuration alone -- see runtime.py and
+# voice/config.py for what overwrites these on a real run.
 for _name, _detail in [
-    ("voice.wake_word", "no audio hardware in this build environment; requires local implementation + testing on your machine"),
-    ("voice.stt", "not implemented"),
-    ("voice.tts", "not implemented"),
-    ("telephony.inbound", "not implemented; requires a telephony/SIP provider and your explicit authorization"),
-    ("telephony.outbound", "not implemented; requires a telephony/SIP provider and your explicit authorization"),
-    ("connector.email", "not implemented; requires OAuth credentials you provide"),
-    ("connector.social", "not implemented; requires provider API credentials you provide"),
-    ("connector.crm", "not implemented"),
-    ("connector.finance", "not implemented; execution requires the financial-control design in docs/architecture/06-financial-control.md"),
-    ("computer_control.desktop", "not implemented; requires a native agent running on your machine with explicit scoped authority"),
+    ("voice.wake_word", "implemented (openWakeWord/ONNX); not yet health-checked in this process"),
+    ("voice.stt", "implemented (sherpa-onnx Whisper-tiny.en); not yet health-checked in this process"),
+    ("voice.tts", "implemented (sherpa-onnx Piper/VITS); not yet health-checked in this process"),
+    ("telephony.inbound", "not implemented; inbound calls require a real telephony/SIP provider and your explicit authorization"),
+    ("telephony.outbound", "mock provider implemented (connector.telephony); a real provider is REQUIRES_EXTERNAL_PROVIDER"),
+    ("connector.email", "implemented (SMTP send); requires you to configure AURA_SMTP_HOST + credentials"),
+    ("connector.social", "not implemented; each vendor needs its own REST mapping plus your API credentials"),
+    ("connector.crm", "generic REST connector implemented; each vendor needs its own mapping plus your API credentials"),
+    ("connector.finance", "not implemented; execution requires the financial-control design in docs/architecture/06-financial-control.md and your explicit authorization"),
+    ("computer_control.desktop", "implemented (pynput); not yet health-checked in this process"),
     ("security.pentest_tools", "not implemented; requires explicit written authorization and scope per engagement"),
-    ("windows.native_shell", "not implemented in this build; this environment cannot build or run a Windows application"),
+    ("windows.native_shell", "source implemented (WPF); this build environment cannot compile or run a Windows application to verify it"),
 ]:
     registry.set(_name, CapabilityStatus.NOT_CONNECTED, _detail)

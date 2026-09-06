@@ -19,6 +19,22 @@ class Settings:
     ollama_host: str
     ollama_model: str
     allow_test_provider: bool
+    filesystem_sandbox_dir: str
+    http_allowed_hosts: list[str]
+    telephony_from_number: str
+    smtp_host: str | None
+    smtp_port: int
+    smtp_username: str | None
+    smtp_password: str | None
+    smtp_use_starttls: bool
+    smtp_from_address: str
+    browser_executable_path: str | None
+
+
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def load_settings() -> Settings:
@@ -29,4 +45,14 @@ def load_settings() -> Settings:
         ollama_host=os.environ.get("AURA_OLLAMA_HOST", "http://localhost:11434"),
         ollama_model=os.environ.get("AURA_OLLAMA_MODEL", "llama3.1"),
         allow_test_provider=env == "test",
+        filesystem_sandbox_dir=os.environ.get("AURA_FS_SANDBOX_DIR", "./aura_sandbox"),
+        http_allowed_hosts=_split_csv(os.environ.get("AURA_HTTP_ALLOWED_HOSTS")),
+        telephony_from_number=os.environ.get("AURA_TELEPHONY_FROM_NUMBER", "+10000000000"),
+        smtp_host=os.environ.get("AURA_SMTP_HOST"),
+        smtp_port=int(os.environ.get("AURA_SMTP_PORT", "587")),
+        smtp_username=os.environ.get("AURA_SMTP_USERNAME"),
+        smtp_password=os.environ.get("AURA_SMTP_PASSWORD"),
+        smtp_use_starttls=os.environ.get("AURA_SMTP_STARTTLS", "true").lower() == "true",
+        smtp_from_address=os.environ.get("AURA_SMTP_FROM_ADDRESS", "aura@localhost"),
+        browser_executable_path=os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE"),
     )

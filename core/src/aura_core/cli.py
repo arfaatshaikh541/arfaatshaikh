@@ -183,6 +183,22 @@ def guardian_freeze(reason: str) -> None:
 
 
 @main.group()
+def connectors() -> None:
+    """Inspect registered connectors and their real, live-checked health."""
+
+
+@connectors.command("list")
+def connectors_list() -> None:
+    runtime = build_runtime()
+    runtime.connectors.refresh_all()
+    snapshot = status_registry.snapshot()
+    for manifest in runtime.connectors.manifests():
+        info = snapshot.get(f"connector.{manifest.name}", {})
+        click.echo(f"{manifest.name:16s} {info.get('status', 'UNKNOWN'):18s} {info.get('detail', '')}")
+        click.echo(f"{'':16s} auth={manifest.auth_method} capabilities={', '.join(manifest.capabilities)}")
+
+
+@main.group()
 def tasks() -> None:
     """Inspect and enqueue durable background tasks."""
 

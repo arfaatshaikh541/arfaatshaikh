@@ -10,6 +10,16 @@ from dataclasses import dataclass
 
 from .actions import TriggerMap, build_default_handlers, build_default_triggers
 from .config import Settings, load_settings
+from .connectors import (
+    BrowserConnector,
+    ConnectorRegistry,
+    DesktopControlConnector,
+    FilesystemConnector,
+    HttpConnector,
+    MockTelephonyProvider,
+    SmtpConnector,
+    TelephonyConnector,
+)
 from .executive import ExecutiveIntelligence, GoalEngine
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
@@ -47,6 +57,7 @@ class Runtime:
     executive: ExecutiveIntelligence
     triggers: TriggerMap
     model_router: ModelRouter
+    connectors: ConnectorRegistry
 
 
 def _seed_default_policies(policy: PolicyEngine) -> None:
@@ -87,9 +98,43 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     goals = GoalEngine(settings.database_url)
     executive = ExecutiveIntelligence(goals, tasks, memory, model_router)
 
+    connectors = _build_connectors(broker, settings)
+
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit,
         broker=broker, guardian=guardian, tasks=tasks, goals=goals, executive=executive,
-        triggers=triggers, model_router=model_router,
+        triggers=triggers, model_router=model_router, connectors=connectors,
     )
+
+
+def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegistry:
+    """Registers every connector that can be constructed with what's known
+    right now -- no credentials required for filesystem/http/desktop/
+    telephony(mock), so those are always registered and health-checked for
+    real. Email and browser are registered only when configured, since an
+    unconfigured SmtpConnector or a browser with no allowlist would just be
+    a handler that always fails -- better to leave the capability
+    NOT_CONNECTED with an honest reason than register a handler that can
+    never succeed.
+    """
+    registry_ = ConnectorRegistry(broker)
+    registry_.register(FilesystemConnector(settings.filesystem_sandbox_dir))
+    registry_.register(HttpConnector(settings.http_allowed_hosts))
+    registry_.register(DesktopControlConnector())
+    registry_.register(TelephonyConnector(MockTelephonyProvider(), from_number=settings.telephony_from_number))
+
+    if settings.smtp_host:
+        registry_.register(SmtpConnector(
+            settings.smtp_host, settings.smtp_port, username=settings.smtp_username,
+            password=settings.smtp_password, use_starttls=settings.smtp_use_starttls,
+            from_address=settings.smtp_from_address,
+        ))
+    else:
+        registry.set("connector.email", CapabilityStatus.NOT_CONNECTED, "set AURA_SMTP_HOST (and credentials) to enable")
+
+    registry_.register(BrowserConnector(
+        executable_path=settings.browser_executable_path, allowed_hosts=settings.http_allowed_hosts,
+    ))
+
+    return registry_
