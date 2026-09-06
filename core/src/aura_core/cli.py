@@ -280,6 +280,44 @@ def goals_review() -> None:
             click.echo(f"{outcome.goal_id}: task {outcome.task_id} -- {outcome.decision.statement}")
 
 
+@main.group()
+def voice() -> None:
+    """Run and supervise the real-time voice pipeline
+    (apps/voice/AuraVoice.Windows.Host)."""
+
+
+@voice.command("run")
+@click.option("--max-restarts", default=5, help="Give up after this many crashes in a row.")
+@click.option("--backoff-seconds", default=2.0, help="Initial restart delay; doubles on each further crash.")
+def voice_run(max_restarts: int, backoff_seconds: float) -> None:
+    """Launch the C# voice pipeline host under the same Supervisor used
+    for self-recovery elsewhere in AURA, so a crash (a transient audio-
+    device error, a dropped connection) restarts the voice process with
+    backoff instead of silently leaving AURA deaf until someone notices
+    and restarts it by hand. Requires the .NET SDK; the process itself
+    needs a real microphone/speaker to do anything useful -- see
+    apps/voice/README.md for exactly what that requires."""
+    from pathlib import Path
+
+    from .diagnostics import Supervisor
+
+    project_dir = Path(__file__).resolve().parents[3] / "apps" / "voice" / "AuraVoice.Windows.Host"
+    if not project_dir.exists():
+        raise click.ClickException(f"voice host project not found at {project_dir}")
+
+    command = ["dotnet", "run", "--project", str(project_dir)]
+    click.echo(f"Supervising: {' '.join(command)}")
+    click.echo("Ctrl+C to stop.")
+
+    supervisor = Supervisor(command, max_restarts=max_restarts, backoff_seconds=backoff_seconds)
+    try:
+        supervisor.start()
+    except KeyboardInterrupt:
+        supervisor.stop()
+    for event in supervisor.events[-5:]:
+        click.echo(f"  {event.at.isoformat()} [{event.kind}] {event.detail}")
+
+
 @main.command()
 def diagnose() -> None:
     """Print an aggregate diagnostic snapshot: capability status, audit

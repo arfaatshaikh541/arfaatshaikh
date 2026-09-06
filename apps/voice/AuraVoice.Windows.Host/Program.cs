@@ -20,17 +20,21 @@ var conversationWindowSeconds = double.TryParse(
     Environment.GetEnvironmentVariable("AURA_VOICE_CONVERSATION_WINDOW_SECONDS"), out var seconds)
     ? seconds
     : 8.0;
+var logPath = Environment.GetEnvironmentVariable("AURA_VOICE_LOG_FILE")
+    ?? System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AURA", "logs", "voice.log");
 
+using var log = new FileVoiceLog(logPath);
 using var httpClient = new HttpClient { BaseAddress = new Uri(coreUrl) };
 var apiClient = new AuraApiClient(httpClient);
 
-Console.WriteLine($"AURA voice host starting. aura_core at {coreUrl}, TTS engine: {ttsEngine}");
+log.Info($"AURA voice host starting. aura_core at {coreUrl}, TTS engine: {ttsEngine}, log file: {logPath}");
 if (!await apiClient.IsHealthyAsync())
 {
-    Console.Error.WriteLine(
-        $"WARNING: aura_core is not reachable at {coreUrl} right now. The wake-word/STT " +
-        "providers below fail closed (never falsely trigger) when they can't reach it, so " +
-        "voice input will simply do nothing rather than misbehave until it's back.");
+    log.Warn(
+        $"aura_core is not reachable at {coreUrl} right now. The wake-word/STT providers below " +
+        "fail closed (never falsely trigger) when they can't reach it, so voice input will " +
+        "simply do nothing rather than misbehave until it's back.");
 }
 
 var wakeWordDetector = new HttpWakeWordDetector(httpClient);
@@ -64,12 +68,12 @@ using var orchestrator = new ConversationOrchestrator(
     pipeline.Controller, GenerateResponseAsync, textToSpeech,
     conversationWindow: TimeSpan.FromSeconds(conversationWindowSeconds));
 
-pipeline.Controller.StateChanged += state => Console.WriteLine($"[voice] state -> {state}");
-orchestrator.ResponseSpoken += response => Console.WriteLine($"[voice] aura: {response}");
-orchestrator.ResponseFailed += ex => Console.Error.WriteLine($"[voice] response generation failed: {ex.Message}");
+pipeline.Controller.StateChanged += state => log.Info($"state -> {state}");
+orchestrator.ResponseSpoken += response => log.Info($"aura: {response}");
+orchestrator.ResponseFailed += ex => log.Error("response generation failed", ex);
 
 pipeline.Start();
-Console.WriteLine("Listening for the wake word. Press Enter to stop.");
+log.Info("Listening for the wake word. Press Enter to stop.");
 Console.ReadLine();
 
 pipeline.Stop();
@@ -77,3 +81,4 @@ if (textToSpeech is IDisposable disposableTts)
 {
     disposableTts.Dispose();
 }
+log.Info("AURA voice host stopped.");
