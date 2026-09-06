@@ -1,52 +1,68 @@
-"""Built-in deterministic actions."""
+"""Built-in triggers and their Action-Broker handlers.
+
+`build_default_triggers()` maps conversational text to action_types.
+`build_default_handlers()` maps those same action_types to the functions
+that actually do the work — registered with the Action Broker, never
+called directly. Handlers for capabilities this build doesn't have
+(OS-level computer control) return NOT_CONNECTED honestly rather than
+being omitted, so the gap is tracked, not silently absent.
+"""
 from __future__ import annotations
 
+from ..governance.action_broker import HandlerResult
+from ..governance.risk_engine import ActionRequest
 from ..memory import MemoryStore
 from ..status import CapabilityStatus, registry
-from .registry import ActionRegistry, ActionResult
+from .registry import TriggerMap
 
 
-def build_default_registry(memory: MemoryStore) -> ActionRegistry:
-    reg = ActionRegistry()
+def build_default_triggers() -> TriggerMap:
+    triggers = TriggerMap()
+    triggers.register("status", "status.read")
+    triggers.register("show status", "status.read")
+    triggers.register("help", "help.read")
+    triggers.register("show tasks", "tasks.read")
+    triggers.register("show commitments", "tasks.read")
+    triggers.register("open chrome", "computer_control.open_app")
+    triggers.register("mute", "computer_control.system_control")
+    return triggers
 
-    def handle_status(_text: str) -> ActionResult:
+
+def build_default_handlers(memory: MemoryStore, triggers: TriggerMap) -> dict[str, callable]:
+    def handle_status(_request: ActionRequest) -> HandlerResult:
         snapshot = registry.snapshot()
         lines = [f"{name}: {info['status']}" for name, info in snapshot.items()]
-        return ActionResult(handled=True, status=CapabilityStatus.LIVE, message="\n".join(lines))
+        return HandlerResult(status=CapabilityStatus.LIVE, message="\n".join(lines))
 
-    def handle_help(_text: str) -> ActionResult:
-        triggers = ", ".join(reg.known_triggers())
-        return ActionResult(handled=True, status=CapabilityStatus.LIVE, message=f"Known instant commands: {triggers}")
+    def handle_help(_request: ActionRequest) -> HandlerResult:
+        known = ", ".join(triggers.known_triggers())
+        return HandlerResult(status=CapabilityStatus.LIVE, message=f"Known instant commands: {known}")
 
-    def handle_show_tasks(_text: str) -> ActionResult:
+    def handle_show_tasks(_request: ActionRequest) -> HandlerResult:
         commitments = memory.open_commitments()
         if not commitments:
-            return ActionResult(handled=True, status=CapabilityStatus.LIVE, message="No open commitments.")
+            return HandlerResult(status=CapabilityStatus.LIVE, message="No open commitments.")
         lines = [f"- {c.description} (due: {c.due_at or 'no deadline'})" for c in commitments]
-        return ActionResult(handled=True, status=CapabilityStatus.LIVE, message="\n".join(lines))
+        return HandlerResult(status=CapabilityStatus.LIVE, message="\n".join(lines))
 
-    def handle_open_chrome(_text: str) -> ActionResult:
+    def handle_open_app(_request: ActionRequest) -> HandlerResult:
         record = registry.get("computer_control.desktop")
-        return ActionResult(
-            handled=True,
+        return HandlerResult(
             status=CapabilityStatus.NOT_CONNECTED,
-            message=f"Cannot open applications: {record.detail if record else 'computer control not implemented'}",
+            message=record.detail if record else "computer control not implemented in this build",
         )
 
-    def handle_mute(_text: str) -> ActionResult:
+    def handle_system_control(_request: ActionRequest) -> HandlerResult:
         record = registry.get("computer_control.desktop")
-        return ActionResult(
-            handled=True,
+        return HandlerResult(
             status=CapabilityStatus.NOT_CONNECTED,
-            message=f"Cannot control system audio: {record.detail if record else 'computer control not implemented'}",
+            message=record.detail if record else "computer control not implemented in this build",
         )
 
-    reg.register("status", handle_status)
-    reg.register("show status", handle_status)
-    reg.register("help", handle_help)
-    reg.register("show tasks", handle_show_tasks)
-    reg.register("show commitments", handle_show_tasks)
-    reg.register("open chrome", handle_open_chrome)
-    reg.register("mute", handle_mute)
-
-    return reg
+    return {
+        "status.read": handle_status,
+        "help.read": handle_help,
+        "tasks.read": handle_show_tasks,
+        "computer_control.open_app": handle_open_app,
+        "computer_control.system_control": handle_system_control,
+    }

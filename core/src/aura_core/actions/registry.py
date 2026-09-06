@@ -1,46 +1,30 @@
-"""Deterministic instant-action lane (Lane A).
+"""Deterministic instant-action lane (Lane A) — trigger resolution only.
 
-Per the mega-prompt's Lane A requirement: known commands should never wake a
-model. This registry matches normalized input text against registered
-triggers and dispatches directly — no LLM call, sub-millisecond in
-practice for local logic.
-
-Handlers that require a capability this build doesn't have (OS-level
-computer control) are registered too, but their handler returns
-NOT_CONNECTED honestly rather than being silently omitted — so 'open
-chrome' is a known, tracked gap, not an unhandled surprise.
+This module's job ends at producing an ActionRequest from matched text. It
+does not execute anything — execution happens exclusively through the
+Action Broker (see aura_core.governance.action_broker), which is the
+mandatory gateway for every consequential action, deterministic or
+otherwise. Splitting "what did the owner mean" from "is this allowed to
+happen" is what makes the broker a real gate rather than decoration.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-
-from ..status import CapabilityStatus
+from ..governance.risk_engine import ActionRequest
 
 
-@dataclass
-class ActionResult:
-    handled: bool
-    status: CapabilityStatus
-    message: str
-
-
-ActionHandler = Callable[[str], ActionResult]
-
-
-class ActionRegistry:
+class TriggerMap:
     def __init__(self) -> None:
-        self._triggers: dict[str, ActionHandler] = {}
+        self._triggers: dict[str, str] = {}  # normalized text -> action_type
 
-    def register(self, trigger: str, handler: ActionHandler) -> None:
-        self._triggers[trigger.lower().strip()] = handler
+    def register(self, trigger: str, action_type: str) -> None:
+        self._triggers[trigger.lower().strip()] = action_type
 
-    def dispatch(self, text: str) -> ActionResult | None:
+    def resolve(self, text: str, requested_by: str = "owner") -> ActionRequest | None:
         normalized = text.lower().strip().rstrip(".!?")
-        handler = self._triggers.get(normalized)
-        if handler is None:
+        action_type = self._triggers.get(normalized)
+        if action_type is None:
             return None
-        return handler(text)
+        return ActionRequest(action_type=action_type, params={"raw_text": text}, requested_by=requested_by)
 
     def known_triggers(self) -> list[str]:
         return sorted(self._triggers.keys())

@@ -1,8 +1,9 @@
-"""FastAPI app: real SSE streaming chat, status, and health endpoints.
+"""FastAPI app: real SSE streaming chat (routed through the Action Broker
+for the deterministic lane), status, health, and the owner-facing
+approval/kill-switch/audit surfaces.
 
-Streaming is genuine: each chunk yielded by the model provider (or the
-single deterministic-action message) is flushed to the client as it
-becomes available, not assembled first and revealed character-by-character.
+Streaming is genuine: chunks are flushed as they become available, not
+assembled first and revealed character-by-character.
 """
 from __future__ import annotations
 
@@ -14,15 +15,19 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..actions import build_default_registry
-from ..config import Settings, load_settings
-from ..memory import MemoryStore
-from ..providers import ModelRouter, NoProviderAvailable, OllamaProvider
+from ..config import Settings
+from ..providers import NoProviderAvailable
+from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
 
 
 class ChatRequest(BaseModel):
     message: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    approved: bool
+    decided_by: str = "owner"
 
 
 def _sse(event: str, data: str) -> bytes:
@@ -31,15 +36,7 @@ def _sse(event: str, data: str) -> bytes:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or load_settings()
-
-    memory = MemoryStore(settings.database_url)
-    registry.set("memory.store", CapabilityStatus.LIVE, f"connected to {settings.database_url}")
-
-    actions = build_default_registry(memory)
-
-    ollama = OllamaProvider(host=settings.ollama_host, model=settings.ollama_model)
-    router = ModelRouter(primary=ollama, allow_test_fallback=settings.allow_test_provider)
+    runtime: Runtime = build_runtime(settings)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -47,10 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         registry.set("api.server", CapabilityStatus.UNAVAILABLE, "server stopped")
 
-    app = FastAPI(title="AURA Core", version="0.1.0", lifespan=lifespan)
-    app.state.memory = memory
-    app.state.actions = actions
-    app.state.router = router
+    app = FastAPI(title="AURA Core", version="0.2.0", lifespan=lifespan)
+    app.state.runtime = runtime
 
     @app.get("/health")
     async def health() -> dict:
@@ -64,22 +59,71 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def commitments() -> list[dict]:
         return [
             {"id": c.id, "description": c.description, "due_at": c.due_at.isoformat() if c.due_at else None}
-            for c in memory.open_commitments()
+            for c in runtime.memory.open_commitments()
         ]
+
+    @app.get("/approvals")
+    async def list_approvals() -> list[dict]:
+        return [
+            {
+                "id": a.id, "action_type": a.action_type, "risk_tier": a.risk_tier,
+                "reason": a.reason, "status": a.status, "created_at": a.created_at.isoformat(),
+            }
+            for a in runtime.approvals.pending()
+        ]
+
+    @app.post("/approvals/{approval_id}/decide")
+    async def decide_approval(approval_id: str, decision: ApprovalDecisionRequest) -> dict:
+        outcome = runtime.broker.resume_after_approval(
+            approval_id, approved=decision.approved, decided_by=decision.decided_by,
+        )
+        return {"status": outcome.status.value, "message": outcome.message}
+
+    @app.get("/audit")
+    async def audit_entries() -> list[dict]:
+        return [
+            {
+                "seq": e.seq, "timestamp": e.timestamp_iso, "actor": e.actor,
+                "action_type": e.action_type, "risk_tier": e.risk_tier, "decision": e.decision,
+                "approval_id": e.approval_id, "result_status": e.result_status,
+                "result_message": e.result_message,
+            }
+            for e in runtime.audit.all_entries()
+        ]
+
+    @app.get("/audit/verify")
+    async def audit_verify() -> dict:
+        verification = runtime.audit.verify_chain()
+        return {
+            "valid": verification.valid,
+            "broken_at_seq": verification.broken_at_seq,
+            "entries_checked": verification.entries_checked,
+        }
+
+    @app.post("/kill-switch/engage")
+    async def engage_kill_switch() -> dict:
+        runtime.policy.engage_kill_switch()
+        return {"kill_switch_engaged": True}
+
+    @app.post("/kill-switch/disengage")
+    async def disengage_kill_switch() -> dict:
+        runtime.policy.disengage_kill_switch()
+        return {"kill_switch_engaged": False}
 
     @app.post("/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:
         async def stream() -> AsyncIterator[bytes]:
-            action_result = actions.dispatch(request.message)
-            if action_result is not None:
+            action_request = runtime.triggers.resolve(request.message)
+            if action_request is not None:
+                outcome = runtime.broker.submit(action_request)
                 yield _sse("lane", "deterministic")
-                yield _sse("chunk", action_result.message)
-                yield _sse("done", action_result.status.value)
+                yield _sse("chunk", outcome.message)
+                yield _sse("done", outcome.status.value)
                 return
 
             yield _sse("lane", "model")
             try:
-                async for chunk in router.generate_stream(request.message, history=[]):
+                async for chunk in runtime.model_router.generate_stream(request.message, history=[]):
                     yield _sse("chunk", chunk)
                 yield _sse("done", "ok")
             except NoProviderAvailable as exc:

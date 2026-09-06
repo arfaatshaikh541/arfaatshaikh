@@ -1,5 +1,14 @@
 # Agent Architecture: Zero-Trust Fleet, Action Broker, Policy/Risk Engines, Credential Broker
 
+> **Implementation status**: the Action Broker, Policy Engine, Risk Engine,
+> Approval Engine, a minimal Credential Broker, and a hash-chained Audit
+> Log described below are implemented and tested in `/core/src/aura_core/
+> governance/`, wired into the runtime via `/core/src/aura_core/runtime.py`
+> — see `core/RUNBOOK.md` for how to run and verify them. The Security
+> Guardian (independent oversight, separate trust boundary) is **not**
+> implemented yet — this governance layer has no external watcher on it
+> today, which is a real gap, not an oversight in this note.
+
 ## Core principle
 
 **Agents are untrusted workloads.** An agent is an LLM invocation plus a task context —
