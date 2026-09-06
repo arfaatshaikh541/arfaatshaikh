@@ -1,18 +1,65 @@
 # AURA Project Status
 
 ## Current milestone
-AURA Core v0.2.0 — the Action Broker / Policy Engine (the mandatory
-execution gateway for every consequential action) is now implemented,
-tested, and integrated into the runtime, on top of the v0.1.0 core
-(persistent memory, deterministic instant-action lane, model routing,
-streaming chat API/CLI). Per explicit owner instruction, work is
-continuing automatically into the native Windows shell and real-time
-voice layer next, without a pause for approval between them.
+Following v0.2.0 (Action Broker / Policy Engine), per explicit owner
+instruction to continue automatically without pausing for approval: a
+native Windows shell (`apps/windows/`) and a real-time voice layer
+(`apps/voice/`) have been scaffolded in C#/.NET, with the portions
+buildable/testable in this environment actually built and tested.
 
 ## Status
-Real, tested, running code. Scope remains bounded by what this
-environment (a cloud Linux container — no Windows, no audio hardware, no
-GPU, no live credentials) can actually build and verify.
+Real, tested, running Python core (`/core`). Real, compiled, and
+partially tested C# for the Windows shell and voice layer
+(`/apps/windows`, `/apps/voice`) — see their own READMEs for the exact
+verified/unverified boundary; the honest summary is: all pure logic
+(view-models, API client parsing, VAD, the conversation state machine)
+is built AND tested; everything touching a real window, a real
+microphone, or real Windows speech synthesis is built and compiles, but
+has never executed, because this environment has none of those things.
+
+## Windows shell & voice layer (this update)
+
+- `apps/windows/AuraShell.Core` (plain net8.0): `AuraApiClient` (real SSE
+  parsing against the aura_core API's exact wire format), `ChatViewModel`,
+  `StatusViewModel`, `ApprovalsViewModel`, `MainViewModel`, a hand-rolled
+  `RelayCommand`/`ObservableObject` (no external MVVM package dependency).
+  **13 tests, all passing** — real HTTP-shaped fakes (`FakeHttpMessageHandler`),
+  not mocks of the client's own methods.
+- `apps/windows/AuraShell` (net8.0-windows, WPF): `App.xaml(.cs)`,
+  `MainWindow.xaml(.cs)`, a value converter. Three tabs (Chat/Status/
+  Approvals) plus a kill-switch toggle, all data-bound to `MainViewModel`.
+  **Cannot build in this environment** — confirmed by trying: WPF
+  requires the Windows Desktop SDK, unavailable on Linux. Unverified
+  beyond "carefully written, following standard WPF/MVVM patterns."
+- `apps/voice/AuraVoice.Core` (plain net8.0): `EnergyVoiceActivityDetector`
+  (real RMS-energy VAD), `VoiceSessionController` (the full wake/listen/
+  process/speak/conversation-window/barge-in/sleep state machine), and
+  the `IWakeWordDetector`/`ISpeechToText`/`ITextToSpeech` interfaces with
+  honest `Null*` defaults (never fire / throw rather than fake success).
+  **11 tests, all passing.**
+- `apps/voice/AuraVoice.Windows` (net8.0-windows): real NAudio
+  microphone-capture code (`NAudioMicrophoneSource`) and the pipeline
+  wiring capture → VAD → wake-word → utterance-buffering → STT → the
+  state machine → TTS (`WindowsVoicePipeline`). **Compiles successfully
+  in this environment** (confirmed) — real code against NAudio's actual
+  API, not a guess — but never run against a real microphone.
+- `apps/voice/AuraVoice.Windows.Speech` (net8.0-windows): real Windows
+  SAPI text-to-speech (`SapiTextToSpeech`, via `System.Speech`).
+  **Also compiles successfully here** (somewhat surprisingly — see below)
+  but never produced actual audio.
+- Wake-word detection and speech-to-text are **not implemented**, only
+  interfaced — they need a licensed/trained model (Porcupine) and an STT
+  engine (Vosk or a cloud API) respectively, neither of which this
+  session has credentials or model files for. `apps/voice/README.md`
+  documents the exact next steps.
+
+Two real bugs were caught by actually attempting builds, not by review:
+the `NAudio` umbrella package pulls in a `WindowsForms` FrameworkReference
+that fails to resolve on Linux (fixed by depending on `NAudio.Core` +
+`NAudio.WinMM` directly, which is all the code actually uses); and a
+`.csproj` XML comment containing `--` failed `dotnet sln add`'s XML
+parser (fixed). Both are documented in `apps/voice/README.md` so the
+reasoning isn't lost.
 
 ## Background: audit of the uploaded AURA 5.2.0 codebase
 An existing 1,225-file / ~36,000-line codebase (`AURA-5.2.0-INSTANT-LANE`)
@@ -192,15 +239,18 @@ update). Known, explicitly-tracked gaps in this layer, none fixed yet:
   multi-device or multi-agent-process deployment.
 
 ## Deferred work
-Native Windows shell and the real-time voice layer are in progress now
-per explicit owner instruction to continue automatically (see "Next
-approved action" below). Still not started: telephony, social/email/CRM
-connectors, computer-control automation, financial execution, pentesting
-tooling, the multi-agent department hierarchy, and the Security Guardian.
-All are designed at the architecture level in `docs/` but not implemented
-in code. None can be verified as `LIVE` from this cloud environment even
-once built — native Windows behavior and voice hardware behavior require
-the owner's actual machine, per `core/RUNBOOK.md`.
+Native Windows shell and real-time voice: scaffolded this update (see
+above), not finished — the shell has no packaging/installer and hasn't
+been run once; voice has no wake-word or STT engine wired in at all, and
+nothing has been run against real audio. Both need the owner's Windows
+machine to progress further; see `apps/windows/README.md` and
+`apps/voice/README.md` for exact next steps.
+
+Still not started at all: telephony, social/email/CRM connectors,
+computer-control automation, financial execution, pentesting tooling, the
+multi-agent department hierarchy, and the Security Guardian. All are
+designed at the architecture level in `docs/` but not implemented in
+code.
 
 ## Assumptions
 Unchanged from the prior entry (single owner, no external tenants,
@@ -209,10 +259,13 @@ GitHub repo (`arfaatshaikh541/arfaatshaikh`) is public, despite it now
 hosting private business-system source code.
 
 ## Next approved action
-Owner has explicitly instructed continuing automatically, without a
-pause for approval, into: (1) the native Windows shell, and (2) the
-real-time voice layer. Both are in progress. Per this same log's own
-standard: their status will be reported as `LIVE` only where actually
-built and verified, `READY_TO_CONNECT` or equivalent where the code is
-real but unverifiable from this cloud environment, and never claimed
-working without a real test or run backing the claim.
+The native Windows shell and real-time voice layer instructed this
+session are scaffolded (this update). Meaningful further progress on
+either (running the WPF app, capturing real audio, producing real
+speech, tuning the VAD, wiring a real wake-word/STT engine) requires the
+owner's Windows machine and, for wake-word/STT specifically, the owner's
+own API keys or model downloads — genuine blockers, not a pause for
+permission. Awaiting the owner running `apps/windows/README.md` and
+`apps/voice/README.md`'s steps and reporting back what actually happens
+on real hardware, or further instruction on what to build next in the
+meantime (e.g., a connector, or the Security Guardian).

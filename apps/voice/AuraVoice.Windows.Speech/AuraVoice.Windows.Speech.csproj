@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kept as its own project, separate from AuraVoice.Windows, since audio
+    capture and speech synthesis are independent concerns. As it turns
+    out System.Speech itself compiles fine on Linux (confirmed:
+    `dotnet build` succeeds here). It was the umbrella "NAudio" package,
+    not System.Speech, that pulled in the WindowsForms FrameworkReference
+    this codebase avoided in AuraVoice.Windows. See apps/voice/README.md
+    for exactly what is and isn't verified.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuraVoice.Core\AuraVoice.Core.csproj" />
+  </ItemGroup>
+
+</Project>
