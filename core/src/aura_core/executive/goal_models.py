@@ -10,7 +10,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from ..memory.models import Base, _now, _uuid
 
-GOAL_STATUSES = ("draft", "active", "paused", "completed", "abandoned")
+GOAL_STATUSES = (
+    "draft", "active", "paused", "completed", "abandoned",
+    # Workstream states (section 5 of the governing product spec): a goal
+    # doubles as a mandate's "workstream" once linked via mandate_id, and
+    # needs richer states than the original draft/active/paused/completed/
+    # abandoned set to honestly reflect what the operating loop observed.
+    "waiting_external", "waiting_approval", "blocked", "verifying", "failed", "suspended",
+)
 
 
 class Goal(Base):
@@ -18,6 +25,7 @@ class Goal(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     owner: Mapped[str] = mapped_column(String(200), default="owner")
+    mandate_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     statement: Mapped[str] = mapped_column(Text)
     priority: Mapped[int] = mapped_column(Integer, default=3)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

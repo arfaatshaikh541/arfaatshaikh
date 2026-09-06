@@ -88,6 +88,42 @@ class GoalEngine:
     def complete(self, goal_id: str) -> None:
         self._set_status(goal_id, "completed")
 
+    def mark_waiting_approval(self, goal_id: str) -> None:
+        self._set_status(goal_id, "waiting_approval")
+
+    def mark_waiting_external(self, goal_id: str) -> None:
+        self._set_status(goal_id, "waiting_external")
+
+    def mark_blocked(self, goal_id: str) -> None:
+        self._set_status(goal_id, "blocked")
+
+    def mark_verifying(self, goal_id: str) -> None:
+        self._set_status(goal_id, "verifying")
+
+    def mark_failed(self, goal_id: str) -> None:
+        self._set_status(goal_id, "failed")
+
+    def mark_suspended(self, goal_id: str) -> None:
+        self._set_status(goal_id, "suspended")
+
+    def reactivate(self, goal_id: str) -> None:
+        """Return a workstream to 'active' once whatever it was waiting
+        on (approval, an external reply, a blocker) is resolved."""
+        self._set_status(goal_id, "active")
+
+    def set_mandate(self, goal_id: str, mandate_id: str) -> None:
+        with self._Session() as session:
+            goal = session.get(Goal, goal_id)
+            if goal is None:
+                raise GoalNotReadyError(f"no such goal '{goal_id}'")
+            goal.mandate_id = mandate_id
+            session.commit()
+
+    def list_for_mandate(self, mandate_id: str) -> list[Goal]:
+        with self._Session() as session:
+            stmt = select(Goal).where(Goal.mandate_id == mandate_id).order_by(Goal.priority)
+            return list(session.scalars(stmt))
+
     def _set_status(self, goal_id: str, status: str) -> None:
         with self._Session() as session:
             goal = session.get(Goal, goal_id)

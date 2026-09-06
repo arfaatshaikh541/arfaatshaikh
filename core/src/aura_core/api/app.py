@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..config import Settings
-from ..executive import GoalNotReadyError
+from ..executive import GoalNotReadyError, MandateNotReadyError
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -53,6 +53,16 @@ class CreateGoalRequest(BaseModel):
     stop_conditions: list[str] = []
     priority: int = 3
     review_interval_seconds: int = 86400
+
+
+class CreateMandateRequest(BaseModel):
+    title: str
+    mission: str
+    objectives: list[str] = []
+    kpis: list[dict] = []
+    constraints: list[str] = []
+    priority: int = 3
+    observation_interval_seconds: int = 3600
 
 
 class WakeWordCheckRequest(BaseModel):
@@ -240,6 +250,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"error": str(exc)}
         return {"id": goal.id, "status": goal.status}
 
+    @app.post("/goals/{goal_id}/mandate/{mandate_id}")
+    async def set_goal_mandate(goal_id: str, mandate_id: str) -> dict:
+        try:
+            runtime.goals.set_mandate(goal_id, mandate_id)
+        except GoalNotReadyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {"goal_id": goal_id, "mandate_id": mandate_id}
+
     @app.get("/goals")
     async def list_goals() -> list[dict]:
         return [
@@ -255,6 +273,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         outcomes = await runtime.executive.run_review_cycle()
         return [
             {"goal_id": o.goal_id, "task_id": o.task_id, "error": o.error}
+            for o in outcomes
+        ]
+
+    @app.post("/mandates")
+    async def create_mandate(request: CreateMandateRequest) -> dict:
+        mandate = runtime.mandates.create(
+            request.title, request.mission, priority=request.priority,
+            objectives=request.objectives, kpis=request.kpis, constraints=request.constraints,
+            observation_interval_seconds=request.observation_interval_seconds,
+        )
+        return {"id": mandate.id, "status": mandate.status}
+
+    @app.post("/mandates/{mandate_id}/activate")
+    async def activate_mandate(mandate_id: str) -> dict:
+        try:
+            mandate = runtime.mandates.activate(mandate_id)
+        except MandateNotReadyError as exc:
+            return {"error": str(exc)}
+        return {"id": mandate.id, "status": mandate.status}
+
+    @app.get("/mandates")
+    async def list_mandates() -> list[dict]:
+        return [
+            {"id": m.id, "title": m.title, "status": m.status, "priority": m.priority}
+            for m in runtime.mandates.list_active()
+        ]
+
+    @app.get("/mandates/{mandate_id}/report")
+    async def mandate_report(mandate_id: str) -> dict:
+        try:
+            report = runtime.mandates.report(mandate_id, runtime.goals, runtime.memory)
+        except MandateNotReadyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {
+            "mandate_id": report.mandate_id, "title": report.title, "status": report.status,
+            "generated_at": report.generated_at.isoformat(), "counts": report.counts,
+            "workstreams": [
+                {
+                    "goal_id": w.goal_id, "statement": w.statement, "status": w.status,
+                    "bucket": w.bucket, "progress": w.progress, "latest_decision": w.latest_decision,
+                }
+                for w in report.workstreams
+            ],
+            "next_actions": report.next_actions, "blockers": report.blockers,
+        }
+
+    @app.post("/loop/run-once")
+    async def loop_run_once() -> list[dict]:
+        outcomes = await runtime.operating_loop.run_cycle_once()
+        return [
+            {"task_id": o.task_id, "task_type": o.task_type, "outcome": o.outcome, "detail": o.detail}
             for o in outcomes
         ]
 

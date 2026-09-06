@@ -234,7 +234,11 @@ def goals() -> None:
 @click.option("--success-metric", default=None)
 @click.option("--budget", default=None, help="JSON budget object")
 @click.option("--stop-condition", "stop_conditions", multiple=True)
-def goals_create(statement: str, success_metric: str | None, budget: str | None, stop_conditions: tuple[str, ...]) -> None:
+@click.option("--review-interval-seconds", default=86400, help="How often the executive re-reviews this goal.")
+def goals_create(
+    statement: str, success_metric: str | None, budget: str | None,
+    stop_conditions: tuple[str, ...], review_interval_seconds: int,
+) -> None:
     import json as _json
 
     runtime = build_runtime()
@@ -242,6 +246,7 @@ def goals_create(statement: str, success_metric: str | None, budget: str | None,
         statement, success_metric=success_metric,
         budget=_json.loads(budget) if budget else None,
         stop_conditions=list(stop_conditions),
+        review_interval_seconds=review_interval_seconds,
     )
     click.echo(f"Created {goal.id} [{goal.status}]")
 
@@ -258,6 +263,19 @@ def goals_activate(goal_id: str) -> None:
     except GoalNotReadyError as exc:
         click.echo(f"Not ready: {exc}", err=True)
         raise SystemExit(1)
+
+
+@goals.command("set-mandate")
+@click.argument("goal_id")
+@click.argument("mandate_id")
+def goals_set_mandate(goal_id: str, mandate_id: str) -> None:
+    """Link a goal as one of a mandate's workstreams -- what "Run
+    Gridkeep" actually needs behind it: the persistent mandate on its
+    own has nothing to report on until at least one workstream is
+    attached to it this way."""
+    runtime = build_runtime()
+    runtime.goals.set_mandate(goal_id, mandate_id)
+    click.echo(f"{goal_id} -> mandate {mandate_id}")
 
 
 @goals.command("list")
@@ -278,6 +296,107 @@ def goals_review() -> None:
             click.echo(f"{outcome.goal_id}: error: {outcome.error}")
         else:
             click.echo(f"{outcome.goal_id}: task {outcome.task_id} -- {outcome.decision.statement}")
+
+
+@main.group()
+def mandates() -> None:
+    """Create, activate, and report on persistent mandates -- the
+    "Run Gridkeep"-style directive that survives restarts and owns one
+    or more workstreams (goals)."""
+
+
+@mandates.command("create")
+@click.argument("title")
+@click.argument("mission")
+@click.option("--objective", "objectives", multiple=True, required=True)
+@click.option("--kpi", "kpis", multiple=True, help="JSON object, e.g. '{\"name\":\"x\",\"target\":1,\"current\":0}'")
+@click.option("--constraint", "constraints", multiple=True, required=True)
+def mandates_create(title: str, mission: str, objectives: tuple[str, ...], kpis: tuple[str, ...], constraints: tuple[str, ...]) -> None:
+    import json as _json
+
+    runtime = build_runtime()
+    mandate = runtime.mandates.create(
+        title, mission, objectives=list(objectives),
+        kpis=[_json.loads(k) for k in kpis], constraints=list(constraints),
+    )
+    click.echo(f"Created {mandate.id} [{mandate.status}]")
+
+
+@mandates.command("activate")
+@click.argument("mandate_id")
+def mandates_activate(mandate_id: str) -> None:
+    from .executive import MandateNotReadyError
+
+    runtime = build_runtime()
+    try:
+        mandate = runtime.mandates.activate(mandate_id)
+        click.echo(f"[{mandate.status}] {mandate.id}")
+    except MandateNotReadyError as exc:
+        click.echo(f"Not ready: {exc}", err=True)
+        raise SystemExit(1)
+
+
+@mandates.command("list")
+def mandates_list() -> None:
+    runtime = build_runtime()
+    for mandate in runtime.mandates.list_active():
+        click.echo(f"{mandate.id} [{mandate.status}] {mandate.title}")
+
+
+@mandates.command("report")
+@click.argument("mandate_id")
+def mandates_report(mandate_id: str) -> None:
+    runtime = build_runtime()
+    report = runtime.mandates.report(mandate_id, runtime.goals, runtime.memory)
+    click.echo(f"{report.title} [{report.status}] -- generated {report.generated_at.isoformat()}")
+    click.echo(f"Counts: {report.counts or 'no workstreams yet'}")
+    for ws in report.workstreams:
+        click.echo(f"  [{ws.bucket:18s}] {ws.statement} (progress={ws.progress:.0%})")
+        if ws.latest_decision:
+            click.echo(f"      last: {ws.latest_decision}")
+    if report.blockers:
+        click.echo("Blockers:")
+        for b in report.blockers:
+            click.echo(f"  - {b}")
+    if report.next_actions:
+        click.echo("Next actions:")
+        for a in report.next_actions:
+            click.echo(f"  - {a}")
+
+
+@main.group()
+def loop() -> None:
+    """Run the autonomous operating loop: plan due workstreams, observe
+    due mandates, drain and execute the resulting tasks through the
+    real Action Broker, on a schedule, surviving restarts."""
+
+
+@loop.command("run-once")
+def loop_run_once() -> None:
+    """One full cycle, synchronously, then exit -- useful for testing or
+    for driving the loop from an external scheduler instead of the
+    built-in background thread."""
+    runtime = build_runtime()
+    outcomes = asyncio.run(runtime.operating_loop.run_cycle_once())
+    if not outcomes:
+        click.echo("Nothing to do this cycle.")
+    for outcome in outcomes:
+        click.echo(f"{outcome.task_id} [{outcome.outcome}] {outcome.detail}")
+
+
+@loop.command("run")
+@click.option("--interval-seconds", default=30.0)
+def loop_run(interval_seconds: float) -> None:
+    """Run the operating loop forever in the foreground (Ctrl+C to
+    stop) -- the actual autonomous heartbeat, not a one-shot demo."""
+    runtime = build_runtime()
+    runtime.operating_loop.interval_seconds = interval_seconds
+    click.echo(f"Operating loop running every {interval_seconds}s. Ctrl+C to stop.")
+    thread = runtime.operating_loop.start_in_background()
+    try:
+        thread.join()
+    except KeyboardInterrupt:
+        runtime.operating_loop.stop()
 
 
 @main.group()

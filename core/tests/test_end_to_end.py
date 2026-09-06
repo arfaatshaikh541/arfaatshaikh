@@ -10,18 +10,37 @@ from __future__ import annotations
 import pytest
 
 from aura_core.connectors import ConnectorRegistry, FilesystemConnector
-from aura_core.executive import ExecutiveIntelligence, GoalEngine
+from aura_core.executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from aura_core.governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from aura_core.governance.action_broker import HandlerResult
 from aura_core.governance.risk_engine import ActionRequest
 from aura_core.guardian import SecurityGuardian
 from aura_core.memory import MemoryStore
-from aura_core.providers import ModelRouter, OllamaProvider
+from aura_core.providers import ModelRouter
 from aura_core.status import CapabilityStatus
 from aura_core.tasks import TaskEngine
 
 
-def build_full_stack(tmp_path):
+class ScriptedJsonProvider:
+    """Stands in for a real model that has been asked to plan a step and
+    actually returned a valid, executable plan -- the deterministic
+    test-mode provider (DeterministicTestProvider) only ever echoes
+    prompt text, which is realistic for "prove streaming works" but
+    useless for exercising the structured-plan path for real."""
+    name = "scripted-json"
+
+    def __init__(self, response: str) -> None:
+        self._response = response
+
+    async def is_available(self) -> bool:
+        return True
+
+    async def generate_stream(self, prompt: str, history: list[dict[str, str]]):
+        for chunk in self._response.split(" "):
+            yield chunk + " "
+
+
+def build_full_stack(tmp_path, provider=None):
     db_url = f"sqlite:///{tmp_path}/e2e.db"
     memory = MemoryStore(db_url)
     policy = PolicyEngine(db_url)
@@ -33,67 +52,126 @@ def build_full_stack(tmp_path):
     broker = ActionBroker(policy, risk, approvals, credentials, audit, on_audit=guardian.evaluate)
     tasks = TaskEngine(db_url)
     goals = GoalEngine(db_url)
+    mandates = MandateEngine(db_url)
 
-    unreachable = OllamaProvider(host="http://127.0.0.1:1", model="llama3.1")
-    router = ModelRouter(primary=unreachable, allow_test_fallback=True)
-    executive = ExecutiveIntelligence(goals, tasks, memory, router)
+    router = ModelRouter(primary=provider or ScriptedJsonProvider('{"advisory": "no plan"}'), allow_test_fallback=True)
+    executive = ExecutiveIntelligence(goals, tasks, memory, router, broker=broker)
+    worker = TaskWorker(tasks, broker, goals, memory)
+    loop = OperatingLoopSupervisor(executive, worker, tasks, mandates, goals)
 
     return {
         "memory": memory, "policy": policy, "audit": audit, "guardian": guardian,
-        "broker": broker, "tasks": tasks, "goals": goals, "executive": executive,
+        "broker": broker, "tasks": tasks, "goals": goals, "mandates": mandates,
+        "executive": executive, "worker": worker, "loop": loop,
     }
 
 
 @pytest.mark.asyncio
-async def test_goal_to_task_to_executed_action_end_to_end(tmp_path):
-    """Full loop: create+activate a goal -> Executive reviews it (real
-    model-router call, test provider) -> a Decision is recorded and a
-    Task enqueued -> a worker claims the task and performs a real,
-    Action-Broker-gated filesystem write standing in for a future
-    specialist agent's actual work -> the task completes -> the audit
-    chain is still valid -> Guardian never had to freeze anything."""
-    stack = build_full_stack(tmp_path)
-    goals, executive, tasks, broker = stack["goals"], stack["executive"], stack["tasks"], stack["broker"]
+async def test_the_operating_loop_plans_claims_and_executes_a_real_action(tmp_path):
+    """The gap docs/FINAL_COMPLETION_AUDIT.md flagged as the single
+    biggest one, closed and proven end to end: create+activate a goal ->
+    a mandate owns it as a workstream -> the operating loop's one cycle
+    plans a structured, broker-constrained step (a real model naming a
+    real registered action_type) -> claims and executes the resulting
+    task through the real Action-Broker-gated filesystem connector ->
+    the workstream is marked verifying -> a Decision records the real
+    outcome -> the audit chain is still valid -> Guardian never had to
+    freeze anything. No step here is hand-orchestrated the way the
+    pre-operating-loop version of this test had to be -- run_cycle_once()
+    does the whole plan-claim-execute-verify sequence for real."""
+    provider = ScriptedJsonProvider(
+        '{"action_type": "filesystem.write_file", '
+        '"params": {"path": "status.txt", "content": "all clients contacted today"}, '
+        '"reasoning": "write the daily status note"}'
+    )
+    stack = build_full_stack(tmp_path, provider=provider)
+    goals, mandates, loop, broker = stack["goals"], stack["mandates"], stack["loop"], stack["broker"]
+
+    mandate = mandates.create(
+        "Run Gridkeep", mission="Keep Gridkeep operations moving day to day.",
+        objectives=["Write a daily status note"], kpis=[{"name": "notes_written", "target": 1, "current": 0}],
+        constraints=["never spend money without approval"],
+    )
+    mandates.activate(mandate.id)
 
     goal = goals.create(
         "Write today's status note", success_metric="note file exists",
         budget={}, stop_conditions=["stop if disk is full"], review_interval_seconds=0,
     )
     goals.activate(goal.id)
+    goals.set_mandate(goal.id, mandate.id)
 
-    outcomes = await executive.run_review_cycle()
-    assert len(outcomes) == 1
-    assert outcomes[0].error is None
-
-    # Wire a handler that performs the reviewed task for real, through
-    # the real Action Broker -- standing in for a specialist agent that
-    # doesn't exist yet (docs/agents/README.md), the same way this
-    # session has stood in real connectors for not-yet-integrated
-    # vendors elsewhere.
     stack["policy"].set_autonomy_level("filesystem.write_file", 4)
-    connector = FilesystemConnector(str(tmp_path / "sandbox"))
-    ConnectorRegistry(broker).register(connector)
+    ConnectorRegistry(broker).register(FilesystemConnector(str(tmp_path / "sandbox")))
 
-    claimed = tasks.claim_next("worker-1")
-    assert claimed is not None
-    assert claimed.task_type == "execute_goal_step"
+    outcomes = await loop.run_cycle_once()
 
-    write_outcome = broker.submit(ActionRequest(
-        action_type="filesystem.write_file",
-        params={"path": "status.txt", "content": claimed.payload["plan"]},
-    ))
-    assert write_outcome.status.value == "EXECUTED"
-    tasks.complete(claimed.id, {"result": "written"})
-
-    assert tasks.get(claimed.id).status == "COMPLETED"
-    assert (tmp_path / "sandbox" / "status.txt").exists()
+    assert len(outcomes) == 1
+    assert outcomes[0].outcome == "executed"
+    assert (tmp_path / "sandbox" / "status.txt").read_text() == "all clients contacted today"
+    assert goals.get(goal.id).status == "verifying"
 
     decisions = stack["memory"].decisions_for_goal(goal.id)
-    assert len(decisions) == 1
+    assert len(decisions) == 2  # the plan, then the real execution outcome
+    assert "executed 'filesystem.write_file'" in decisions[-1].statement
+
+    report = mandates.report(mandate.id, goals, stack["memory"])
+    assert report.counts.get("IN_PROGRESS") == 1
 
     verification = stack["audit"].verify_chain()
     assert verification.valid is True
     assert stack["guardian"].recent_events() == []  # nothing anomalous happened
+
+
+@pytest.mark.asyncio
+async def test_the_operating_loop_never_fabricates_an_action_it_cannot_execute(tmp_path):
+    """When the model doesn't name a real, registered action type
+    (whether it stays silent, hallucinates one, or explicitly declines),
+    the loop must record an honest advisory outcome -- never invent an
+    ActionRequest to submit anyway. This is the safety property the
+    whole plan/parse_plan design exists for."""
+    provider = ScriptedJsonProvider('{"action_type": "launch_the_nukes", "params": {}}')
+    stack = build_full_stack(tmp_path, provider=provider)
+    goals, loop = stack["goals"], stack["loop"]
+
+    goal = goals.create(
+        "Do something", success_metric="something happens", budget={},
+        stop_conditions=["stop if unclear"], review_interval_seconds=0,
+    )
+    goals.activate(goal.id)
+
+    outcomes = await loop.run_cycle_once()
+
+    assert len(outcomes) == 1
+    assert outcomes[0].outcome == "advisory"
+    assert goals.get(goal.id).status == "active"  # untouched -- nothing executed, nothing broke it either
+
+
+@pytest.mark.asyncio
+async def test_a_denied_step_blocks_its_workstream_instead_of_silently_stalling(tmp_path):
+    """A structurally valid, registered action that the Policy Engine
+    denies (autonomy level 0, the default) must leave a clearly blocked
+    workstream behind -- not an "active" goal that looks fine but never
+    actually progresses."""
+    provider = ScriptedJsonProvider(
+        '{"action_type": "filesystem.write_file", "params": {"path": "x.txt", "content": "x"}}'
+    )
+    stack = build_full_stack(tmp_path, provider=provider)
+    goals, loop, broker = stack["goals"], stack["loop"], stack["broker"]
+    ConnectorRegistry(broker).register(FilesystemConnector(str(tmp_path / "sandbox")))
+    # No autonomy level set for filesystem.write_file -> defaults to 0 (DENY).
+
+    goal = goals.create(
+        "Write a file", success_metric="file exists", budget={},
+        stop_conditions=["stop if disk full"], review_interval_seconds=0,
+    )
+    goals.activate(goal.id)
+
+    outcomes = await loop.run_cycle_once()
+
+    assert outcomes[0].outcome == "denied"
+    assert goals.get(goal.id).status == "blocked"
+    assert not (tmp_path / "sandbox" / "x.txt").exists()
 
 
 def test_a_misbehaving_caller_gets_frozen_before_causing_real_damage(tmp_path):

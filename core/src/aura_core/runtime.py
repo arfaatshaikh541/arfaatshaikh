@@ -20,7 +20,7 @@ from .connectors import (
     SmtpConnector,
     TelephonyConnector,
 )
-from .executive import ExecutiveIntelligence, GoalEngine
+from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
 from .memory import MemoryStore, WorldModelStore
@@ -54,7 +54,10 @@ class Runtime:
     guardian: SecurityGuardian
     tasks: TaskEngine
     goals: GoalEngine
+    mandates: MandateEngine
     executive: ExecutiveIntelligence
+    worker: TaskWorker
+    operating_loop: OperatingLoopSupervisor
     triggers: TriggerMap
     model_router: ModelRouter
     connectors: ConnectorRegistry
@@ -96,14 +99,18 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     model_router = ModelRouter(primary=ollama, allow_test_fallback=settings.allow_test_provider)
 
     goals = GoalEngine(settings.database_url)
-    executive = ExecutiveIntelligence(goals, tasks, memory, model_router)
+    mandates = MandateEngine(settings.database_url)
+    executive = ExecutiveIntelligence(goals, tasks, memory, model_router, broker=broker)
+    worker = TaskWorker(tasks, broker, goals, memory)
+    operating_loop = OperatingLoopSupervisor(executive, worker, tasks, mandates, goals)
 
     connectors = _build_connectors(broker, settings)
 
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit,
-        broker=broker, guardian=guardian, tasks=tasks, goals=goals, executive=executive,
+        broker=broker, guardian=guardian, tasks=tasks, goals=goals, mandates=mandates,
+        executive=executive, worker=worker, operating_loop=operating_loop,
         triggers=triggers, model_router=model_router, connectors=connectors,
     )
 

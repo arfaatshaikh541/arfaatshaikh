@@ -75,6 +75,12 @@ class ActionBroker:
     def register_handler(self, action_type: str, handler: ActionHandler) -> None:
         self._handlers[action_type] = handler
 
+    def registered_action_types(self) -> list[str]:
+        """What can actually be executed right now -- the ground truth a
+        planner must constrain itself to, so "the model decided to do X"
+        can never mean an action_type with no real handler behind it."""
+        return sorted(self._handlers.keys())
+
     # -- Entry points ---------------------------------------------------------
     def submit(self, request: ActionRequest) -> ActionOutcome:
         if self._policy.is_kill_switch_engaged():
