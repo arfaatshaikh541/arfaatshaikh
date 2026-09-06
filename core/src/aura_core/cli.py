@@ -400,6 +400,39 @@ def loop_run(interval_seconds: float) -> None:
 
 
 @main.group()
+def memory() -> None:
+    """Search AURA's memory, or ask it a free-text question answered
+    from real retrieved records."""
+
+
+@memory.command("search")
+@click.argument("query")
+@click.option("--limit", default=10)
+def memory_search(query: str, limit: int) -> None:
+    runtime = build_runtime()
+    results = runtime.memory.search(query, limit=limit)
+    if not results:
+        click.echo("No matching memory found.")
+    for r in results:
+        click.echo(f"[{r.kind:10s} {r.score:.2f} {r.created_at.date().isoformat()}] {r.text}")
+
+
+@memory.command("ask")
+@click.argument("question")
+def memory_ask(question: str) -> None:
+    from .memory import answer_question
+
+    runtime = build_runtime()
+    result = asyncio.run(answer_question(question, runtime.memory, runtime.model_router))
+    if result.error:
+        click.echo(f"Could not answer: {result.error}", err=True)
+        raise SystemExit(1)
+    click.echo(result.answer)
+    click.echo("")
+    click.echo(f"(grounded in {len(result.context_used)} memory record(s))")
+
+
+@main.group()
 def voice() -> None:
     """Run and supervise the real-time voice pipeline
     (apps/voice/AuraVoice.Windows.Host)."""

@@ -65,6 +65,10 @@ class CreateMandateRequest(BaseModel):
     observation_interval_seconds: int = 3600
 
 
+class AskMemoryRequest(BaseModel):
+    question: str
+
+
 class WakeWordCheckRequest(BaseModel):
     audio_base64: str  # base64-encoded 16-bit PCM mono samples
 
@@ -326,6 +330,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             {"task_id": o.task_id, "task_type": o.task_type, "outcome": o.outcome, "detail": o.detail}
             for o in outcomes
         ]
+
+    @app.get("/memory/search")
+    async def memory_search(q: str, limit: int = 10) -> list[dict]:
+        results = runtime.memory.search(q, limit=limit)
+        return [
+            {"kind": r.kind, "id": r.id, "text": r.text, "score": r.score, "created_at": r.created_at.isoformat()}
+            for r in results
+        ]
+
+    @app.post("/memory/ask")
+    async def memory_ask(request: AskMemoryRequest) -> dict:
+        from ..memory import answer_question
+
+        result = await answer_question(request.question, runtime.memory, runtime.model_router)
+        return {
+            "question": result.question, "answer": result.answer,
+            "error": result.error, "context_used": result.context_used,
+        }
 
     @app.post("/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:
