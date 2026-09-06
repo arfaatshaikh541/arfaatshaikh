@@ -89,6 +89,30 @@ class AuditLog:
         with self._Session() as session:
             return list(session.scalars(select(AuditEntry).order_by(AuditEntry.seq)))
 
+    def entries_after(self, seq: int) -> list[AuditEntry]:
+        """Entries with seq > the given watermark."""
+        with self._Session() as session:
+            stmt = select(AuditEntry).where(AuditEntry.seq > seq).order_by(AuditEntry.seq)
+            return list(session.scalars(stmt))
+
+    def entries_since(self, cutoff_iso: str) -> list[AuditEntry]:
+        """Entries with timestamp_iso >= cutoff_iso. ISO-8601 UTC strings
+        sort correctly lexicographically, so this is a plain string
+        comparison at the SQL level — what Security Guardian uses for its
+        rolling time-window checks."""
+        with self._Session() as session:
+            stmt = (
+                select(AuditEntry)
+                .where(AuditEntry.timestamp_iso >= cutoff_iso)
+                .order_by(AuditEntry.seq)
+            )
+            return list(session.scalars(stmt))
+
+    def latest_seq(self) -> int:
+        with self._Session() as session:
+            last = session.scalars(select(AuditEntry).order_by(AuditEntry.seq.desc())).first()
+            return last.seq if last else 0
+
     def verify_chain(self) -> ChainVerification:
         entries = self.all_entries()
         prev_hash = GENESIS_HASH

@@ -30,6 +30,17 @@ class ApprovalDecisionRequest(BaseModel):
     decided_by: str = "owner"
 
 
+class FreezeRequest(BaseModel):
+    reason: str
+
+
+class EnqueueTaskRequest(BaseModel):
+    task_type: str
+    payload: dict = {}
+    depends_on: list[str] = []
+    max_attempts: int = 3
+
+
 def _sse(event: str, data: str) -> bytes:
     payload = json.dumps({"event": event, "data": data})
     return f"data: {payload}\n\n".encode()
@@ -109,6 +120,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def disengage_kill_switch() -> dict:
         runtime.policy.disengage_kill_switch()
         return {"kill_switch_engaged": False}
+
+    @app.get("/guardian/events")
+    async def guardian_events() -> list[dict]:
+        return [
+            {
+                "id": e.id, "detected_at": e.detected_at.isoformat(),
+                "rule_name": e.rule_name, "detail": e.detail, "action_taken": e.action_taken,
+            }
+            for e in runtime.guardian.recent_events()
+        ]
+
+    @app.post("/guardian/freeze")
+    async def guardian_freeze(request: FreezeRequest) -> dict:
+        event = runtime.guardian.freeze(request.reason)
+        return {"id": event.id, "action_taken": event.action_taken}
+
+    @app.get("/tasks")
+    async def list_tasks(status: str | None = None) -> list[dict]:
+        records = runtime.tasks.list_by_status(status) if status else [
+            t for s in ("QUEUED", "RUNNING", "WAITING", "BLOCKED", "NEEDS_APPROVAL", "RETRYING")
+            for t in runtime.tasks.list_by_status(s)
+        ]
+        return [
+            {
+                "id": t.id, "task_type": t.task_type, "status": t.status,
+                "attempts": t.attempts, "max_attempts": t.max_attempts,
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in records
+        ]
+
+    @app.post("/tasks")
+    async def enqueue_task(request: EnqueueTaskRequest) -> dict:
+        task = runtime.tasks.enqueue(
+            request.task_type, request.payload,
+            depends_on=request.depends_on, max_attempts=request.max_attempts,
+        )
+        return {"id": task.id, "status": task.status}
 
     @app.post("/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:

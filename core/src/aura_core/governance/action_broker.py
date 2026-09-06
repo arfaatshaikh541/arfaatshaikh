@@ -26,6 +26,7 @@ from .approval_engine import ApprovalEngine
 from .audit_log import AuditLog
 from .credential_broker import CredentialBroker
 from .policy_engine import PolicyDecision, PolicyEngine
+from .rate_limiter import RateLimiter
 from .risk_engine import ActionRequest, RiskEngine, RiskTier
 
 
@@ -35,6 +36,7 @@ class OutcomeStatus(str, Enum):
     PENDING_APPROVAL = "PENDING_APPROVAL"
     KILL_SWITCH_ENGAGED = "KILL_SWITCH_ENGAGED"
     NO_HANDLER = "NO_HANDLER"
+    RATE_LIMITED = "RATE_LIMITED"
 
 
 @dataclass
@@ -58,13 +60,16 @@ class ActionBroker:
     def __init__(
         self, policy_engine: PolicyEngine, risk_engine: RiskEngine,
         approval_engine: ApprovalEngine, credential_broker: CredentialBroker,
-        audit_log: AuditLog,
+        audit_log: AuditLog, rate_limiter: RateLimiter | None = None,
+        on_audit: Callable[[], None] | None = None,
     ) -> None:
         self._policy = policy_engine
         self._risk = risk_engine
         self._approvals = approval_engine
         self._credentials = credential_broker
         self._audit = audit_log
+        self._rate_limiter = rate_limiter or RateLimiter()
+        self._on_audit = on_audit
         self._handlers: dict[str, ActionHandler] = {}
 
     def register_handler(self, action_type: str, handler: ActionHandler) -> None:
@@ -75,6 +80,11 @@ class ActionBroker:
         if self._policy.is_kill_switch_engaged():
             outcome = ActionOutcome(OutcomeStatus.KILL_SWITCH_ENGAGED, "kill switch is engaged; no actions execute")
             self._audit_record(request, risk_tier=None, decision="KILL_SWITCH", approval_id=None, outcome=outcome)
+            return outcome
+
+        if not self._rate_limiter.allow(request.action_type):
+            outcome = ActionOutcome(OutcomeStatus.RATE_LIMITED, f"rate limit exceeded for '{request.action_type}'")
+            self._audit_record(request, risk_tier=None, decision="RATE_LIMITED", approval_id=None, outcome=outcome)
             return outcome
 
         risk = self._risk.classify(request)
@@ -179,3 +189,5 @@ class ActionBroker:
             result_status=outcome.status.value,
             result_message=outcome.message,
         )
+        if self._on_audit is not None:
+            self._on_audit()

@@ -11,9 +11,11 @@ from dataclasses import dataclass
 from .actions import TriggerMap, build_default_handlers, build_default_triggers
 from .config import Settings, load_settings
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
+from .guardian import SecurityGuardian
 from .memory import MemoryStore
 from .providers import ModelRouter, OllamaProvider
 from .status import CapabilityStatus, registry
+from .tasks import TaskEngine
 
 # Seeded once per fresh policy store. Only applied when no explicit policy
 # already exists for the action_type, so an owner's later adjustment is
@@ -37,6 +39,8 @@ class Runtime:
     credentials: CredentialBroker
     audit: AuditLog
     broker: ActionBroker
+    guardian: SecurityGuardian
+    tasks: TaskEngine
     triggers: TriggerMap
     model_router: ModelRouter
 
@@ -60,7 +64,12 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     audit = AuditLog(settings.database_url)
     _seed_default_policies(policy)
 
-    broker = ActionBroker(policy, risk, approvals, credentials, audit)
+    guardian = SecurityGuardian(audit, policy, settings.database_url)
+    broker = ActionBroker(
+        policy, risk, approvals, credentials, audit,
+        on_audit=guardian.evaluate,  # Guardian checks every new entry as it's written
+    )
+    tasks = TaskEngine(settings.database_url)
 
     triggers = build_default_triggers()
     handlers = build_default_handlers(memory, triggers)
@@ -73,5 +82,6 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     return Runtime(
         settings=settings, memory=memory, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit,
-        broker=broker, triggers=triggers, model_router=model_router,
+        broker=broker, guardian=guardian, tasks=tasks,
+        triggers=triggers, model_router=model_router,
     )

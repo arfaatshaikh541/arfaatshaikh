@@ -161,5 +161,52 @@ def audit_verify() -> None:
         raise SystemExit(1)
 
 
+@main.group()
+def guardian() -> None:
+    """Inspect Security Guardian and trigger a manual freeze."""
+
+
+@guardian.command("events")
+@click.option("--limit", default=20)
+def guardian_events(limit: int) -> None:
+    runtime = build_runtime()
+    for event in runtime.guardian.recent_events(limit=limit):
+        click.echo(f"{event.detected_at} [{event.action_taken}] {event.rule_name}: {event.detail}")
+
+
+@guardian.command("freeze")
+@click.argument("reason")
+def guardian_freeze(reason: str) -> None:
+    runtime = build_runtime()
+    event = runtime.guardian.freeze(reason)
+    click.echo(f"Frozen. Guardian event {event.id} recorded.")
+
+
+@main.group()
+def tasks() -> None:
+    """Inspect and enqueue durable background tasks."""
+
+
+@tasks.command("list")
+@click.option("--status", default=None)
+def tasks_list(status: str | None) -> None:
+    runtime = build_runtime()
+    statuses = [status] if status else ["QUEUED", "RUNNING", "WAITING", "BLOCKED", "NEEDS_APPROVAL", "RETRYING"]
+    for s in statuses:
+        for task in runtime.tasks.list_by_status(s):
+            click.echo(f"{task.id} [{task.status}] {task.task_type} attempts={task.attempts}/{task.max_attempts}")
+
+
+@tasks.command("enqueue")
+@click.argument("task_type")
+@click.option("--payload", default="{}", help="JSON payload")
+def tasks_enqueue(task_type: str, payload: str) -> None:
+    import json as _json
+
+    runtime = build_runtime()
+    task = runtime.tasks.enqueue(task_type, _json.loads(payload))
+    click.echo(f"Enqueued {task.id} [{task.status}]")
+
+
 if __name__ == "__main__":
     main()
