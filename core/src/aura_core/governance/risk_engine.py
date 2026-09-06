@@ -60,6 +60,11 @@ AMBER_ACTION_TYPES = {
     "social.publish",
     "email.send_external",
     "telephony.call",
+    "http.get",
+    "http.post",
+    "filesystem.write_file",
+    "browser.navigate",
+    "crm.write",
 }
 
 GREEN_ACTION_TYPES = {
@@ -67,6 +72,9 @@ GREEN_ACTION_TYPES = {
     "help.read",
     "tasks.read",
     "memory.read",
+    "filesystem.read_file",
+    "filesystem.list_dir",
+    "crm.read",
 }
 
 

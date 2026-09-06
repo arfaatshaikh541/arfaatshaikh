@@ -86,3 +86,27 @@ class Commitment(ProvenanceMixin, Base):
     description: Mapped[str] = mapped_column(Text)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="open")  # open|fulfilled|broken
+
+
+class Entity(ProvenanceMixin, Base):
+    """A first-class World Model entity — customer, prospect, company,
+    project, supplier, etc. per docs/architecture/02-world-model-memory.md.
+    `attributes_json` holds type-specific fields so new entity shapes
+    don't require schema migrations, matching the SemanticFact pattern."""
+
+    __tablename__ = "entities"
+
+    entity_type: Mapped[str] = mapped_column(String(100), index=True)
+    name: Mapped[str] = mapped_column(String(300), index=True)
+    attributes_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class Relationship(ProvenanceMixin, Base):
+    """A typed edge between two entities (subject -[predicate]-> object),
+    e.g. Entity(Ahmed) -[works_at]-> Entity(Gridkeep)."""
+
+    __tablename__ = "relationships"
+
+    subject_id: Mapped[str] = mapped_column(String(36), index=True)
+    predicate: Mapped[str] = mapped_column(String(100), index=True)
+    object_id: Mapped[str] = mapped_column(String(36), index=True)

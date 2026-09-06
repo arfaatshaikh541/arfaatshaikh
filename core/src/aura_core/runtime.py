@@ -12,7 +12,7 @@ from .actions import TriggerMap, build_default_handlers, build_default_triggers
 from .config import Settings, load_settings
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
-from .memory import MemoryStore
+from .memory import MemoryStore, WorldModelStore
 from .providers import ModelRouter, OllamaProvider
 from .status import CapabilityStatus, registry
 from .tasks import TaskEngine
@@ -33,6 +33,7 @@ _DEFAULT_AUTONOMY_LEVELS: dict[str, tuple[int, str]] = {
 class Runtime:
     settings: Settings
     memory: MemoryStore
+    world_model: WorldModelStore
     policy: PolicyEngine
     risk: RiskEngine
     approvals: ApprovalEngine
@@ -55,6 +56,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     settings = settings or load_settings()
 
     memory = MemoryStore(settings.database_url)
+    world_model = WorldModelStore(settings.database_url)
     registry.set("memory.store", CapabilityStatus.LIVE, f"connected to {settings.database_url}")
 
     policy = PolicyEngine(settings.database_url)
@@ -80,7 +82,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     model_router = ModelRouter(primary=ollama, allow_test_fallback=settings.allow_test_provider)
 
     return Runtime(
-        settings=settings, memory=memory, policy=policy, risk=risk,
+        settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit,
         broker=broker, guardian=guardian, tasks=tasks,
         triggers=triggers, model_router=model_router,
