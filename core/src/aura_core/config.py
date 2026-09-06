@@ -29,6 +29,7 @@ class Settings:
     smtp_use_starttls: bool
     smtp_from_address: str
     browser_executable_path: str | None
+    github_token: str | None
 
 
 def _split_csv(value: str | None) -> list[str]:
@@ -55,4 +56,5 @@ def load_settings() -> Settings:
         smtp_use_starttls=os.environ.get("AURA_SMTP_STARTTLS", "true").lower() == "true",
         smtp_from_address=os.environ.get("AURA_SMTP_FROM_ADDRESS", "aura@localhost"),
         browser_executable_path=os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE"),
+        github_token=os.environ.get("AURA_GITHUB_TOKEN"),
     )

@@ -110,7 +110,7 @@ Blocker taxonomy used (exactly as specified):
 | Meta/Instagram | **No** | — | — | — | — | Entire capability. Building the OAuth flow, webhook handler, and Graph API adapter is `IMPLEMENTABLE_NOW` for the code; the live account test is `REQUIRES_OWNER_AUTHORIZATION` + `REQUIRES_PLATFORM_APPROVAL` (Meta app review for several permissions) |
 | WhatsApp Business | **No** | — | — | — | — | Same shape as Meta: adapter code `IMPLEMENTABLE_NOW`, live test `REQUIRES_OWNER_CREDENTIAL` (a WhatsApp Business phone number) + `REQUIRES_EXTERNAL_PROVIDER` |
 | LinkedIn | **No** | — | — | — | — | LinkedIn's current public API surface for a personal/company page is narrow (no general posting API without partner approval). Adapter for what's legitimately available is `IMPLEMENTABLE_NOW`; anything beyond that is `REQUIRES_PLATFORM_APPROVAL` |
-| Git/software workflow (repos, PRs, issues, CI status) | **No dedicated connector** — this session used GitHub's MCP tools directly, not an AURA connector | — | — | — | — | `IMPLEMENTABLE_NOW` — not done this pass (large scope on its own), flagged |
+| Git/software workflow (repos, PRs, issues, CI status) | Yes — `build_github_connector()` (a configured `RestApiConnector`) | Yes, always registered (honestly `READY_TO_CONNECT` without `AURA_GITHUB_TOKEN`, `LIVE` once a token is set) | Real REST calls, tested against a real local HTTP server shaped like GitHub's actual API (not a mock of the connector's own methods) | Yes (8 tests: health check with/without token, list/get PRs, get combined status, comment-on-issue, GREEN/AMBER tier classification, default-deny at autonomy 0) | No (no owner token exercised in this pass) | `COMPLETE` for the connector itself; `REQUIRES_OWNER_CREDENTIAL` only for a live authenticated account |
 | Cloud/deployment | **No** | — | — | — | — | Provider abstraction is `IMPLEMENTABLE_NOW`; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
 
 ## H. Gridkeep flagship scenario
@@ -163,6 +163,13 @@ closure lands, in the order it actually happened:
    proving mandate/workstream/decision state survives exactly and a
    task abandoned mid-execution before the "crash" is reaped and
    genuinely finished by the new Runtime, not just marked retriable.
+7. **GitHub connector** (`build_github_connector()`), closing the
+   "Git/software workflow" gap in section G: read-only PR/issue/status
+   capabilities are GREEN tier, `comment_on_issue` is AMBER (a public,
+   visible write is never GREEN), always registered so its status is
+   honest (`READY_TO_CONNECT` with no token, `LIVE` with one), verified
+   against a real local HTTP server shaped like GitHub's actual REST
+   responses rather than a mock of the connector's own methods.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

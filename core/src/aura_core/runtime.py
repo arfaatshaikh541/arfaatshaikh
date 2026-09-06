@@ -19,6 +19,7 @@ from .connectors import (
     MockTelephonyProvider,
     SmtpConnector,
     TelephonyConnector,
+    build_github_connector,
 )
 from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
@@ -143,5 +144,10 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
     registry_.register(BrowserConnector(
         executable_path=settings.browser_executable_path, allowed_hosts=settings.http_allowed_hosts,
     ))
+
+    # Always registered, like BrowserConnector -- health_check() itself
+    # honestly reports READY_TO_CONNECT without a token rather than this
+    # code needing to guess whether one is coming later.
+    registry_.register(build_github_connector(token=settings.github_token))
 
     return registry_

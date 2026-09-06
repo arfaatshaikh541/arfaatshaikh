@@ -70,6 +70,7 @@ AMBER_ACTION_TYPES = {
     "filesystem.write_file",
     "browser.navigate",
     "crm.write",
+    "github.comment_on_issue",
 }
 
 GREEN_ACTION_TYPES = {
@@ -80,6 +81,11 @@ GREEN_ACTION_TYPES = {
     "filesystem.read_file",
     "filesystem.list_dir",
     "crm.read",
+    "github.list_pull_requests",
+    "github.get_pull_request",
+    "github.list_issues",
+    "github.get_issue",
+    "github.get_combined_status",
 }
 
 
