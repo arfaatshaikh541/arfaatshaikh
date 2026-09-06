@@ -87,7 +87,7 @@ for _name, _detail in [
     ("connector.email", "implemented (SMTP send); requires you to configure AURA_SMTP_HOST + credentials"),
     ("connector.social", "not implemented; each vendor needs its own REST mapping plus your API credentials"),
     ("connector.crm", "generic REST connector implemented; each vendor needs its own mapping plus your API credentials"),
-    ("connector.finance", "not implemented; execution requires the financial-control design in docs/architecture/06-financial-control.md and your explicit authorization"),
+    ("connector.finance", "mock provider implemented (drafts only, never moves real funds); not auto-registered by build_runtime() -- see connectors/finance_connector.py. Real execution requires the financial-control design in docs/architecture/06-financial-control.md and your explicit authorization"),
     ("computer_control.desktop", "implemented (pynput); not yet health-checked in this process"),
     ("security.pentest_tools", "not implemented; requires explicit written authorization and scope per engagement"),
     ("windows.native_shell", "source implemented (WPF); this build environment cannot compile or run a Windows application to verify it"),

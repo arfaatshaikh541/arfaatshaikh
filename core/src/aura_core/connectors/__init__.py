@@ -2,6 +2,7 @@ from .base import Connector, ConnectorManifest
 from .browser_connector import BrowserConnector
 from .email_connector import SmtpConnector
 from .filesystem_connector import FilesystemConnector, PathEscapesSandboxError
+from .finance_connector import FinanceConnector, MockPaymentProvider, PaymentProvider, TransactionDraft
 from .http_connector import HttpConnector
 from .desktop_connector import DesktopControlConnector
 from .registry import ConnectorRegistry
@@ -14,4 +15,5 @@ __all__ = [
     "BrowserConnector", "SmtpConnector", "RestApiConnector", "RestCapability",
     "TelephonyConnector", "TelephonyProvider", "MockTelephonyProvider", "CallRecord",
     "DesktopControlConnector",
+    "FinanceConnector", "PaymentProvider", "MockPaymentProvider", "TransactionDraft",
 ]

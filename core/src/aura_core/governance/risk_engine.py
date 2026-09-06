@@ -51,6 +51,7 @@ AMBER_ACTION_TYPES = {
     "finance.transfer",
     "finance.refund",
     "finance.discount",
+    "finance.prepare_transaction",
     "marketing.spend",
     "deploy.production",
     "supplier.commit",
