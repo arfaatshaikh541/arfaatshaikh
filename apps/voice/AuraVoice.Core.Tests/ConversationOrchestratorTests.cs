@@ -171,6 +171,74 @@ public class ConversationOrchestratorTests
         Assert.Equal(new[] { "ok", "ok" }, tts.Spoken);
     }
 
+    [Fact]
+    public async Task A_sleep_phrase_never_reaches_the_reasoning_call_and_quiets_the_microphone()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        var reasoningCalls = 0;
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => { reasoningCalls++; return Task.FromResult("should never run"); },
+            tts, delay: NeverFires());
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("please close your ears");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        tts.FinishSpeaking();
+        await WaitUntil(() => controller.State == VoiceState.Idle);
+
+        Assert.Equal(0, reasoningCalls); // never sent to the model as if it were a question
+        Assert.Equal("Okay, I'll stop listening.", tts.Spoken[0]);
+        Assert.Equal(VoiceState.Idle, controller.State);
+    }
+
+    [Fact]
+    public async Task A_shutdown_phrase_acknowledges_quiets_the_microphone_and_raises_shutdown_requested()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => Task.FromResult("should never run"), tts, delay: NeverFires());
+
+        var shutdownRaised = false;
+        orchestrator.ShutdownRequested += () => shutdownRaised = true;
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("shut down");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        tts.FinishSpeaking();
+        await WaitUntil(() => shutdownRaised);
+
+        Assert.Equal("Shutting down.", tts.Spoken[0]);
+        Assert.Equal(VoiceState.Idle, controller.State);
+    }
+
+    [Fact]
+    public async Task Ordinary_speech_still_goes_through_the_normal_reasoning_path()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        var reasoningCalls = 0;
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (text, _) => { reasoningCalls++; return Task.FromResult($"echo: {text}"); },
+            tts, delay: NeverFires());
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("what's on my calendar today");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        tts.FinishSpeaking();
+        await WaitUntil(() => controller.State == VoiceState.Awake);
+
+        Assert.Equal(1, reasoningCalls);
+        Assert.Equal("echo: what's on my calendar today", tts.Spoken[0]);
+    }
+
     private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

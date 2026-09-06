@@ -72,9 +72,18 @@ pipeline.Controller.StateChanged += state => log.Info($"state -> {state}");
 orchestrator.ResponseSpoken += response => log.Info($"aura: {response}");
 orchestrator.ResponseFailed += ex => log.Error("response generation failed", ex);
 
+var shutdownRequested = new TaskCompletionSource();
+orchestrator.ShutdownRequested += () =>
+{
+    log.Info("Shutdown phrase recognized -- stopping.");
+    shutdownRequested.TrySetResult();
+};
+
 pipeline.Start();
-log.Info("Listening for the wake word. Press Enter to stop.");
-Console.ReadLine();
+log.Info("Listening for the wake word. Press Enter, or say \"shut down\", to stop.");
+
+var consoleReadLine = Task.Run(() => Console.ReadLine());
+await Task.WhenAny(consoleReadLine, shutdownRequested.Task);
 
 pipeline.Stop();
 if (textToSpeech is IDisposable disposableTts)

@@ -34,6 +34,13 @@ public sealed class ConversationOrchestrator : IDisposable
     /// call must never wedge the voice loop in Processing forever.</summary>
     public event Action<Exception>? ResponseFailed;
 
+    /// <summary>Fires when the owner said a recognized shutdown phrase
+    /// ("shut down", "power off", ...). The orchestrator itself only
+    /// quiets the microphone (Controller.Sleep()) and speaks an
+    /// acknowledgement -- ending the actual process is the host
+    /// program's job, since only it knows how to shut down cleanly.</summary>
+    public event Action? ShutdownRequested;
+
     public ConversationOrchestrator(
         VoiceSessionController controller,
         Func<string, CancellationToken, Task<string>> generateResponse,
@@ -53,7 +60,41 @@ public sealed class ConversationOrchestrator : IDisposable
 
     private void OnCommandCaptured(string text)
     {
+        var command = VoiceCommandPhrases.TryMatch(text);
+        if (command is not null)
+        {
+            _ = HandleVoiceCommandAsync(command.Value);
+            return;
+        }
         _ = HandleCommandAsync(text);
+    }
+
+    /// <summary>"close your ears" / "stop listening" / "shut down" and
+    /// their variants never reach the reasoning call at all -- they're
+    /// owner-control phrases, not questions, and answering them as if
+    /// they were prose would be exactly the "voice API demo, not an
+    /// assistant" failure mode the product spec calls out by name.</summary>
+    private async Task HandleVoiceCommandAsync(VoiceCommandPhrase command)
+    {
+        var acknowledgement = command == VoiceCommandPhrase.ShutDown
+            ? "Shutting down."
+            : "Okay, I'll stop listening.";
+
+        _controller.OnResponseReady();
+        await _textToSpeech.SpeakAsync(acknowledgement);
+
+        // Sleep() has no state precondition (documented as "always legal,
+        // by design") -- correct here too, since a barge-in during the
+        // acknowledgement above may already have moved the controller to
+        // Awake, and either way the owner's request to stop must win.
+        _controller.Sleep();
+
+        if (command == VoiceCommandPhrase.ShutDown)
+        {
+            ShutdownRequested?.Invoke();
+        }
+
+        ResponseSpoken?.Invoke(acknowledgement);
     }
 
     private async Task HandleCommandAsync(string text)

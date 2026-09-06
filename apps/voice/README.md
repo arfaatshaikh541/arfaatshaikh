@@ -5,7 +5,7 @@ Linux container, no audio hardware) genuinely allows:
 
 | Project | Contains | Builds here? | Tested here? |
 |---|---|---|---|
-| `AuraVoice.Core` | VAD, the conversation state machine, `ConversationOrchestrator` (response generation + conversation-timeout glue), engine interfaces, the Http*-backed engine adapters | Yes | Yes — 21 tests, all passing |
+| `AuraVoice.Core` | VAD, the conversation state machine, `ConversationOrchestrator` (response generation + conversation-timeout glue), engine interfaces, the Http*-backed engine adapters | Yes | Yes — 38 tests, all passing |
 | `AuraVoice.Windows` | Real NAudio microphone capture, `HttpTextToSpeech` (NAudio playback), the pipeline wiring it all together | Yes (net8.0-windows compiles on Linux without `UseWPF`) | No — needs a real microphone/speaker |
 | `AuraVoice.Windows.Speech` | Real Windows SAPI text-to-speech (`System.Speech`) | Yes | No — needs Windows' speech engine at runtime |
 | `AuraVoice.Windows.Host` | The composition root: an actual runnable console program wiring mic → VAD → wake-word → STT → aura_core reasoning → TTS → barge-in together | Yes | No — needs a real microphone |
@@ -17,7 +17,7 @@ Linux container, no audio hardware) genuinely allows:
 cd AuraVoice.Core.Tests && dotnet test
 ```
 
-**21 tests, all passing**, with zero mocking of the actual algorithms:
+**38 tests, all passing**, with zero mocking of the actual algorithms:
 
 - `EnergyVoiceActivityDetector` correctly distinguishes silence from a
   real synthetic sine-wave "voice" signal at various amplitudes, using
@@ -40,6 +40,13 @@ cd AuraVoice.Core.Tests && dotnet test
   double-transition, the conversation window genuinely times back out to
   wake-listening when nothing follows, and a genuine follow-up within
   the window correctly cancels the pending timeout.
+- `VoiceCommandPhrases` — "close your ears" / "stop listening" / "shut
+  down" and their variants are recognized *before* the reasoning call,
+  never sent to the model as if they were a question. A sleep phrase
+  quiets the microphone (`Sleep()`) without ending the process; a
+  shutdown phrase does both — `ConversationOrchestrator.ShutdownRequested`
+  is what `AuraVoice.Windows.Host`'s `Program.cs` listens for to actually
+  end the process, alongside the existing "press Enter" path.
 
 **All five projects also compile successfully** — `dotnet build
 AuraVoice.sln` builds every one of them, including `AuraVoice.Windows.Host`
