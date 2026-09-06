@@ -13,10 +13,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.3,<9", "pytest-asyncio>=0.24,<0.25", "playwright>=1.47,<2"]
+test = ["pytest>=8.3,<9", "pytest-asyncio>=0.24,<0.25", "playwright>=1.47,<2", "aiosmtpd>=1.4,<2", "pynput>=1.7,<2"]
 browser = ["playwright>=1.47,<2"]
 email = ["aiosmtpd>=1.4,<2"]
 voice = ["openwakeword>=0.6,<1", "sherpa-onnx>=1.10,<2"]
+desktop_control = ["pynput>=1.7,<2"]
 
 [project.scripts]
 aura = "aura_core.cli:main"
