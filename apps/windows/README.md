@@ -74,9 +74,16 @@ dotnet test AuraShell.Core.Tests  # re-confirm the 13 tests still pass on your m
 Start the core API server (see `core/RUNBOOK.md`), then run the shell:
 
 ```powershell
-$env:AURA_CORE_URL = "http://localhost:8000"   # optional, this is the default
+aura serve   # binds a Unix domain socket, e.g. C:\Users\you\.aura\core.sock
+$env:AURA_CORE_SOCKET = "C:\Users\you\.aura\core.sock"   # path aura serve printed
 dotnet run --project AuraShell
 ```
+
+`AURA_CORE_SOCKET` is the "local, not localhost" transport section 7
+asks for (see `core/src/aura_core/ipc.py`) and takes priority when set.
+If it's unset, the shell falls back to loopback TCP via `AURA_CORE_URL`
+(default `http://localhost:8000`, matching `aura serve --host`) --
+useful for local dev tooling that only speaks HTTP-over-TCP.
 
 You should see a window with three tabs (AURA / Status / Approvals) and a
 kill-switch toggle in the top bar. If the core server isn't running, the

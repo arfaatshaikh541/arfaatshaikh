@@ -11,11 +11,19 @@ public partial class App : Application
         base.OnStartup(e);
 
         // The core runtime (core/src/aura_core/api) is a separate process
-        // — run it with `uvicorn aura_core.api:create_app --factory` per
-        // core/RUNBOOK.md. This shell is a thin client over its HTTP API;
-        // it holds no memory, policy, or governance state of its own.
-        var baseUrl = Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://localhost:8000";
-        var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        // — run it with `aura serve` per core/RUNBOOK.md. This shell is a
+        // thin client over its HTTP API; it holds no memory, policy, or
+        // governance state of its own.
+        //
+        // AURA_CORE_SOCKET (a Unix domain socket path, printed by `aura
+        // serve` on startup) is the section-7 "local, not localhost"
+        // transport and takes priority when set. AURA_CORE_URL is the
+        // loopback-TCP fallback for tooling that only speaks HTTP-over-TCP
+        // -- `aura serve --host`.
+        var socketPath = Environment.GetEnvironmentVariable("AURA_CORE_SOCKET");
+        var httpClient = socketPath is not null
+            ? IpcHttpClientFactory.CreateForSocket(socketPath)
+            : new HttpClient { BaseAddress = new Uri(Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://localhost:8000") };
         var apiClient = new AuraApiClient(httpClient);
         var viewModel = new MainViewModel(apiClient);
 

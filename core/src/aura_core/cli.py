@@ -572,5 +572,53 @@ def diagnose() -> None:
         click.echo(f"  {name:30s} {info['status']:18s} {info['detail']}")
 
 
+@main.command()
+@click.option(
+    "--socket-path", default=None,
+    help="Unix domain socket path to bind (default: a .aura/core.sock sibling of the filesystem sandbox dir).",
+)
+@click.option(
+    "--host", default=None,
+    help="If set, binds TCP at this host instead of a Unix domain socket -- a loopback fallback for tooling "
+         "(curl, a browser) that only speaks HTTP-over-TCP. The Unix socket is the default and the one section "
+         "7's 'local, not localhost' requirement is actually about.",
+)
+@click.option("--port", default=8000, help="TCP port, only used with --host.")
+def serve(socket_path: str | None, host: str | None, port: int) -> None:
+    """Starts the AURA core API server. Binds a native local IPC
+    transport (a Unix domain socket) by default rather than a loopback
+    TCP port -- addressed by filesystem path, access-controlled by
+    filesystem permissions, never reachable over the network stack at
+    all. The C# shell and voice host connect to this same socket path
+    via SocketsHttpHandler.ConnectCallback (see apps/windows/AuraShell.Core/
+    IpcHttpClientFactory.cs and apps/voice/AuraVoice.Core/IpcHttpClientFactory.cs)
+    -- the entire existing HTTP/SSE client/server code runs completely
+    unmodified over this transport."""
+    import uvicorn
+
+    from .api import create_app
+    from .config import load_settings
+
+    settings = load_settings()
+    app = create_app(settings)
+
+    if host:
+        click.echo(f"Serving over TCP at {host}:{port} (loopback fallback, not the default transport).")
+        uvicorn.run(app, host=host, port=port)
+        return
+
+    from .ipc import default_socket_path
+
+    resolved_path = socket_path or default_socket_path(settings.filesystem_sandbox_dir)
+    import os
+
+    os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
+    if os.path.exists(resolved_path):
+        os.remove(resolved_path)  # a stale socket file left by a prior, uncleanly-stopped run
+
+    click.echo(f"Serving on Unix domain socket: {resolved_path}")
+    uvicorn.run(app, uds=resolved_path)
+
+
 if __name__ == "__main__":
     main()

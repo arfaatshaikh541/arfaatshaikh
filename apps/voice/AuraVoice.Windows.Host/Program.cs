@@ -14,6 +14,7 @@ using AuraVoice.Windows;
 // requested for this pipeline. See apps/voice/README.md for exactly what
 // is and isn't verified without a real Windows machine.
 
+var coreSocketPath = Environment.GetEnvironmentVariable("AURA_CORE_SOCKET");
 var coreUrl = Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://127.0.0.1:8000";
 var ttsEngine = Environment.GetEnvironmentVariable("AURA_VOICE_TTS_ENGINE") ?? "local";
 var conversationWindowSeconds = double.TryParse(
@@ -25,14 +26,20 @@ var logPath = Environment.GetEnvironmentVariable("AURA_VOICE_LOG_FILE")
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AURA", "logs", "voice.log");
 
 using var log = new FileVoiceLog(logPath);
-using var httpClient = new HttpClient { BaseAddress = new Uri(coreUrl) };
+// AURA_CORE_SOCKET (a Unix domain socket path, printed by `aura serve`
+// on startup) is the section-7 "local, not localhost" transport and
+// takes priority when set; AURA_CORE_URL is the loopback-TCP fallback.
+using var httpClient = coreSocketPath is not null
+    ? AuraShell.Core.IpcHttpClientFactory.CreateForSocket(coreSocketPath)
+    : new HttpClient { BaseAddress = new Uri(coreUrl) };
 var apiClient = new AuraApiClient(httpClient);
+var coreEndpointDescription = coreSocketPath is not null ? $"unix socket {coreSocketPath}" : coreUrl;
 
-log.Info($"AURA voice host starting. aura_core at {coreUrl}, TTS engine: {ttsEngine}, log file: {logPath}");
+log.Info($"AURA voice host starting. aura_core at {coreEndpointDescription}, TTS engine: {ttsEngine}, log file: {logPath}");
 if (!await apiClient.IsHealthyAsync())
 {
     log.Warn(
-        $"aura_core is not reachable at {coreUrl} right now. The wake-word/STT providers below " +
+        $"aura_core is not reachable at {coreEndpointDescription} right now. The wake-word/STT providers below " +
         "fail closed (never falsely trigger) when they can't reach it, so voice input will " +
         "simply do nothing rather than misbehave until it's back.");
 }

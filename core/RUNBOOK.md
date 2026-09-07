@@ -210,11 +210,35 @@ deterministic lane respond instantly with no model call.
 
 ### Run the API server
 
+The canonical way to start it is `aura serve`, which binds a Unix domain
+socket by default -- local IPC, not a loopback TCP port, per the "local,
+not localhost" requirement (see `core/src/aura_core/ipc.py`'s module
+docstring for why this is a real security difference, not a cosmetic
+one, and why the exact same socket-based transport works unmodified on
+Windows too):
+
 ```bash
-uvicorn aura_core.api:create_app --factory --host 127.0.0.1 --port 8000
+aura serve
+# Serving on Unix domain socket: /path/to/.aura/core.sock
+```
+
+Point the C# shell (`AuraShell`) or voice host (`AuraVoice.Windows.Host`)
+at it by setting `AURA_CORE_SOCKET` to that same path before launching
+them -- both apps prefer it over `AURA_CORE_URL` when it's set.
+
+`curl` only speaks HTTP-over-TCP, so for manual poking (or any tool that
+can't dial a Unix socket) pass `--host` to fall back to the old loopback
+TCP behavior:
+
+```bash
+aura serve --host 127.0.0.1 --port 8000
 curl http://127.0.0.1:8000/status
 curl -N -X POST http://127.0.0.1:8000/chat -H "Content-Type: application/json" -d '{"message":"status"}'
 ```
+
+(`uvicorn aura_core.api:create_app --factory --host 127.0.0.1 --port
+8000` still works too -- `aura serve --host` is a thin wrapper around
+the same `uvicorn.run()` call, not a replacement for it.)
 
 ## What comes next (not started)
 

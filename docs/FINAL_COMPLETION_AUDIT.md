@@ -59,11 +59,27 @@ Blocker taxonomy used (exactly as specified):
 
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
-| Windows shell ↔ core communication | Yes | Yes | **Loopback HTTP** (`http://127.0.0.1:8000`), not native IPC | Yes (against a fake `HttpMessageHandler`) | No | Named-pipe (or equivalent authenticated local-only) transport per section 7 | `REQUIRES_WINDOWS_RUNTIME` for real named-pipe verification; the transport code itself is `IMPLEMENTABLE_NOW` and is **not yet built** — see status below |
-| Voice host ↔ core communication | Yes | Yes | Loopback HTTP, same as above | Yes | Partially (starts, reaches `ListeningForWake`, fails only at real audio device) | Same IPC replacement | Same as above |
-| Native WPF shell build | Written | N/A | Real WPF code | Core logic only (13 tests) | **No — has never compiled in any environment used for this project**, confirmed by trying every session | Nothing missing in the code; needs an actual Windows build machine | `REQUIRES_WINDOWS_RUNTIME` |
+| Windows shell ↔ core communication | Yes | Yes | **Unix domain socket** (`aura serve`, `IpcHttpClientFactory` in both C# apps), not loopback TCP -- the same HTTP/1.1 + SSE code (`AuraApiClient`, `HttpProviders`) runs completely unmodified over it | Yes: 4 new Python tests (a real `aura serve` subprocess hit over its real Unix socket, including a check that no TCP port is listening) + 4 new C# tests (a real listening socket accepting a real connection and exchanging real HTTP bytes) | No (this transport specifically -- Windows itself is `REQUIRES_WINDOWS_RUNTIME`, see below) | Auto-selecting the socket without an explicit `AURA_CORE_SOCKET` env var; named-pipe framing was deliberately not built (see rationale) | `COMPLETE`: chose AF_UNIX sockets over named pipes because Windows has shipped native AF_UNIX support since build 17063 (GA since version 1809), and .NET's `UnixDomainSocketEndPoint` / Python's `socket.AF_UNIX` have both supported it since .NET Core 3.0 / Python 3.9 -- one implementation, not two, runs unmodified on both platforms, and the Linux half is now genuinely proven, not just asserted |
+| Voice host ↔ core communication | Yes | Yes | **Unix domain socket**, same mechanism and same `AuraShell.Core.IpcHttpClientFactory` as above (`AuraVoice.Windows.Host`'s `AURA_CORE_SOCKET` env var) | Yes, same 8 tests above cover the shared transport code | Partially (starts, reaches `ListeningForWake`, fails only at real audio device) | Same remaining item: no auto-selection without an explicit env var | `COMPLETE`, same rationale as above |
+| Native WPF shell build | Written | N/A | Real WPF code | Core logic only (15 tests, +2 for the new IPC client) | **No — has never compiled in any environment used for this project**, confirmed by trying every session | Nothing missing in the code; needs an actual Windows build machine | `REQUIRES_WINDOWS_RUNTIME` |
 
-**Correction to the spec's framing**: section 7 asks to "audit and replace" loopback HTTP. The honest state is loopback HTTP is the *only* transport that exists — there's no dual-path to migrate away from. This pass adds a first real named-pipe transport (`AuraVoice.Core`/`AuraShell.Core` gain an IPC option alongside HTTP) rather than a full audit-and-replace, since Windows named-pipe behavior itself cannot be exercised here — see PHASE 3 status below.
+**Correction to the spec's framing, superseded**: section 7 asks to
+"audit and replace" loopback HTTP. An earlier draft of this document
+noted loopback HTTP was the only transport and that named-pipe framing
+would be needed to replace it. That plan changed once actually
+implemented: rather than building a second, Windows-only named-pipe
+protocol that could never be tested in this sandbox, this pass replaced
+loopback TCP with a Unix domain socket -- a transport that satisfies
+"local, not localhost" exactly as literally as a named pipe would
+(filesystem-path-addressed, filesystem-permission-controlled, never
+touches the TCP/IP stack), runs as the *same* code on both Windows and
+Linux (Windows has shipped native AF_UNIX support since build 17063,
+GA since version 1809; .NET Core 3.0+ and Python 3.9+ both support it
+there), and — critically — is the one flavor of "not loopback TCP" that
+this Linux sandbox can actually exercise for real. `aura serve` binds it
+by default; `curl`/browsers/other TCP-only tooling still get plain
+loopback TCP via `aura serve --host`. See `core/src/aura_core/ipc.py`'s
+module docstring for the full rationale.
 
 ## D. Voice
 
@@ -255,6 +271,30 @@ closure lands, in the order it actually happened:
     all pass `runtime.world_model` through now. 6 new unit tests, plus
     the full existing memory-search/QA/endurance suite re-run to confirm
     the refactor changed no existing ranking behavior.
+13. **Native local IPC transport** (section 7, the item this document's
+    original headline finding named alongside the operating loop as the
+    two biggest gaps): `aura serve` now binds a Unix domain socket by
+    default and both C# apps (`AuraShell`, `AuraVoice.Windows.Host`)
+    connect to it via a new `IpcHttpClientFactory` using
+    `SocketsHttpHandler.ConnectCallback`, with the entire existing
+    HTTP/1.1 + JSON + SSE-streaming client/server code
+    (`AuraApiClient`, `HttpProviders`, every test against them)
+    running completely unmodified over the new transport. Chose AF_UNIX
+    sockets over named pipes deliberately: Windows has shipped native
+    AF_UNIX support since build 17063 (GA since version 1809 / Windows
+    Server 2019), and .NET Core 3.0+ / Python 3.9+ both support it there
+    too, so one implementation runs on both platforms instead of two,
+    and — the deciding factor — it's the one that this Linux sandbox can
+    actually build *and verify for real*, not just write and hope. Proven
+    two ways: a real `aura serve` subprocess hit over its real socket
+    file via httpx (including a check that no TCP port ends up
+    listening, the actual point of the exercise), and a real C# test
+    with a genuine listening `Socket`/`UnixDomainSocketEndPoint`
+    accepting a real connection and exchanging real HTTP bytes through
+    `IpcHttpClientFactory`. 4 new Python tests, 4 new C# tests (2 per
+    app), full Python suite and both C# test suites re-run green. `aura
+    serve --host` keeps the old loopback-TCP behavior available for
+    tooling (curl, browsers) that only speaks HTTP-over-TCP.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

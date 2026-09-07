@@ -109,7 +109,8 @@ as a `NullXxx` placeholder in this composition root, and it compiles
 cleanly against the real NAudio, System.Speech, and aura_core-HTTP APIs.
 
 Environment variables:
-- `AURA_CORE_URL` — where aura_core's API is running (default `http://127.0.0.1:8000`).
+- `AURA_CORE_SOCKET` — path to the Unix domain socket `aura serve` bound (e.g. from its startup log line). Takes priority over `AURA_CORE_URL` when set — this is the "local, not localhost" transport section 7 asks for; see `core/src/aura_core/ipc.py`.
+- `AURA_CORE_URL` — where aura_core's API is running over loopback TCP, used only when `AURA_CORE_SOCKET` is unset (default `http://127.0.0.1:8000`, matching `aura serve --host`).
 - `AURA_VOICE_TTS_ENGINE` — `local` (default, sherpa-onnx/Piper via aura_core) or `sapi` (Windows SAPI).
 - `AURA_VOICE_CONVERSATION_WINDOW_SECONDS` — how long AURA keeps listening after speaking before requiring the wake phrase again (default 8).
 
