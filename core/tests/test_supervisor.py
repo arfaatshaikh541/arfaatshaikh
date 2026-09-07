@@ -63,6 +63,21 @@ def test_supervisor_does_not_restart_a_clean_exit(tmp_path):
     assert "restarting" not in kinds
 
 
+def test_supervisor_calls_on_process_started_with_the_real_pid_on_every_spawn(tmp_path):
+    script = _make_flaky_script(tmp_path, fail_times=1)
+    started_pids: list[int] = []
+    supervisor = Supervisor(
+        [sys.executable, script], max_restarts=5, backoff_seconds=0.01,
+        on_process_started=started_pids.append,
+    )
+
+    supervisor.start()
+
+    assert len(started_pids) == 2  # initial attempt + 1 restart
+    assert all(pid > 0 for pid in started_pids)
+    assert started_pids[0] != started_pids[1]  # a genuinely different process each time
+
+
 def test_supervisor_stop_prevents_further_restarts(tmp_path):
     script = _make_flaky_script(tmp_path, fail_times=100)
     supervisor = Supervisor([sys.executable, script], max_restarts=100, backoff_seconds=5.0)

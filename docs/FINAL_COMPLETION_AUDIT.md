@@ -92,7 +92,7 @@ Blocker taxonomy used (exactly as specified):
 | Staged install + rollback | Yes (`Install-AURA.ps1`) | Written | Real logic | No (never executed — no `pwsh` in this sandbox until this session found a workaround) | No | Never run end-to-end even once | `REQUIRES_WINDOWS_RUNTIME` |
 | Single packaged installer (`.exe`/MSI) | **No** | — | — | — | — | Everything in section 10 — this is a PowerShell script, not an installer artifact | `REQUIRES_WINDOWS_RUNTIME` for the actual packaging step (WiX/Inno Setup need a Windows toolchain or a cross-compiler this sandbox doesn't have network access to verify); the *script logic* WiX would wrap is `IMPLEMENTABLE_NOW` and unchanged this pass |
 | Upgrade preserving identity/memory/secrets | Partial (`Install-AURA.ps1` copies forward the DB and `.models/`) | Written, untested | Real logic | No | No | Never verified with real prior-version state | `REQUIRES_WINDOWS_RUNTIME` |
-| Automatic repair (health supervision beyond process restart) | Partial (`Supervisor` = process restart only) | Yes for what it does | Real | Yes | No | Stale-lease repair, corrupted-cache repair, orphan-process detection, staged-upgrade rollback trigger | `IMPLEMENTABLE_NOW` — not done this pass, flagged (large scope) |
+| Automatic repair (health supervision beyond process restart) | `Supervisor` (process restart) + `CacheManifestStore`/`verify_and_repair` (corrupted-cache quarantine) + `OrphanProcessGuard` (stray-process reaping) + `OperatingLoopSupervisor.run_cycle_once()`'s `reap_expired_leases()` call (stale-lease repair) | Yes — `OrphanProcessGuard` is wired into `aura voice run` via `Supervisor`'s new `on_process_started` hook, verified with a real `dotnet run` subprocess actually spawning and its PID landing in the pidfile | Real | Yes | No | Staged-upgrade rollback trigger (needs the not-yet-built installer from section F) | `COMPLETE` for stale-lease repair, corrupted-cache repair, and orphan-process detection; staged-upgrade rollback remains `IMPLEMENTABLE_NOW` once the installer exists to stage against |
 
 ## G. Connectors — real status, not aspirational
 
@@ -182,6 +182,24 @@ closure lands, in the order it actually happened:
    already-grouped fixture. Classify/intent and draft creation remain
    unbuilt and are called out honestly in the row above, not folded into
    this closure.
+9. **Automatic repair beyond process restart** (section 11): a
+   trust-on-first-use `CacheManifestStore`/`verify_and_repair()` for the
+   voice model cache (a file that changes after AURA first trusted it is
+   quarantined, never silently loaded or deleted, since there is no real
+   upstream hash to verify against — only local drift/corruption after
+   the fact can be detected) and an `OrphanProcessGuard` (pidfile-based
+   detection and termination of a supervised child left running by a
+   crashed previous AURA process, verified against a real orphaned
+   subprocess, including a check that a PID reused by an unrelated
+   process is never touched). Wired into `aura voice run` for real, not
+   left standalone: `Supervisor` gained an `on_process_started` hook, and
+   a manual run against the actual `AuraVoice.Windows.Host` project
+   confirmed the pidfile is written with the real `dotnet run` PID. This
+   pass also corrects a misclassification in this document's own gap
+   list: stale-lease repair was listed as missing, but it already existed
+   (`OperatingLoopSupervisor.run_cycle_once()` has called
+   `reap_expired_leases()` since PHASE 4) — caught only by re-checking
+   the claim against the code rather than trusting the earlier table.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

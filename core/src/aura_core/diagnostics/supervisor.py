@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -24,11 +25,13 @@ class Supervisor:
     def __init__(
         self, command: list[str], *, max_restarts: int = 5,
         backoff_seconds: float = 1.0, max_backoff_seconds: float = 30.0,
+        on_process_started: Callable[[int], None] | None = None,
     ) -> None:
         self._command = command
         self._max_restarts = max_restarts
         self._backoff_seconds = backoff_seconds
         self._max_backoff_seconds = max_backoff_seconds
+        self._on_process_started = on_process_started
         self.events: list[SupervisorEvent] = []
         self._process: subprocess.Popen | None = None
         self._stop_requested = False
@@ -45,6 +48,8 @@ class Supervisor:
         while not self._stop_requested:
             self._process = subprocess.Popen(self._command)
             self._log("started", f"pid={self._process.pid}")
+            if self._on_process_started is not None:
+                self._on_process_started(self._process.pid)
             exit_code = self._process.wait()
 
             if self._stop_requested:

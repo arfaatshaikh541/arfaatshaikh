@@ -15,7 +15,7 @@ def test_voice_run_supervises_the_real_dotnet_host_project(monkeypatch):
     calls = []
 
     class FakeSupervisor:
-        def __init__(self, command, *, max_restarts, backoff_seconds):
+        def __init__(self, command, *, max_restarts, backoff_seconds, on_process_started=None):
             calls.append({"command": command, "max_restarts": max_restarts, "backoff_seconds": backoff_seconds})
             self.events = []
 
@@ -40,7 +40,7 @@ def test_voice_run_passes_through_custom_restart_options(monkeypatch):
     calls = []
 
     class FakeSupervisor:
-        def __init__(self, command, *, max_restarts, backoff_seconds):
+        def __init__(self, command, *, max_restarts, backoff_seconds, on_process_started=None):
             calls.append((max_restarts, backoff_seconds))
             self.events = []
 

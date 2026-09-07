@@ -471,17 +471,29 @@ def voice_run(max_restarts: int, backoff_seconds: float) -> None:
     apps/voice/README.md for exactly what that requires."""
     from pathlib import Path
 
-    from .diagnostics import Supervisor
+    from .diagnostics import OrphanProcessGuard, Supervisor
 
     project_dir = Path(__file__).resolve().parents[3] / "apps" / "voice" / "AuraVoice.Windows.Host"
     if not project_dir.exists():
         raise click.ClickException(f"voice host project not found at {project_dir}")
 
     command = ["dotnet", "run", "--project", str(project_dir)]
+    command_fragment = str(project_dir)
+
+    settings = build_runtime().settings
+    pidfile_path = str(Path(settings.filesystem_sandbox_dir).parent / ".aura" / "voice_host.pid.json")
+    orphan_guard = OrphanProcessGuard(pidfile_path)
+    orphan_result = orphan_guard.check_and_reap()
+    if orphan_result.found_orphan:
+        click.echo(f"Reaped an orphaned voice host process from a previous run: {orphan_result.detail}")
+
     click.echo(f"Supervising: {' '.join(command)}")
     click.echo("Ctrl+C to stop.")
 
-    supervisor = Supervisor(command, max_restarts=max_restarts, backoff_seconds=backoff_seconds)
+    supervisor = Supervisor(
+        command, max_restarts=max_restarts, backoff_seconds=backoff_seconds,
+        on_process_started=lambda pid: orphan_guard.record_current(pid, command_fragment),
+    )
     try:
         supervisor.start()
     except KeyboardInterrupt:
