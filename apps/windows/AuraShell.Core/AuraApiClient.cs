@@ -85,6 +85,26 @@ public sealed class AuraApiClient
         _http.PostAsync("/kill-switch/disengage", content: null, ct);
 
     /// <summary>
+    /// Pushes the voice pipeline's current VoiceSessionController state
+    /// to aura_core so any local client (a future tray icon, this same
+    /// shell's Status tab, `aura status`) can see real listening/
+    /// speaking status without talking to the voice host process
+    /// directly -- section 8's "privacy-visible status," the backend
+    /// half that doesn't need a Windows machine to build or test.
+    /// </summary>
+    public async Task ReportVoiceStateAsync(string state, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("/voice/state", new { state }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VoiceStateInfo> GetVoiceStateAsync(CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<VoiceStateInfo>("/voice/state", JsonOptions, ct);
+        return result ?? new VoiceStateInfo("UNKNOWN", null);
+    }
+
+    /// <summary>
     /// Streams /chat as it genuinely arrives. Reads the response body line
     /// by line and yields a ChatEvent per "data: {...}" line — no
     /// buffering of the full response before the first event is produced,

@@ -88,7 +88,25 @@ using var orchestrator = new ConversationOrchestrator(
     pipeline.Controller, GenerateResponseAsync, textToSpeech,
     conversationWindow: TimeSpan.FromSeconds(conversationWindowSeconds));
 
-pipeline.Controller.StateChanged += state => log.Info($"state -> {state}");
+pipeline.Controller.StateChanged += state =>
+{
+    log.Info($"state -> {state}");
+    // Fire-and-forget: pushing the visible-status update to aura_core
+    // must never block or crash the voice loop itself. A failure here
+    // just means the tray icon/status view is stale until the next
+    // transition succeeds -- never a reason to stop listening.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await apiClient.ReportVoiceStateAsync(state.ToString());
+        }
+        catch (Exception ex)
+        {
+            log.Warn($"failed to report voice state to aura_core: {ex.Message}");
+        }
+    });
+};
 orchestrator.ResponseSpoken += response => log.Info($"aura: {response}");
 orchestrator.ResponseFailed += ex => log.Error("response generation failed", ex);
 

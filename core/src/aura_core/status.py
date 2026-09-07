@@ -91,5 +91,6 @@ for _name, _detail in [
     ("computer_control.desktop", "implemented (pynput); not yet health-checked in this process"),
     ("security.pentest_tools", "not implemented; requires explicit written authorization and scope per engagement"),
     ("windows.native_shell", "source implemented (WPF); this build environment cannot compile or run a Windows application to verify it"),
+    ("voice.session_state", "no voice host has reported its listening state yet -- see /voice/state"),
 ]:
     registry.set(_name, CapabilityStatus.NOT_CONNECTED, _detail)

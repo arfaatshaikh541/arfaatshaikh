@@ -83,6 +83,13 @@ class SpeakRequest(BaseModel):
     speed: float = 1.0
 
 
+VOICE_SESSION_STATES = ("Idle", "ListeningForWake", "Awake", "Processing", "Speaking")
+
+
+class VoiceStateRequest(BaseModel):
+    state: str
+
+
 def _sse(event: str, data: str) -> bytes:
     payload = json.dumps({"event": event, "data": data})
     return f"data: {payload}\n\n".encode()
@@ -416,5 +423,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=f"text-to-speech unavailable: {exc}") from exc
         return Response(content=wav_bytes, media_type="audio/wav")
+
+    @app.get("/voice/state")
+    async def get_voice_state() -> dict:
+        # Real cross-process visibility, not a log line only the owner's
+        # terminal can see (section 8's "privacy-visible status"): the
+        # voice host process pushes its VoiceSessionController state here
+        # on every transition, and any client on this machine -- a future
+        # tray icon, `aura status`, this endpoint directly -- can read the
+        # current state without any direct reference to that process.
+        record = registry.get("voice.session_state")
+        if record is None or record.status != CapabilityStatus.LIVE:
+            return {"state": "UNKNOWN", "detail": "no voice host has reported a state yet"}
+        return {"state": record.detail, "reported_at": record.checked_at.isoformat()}
+
+    @app.post("/voice/state", dependencies=gated)
+    async def set_voice_state(request: VoiceStateRequest) -> dict:
+        if request.state not in VOICE_SESSION_STATES:
+            raise HTTPException(status_code=422, detail=f"unknown voice state '{request.state}'")
+        registry.set("voice.session_state", CapabilityStatus.LIVE, request.state)
+        return {"state": request.state}
 
     return app

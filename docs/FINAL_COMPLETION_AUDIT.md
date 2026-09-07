@@ -89,7 +89,7 @@ module docstring for the full rationale.
 | STT | Yes (sherpa-onnx Whisper-tiny.en) | Yes | Real local inference | Yes | No | Streaming (current implementation batches an utterance then transcribes once — not incremental/partial-result streaming) | `IMPLEMENTABLE_NOW` (streaming API exists in sherpa-onnx, not yet wired) — not done this pass, flagged |
 | TTS | Yes (sherpa-onnx Piper + Windows SAPI) | Yes | Real | Yes | No | Streaming TTS (currently synthesizes the full reply before playback starts, not sentence-by-sentence) | `IMPLEMENTABLE_NOW` — not done this pass, flagged |
 | Barge-in | Yes | Yes | Real | Yes (in `ConversationOrchestrator`) | No | None found in the logic itself | `REQUIRES_PHYSICAL_DEVICE` to confirm acoustic behavior only |
-| Always-listening + privacy-visible status | Partial | Wake-listening loop exists; **no visible "AURA is listening" indicator anywhere** (console log only) | Real loop, no UI | No | No | A visible indicator (tray icon state, log is not "visible" to a non-technical owner) | `IMPLEMENTABLE_NOW` (tray icon needs the WPF shell, so blocked on `REQUIRES_WINDOWS_RUNTIME` for the UI half; the state-exposure API is `IMPLEMENTABLE_NOW`) |
+| Always-listening + privacy-visible status | Yes for the state-exposure API | Yes -- the voice host pushes every `VoiceSessionController.StateChanged` transition to a real `GET`/`POST /voice/state` pair on the core API (fire-and-forget; a failed push logs a warning and never stops the voice loop), so any local client (a future tray icon, `aura status`, this endpoint directly) can read real current state without any direct reference to the voice host process | Real (backed by the same `status` registry `/status` already exposes) | Yes (6 Python tests: unknown-before-first-report, round-trip, every real state value accepted, an unrecognized state rejected, gated once enrolled for the POST, never gated for the GET; 2 C# `AuraApiClient` tests) | No | The visible indicator itself (a tray icon UI) still needs the WPF shell | `COMPLETE` for the state-exposure API (the thing that was actually `IMPLEMENTABLE_NOW`); the tray icon UI remains `REQUIRES_WINDOWS_RUNTIME`, unchanged |
 | "close your ears" / "stop listening" / "shut down" commands | Yes | Yes — `VoiceCommandPhrases.TryMatch()` intercepts recognized phrases in `ConversationOrchestrator.OnCommandCaptured` *before* the reasoning call | Real | Yes | No | None found. `ShutdownRequested` is wired through to `AuraVoice.Windows.Host`'s `Program.cs`, which now exits on either "shut down" or the existing Enter-key path. | `COMPLETE` |
 | Process supervision / crash recovery | Yes (`aura voice run` via `Supervisor`) | Yes | Real | Yes | No | None found | `COMPLETE` (for process-level recovery; acoustic/device recovery is `REQUIRES_PHYSICAL_DEVICE`) |
 
@@ -321,6 +321,23 @@ closure lands, in the order it actually happened:
     `DeviceTokenHeader`, all green, zero regressions -- confirmed
     specifically that no pre-existing test (none of which ever enrolls
     an owner) started failing once every POST endpoint gained a gate.
+15. **Voice "always listening" state-exposure API** (section 8): closes
+    the audit's flagged gap ("no visible indicator anywhere, console log
+    only") on the side that's actually `IMPLEMENTABLE_NOW` -- the tray
+    icon UI itself still needs the WPF shell. `AuraVoice.Windows.Host`
+    now pushes every `VoiceSessionController.StateChanged` transition to
+    a new `GET`/`POST /voice/state` pair on the core API, fire-and-forget
+    (a failed push logs a warning and never stops or blocks the voice
+    loop, since visibility must never come at the cost of the thing it's
+    reporting on). `GET /voice/state` is read-only and ungated, backed by
+    the same `status` registry `/status` already exposes, so any local
+    client -- a future tray icon, `aura status`, this endpoint directly
+    -- can see real current state without any reference to the voice
+    host process. 6 new Python tests (unknown-before-first-report,
+    round-trip, every real state value accepted, an unrecognized state
+    rejected with 422, POST gated once enrolled, GET never gated) and 2
+    new C# `AuraApiClient` tests. Full suite and both C# test suites
+    re-run green.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

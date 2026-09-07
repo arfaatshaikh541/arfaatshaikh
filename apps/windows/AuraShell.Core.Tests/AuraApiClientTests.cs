@@ -126,6 +126,35 @@ public class AuraApiClientTests
         Assert.Equal("/kill-switch/engage", request.RequestUri!.AbsolutePath);
     }
 
+    [Fact]
+    public async Task ReportVoiceStateAsync_posts_the_real_state_string()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/voice/state", """{"state": "Awake"}""");
+        var client = MakeClient(handler);
+
+        await client.ReportVoiceStateAsync("Awake");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("/voice/state", request.RequestUri!.AbsolutePath);
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("\"state\":\"Awake\"", body);
+    }
+
+    [Fact]
+    public async Task GetVoiceStateAsync_deserializes_the_current_state()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/voice/state", """{"state": "Speaking", "reported_at": "2026-01-01T00:00:00+00:00"}""");
+        var client = MakeClient(handler);
+
+        var state = await client.GetVoiceStateAsync();
+
+        Assert.Equal("Speaking", state.State);
+        Assert.Equal("2026-01-01T00:00:00+00:00", state.ReportedAt);
+    }
+
     private sealed class ThrowingHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

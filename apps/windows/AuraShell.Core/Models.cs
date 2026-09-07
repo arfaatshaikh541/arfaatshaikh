@@ -44,3 +44,7 @@ public sealed record AuditVerification(
 public sealed record ApprovalDecisionResult(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("message")] string Message);
+
+public sealed record VoiceStateInfo(
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("reported_at")] string? ReportedAt);
