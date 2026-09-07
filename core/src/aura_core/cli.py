@@ -503,6 +503,56 @@ def voice_run(max_restarts: int, backoff_seconds: float) -> None:
 
 
 @main.command()
+@click.option("--display-name", default="Owner", help="Your name, for the record.")
+def enroll(display_name: str) -> None:
+    """First-run enrollment: creates the one owner identity for this
+    installation and a trusted device token for this machine, saved
+    locally so future CLI/API use never asks you to log in again
+    (section 9). Safe to run only once -- a second run fails honestly
+    rather than silently minting a second owner."""
+    from .identity import AlreadyEnrolledError, default_token_path, save_token
+
+    runtime = build_runtime()
+    token_path = default_token_path(runtime.settings.filesystem_sandbox_dir)
+
+    try:
+        owner, raw_token = runtime.enrollment.enroll_owner(display_name)
+    except AlreadyEnrolledError as exc:
+        raise click.ClickException(str(exc))
+
+    save_token(token_path, raw_token)
+    click.echo(f"Enrolled owner '{owner.display_name}' ({owner.id}).")
+    click.echo(f"Device token saved to {token_path} (owner-only permissions).")
+    click.echo("You will not be asked to enroll again on this machine.")
+
+
+@main.group()
+def devices() -> None:
+    """Manage trusted devices (session tokens) for the enrolled owner."""
+
+
+@devices.command("list")
+def devices_list() -> None:
+    runtime = build_runtime()
+    records = runtime.enrollment.list_devices()
+    if not records:
+        click.echo("No owner enrolled yet -- run `aura enroll` first.")
+        return
+    for device in records:
+        status = "revoked" if device.revoked_at else "active"
+        last_seen = device.last_seen_at.isoformat() if device.last_seen_at else "never"
+        click.echo(f"{device.id}  {device.label:20s} {status:8s} last_seen={last_seen}")
+
+
+@devices.command("revoke")
+@click.argument("device_id")
+def devices_revoke(device_id: str) -> None:
+    runtime = build_runtime()
+    runtime.enrollment.revoke_device(device_id)
+    click.echo(f"Revoked device {device_id}.")
+
+
+@main.command()
 def diagnose() -> None:
     """Print an aggregate diagnostic snapshot: capability status, audit
     chain integrity, and recent Security Guardian activity."""

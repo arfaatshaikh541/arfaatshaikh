@@ -53,7 +53,7 @@ Blocker taxonomy used (exactly as specified):
 | Credential Broker | Yes | Yes | **Bookkeeping only** — issues opaque scoped tokens, never a real secret. Real secrets (SMTP password, future API keys) live in plain environment variables today, no encryption at rest, no OS credential-store integration | Yes | No | Real secret vault backed by Windows Credential Manager/DPAPI | `REQUIRES_WINDOWS_RUNTIME` (DPAPI is Windows-only; code can be written and unit-tested with a mock store here, but real DPAPI encryption can't be exercised in this Linux sandbox) |
 | Rate Limiter | Yes | Yes | Real | Yes | No | None found | `COMPLETE` |
 | Audit Log (hash-chained) | Yes | Yes | Real | Yes | No | None found | `COMPLETE` |
-| Owner enrollment / device trust | **No** | — | — | — | — | Entire capability: first-run identity creation, trusted-device marker, "don't re-authenticate every launch" | `IMPLEMENTABLE_NOW` for the local-identity/session-token mechanism; `REQUIRES_WINDOWS_RUNTIME` for DPAPI-backed secret storage specifically |
+| Owner enrollment / device trust | Yes — `EnrollmentEngine` (`aura enroll`, `aura devices list/revoke`) + local token persistence | Yes for what it gates: wired into `/kill-switch/disengage` as a concrete proof of concept (open pre-enrollment exactly as before, requires a valid `X-Aura-Device-Token` once an owner exists) rather than left as a standalone, unused mechanism | Real (SHA-256-hashed tokens, never the raw value, persisted in SQLite; raw token shown once and saved locally with owner-only file permissions) | Yes (13 engine tests, 4 token-store tests, 4 CLI tests, 5 API gate tests) | No | Retrofitting the same gate onto the rest of the API's mutating endpoints (scoped to one endpoint this pass, not a blanket rewrite); the native C#/WPF shell and voice host do not yet read the saved token and attach it automatically; DPAPI-backed secret storage in place of file permissions | `COMPLETE` for the enrollment/device-trust mechanism and its first real gate; `REQUIRES_WINDOWS_RUNTIME` for DPAPI-backed storage specifically; wiring the remaining endpoints and the native clients is `IMPLEMENTABLE_NOW`, not done this pass |
 
 ## C. Native runtime / IPC
 
@@ -200,6 +200,22 @@ closure lands, in the order it actually happened:
    (`OperatingLoopSupervisor.run_cycle_once()` has called
    `reap_expired_leases()` since PHASE 4) — caught only by re-checking
    the claim against the code rather than trusting the earlier table.
+10. **Owner enrollment / device trust** (section 9): `EnrollmentEngine`
+    creates the one owner identity and issues SHA-256-hashed device
+    tokens (the raw value is shown once, at enrollment, and never stored
+    or shown again), `aura enroll`/`aura devices list`/`aura devices
+    revoke` manage it from the CLI, and the token is persisted locally
+    with owner-only file permissions so it can be presented automatically
+    instead of logging in again. Wired into a real endpoint, not left
+    standalone: `/kill-switch/disengage` now requires a valid
+    `X-Aura-Device-Token` once an owner is enrolled, while staying exactly
+    as open as before for an installation that hasn't enrolled yet --
+    verified by both directions (open pre-enrollment, gated and
+    token-checked post-enrollment, including a revoked token being
+    rejected) rather than assuming the older behavior was preserved. The
+    remaining API endpoints and the native C#/WPF clients attaching the
+    saved token automatically are still open work, called out honestly
+    in the row above rather than folded into this closure.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

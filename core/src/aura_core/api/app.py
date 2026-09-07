@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -194,7 +194,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"kill_switch_engaged": True}
 
     @app.post("/kill-switch/disengage")
-    async def disengage_kill_switch() -> dict:
+    async def disengage_kill_switch(x_aura_device_token: str | None = Header(default=None)) -> dict:
+        # Re-arming the kill switch is the one action here an owner would
+        # be genuinely harmed by an unauthenticated caller performing --
+        # gated once an owner has actually enrolled (section 9's device
+        # trust). Before enrollment there is no owner identity to check
+        # against, so this behaves exactly as before: open on loopback,
+        # same as every other endpoint until enrollment introduces a
+        # boundary to enforce.
+        if runtime.enrollment.is_enrolled():
+            if x_aura_device_token is None or runtime.enrollment.verify_token(x_aura_device_token) is None:
+                raise HTTPException(status_code=401, detail="valid X-Aura-Device-Token header required")
         runtime.policy.disengage_kill_switch()
         return {"kill_switch_engaged": False}
 

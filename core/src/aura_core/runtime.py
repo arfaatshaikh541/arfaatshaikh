@@ -25,6 +25,7 @@ from .connectors import (
 from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
+from .identity import EnrollmentEngine
 from .memory import MemoryStore, WorldModelStore
 from .providers import ModelRouter, OllamaProvider
 from .status import CapabilityStatus, registry
@@ -52,6 +53,7 @@ class Runtime:
     approvals: ApprovalEngine
     credentials: CredentialBroker
     audit: AuditLog
+    enrollment: EnrollmentEngine
     broker: ActionBroker
     guardian: SecurityGuardian
     tasks: TaskEngine
@@ -83,6 +85,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     approvals = ApprovalEngine(settings.database_url)
     credentials = CredentialBroker()
     audit = AuditLog(settings.database_url)
+    enrollment = EnrollmentEngine(settings.database_url)
     _seed_default_policies(policy)
 
     guardian = SecurityGuardian(audit, policy, settings.database_url)
@@ -110,7 +113,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
 
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
-        approvals=approvals, credentials=credentials, audit=audit,
+        approvals=approvals, credentials=credentials, audit=audit, enrollment=enrollment,
         broker=broker, guardian=guardian, tasks=tasks, goals=goals, mandates=mandates,
         executive=executive, worker=worker, operating_loop=operating_loop,
         triggers=triggers, model_router=model_router, connectors=connectors,
