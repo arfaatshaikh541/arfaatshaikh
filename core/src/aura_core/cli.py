@@ -475,6 +475,23 @@ def model_embed(text: str) -> None:
 
 
 @main.group()
+def email() -> None:
+    """Email intent classification (section 12) -- IMAP receive/threading
+    live in `aura_core.connectors.ImapConnector`; this is the other half."""
+
+
+@email.command("classify")
+@click.argument("subject")
+@click.argument("body")
+def email_classify(subject: str, body: str) -> None:
+    from .email_intent import classify_message_intent
+
+    runtime = build_runtime()
+    result = asyncio.run(classify_message_intent(subject, body, runtime.model_router))
+    click.echo(result)
+
+
+@main.group()
 def voice() -> None:
     """Run and supervise the real-time voice pipeline
     (apps/voice/AuraVoice.Windows.Host)."""

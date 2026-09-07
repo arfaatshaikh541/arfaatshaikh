@@ -120,7 +120,7 @@ module docstring for the full rationale.
 | Browser | Yes | Yes | Real | Yes | N/A | See section E above |
 | Telephony | Yes | Yes | **MOCK, correctly labeled** (`MockTelephonyProvider`) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` (must pick Twilio/SIP first) + `REQUIRES_OWNER_CREDENTIAL` |
 | Email (SMTP send) | Yes | Yes | Real SMTP client, tested against a real local server | Yes | No (needs owner's real SMTP account) | `REQUIRES_OWNER_CREDENTIAL` |
-| Email (IMAP receive, threading) | Yes — `ImapConnector` (list/get/search) + `build_threads()` | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise) | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP) | Yes (8 tests: health check, list/get/search through the broker, GREEN tier, default-deny at autonomy 0, and thread reconstruction from a real reply chain's References/In-Reply-To headers) | No (no owner mailbox exercised) | `COMPLETE` for receive + threading; classify/intent and drafts are still not built — `IMPLEMENTABLE_NOW`, flagged |
+| Email (IMAP receive, threading, classify) | Yes — `ImapConnector` (list/get/search) + `build_threads()` + `classify_message_intent()` (`aura email classify`, `POST /email/classify`, both gated) | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise); classification always available since it only needs the already-wired Model Router | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP); classification is a real Model Router call against a fixed 5-category list, never fabricating a category outside it | Yes (8 IMAP tests; 9 classify tests: 6 unit against a scripted provider including the fixed-category-list refusal case, 1 CLI, 2 API) | No (no owner mailbox exercised) | `COMPLETE` for receive, threading, and classify; drafts (saving a message via IMAP `APPEND`) are still not built — `IMPLEMENTABLE_NOW`, flagged |
 | Generic REST/CRM connector | Yes | Yes | Real HTTP client against a configurable capability map | Yes | No | This is correctly an abstraction, not an integration — the spec is right that "a generic REST connector existing" does not mean a CRM integration exists. No concrete CRM adapter (HubSpot/Salesforce/Zoho schema mapping) exists. | `REQUIRES_EXTERNAL_PROVIDER` for which CRM; `REQUIRES_OWNER_CREDENTIAL` for its API key |
 | Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
 | Meta/Instagram | Yes -- `build_meta_connector()` (Facebook Page: posts, comments, publish, reply) | Yes, always registered (`AURA_META_TOKEN`), honest `READY_TO_CONNECT`/`LIVE` per token presence | Real REST calls against a real local server shaped like Meta Graph API v19 | Yes (6 tests: health both states, real read through the broker, real write with body verification + AMBER tier, GREEN read tiers, default-deny) | No (no live Meta app/token exercised) | Instagram's own publish flow is a genuinely different two-step API (create a media container, then publish it) that a single-request RestApiConnector capability can't model as a drop-in -- not built, called out rather than folded into "Meta" | `COMPLETE` for the Facebook Page connector; Instagram's own publish flow is `IMPLEMENTABLE_NOW`, not attempted; a live account is `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) + `REQUIRES_PLATFORM_APPROVAL` (Meta App Review for most real permissions) |
@@ -471,6 +471,23 @@ closure lands, in the order it actually happened:
     single-request capability) is not built; WhatsApp message templates
     and media messages are not built, only plain text; LinkedIn is
     limited to what's available without Partner Program approval.
+22. **Email intent classification** (the "classify" half of section
+    12's email gap; IMAP receive/threading were closed earlier this
+    session): `classify_message_intent()` was always a wiring gap, not
+    a missing capability -- the Model Router it needs already existed.
+    Classifies into exactly one of five fixed categories (inquiry,
+    complaint, action_required, informational, spam) via the REASONING
+    role; a response that doesn't parse to one of them is reported as
+    "unclassified" rather than mapped to whichever category looks
+    closest -- the same never-fabricate discipline
+    `executive.parse_plan()` already applies to model output driving a
+    real decision. Wired end to end: `aura email classify <subject>
+    <body>` and `POST /email/classify` (gated like every other mutating
+    endpoint). 9 new tests (6 unit against a scripted provider,
+    including the fixed-category-list refusal case and an empty-response
+    case; 1 CLI; 2 API, including the device-trust gate). Drafts (saving
+    a message via IMAP `APPEND`) remain unbuilt, called out honestly in
+    the row above.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

@@ -73,6 +73,11 @@ class EmbedRequest(BaseModel):
     text: str
 
 
+class ClassifyEmailRequest(BaseModel):
+    subject: str
+    body: str
+
+
 class WakeWordCheckRequest(BaseModel):
     audio_base64: str  # base64-encoded 16-bit PCM mono samples
 
@@ -375,6 +380,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except NoProviderAvailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {"embedding": vector, "dimensions": len(vector)}
+
+    @app.post("/email/classify", dependencies=gated)
+    async def email_classify(request: ClassifyEmailRequest) -> dict:
+        from ..email_intent import classify_message_intent
+
+        category = await classify_message_intent(request.subject, request.body, runtime.model_router)
+        return {"category": category}
 
     @app.post("/memory/ask", dependencies=gated)
     async def memory_ask(request: AskMemoryRequest) -> dict:
