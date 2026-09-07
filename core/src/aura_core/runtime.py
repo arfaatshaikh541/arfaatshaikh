@@ -12,11 +12,13 @@ from .actions import TriggerMap, build_default_handlers, build_default_triggers
 from .config import Settings, load_settings
 from .connectors import (
     BrowserConnector,
+    CloudConnector,
     ConnectorRegistry,
     DesktopControlConnector,
     FilesystemConnector,
     HttpConnector,
     ImapConnector,
+    MockCloudProvider,
     MockTelephonyProvider,
     SmtpConnector,
     TelephonyConnector,
@@ -143,6 +145,7 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
     registry_.register(HttpConnector(settings.http_allowed_hosts))
     registry_.register(DesktopControlConnector())
     registry_.register(TelephonyConnector(MockTelephonyProvider(), from_number=settings.telephony_from_number))
+    registry_.register(CloudConnector(MockCloudProvider()))
 
     if settings.smtp_host:
         registry_.register(SmtpConnector(

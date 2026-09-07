@@ -127,7 +127,7 @@ module docstring for the full rationale.
 | WhatsApp Business | **No** | — | — | — | — | Same shape as Meta: adapter code `IMPLEMENTABLE_NOW`, live test `REQUIRES_OWNER_CREDENTIAL` (a WhatsApp Business phone number) + `REQUIRES_EXTERNAL_PROVIDER` |
 | LinkedIn | **No** | — | — | — | — | LinkedIn's current public API surface for a personal/company page is narrow (no general posting API without partner approval). Adapter for what's legitimately available is `IMPLEMENTABLE_NOW`; anything beyond that is `REQUIRES_PLATFORM_APPROVAL` |
 | Git/software workflow (repos, PRs, issues, CI status) | Yes — `build_github_connector()` (a configured `RestApiConnector`) | Yes, always registered (honestly `READY_TO_CONNECT` without `AURA_GITHUB_TOKEN`, `LIVE` once a token is set) | Real REST calls, tested against a real local HTTP server shaped like GitHub's actual API (not a mock of the connector's own methods) | Yes (8 tests: health check with/without token, list/get PRs, get combined status, comment-on-issue, GREEN/AMBER tier classification, default-deny at autonomy 0) | No (no owner token exercised in this pass) | `COMPLETE` for the connector itself; `REQUIRES_OWNER_CREDENTIAL` only for a live authenticated account |
-| Cloud/deployment | **No** | — | — | — | — | Provider abstraction is `IMPLEMENTABLE_NOW`; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
+| Cloud/deployment | Yes -- `CloudConnector`/`CloudProvider` + `MockCloudProvider` | Yes, always registered (mirrors the telephony mock's shape: safe to auto-register since nothing real is ever touched) | **MOCK, correctly labeled** (in-memory deployment ledger; `deploy`/`rollback` genuinely manage which version is "live" per service+environment, not just a label on one record) | Yes (7 tests: deploy/rollback AMBER + status GREEN classification, default-deny at autonomy 0, a real deploy executing through the broker, deploy-chain previous-id tracking, rollback genuinely restoring the prior deployment to live, an unknown deployment id reported honestly) | No | A real cloud provider adapter (AWS/GCP/Azure/Fly.io/etc.) | `COMPLETE` for the provider abstraction and deploy/rollback state machine; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
 
 ## H. Gridkeep flagship scenario
 
@@ -388,6 +388,21 @@ closure lands, in the order it actually happened:
     connector tests (cookie contrast, persistent-profile proof, multi-tab
     success, multi-tab allowlist denial). Download handling remains
     unbuilt, called out in the row above.
+18. **Cloud/deployment connector** (section G's remaining "No" row):
+    `CloudProvider`/`CloudConnector` + `MockCloudProvider`, the same
+    "interface now, real backend later" shape as the existing finance
+    and telephony mocks. `deploy`/`rollback` are AMBER tier,
+    `get_deployment_status` is GREEN; always registered, since an
+    in-memory ledger is safe to auto-register the way a real cloud
+    credential wouldn't be. Genuinely manages which deployment is live
+    per (service, environment) rather than just labeling records: a
+    second deploy records the first deployment's id as
+    `previous_deployment_id`, and rolling back the second restores the
+    first to `status: live` -- verified directly, not assumed from the
+    rollback call merely returning success. 7 new tests. Picking and
+    authorizing a real cloud provider (AWS/GCP/Azure/etc.) remains
+    `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, called
+    out honestly in the row above.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

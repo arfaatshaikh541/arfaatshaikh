@@ -1,5 +1,6 @@
 from .base import Connector, ConnectorManifest
 from .browser_connector import BrowserConnector
+from .cloud_connector import CloudConnector, CloudProvider, Deployment, DeploymentNotFoundError, MockCloudProvider
 from .email_connector import ImapConnector, SmtpConnector, build_threads
 from .filesystem_connector import FilesystemConnector, PathEscapesSandboxError
 from .finance_connector import FinanceConnector, MockPaymentProvider, PaymentProvider, TransactionDraft
@@ -18,4 +19,5 @@ __all__ = [
     "DesktopControlConnector",
     "FinanceConnector", "PaymentProvider", "MockPaymentProvider", "TransactionDraft",
     "build_github_connector", "GITHUB_CAPABILITY_MAP",
+    "CloudConnector", "CloudProvider", "MockCloudProvider", "Deployment", "DeploymentNotFoundError",
 ]

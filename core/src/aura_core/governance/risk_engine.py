@@ -72,6 +72,8 @@ AMBER_ACTION_TYPES = {
     "browser.extract_text_multi",
     "crm.write",
     "github.comment_on_issue",
+    "cloud.deploy",
+    "cloud.rollback",
 }
 
 GREEN_ACTION_TYPES = {
@@ -90,6 +92,7 @@ GREEN_ACTION_TYPES = {
     "email.list_messages",
     "email.get_message",
     "email.search_messages",
+    "cloud.get_deployment_status",
 }
 
 
