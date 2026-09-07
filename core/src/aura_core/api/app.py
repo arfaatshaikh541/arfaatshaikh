@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -116,6 +116,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="AURA Core", version="0.2.0", lifespan=lifespan)
     app.state.runtime = runtime
 
+    async def require_device_token(x_aura_device_token: str | None = Header(default=None)) -> None:
+        # Every state-changing endpoint (every POST in this app) is
+        # gated once an owner has actually enrolled (section 9's device
+        # trust) -- before enrollment there is no owner identity to check
+        # a caller against, so every endpoint stays exactly as open as it
+        # always was, matching every pre-existing test that never calls
+        # `aura enroll` first. Read-only GET endpoints are never gated:
+        # they expose no capability an unauthenticated local caller could
+        # cause harm with.
+        if runtime.enrollment.is_enrolled():
+            if x_aura_device_token is None or runtime.enrollment.verify_token(x_aura_device_token) is None:
+                raise HTTPException(status_code=401, detail="valid X-Aura-Device-Token header required")
+
+    gated = [Depends(require_device_token)]
+
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
@@ -160,7 +175,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for a in runtime.approvals.pending()
         ]
 
-    @app.post("/approvals/{approval_id}/decide")
+    @app.post("/approvals/{approval_id}/decide", dependencies=gated)
     async def decide_approval(approval_id: str, decision: ApprovalDecisionRequest) -> dict:
         outcome = runtime.broker.resume_after_approval(
             approval_id, approved=decision.approved, decided_by=decision.decided_by,
@@ -188,23 +203,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "entries_checked": verification.entries_checked,
         }
 
-    @app.post("/kill-switch/engage")
+    @app.post("/kill-switch/engage", dependencies=gated)
     async def engage_kill_switch() -> dict:
         runtime.policy.engage_kill_switch()
         return {"kill_switch_engaged": True}
 
-    @app.post("/kill-switch/disengage")
-    async def disengage_kill_switch(x_aura_device_token: str | None = Header(default=None)) -> dict:
-        # Re-arming the kill switch is the one action here an owner would
-        # be genuinely harmed by an unauthenticated caller performing --
-        # gated once an owner has actually enrolled (section 9's device
-        # trust). Before enrollment there is no owner identity to check
-        # against, so this behaves exactly as before: open on loopback,
-        # same as every other endpoint until enrollment introduces a
-        # boundary to enforce.
-        if runtime.enrollment.is_enrolled():
-            if x_aura_device_token is None or runtime.enrollment.verify_token(x_aura_device_token) is None:
-                raise HTTPException(status_code=401, detail="valid X-Aura-Device-Token header required")
+    @app.post("/kill-switch/disengage", dependencies=gated)
+    async def disengage_kill_switch() -> dict:
         runtime.policy.disengage_kill_switch()
         return {"kill_switch_engaged": False}
 
@@ -218,7 +223,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for e in runtime.guardian.recent_events()
         ]
 
-    @app.post("/guardian/freeze")
+    @app.post("/guardian/freeze", dependencies=gated)
     async def guardian_freeze(request: FreezeRequest) -> dict:
         event = runtime.guardian.freeze(request.reason)
         return {"id": event.id, "action_taken": event.action_taken}
@@ -238,7 +243,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for t in records
         ]
 
-    @app.post("/tasks")
+    @app.post("/tasks", dependencies=gated)
     async def enqueue_task(request: EnqueueTaskRequest) -> dict:
         task = runtime.tasks.enqueue(
             request.task_type, request.payload,
@@ -246,7 +251,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"id": task.id, "status": task.status}
 
-    @app.post("/goals")
+    @app.post("/goals", dependencies=gated)
     async def create_goal(request: CreateGoalRequest) -> dict:
         goal = runtime.goals.create(
             request.statement, priority=request.priority,
@@ -256,7 +261,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"id": goal.id, "status": goal.status}
 
-    @app.post("/goals/{goal_id}/activate")
+    @app.post("/goals/{goal_id}/activate", dependencies=gated)
     async def activate_goal(goal_id: str) -> dict:
         try:
             goal = runtime.goals.activate(goal_id)
@@ -264,7 +269,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"error": str(exc)}
         return {"id": goal.id, "status": goal.status}
 
-    @app.post("/goals/{goal_id}/mandate/{mandate_id}")
+    @app.post("/goals/{goal_id}/mandate/{mandate_id}", dependencies=gated)
     async def set_goal_mandate(goal_id: str, mandate_id: str) -> dict:
         try:
             runtime.goals.set_mandate(goal_id, mandate_id)
@@ -282,7 +287,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for g in runtime.goals.list_active()
         ]
 
-    @app.post("/goals/review")
+    @app.post("/goals/review", dependencies=gated)
     async def review_goals() -> list[dict]:
         outcomes = await runtime.executive.run_review_cycle()
         return [
@@ -290,7 +295,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for o in outcomes
         ]
 
-    @app.post("/mandates")
+    @app.post("/mandates", dependencies=gated)
     async def create_mandate(request: CreateMandateRequest) -> dict:
         mandate = runtime.mandates.create(
             request.title, request.mission, priority=request.priority,
@@ -299,7 +304,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"id": mandate.id, "status": mandate.status}
 
-    @app.post("/mandates/{mandate_id}/activate")
+    @app.post("/mandates/{mandate_id}/activate", dependencies=gated)
     async def activate_mandate(mandate_id: str) -> dict:
         try:
             mandate = runtime.mandates.activate(mandate_id)
@@ -333,7 +338,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "next_actions": report.next_actions, "blockers": report.blockers,
         }
 
-    @app.post("/loop/run-once")
+    @app.post("/loop/run-once", dependencies=gated)
     async def loop_run_once() -> list[dict]:
         outcomes = await runtime.operating_loop.run_cycle_once()
         return [
@@ -352,7 +357,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for r in results
         ]
 
-    @app.post("/memory/ask")
+    @app.post("/memory/ask", dependencies=gated)
     async def memory_ask(request: AskMemoryRequest) -> dict:
         from ..memory import answer_question
 
@@ -364,7 +369,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "error": result.error, "context_used": result.context_used,
         }
 
-    @app.post("/chat")
+    @app.post("/chat", dependencies=gated)
     async def chat(request: ChatRequest) -> StreamingResponse:
         async def stream() -> AsyncIterator[bytes]:
             action_request = runtime.triggers.resolve(request.message)
@@ -386,7 +391,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
-    @app.post("/voice/wake-word/check")
+    @app.post("/voice/wake-word/check", dependencies=gated)
     async def wake_word_check(request: WakeWordCheckRequest) -> dict:
         try:
             audio = np.frombuffer(base64.b64decode(request.audio_base64), dtype=np.int16)
@@ -395,7 +400,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail=f"wake-word detector unavailable: {exc}") from exc
         return {"score": score, "detected": score >= 0.5}
 
-    @app.post("/voice/stt/transcribe")
+    @app.post("/voice/stt/transcribe", dependencies=gated)
     async def stt_transcribe(request: TranscribeRequest) -> dict:
         try:
             audio = np.frombuffer(base64.b64decode(request.audio_base64), dtype=np.int16)
@@ -404,7 +409,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail=f"speech-to-text unavailable: {exc}") from exc
         return {"text": text}
 
-    @app.post("/voice/tts/speak")
+    @app.post("/voice/tts/speak", dependencies=gated)
     async def tts_speak(request: SpeakRequest) -> Response:
         try:
             wav_bytes = text_to_speech.synthesize_to_wav_bytes(request.text, speed=request.speed)

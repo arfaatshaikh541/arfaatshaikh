@@ -16,6 +16,7 @@ using AuraVoice.Windows;
 
 var coreSocketPath = Environment.GetEnvironmentVariable("AURA_CORE_SOCKET");
 var coreUrl = Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://127.0.0.1:8000";
+var deviceToken = Environment.GetEnvironmentVariable("AURA_DEVICE_TOKEN");
 var ttsEngine = Environment.GetEnvironmentVariable("AURA_VOICE_TTS_ENGINE") ?? "local";
 var conversationWindowSeconds = double.TryParse(
     Environment.GetEnvironmentVariable("AURA_VOICE_CONVERSATION_WINDOW_SECONDS"), out var seconds)
@@ -29,9 +30,21 @@ using var log = new FileVoiceLog(logPath);
 // AURA_CORE_SOCKET (a Unix domain socket path, printed by `aura serve`
 // on startup) is the section-7 "local, not localhost" transport and
 // takes priority when set; AURA_CORE_URL is the loopback-TCP fallback.
-using var httpClient = coreSocketPath is not null
-    ? AuraShell.Core.IpcHttpClientFactory.CreateForSocket(coreSocketPath)
-    : new HttpClient { BaseAddress = new Uri(coreUrl) };
+// AURA_DEVICE_TOKEN (saved by `aura enroll`) is attached to every
+// request once set, so this host keeps working uninterrupted once
+// enrollment turns on the core API's device-trust gate.
+static HttpClient CreateCoreHttpClient(string? socketPath, string coreUrl, string? deviceToken)
+{
+    if (socketPath is not null)
+    {
+        return AuraShell.Core.IpcHttpClientFactory.CreateForSocket(socketPath, deviceToken);
+    }
+    var client = new HttpClient { BaseAddress = new Uri(coreUrl) };
+    AuraShell.Core.DeviceTokenHeader.AttachIfConfigured(client, deviceToken);
+    return client;
+}
+
+using var httpClient = CreateCoreHttpClient(coreSocketPath, coreUrl, deviceToken);
 var apiClient = new AuraApiClient(httpClient);
 var coreEndpointDescription = coreSocketPath is not null ? $"unix socket {coreSocketPath}" : coreUrl;
 

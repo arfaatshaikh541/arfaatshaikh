@@ -53,7 +53,7 @@ Blocker taxonomy used (exactly as specified):
 | Credential Broker | Yes | Yes | **Bookkeeping only** — issues opaque scoped tokens, never a real secret. Real secrets (SMTP password, future API keys) live in plain environment variables today, no encryption at rest, no OS credential-store integration | Yes | No | Real secret vault backed by Windows Credential Manager/DPAPI | `REQUIRES_WINDOWS_RUNTIME` (DPAPI is Windows-only; code can be written and unit-tested with a mock store here, but real DPAPI encryption can't be exercised in this Linux sandbox) |
 | Rate Limiter | Yes | Yes | Real | Yes | No | None found | `COMPLETE` |
 | Audit Log (hash-chained) | Yes | Yes | Real | Yes | No | None found | `COMPLETE` |
-| Owner enrollment / device trust | Yes — `EnrollmentEngine` (`aura enroll`, `aura devices list/revoke`) + local token persistence | Yes for what it gates: wired into `/kill-switch/disengage` as a concrete proof of concept (open pre-enrollment exactly as before, requires a valid `X-Aura-Device-Token` once an owner exists) rather than left as a standalone, unused mechanism | Real (SHA-256-hashed tokens, never the raw value, persisted in SQLite; raw token shown once and saved locally with owner-only file permissions) | Yes (13 engine tests, 4 token-store tests, 4 CLI tests, 5 API gate tests) | No | Retrofitting the same gate onto the rest of the API's mutating endpoints (scoped to one endpoint this pass, not a blanket rewrite); the native C#/WPF shell and voice host do not yet read the saved token and attach it automatically; DPAPI-backed secret storage in place of file permissions | `COMPLETE` for the enrollment/device-trust mechanism and its first real gate; `REQUIRES_WINDOWS_RUNTIME` for DPAPI-backed storage specifically; wiring the remaining endpoints and the native clients is `IMPLEMENTABLE_NOW`, not done this pass |
+| Owner enrollment / device trust | Yes — `EnrollmentEngine` (`aura enroll`, `aura devices list/revoke`) + local token persistence | Yes, fully: every one of the API's 17 POST endpoints (governance, tasks, goals, mandates, memory, chat, voice) is gated via a single shared `require_device_token` FastAPI dependency, open before enrollment and requiring a valid `X-Aura-Device-Token` after; every GET stays open (read-only). Both C# apps (`AuraShell`, `AuraVoice.Windows.Host`) attach `AURA_DEVICE_TOKEN` automatically via `DeviceTokenHeader.AttachIfConfigured` on both the IPC and TCP client paths | Real (SHA-256-hashed tokens, never the raw value, persisted in SQLite; raw token shown once and saved locally with owner-only file permissions) | Yes (13 engine tests, 4 token-store tests, 4 CLI tests, 5 kill-switch gate tests, 4 cross-endpoint gate tests covering before/after/valid-token/read-only-never-gated, 3+3 C# `DeviceTokenHeader` tests) | No | DPAPI-backed secret storage in place of file permissions | `COMPLETE` — the enrollment/device-trust mechanism, every mutating endpoint's gate, and both native clients attaching the token automatically are all built and tested; `REQUIRES_WINDOWS_RUNTIME` only for DPAPI-backed storage specifically |
 
 ## C. Native runtime / IPC
 
@@ -295,6 +295,32 @@ closure lands, in the order it actually happened:
     app), full Python suite and both C# test suites re-run green. `aura
     serve --host` keeps the old loopback-TCP behavior available for
     tooling (curl, browsers) that only speaks HTTP-over-TCP.
+14. **Every mutating API endpoint gated by device trust** (section 9,
+    completing item 10 above): the device-token check that previously
+    protected only `/kill-switch/disengage` now sits on all 17 POST
+    endpoints via one shared `require_device_token` FastAPI dependency
+    (`gated = [Depends(require_device_token)]`), so covering a new route
+    going forward is one list reference, not a copy-pasted check that
+    could be forgotten. Every GET stays open -- read-only endpoints
+    expose nothing an unauthenticated local caller could cause harm
+    with. Both native clients now attach the token automatically: a new
+    `DeviceTokenHeader.AttachIfConfigured()` (mirrored in
+    `AuraShell.Core` and `AuraVoice.Core` since the latter has no
+    dependency on the former) sets `X-Aura-Device-Token` from
+    `AURA_DEVICE_TOKEN` on both the IPC and TCP client construction
+    paths in `App.xaml.cs` and `Program.cs`, so an owner who runs `aura
+    enroll` doesn't wake up to every request from their own shell/voice
+    apps failing with 401. Verified as an actual cross-endpoint property,
+    not endpoint-by-endpoint: one test sweeps a representative sample of
+    endpoints before enrollment (all open), one sweeps them after
+    enrollment with no token (all 401, including one new sample --
+    `/voice/wake-word/check` -- not covered by the item-10 tests), one
+    sweeps them with the real token (all succeed), and one confirms
+    GET endpoints are never gated even after enrollment. Full suite: 302
+    passed (298 baseline + 4 new), plus 3 new tests per C# app for
+    `DeviceTokenHeader`, all green, zero regressions -- confirmed
+    specifically that no pre-existing test (none of which ever enrolls
+    an owner) started failing once every POST endpoint gained a gate.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

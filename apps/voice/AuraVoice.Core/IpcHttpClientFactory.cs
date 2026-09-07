@@ -22,8 +22,12 @@ public static class IpcHttpClientFactory
     /// this host would ever happen, so its value is never used to route
     /// anywhere. It must be a well-formed absolute URI purely because
     /// HttpClient requires one to build relative-path requests against.
+    ///
+    /// <paramref name="deviceToken"/>, when given, is attached as the
+    /// X-Aura-Device-Token header the core API's device-trust gate
+    /// checks on every mutating endpoint once an owner has enrolled.
     /// </summary>
-    public static HttpClient CreateForSocket(string socketPath)
+    public static HttpClient CreateForSocket(string socketPath, string? deviceToken = null)
     {
         var handler = new SocketsHttpHandler
         {
@@ -44,6 +48,8 @@ public static class IpcHttpClientFactory
             },
         };
 
-        return new HttpClient(handler) { BaseAddress = new Uri("http://aura-core.ipc") };
+        var client = new HttpClient(handler) { BaseAddress = new Uri("http://aura-core.ipc") };
+        DeviceTokenHeader.AttachIfConfigured(client, deviceToken);
+        return client;
     }
 }

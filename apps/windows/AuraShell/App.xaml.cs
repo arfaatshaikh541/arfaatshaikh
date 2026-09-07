@@ -20,10 +20,22 @@ public partial class App : Application
         // transport and takes priority when set. AURA_CORE_URL is the
         // loopback-TCP fallback for tooling that only speaks HTTP-over-TCP
         // -- `aura serve --host`.
+        // AURA_DEVICE_TOKEN (saved by `aura enroll`) is attached to every
+        // request once set -- once an owner enrolls, every mutating
+        // endpoint requires it, so this shell keeps working uninterrupted
+        // rather than starting to get 401s on the day enrollment happens.
         var socketPath = Environment.GetEnvironmentVariable("AURA_CORE_SOCKET");
-        var httpClient = socketPath is not null
-            ? IpcHttpClientFactory.CreateForSocket(socketPath)
-            : new HttpClient { BaseAddress = new Uri(Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://localhost:8000") };
+        var deviceToken = Environment.GetEnvironmentVariable("AURA_DEVICE_TOKEN");
+        HttpClient httpClient;
+        if (socketPath is not null)
+        {
+            httpClient = IpcHttpClientFactory.CreateForSocket(socketPath, deviceToken);
+        }
+        else
+        {
+            httpClient = new HttpClient { BaseAddress = new Uri(Environment.GetEnvironmentVariable("AURA_CORE_URL") ?? "http://localhost:8000") };
+            DeviceTokenHeader.AttachIfConfigured(httpClient, deviceToken);
+        }
         var apiClient = new AuraApiClient(httpClient);
         var viewModel = new MainViewModel(apiClient);
 
