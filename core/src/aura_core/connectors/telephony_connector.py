@@ -7,6 +7,7 @@ implemented here.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -25,6 +26,12 @@ class CallRecord:
     status: str  # "queued" | "completed" | "failed"
     message: str
     placed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id, "to": self.to, "from": self.from_,
+            "status": self.status, "message": self.message, "placed_at": self.placed_at.isoformat(),
+        }
 
 
 class TelephonyProvider(ABC):
@@ -76,7 +83,7 @@ class TelephonyConnector(Connector):
         record = self._provider.place_call(
             to=request.params["to"], from_=self._from_number, message=request.params.get("message", ""),
         )
-        return HandlerResult(CapabilityStatus.LIVE, f"call {record.id} to {record.to}: {record.status}")
+        return HandlerResult(CapabilityStatus.LIVE, json.dumps(record.to_dict()))
 
     def handlers(self) -> dict:
         return {"telephony.call": self.call}

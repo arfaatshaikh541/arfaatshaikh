@@ -149,6 +149,49 @@ def _observe_email_message(world_model: WorldModelStore, params: dict, payload, 
         _upsert_email_message(world_model, payload, source)
 
 
+def _observe_telephony_call(world_model: WorldModelStore, params: dict, call: dict, source: str) -> None:
+    call_id = call.get("id")
+    to = call.get("to")
+    if not call_id or not to:
+        return
+
+    person_id = f"phone:{to}"
+    world_model.upsert_entity(entity_id=person_id, entity_type="person", name=to, source=source)
+
+    call_entity_id = f"telephony_call:{call_id}"
+    call_entity = world_model.upsert_entity(
+        entity_id=call_entity_id, entity_type="phone_call",
+        name=f"Call to {to}: {call.get('status', '?')}", source=source,
+        attributes={"to": to, "from": call.get("from"), "status": call.get("status"), "message": call.get("message")},
+    )
+    world_model.link(subject_id=person_id, predicate="received", object_id=call_entity.id, source=source)
+
+
+def _observe_cloud_deployment(world_model: WorldModelStore, params: dict, deployment: dict, source: str) -> None:
+    service = deployment.get("service")
+    deployment_id = deployment.get("id")
+    if not service or not deployment_id:
+        return
+
+    environment = deployment.get("environment", "production")
+    service_id = f"cloud_service:{service}:{environment}"
+    service_entity = world_model.upsert_entity(
+        entity_id=service_id, entity_type="cloud_service", name=f"{service} ({environment})", source=source,
+        attributes={"service": service, "environment": environment},
+    )
+
+    deployment_entity_id = f"cloud_deployment:{deployment_id}"
+    deployment_entity = world_model.upsert_entity(
+        entity_id=deployment_entity_id, entity_type="cloud_deployment",
+        name=f"{service}@{deployment.get('version', '?')} ({environment})", source=source,
+        attributes={
+            "version": deployment.get("version"), "status": deployment.get("status"),
+            "environment": environment, "previous_deployment_id": deployment.get("previous_deployment_id"),
+        },
+    )
+    world_model.link(subject_id=deployment_entity.id, predicate="deploys", object_id=service_entity.id, source=source)
+
+
 register_extractor("github.list_pull_requests", _observe_github_pull_requests_list)
 register_extractor("github.get_pull_request", _observe_github_pull_request)
 register_extractor("github.list_issues", _observe_github_issues_list)
@@ -156,3 +199,7 @@ register_extractor("github.get_issue", _observe_github_issue)
 register_extractor("email.list_messages", _observe_email_messages_list)
 register_extractor("email.search_messages", _observe_email_messages_list)
 register_extractor("email.get_message", _observe_email_message)
+register_extractor("telephony.call", _observe_telephony_call)
+register_extractor("cloud.deploy", _observe_cloud_deployment)
+register_extractor("cloud.rollback", _observe_cloud_deployment)
+register_extractor("cloud.get_deployment_status", _observe_cloud_deployment)

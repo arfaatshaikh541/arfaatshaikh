@@ -135,3 +135,57 @@ def test_an_email_with_no_extractable_address_is_skipped_not_crashed(world_model
     observe(world_model, "email.get_message", {}, payload, source="test")
 
     assert world_model.find_entities() == []
+
+
+def test_a_telephony_call_links_the_recipient_as_a_person(world_model):
+    payload = json.dumps({
+        "id": "call-1", "to": "+15551234567", "from": "+19998887777",
+        "status": "completed", "message": "Your appointment is confirmed.",
+    })
+
+    observe(world_model, "telephony.call", {}, payload, source="test")
+
+    people = world_model.find_entities(entity_type="person")
+    calls = world_model.find_entities(entity_type="phone_call")
+    assert len(people) == 1
+    assert people[0].name == "+15551234567"
+    assert len(calls) == 1
+    received = world_model.relationships_from(people[0].id, predicate="received")
+    assert len(received) == 1
+    assert received[0].object_id == calls[0].id
+
+
+def test_a_cloud_deployment_links_to_its_service(world_model):
+    payload = json.dumps({
+        "id": "dep-1", "service": "web", "version": "1.0.0",
+        "environment": "production", "status": "live", "previous_deployment_id": None,
+    })
+
+    observe(world_model, "cloud.deploy", {}, payload, source="test")
+
+    services = world_model.find_entities(entity_type="cloud_service")
+    deployments = world_model.find_entities(entity_type="cloud_deployment")
+    assert len(services) == 1
+    assert services[0].name == "web (production)"
+    assert len(deployments) == 1
+    deploys = world_model.relationships_from(deployments[0].id, predicate="deploys")
+    assert len(deploys) == 1
+    assert deploys[0].object_id == services[0].id
+
+
+def test_two_deployments_of_the_same_service_share_one_service_entity(world_model):
+    observe(world_model, "cloud.deploy", {}, json.dumps({
+        "id": "dep-1", "service": "web", "version": "1.0.0", "environment": "production", "status": "live",
+    }), source="test")
+    observe(world_model, "cloud.deploy", {}, json.dumps({
+        "id": "dep-2", "service": "web", "version": "2.0.0", "environment": "production", "status": "live",
+    }), source="test")
+
+    assert len(world_model.find_entities(entity_type="cloud_service")) == 1
+    assert len(world_model.find_entities(entity_type="cloud_deployment")) == 2
+
+
+def test_a_deployment_without_a_service_name_is_skipped_not_crashed(world_model):
+    observe(world_model, "cloud.deploy", {}, json.dumps({"id": "dep-1"}), source="test")
+
+    assert world_model.find_entities() == []
