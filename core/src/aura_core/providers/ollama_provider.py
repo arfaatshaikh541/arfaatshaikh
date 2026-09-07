@@ -49,3 +49,33 @@ class OllamaProvider:
                         yield content
                     if chunk.get("done"):
                         break
+
+
+class OllamaEmbeddingProvider:
+    """Real Ollama embeddings via its documented /api/embeddings endpoint
+    (e.g. the `nomic-embed-text` model). Same "code is real, status is
+    honest until health-checked against a live install" posture as
+    OllamaProvider above -- there is no GPU/Ollama install in this build
+    environment to verify against."""
+
+    name = "ollama-embedding"
+
+    def __init__(self, host: str, model: str, timeout_seconds: float = 30.0) -> None:
+        self._host = host.rstrip("/")
+        self._model = model
+        self._timeout = timeout_seconds
+
+    async def is_available(self) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(f"{self._host}/api/tags")
+                return response.status_code == 200
+        except httpx.HTTPError:
+            return False
+
+    async def embed(self, text: str) -> list[float]:
+        payload = {"model": self._model, "prompt": text}
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.post(f"{self._host}/api/embeddings", json=payload)
+            response.raise_for_status()
+            return response.json()["embedding"]

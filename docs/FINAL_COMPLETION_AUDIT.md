@@ -38,7 +38,7 @@ Blocker taxonomy used (exactly as specified):
 | World Model (entities/relationships) | Yes | Yes — `TaskWorker` calls `executive/observation.py`'s `observe()` after every successfully executed `execute_goal_step`, with no separate trigger anything else has to remember to call | Real, extractors registered per action_type (github PR/issue + author/reporter, email message + sender) rather than one generic guesser | Yes (11 unit tests on `observe()` directly + 2 true end-to-end tests driving a real task through `TaskWorker` against the real GitHub fake server) | No | Only GitHub and email connectors have extractors; other connectors (filesystem, HTTP, browser, CRM, telephony) still don't feed the World Model | `COMPLETE` for the observation mechanism and its first two extractors; extractors for the remaining connectors are `IMPLEMENTABLE_NOW`, not done this pass |
 | Executive / Goal Engine | Yes | **No** — see headline finding | Real logic, but single-shot | Yes (as a single-shot call) | No | The entire autonomous loop: scheduling, observation, mandate model, workstreams, evidence, next-action determination | `IMPLEMENTABLE_NOW` — this pass's primary focus |
 | Durable Task Engine | Yes | Partially — `enqueue`/`claim_next`/`complete`/`fail`/lease-reap all real and tested, but **nothing in production code ever calls `claim_next()`** — no worker loop exists | Real | Yes | No | A worker process that actually drains the queue | `IMPLEMENTABLE_NOW` — built this pass as part of the operating loop |
-| Model Router | Yes | Yes | Real (Ollama) + explicit test-only fallback | Yes | No (needs Ollama running on the machine) | Single-role routing only — no fast-reflex/reasoning/embedding role separation (section 18) | `IMPLEMENTABLE_NOW` (role separation) partially addressed; full multi-model routing is a larger effort, tracked, not done this pass |
+| Model Router | Yes | Yes -- `ModelRole.REASONING/FAST/EMBEDDING`, `aura model embed`, `POST /model/embed` | Real (Ollama for reasoning/fast text generation and real `/api/embeddings` calls) + explicit test-only fallback for each role, never silently outside `AURA_ENV=test` | Yes (10 new router tests covering FAST falling back to REASONING when unconfigured vs. actually using a configured FAST provider, and EMBEDDING's own fallback/refusal behavior; 1 CLI + 2 API tests) | No (needs Ollama running on the machine) | The remaining four of the architecture doc's seven capability classes (frontier reasoning, coding, vision, speech) need hosted-provider credentials this codebase doesn't have; embeddings are not yet used to enhance `MemoryStore.search()`'s ranking (that stays TF-IDF, honestly) | `COMPLETE` for the fast-reflex/reasoning/embedding split named in section 18; frontier/coding/vision/speech roles are `REQUIRES_OWNER_CREDENTIAL` (pick a hosted provider) + `REQUIRES_EXTERNAL_PROVIDER`, not attempted |
 | Status reporting (`aura diagnose`) | Yes | Yes | Real | Yes | No | Reports system health only (audit/guardian/capability status) — no goal/mandate narrative ("what's the update on X") at all | `IMPLEMENTABLE_NOW` — built this pass (`aura mandates report`) |
 
 ## B. Governance
@@ -338,6 +338,28 @@ closure lands, in the order it actually happened:
     rejected with 422, POST gated once enrolled, GET never gated) and 2
     new C# `AuraApiClient` tests. Full suite and both C# test suites
     re-run green.
+16. **Model Router role separation** (section 18): `ModelRole.REASONING/
+    FAST/EMBEDDING` narrows the architecture doc's seven-class table to
+    the three this build can actually route between without a hosted-
+    provider credential. `select_provider(role)` uses a configured FAST
+    provider when given and falls back to REASONING's provider when not
+    (today's un-split behavior, unchanged for every existing caller that
+    never passes a role). `embed()` is new: a real `OllamaEmbeddingProvider`
+    (genuine `/api/embeddings` calls) plus a `DeterministicTestEmbeddingProvider`
+    (a SHA-256-derived, unit-normalized, explicitly-not-a-real-model
+    vector, gated by the same `allow_test_provider` discipline the text
+    test provider already uses) for `AURA_ENV=test`. Wired end to end,
+    not left as dead code in the router's constructor: `aura model embed
+    <text>` and `POST /model/embed` (gated) both make a real call through
+    the router. `AURA_OLLAMA_FAST_MODEL` / `AURA_OLLAMA_EMBEDDING_MODEL`
+    (defaulting to `nomic-embed-text`) configure the two new roles; both
+    optional. 10 new router tests (FAST falls back to REASONING when
+    unconfigured vs. genuinely uses a configured FAST provider; EMBEDDING's
+    own fallback-to-deterministic and fail-closed-outside-test-mode
+    behavior; determinism and distinctness of the test vector), 1 CLI
+    test, 2 API tests. Embeddings are not yet used to enhance
+    `MemoryStore.search()`'s own ranking -- that stays TF-IDF, called out
+    honestly rather than silently implied.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

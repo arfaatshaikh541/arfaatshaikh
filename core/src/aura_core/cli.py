@@ -453,6 +453,28 @@ def memory_ask(question: str) -> None:
 
 
 @main.group()
+def model() -> None:
+    """Inspect and exercise the Model Router's role-separated providers
+    (section 18: reasoning/fast/embedding)."""
+
+
+@model.command("embed")
+@click.argument("text")
+def model_embed(text: str) -> None:
+    """Real embedding call through the router's EMBEDDING role -- proves
+    the provider is actually wired and callable, not just present in the
+    router's constructor signature."""
+    runtime = build_runtime()
+    try:
+        vector = asyncio.run(runtime.model_router.embed(text))
+    except NoProviderAvailable as exc:
+        click.echo(f"Could not embed: {exc}", err=True)
+        raise SystemExit(1)
+    click.echo(f"{len(vector)}-dimensional vector:")
+    click.echo(vector)
+
+
+@main.group()
 def voice() -> None:
     """Run and supervise the real-time voice pipeline
     (apps/voice/AuraVoice.Windows.Host)."""

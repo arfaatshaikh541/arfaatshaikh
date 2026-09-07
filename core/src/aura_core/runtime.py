@@ -27,7 +27,7 @@ from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker
 from .guardian import SecurityGuardian
 from .identity import EnrollmentEngine
 from .memory import MemoryStore, WorldModelStore
-from .providers import ModelRouter, OllamaProvider
+from .providers import ModelRouter, OllamaEmbeddingProvider, OllamaProvider
 from .status import CapabilityStatus, registry
 from .tasks import TaskEngine
 
@@ -101,7 +101,15 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
         broker.register_handler(action_type, handler)
 
     ollama = OllamaProvider(host=settings.ollama_host, model=settings.ollama_model)
-    model_router = ModelRouter(primary=ollama, allow_test_fallback=settings.allow_test_provider)
+    fast_ollama = (
+        OllamaProvider(host=settings.ollama_host, model=settings.ollama_fast_model)
+        if settings.ollama_fast_model else None
+    )
+    embedding_provider = OllamaEmbeddingProvider(host=settings.ollama_host, model=settings.ollama_embedding_model)
+    model_router = ModelRouter(
+        primary=ollama, allow_test_fallback=settings.allow_test_provider,
+        fast=fast_ollama, embedding=embedding_provider,
+    )
 
     goals = GoalEngine(settings.database_url)
     mandates = MandateEngine(settings.database_url)

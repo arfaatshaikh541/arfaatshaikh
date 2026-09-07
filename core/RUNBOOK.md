@@ -151,6 +151,29 @@ aura status
 `model.ollama` should now report `LIVE`. If it doesn't, `aura status`'s
 detail column tells you exactly what the health check saw.
 
+### Role-separated models (fast / embedding)
+
+The Model Router (`core/src/aura_core/providers/router.py`) separates
+three roles per `docs/architecture/07-model-routing.md`: REASONING (the
+model above, used by default), FAST (optional -- high-volume/low-
+complexity calls), and EMBEDDING (semantic vectors, a different shape of
+output entirely). Both are optional; leaving them unset keeps exactly
+today's single-model behavior.
+
+```bash
+ollama pull llama3.2:1b                        # a smaller model for FAST calls
+export AURA_OLLAMA_FAST_MODEL=llama3.2:1b
+
+ollama pull nomic-embed-text                   # the default embedding model name
+export AURA_OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # optional -- this is already the default
+
+aura model embed "test sentence"
+```
+
+`aura model embed` should print a real vector. `aura status` will show
+`model.ollama.fast` / `model.ollama.embedding` once each role has been
+exercised.
+
 ### Download the voice models
 
 Wake word, speech-to-text, and text-to-speech need real model files that

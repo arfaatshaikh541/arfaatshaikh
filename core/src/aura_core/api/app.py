@@ -69,6 +69,10 @@ class AskMemoryRequest(BaseModel):
     question: str
 
 
+class EmbedRequest(BaseModel):
+    text: str
+
+
 class WakeWordCheckRequest(BaseModel):
     audio_base64: str  # base64-encoded 16-bit PCM mono samples
 
@@ -363,6 +367,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             }
             for r in results
         ]
+
+    @app.post("/model/embed", dependencies=gated)
+    async def model_embed(request: EmbedRequest) -> dict:
+        try:
+            vector = await runtime.model_router.embed(request.text)
+        except NoProviderAvailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {"embedding": vector, "dimensions": len(vector)}
 
     @app.post("/memory/ask", dependencies=gated)
     async def memory_ask(request: AskMemoryRequest) -> dict:

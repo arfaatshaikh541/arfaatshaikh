@@ -18,6 +18,8 @@ class Settings:
     database_url: str
     ollama_host: str
     ollama_model: str
+    ollama_fast_model: str | None
+    ollama_embedding_model: str
     allow_test_provider: bool
     filesystem_sandbox_dir: str
     http_allowed_hosts: list[str]
@@ -50,6 +52,8 @@ def load_settings() -> Settings:
         database_url=os.environ.get("AURA_DATABASE_URL", "sqlite:///./aura_core.db"),
         ollama_host=os.environ.get("AURA_OLLAMA_HOST", "http://localhost:11434"),
         ollama_model=os.environ.get("AURA_OLLAMA_MODEL", "llama3.1"),
+        ollama_fast_model=os.environ.get("AURA_OLLAMA_FAST_MODEL"),
+        ollama_embedding_model=os.environ.get("AURA_OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"),
         allow_test_provider=env == "test",
         filesystem_sandbox_dir=os.environ.get("AURA_FS_SANDBOX_DIR", "./aura_sandbox"),
         http_allowed_hosts=_split_csv(os.environ.get("AURA_HTTP_ALLOWED_HOSTS")),
