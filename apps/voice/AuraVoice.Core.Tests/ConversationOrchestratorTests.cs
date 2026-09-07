@@ -239,6 +239,101 @@ public class ConversationOrchestratorTests
         Assert.Equal("echo: what's on my calendar today", tts.Spoken[0]);
     }
 
+    [Fact]
+    public async Task Streaming_response_speaks_each_sentence_as_it_becomes_available()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => Task.FromResult("unused"), tts, delay: NeverFires(),
+            generateResponseStreaming: async (_, onSentence, _) =>
+            {
+                await onSentence("First sentence.");
+                await onSentence("Second sentence.");
+                return "First sentence. Second sentence.";
+            });
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("tell me something");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        Assert.Equal(VoiceState.Speaking, controller.State); // first sentence -> Processing -> Speaking
+        tts.FinishSpeaking();
+
+        await WaitUntil(() => tts.Spoken.Count == 2);
+        tts.FinishSpeaking();
+
+        await WaitUntil(() => controller.State == VoiceState.Awake);
+        Assert.Equal(new[] { "First sentence.", "Second sentence." }, tts.Spoken);
+    }
+
+    [Fact]
+    public async Task A_barge_in_between_streamed_sentences_stops_further_sentences_from_being_spoken()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => Task.FromResult("unused"), tts, delay: NeverFires(),
+            generateResponseStreaming: async (_, onSentence, _) =>
+            {
+                await onSentence("First sentence.");
+                await onSentence("Second sentence."); // must never reach SpeakAsync after the barge-in below
+                return "First sentence. Second sentence.";
+            });
+        var doneTcs = new TaskCompletionSource<string>();
+        orchestrator.ResponseSpoken += r => doneTcs.TrySetResult(r);
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("tell me something");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        tts.Stop();
+        controller.OnBargeIn();
+
+        await doneTcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Single(tts.Spoken);
+        Assert.Equal(1, tts.StopCount);
+    }
+
+    [Fact]
+    public async Task A_streaming_response_with_no_sentence_boundary_falls_back_to_speaking_the_whole_reply()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => Task.FromResult("unused"), tts, delay: NeverFires(),
+            generateResponseStreaming: (_, _, _) => Task.FromResult("a reply with no sentence-ending punctuation"));
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("tell me something");
+
+        await WaitUntil(() => tts.Spoken.Count == 1);
+        tts.FinishSpeaking();
+        await WaitUntil(() => controller.State == VoiceState.Awake);
+
+        Assert.Equal(new[] { "a reply with no sentence-ending punctuation" }, tts.Spoken);
+    }
+
+    [Fact]
+    public async Task An_empty_streaming_response_speaks_nothing_but_still_returns_to_awake()
+    {
+        var controller = new VoiceSessionController();
+        var tts = new FakeTextToSpeech();
+        using var orchestrator = new ConversationOrchestrator(
+            controller, (_, _) => Task.FromResult("unused"), tts, delay: NeverFires(),
+            generateResponseStreaming: (_, _, _) => Task.FromResult(string.Empty));
+
+        controller.StartWakeListening();
+        controller.OnWakeWordDetected();
+        controller.OnCommandCaptured("tell me something");
+
+        await WaitUntil(() => controller.State == VoiceState.Awake);
+        Assert.Empty(tts.Spoken);
+    }
+
     private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

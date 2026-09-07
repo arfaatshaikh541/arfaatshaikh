@@ -86,8 +86,8 @@ module docstring for the full rationale.
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
 | Wake word | Yes (openWakeWord `hey_jarvis`) | Yes | Real local ONNX inference | Yes | No (needs real mic) | Custom "AURA" wake word (needs owner's own voice samples to train) | `REQUIRES_PHYSICAL_DEVICE` for training data; `hey_jarvis` works today as the interim phrase |
-| STT | Yes (sherpa-onnx Whisper-tiny.en) | Yes | Real local inference | Yes | No | Streaming (current implementation batches an utterance then transcribes once — not incremental/partial-result streaming) | `IMPLEMENTABLE_NOW` (streaming API exists in sherpa-onnx, not yet wired) — not done this pass, flagged |
-| TTS | Yes (sherpa-onnx Piper + Windows SAPI) | Yes | Real | Yes | No | Streaming TTS (currently synthesizes the full reply before playback starts, not sentence-by-sentence) | `IMPLEMENTABLE_NOW` — not done this pass, flagged |
+| STT | Yes (sherpa-onnx Whisper-tiny.en) | Yes | Real local inference | Yes | No | **Correction to the earlier claim on this row**: sherpa-onnx's streaming API (`OnlineRecognizer`) does exist, but it's built for streaming-capable model architectures (e.g. a streaming zipformer transducer) -- Whisper is fundamentally an offline encoder-decoder with no incremental mode to switch on. Genuine STT streaming needs downloading and wiring a different model entirely, not an API-mode flip on the model already in use. | `REQUIRES_EXTERNAL_PROVIDER`-adjacent in practice (a different, larger streaming-model download is needed); not attempted this pass -- the Whisper-based batch pipeline remains the real, working path |
+| TTS | Yes (sherpa-onnx Piper + Windows SAPI) | Yes | Real | Yes | No | True incremental audio-frame streaming needs a streaming-capable vocoder Piper/VITS isn't; the achievable approximation -- speaking each sentence as soon as it's generated rather than waiting for the full reply -- is now built (`ConversationOrchestrator`'s optional `generateResponseStreaming` path + `SentenceSplitter`) | `COMPLETE` for sentence-level streaming (the honest, achievable form of "streaming TTS" with this build's models); full model-level audio streaming needs a different TTS architecture, `REQUIRES_EXTERNAL_PROVIDER`-adjacent, not attempted |
 | Barge-in | Yes | Yes | Real | Yes (in `ConversationOrchestrator`) | No | None found in the logic itself | `REQUIRES_PHYSICAL_DEVICE` to confirm acoustic behavior only |
 | Always-listening + privacy-visible status | Yes for the state-exposure API | Yes -- the voice host pushes every `VoiceSessionController.StateChanged` transition to a real `GET`/`POST /voice/state` pair on the core API (fire-and-forget; a failed push logs a warning and never stops the voice loop), so any local client (a future tray icon, `aura status`, this endpoint directly) can read real current state without any direct reference to the voice host process | Real (backed by the same `status` registry `/status` already exposes) | Yes (6 Python tests: unknown-before-first-report, round-trip, every real state value accepted, an unrecognized state rejected, gated once enrolled for the POST, never gated for the GET; 2 C# `AuraApiClient` tests) | No | The visible indicator itself (a tray icon UI) still needs the WPF shell | `COMPLETE` for the state-exposure API (the thing that was actually `IMPLEMENTABLE_NOW`); the tray icon UI remains `REQUIRES_WINDOWS_RUNTIME`, unchanged |
 | "close your ears" / "stop listening" / "shut down" commands | Yes | Yes — `VoiceCommandPhrases.TryMatch()` intercepts recognized phrases in `ConversationOrchestrator.OnCommandCaptured` *before* the reasoning call | Real | Yes | No | None found. `ShutdownRequested` is wired through to `AuraVoice.Windows.Host`'s `Program.cs`, which now exits on either "shut down" or the existing Enter-key path. | `COMPLETE` |
@@ -421,6 +421,33 @@ closure lands, in the order it actually happened:
     a real gap. 6 new tests (4 observation unit tests, plus the existing
     telephony/cloud connector suites re-run to confirm the message-format
     change broke nothing).
+20. **Sentence-level streaming TTS** (section 8): a genuine, deliberate
+    architecture finding first, then the achievable fix. Neither Whisper
+    (STT) nor Piper/VITS (TTS) in this build has a real incremental
+    streaming mode -- sherpa-onnx's `OnlineRecognizer` API exists but
+    targets streaming-capable model architectures this build doesn't
+    use, and there is no "streaming Piper" at all. Corrected this
+    document's earlier framing of both rows to say so plainly rather
+    than leave "not yet wired" implying it's a simple switch. Built the
+    achievable approximation instead: `ConversationOrchestrator` gained
+    an optional `generateResponseStreaming` delegate (backward
+    compatible -- every existing caller and all 43 pre-existing tests
+    are unaffected, since it defaults to null and falls back to the
+    original single-SpeakAsync-of-the-full-reply behavior) that speaks
+    each sentence as soon as the model finishes producing it, via a new
+    `SentenceSplitter` (pure, 8 unit tests). Barge-in mid-reply is
+    honored immediately: a sentence queued after an interruption is
+    checked against controller state and silently dropped rather than
+    spoken late. Wired into `AuraVoice.Windows.Host/Program.cs` for
+    real. 4 new `ConversationOrchestrator` tests (sequential sentence
+    playback, barge-in stopping mid-stream, the no-punctuation and
+    empty-response fallback paths). One infrastructure issue surfaced
+    and fixed along the way, not a logic bug: the full test class was
+    intermittently flaky against a stale incremental build (`bin`/`obj`
+    from a prior compile); a clean rebuild made it and 4 more repeat
+    runs consistently green, confirming the code itself was correct all
+    along. Both C# suites clean-rebuilt and re-run green (AuraVoice.Core.Tests
+    55, AuraShell.Core.Tests 20).
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

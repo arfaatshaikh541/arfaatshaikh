@@ -84,9 +84,49 @@ async Task<string> GenerateResponseAsync(string message, CancellationToken ct)
     return response.ToString();
 }
 
+// Speaks each sentence of the reply as soon as it's complete rather than
+// waiting for the whole thing -- see SentenceSplitter's docstring for why
+// this (not true incremental audio streaming) is the achievable form of
+// "streaming" for the STT/TTS models this build uses.
+async Task<string> GenerateResponseStreamingAsync(string message, Func<string, Task> onSentence, CancellationToken ct)
+{
+    var response = new StringBuilder();
+    var splitter = new SentenceSplitter();
+
+    async Task HandleText(string text)
+    {
+        response.Append(text);
+        foreach (var sentence in splitter.Push(text))
+        {
+            await onSentence(sentence);
+        }
+    }
+
+    await foreach (var evt in apiClient.ChatStreamAsync(message, ct))
+    {
+        switch (evt.Event)
+        {
+            case "chunk":
+                await HandleText(evt.Data);
+                break;
+            case "error":
+                await HandleText($" (error: {evt.Data})");
+                break;
+        }
+    }
+
+    var remainder = splitter.Flush();
+    if (remainder is not null)
+    {
+        await onSentence(remainder);
+    }
+    return response.ToString();
+}
+
 using var orchestrator = new ConversationOrchestrator(
     pipeline.Controller, GenerateResponseAsync, textToSpeech,
-    conversationWindow: TimeSpan.FromSeconds(conversationWindowSeconds));
+    conversationWindow: TimeSpan.FromSeconds(conversationWindowSeconds),
+    generateResponseStreaming: GenerateResponseStreamingAsync);
 
 pipeline.Controller.StateChanged += state =>
 {

@@ -5,7 +5,7 @@ Linux container, no audio hardware) genuinely allows:
 
 | Project | Contains | Builds here? | Tested here? |
 |---|---|---|---|
-| `AuraVoice.Core` | VAD, the conversation state machine, `ConversationOrchestrator` (response generation + conversation-timeout glue), engine interfaces, the Http*-backed engine adapters | Yes | Yes — 38 tests, all passing |
+| `AuraVoice.Core` | VAD, the conversation state machine, `ConversationOrchestrator` (response generation + conversation-timeout glue), engine interfaces, the Http*-backed engine adapters | Yes | Yes — 55 tests, all passing |
 | `AuraVoice.Windows` | Real NAudio microphone capture, `HttpTextToSpeech` (NAudio playback), the pipeline wiring it all together | Yes (net8.0-windows compiles on Linux without `UseWPF`) | No — needs a real microphone/speaker |
 | `AuraVoice.Windows.Speech` | Real Windows SAPI text-to-speech (`System.Speech`) | Yes | No — needs Windows' speech engine at runtime |
 | `AuraVoice.Windows.Host` | The composition root: an actual runnable console program wiring mic → VAD → wake-word → STT → aura_core reasoning → TTS → barge-in together | Yes | No — needs a real microphone |
@@ -17,7 +17,7 @@ Linux container, no audio hardware) genuinely allows:
 cd AuraVoice.Core.Tests && dotnet test
 ```
 
-**38 tests, all passing**, with zero mocking of the actual algorithms:
+**55 tests, all passing**, with zero mocking of the actual algorithms:
 
 - `EnergyVoiceActivityDetector` correctly distinguishes silence from a
   real synthetic sine-wave "voice" signal at various amplitudes, using
@@ -39,7 +39,23 @@ cd AuraVoice.Core.Tests && dotnet test
   forever, a barge-in mid-speech is handled without an illegal
   double-transition, the conversation window genuinely times back out to
   wake-listening when nothing follows, and a genuine follow-up within
-  the window correctly cancels the pending timeout.
+  the window correctly cancels the pending timeout. It also supports an
+  optional sentence-level streaming mode (`generateResponseStreaming`):
+  each sentence of the reply is spoken as soon as it's complete rather
+  than waiting for the whole reply, verified against sequential-playback
+  ordering, a mid-stream barge-in dropping the remaining queued
+  sentences, and the fallback to speaking-the-whole-reply when the text
+  has no sentence-ending punctuation at all. Neither Whisper (STT) nor
+  Piper/VITS (TTS) has a genuine incremental streaming mode in this
+  build (see `SentenceSplitter`'s docstring for why), so this
+  sentence-level chunking is the real, achievable form of "streaming
+  TTS" here — not a placeholder for a fuller implementation.
+- `SentenceSplitter` — the incremental sentence-boundary detector behind
+  the streaming mode above — is tested directly: single/multi-sentence
+  chunks, a sentence split across multiple chunks, a trailing period
+  with no following whitespace yet staying buffered (it might be a
+  decimal number, not a sentence end), and `Flush()` returning whatever
+  text is left over once generation ends.
 - `VoiceCommandPhrases` — "close your ears" / "stop listening" / "shut
   down" and their variants are recognized *before* the reasoning call,
   never sent to the model as if they were a question. A sleep phrase

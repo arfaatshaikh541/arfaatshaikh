@@ -41,18 +41,22 @@ public sealed class ConversationOrchestrator : IDisposable
     /// program's job, since only it knows how to shut down cleanly.</summary>
     public event Action? ShutdownRequested;
 
+    private readonly Func<string, Func<string, Task>, CancellationToken, Task<string>>? _generateResponseStreaming;
+
     public ConversationOrchestrator(
         VoiceSessionController controller,
         Func<string, CancellationToken, Task<string>> generateResponse,
         ITextToSpeech textToSpeech,
         TimeSpan? conversationWindow = null,
-        Func<TimeSpan, CancellationToken, Task>? delay = null)
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<string, Func<string, Task>, CancellationToken, Task<string>>? generateResponseStreaming = null)
     {
         _controller = controller;
         _generateResponse = generateResponse;
         _textToSpeech = textToSpeech;
         _conversationWindow = conversationWindow ?? TimeSpan.FromSeconds(8);
         _delay = delay ?? Task.Delay;
+        _generateResponseStreaming = generateResponseStreaming;
 
         _controller.CommandCaptured += OnCommandCaptured;
         _controller.StateChanged += OnStateChanged;
@@ -99,6 +103,12 @@ public sealed class ConversationOrchestrator : IDisposable
 
     private async Task HandleCommandAsync(string text)
     {
+        if (_generateResponseStreaming is not null)
+        {
+            await HandleCommandStreamingAsync(text);
+            return;
+        }
+
         var response = string.Empty;
         try
         {
@@ -119,6 +129,68 @@ public sealed class ConversationOrchestrator : IDisposable
         // moved the controller back to Awake (and stopped playback) --
         // calling OnSpeakingFinished() again here would be an illegal
         // transition, so only complete normally if nothing interrupted us.
+        if (_controller.State == VoiceState.Speaking)
+        {
+            _controller.OnSpeakingFinished();
+        }
+
+        ResponseSpoken?.Invoke(response);
+    }
+
+    /// <summary>Speaks each sentence of the reply as soon as it is
+    /// available, rather than waiting for generation to finish -- the
+    /// achievable approximation of "streaming TTS" this build supports
+    /// (see SentenceSplitter's docstring for why true model-level audio
+    /// streaming isn't available with the STT/TTS architectures in use).
+    /// The first sentence transitions Processing -> Speaking exactly
+    /// like the non-streaming path's single OnResponseReady() call; a
+    /// barge-in mid-reply is honored immediately -- no further sentences
+    /// are spoken once the controller has left the Speaking state.</summary>
+    private async Task HandleCommandStreamingAsync(string text)
+    {
+        var spokenAnySentence = false;
+        var response = string.Empty;
+
+        async Task OnSentenceReady(string sentence)
+        {
+            if (_controller.State == VoiceState.Processing)
+            {
+                _controller.OnResponseReady();
+            }
+            else if (_controller.State != VoiceState.Speaking)
+            {
+                return; // interrupted (barge-in/sleep) before this sentence could be spoken
+            }
+
+            spokenAnySentence = true;
+            await _textToSpeech.SpeakAsync(sentence);
+        }
+
+        try
+        {
+            response = await _generateResponseStreaming!(text, OnSentenceReady, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            ResponseFailed?.Invoke(ex);
+        }
+
+        // Nothing was ever spoken -- either the whole response failed
+        // before producing any text, or it produced no text at all.
+        // Falls back to the non-streaming path's exact behavior rather
+        // than leaving the conversation stuck in Processing.
+        if (!spokenAnySentence)
+        {
+            if (_controller.State == VoiceState.Processing)
+            {
+                _controller.OnResponseReady();
+            }
+            if (!string.IsNullOrEmpty(response) && _controller.State == VoiceState.Speaking)
+            {
+                await _textToSpeech.SpeakAsync(response);
+            }
+        }
+
         if (_controller.State == VoiceState.Speaking)
         {
             _controller.OnSpeakingFinished();
