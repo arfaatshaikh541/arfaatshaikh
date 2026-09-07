@@ -104,7 +104,7 @@ Blocker taxonomy used (exactly as specified):
 | Browser | Yes | Yes | Real | Yes | N/A | See section E above |
 | Telephony | Yes | Yes | **MOCK, correctly labeled** (`MockTelephonyProvider`) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` (must pick Twilio/SIP first) + `REQUIRES_OWNER_CREDENTIAL` |
 | Email (SMTP send) | Yes | Yes | Real SMTP client, tested against a real local server | Yes | No (needs owner's real SMTP account) | `REQUIRES_OWNER_CREDENTIAL` |
-| Email (IMAP receive, threading, classify, drafts) | **No** | — | — | — | Entire capability from section 12 | `IMPLEMENTABLE_NOW` for IMAP receive/threading itself; classify/intent needs the model router (already available) |
+| Email (IMAP receive, threading) | Yes — `ImapConnector` (list/get/search) + `build_threads()` | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise) | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP) | Yes (8 tests: health check, list/get/search through the broker, GREEN tier, default-deny at autonomy 0, and thread reconstruction from a real reply chain's References/In-Reply-To headers) | No (no owner mailbox exercised) | `COMPLETE` for receive + threading; classify/intent and drafts are still not built — `IMPLEMENTABLE_NOW`, flagged |
 | Generic REST/CRM connector | Yes | Yes | Real HTTP client against a configurable capability map | Yes | No | This is correctly an abstraction, not an integration — the spec is right that "a generic REST connector existing" does not mean a CRM integration exists. No concrete CRM adapter (HubSpot/Salesforce/Zoho schema mapping) exists. | `REQUIRES_EXTERNAL_PROVIDER` for which CRM; `REQUIRES_OWNER_CREDENTIAL` for its API key |
 | Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
 | Meta/Instagram | **No** | — | — | — | — | Entire capability. Building the OAuth flow, webhook handler, and Graph API adapter is `IMPLEMENTABLE_NOW` for the code; the live account test is `REQUIRES_OWNER_AUTHORIZATION` + `REQUIRES_PLATFORM_APPROVAL` (Meta app review for several permissions) |
@@ -170,6 +170,18 @@ closure lands, in the order it actually happened:
    honest (`READY_TO_CONNECT` with no token, `LIVE` with one), verified
    against a real local HTTP server shaped like GitHub's actual REST
    responses rather than a mock of the connector's own methods.
+8. **IMAP email receive + threading** (`ImapConnector`, `build_threads()`),
+   closing the "Email (IMAP receive)" half of section 12's email gap
+   (SMTP send already existed): read-only list/get/search capabilities
+   are GREEN tier, registered only when `AURA_IMAP_HOST` is configured
+   so its status is honest, verified against a real local IMAP server
+   built specifically for this test (no pip-installable fake IMAP server
+   exists, unlike aiosmtpd for SMTP) covering LOGIN/SELECT/EXAMINE/UID
+   SEARCH/UID FETCH/LOGOUT. Thread reconstruction was verified against a
+   real reply chain fetched through the connector, not a hand-fed
+   already-grouped fixture. Classify/intent and draft creation remain
+   unbuilt and are called out honestly in the row above, not folded into
+   this closure.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

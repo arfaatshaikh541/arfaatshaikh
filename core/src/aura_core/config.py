@@ -30,6 +30,11 @@ class Settings:
     smtp_from_address: str
     browser_executable_path: str | None
     github_token: str | None
+    imap_host: str | None
+    imap_port: int
+    imap_username: str | None
+    imap_password: str | None
+    imap_use_ssl: bool
 
 
 def _split_csv(value: str | None) -> list[str]:
@@ -57,4 +62,9 @@ def load_settings() -> Settings:
         smtp_from_address=os.environ.get("AURA_SMTP_FROM_ADDRESS", "aura@localhost"),
         browser_executable_path=os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE"),
         github_token=os.environ.get("AURA_GITHUB_TOKEN"),
+        imap_host=os.environ.get("AURA_IMAP_HOST"),
+        imap_port=int(os.environ.get("AURA_IMAP_PORT", "993")),
+        imap_username=os.environ.get("AURA_IMAP_USERNAME"),
+        imap_password=os.environ.get("AURA_IMAP_PASSWORD"),
+        imap_use_ssl=os.environ.get("AURA_IMAP_USE_SSL", "true").lower() == "true",
     )

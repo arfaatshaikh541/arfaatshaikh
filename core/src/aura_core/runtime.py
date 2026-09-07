@@ -16,6 +16,7 @@ from .connectors import (
     DesktopControlConnector,
     FilesystemConnector,
     HttpConnector,
+    ImapConnector,
     MockTelephonyProvider,
     SmtpConnector,
     TelephonyConnector,
@@ -140,6 +141,14 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
         ))
     else:
         registry.set("connector.email", CapabilityStatus.NOT_CONNECTED, "set AURA_SMTP_HOST (and credentials) to enable")
+
+    if settings.imap_host:
+        registry_.register(ImapConnector(
+            settings.imap_host, settings.imap_port, username=settings.imap_username,
+            password=settings.imap_password, use_ssl=settings.imap_use_ssl,
+        ))
+    else:
+        registry.set("connector.email_inbox", CapabilityStatus.NOT_CONNECTED, "set AURA_IMAP_HOST (and credentials) to enable")
 
     registry_.register(BrowserConnector(
         executable_path=settings.browser_executable_path, allowed_hosts=settings.http_allowed_hosts,

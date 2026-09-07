@@ -86,6 +86,9 @@ GREEN_ACTION_TYPES = {
     "github.list_issues",
     "github.get_issue",
     "github.get_combined_status",
+    "email.list_messages",
+    "email.get_message",
+    "email.search_messages",
 }
 
 
