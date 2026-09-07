@@ -69,6 +69,7 @@ AMBER_ACTION_TYPES = {
     "http.post",
     "filesystem.write_file",
     "browser.navigate",
+    "browser.extract_text_multi",
     "crm.write",
     "github.comment_on_issue",
 }

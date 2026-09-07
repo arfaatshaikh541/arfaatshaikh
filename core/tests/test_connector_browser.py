@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -63,6 +64,43 @@ class _CaptchaHandler(BaseHTTPRequestHandler):
 @pytest.fixture
 def local_page_url():
     server = HTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+
+
+class _CookieHandler(BaseHTTPRequestHandler):
+    """Sets a cookie on the first request with no Cookie header, and
+    always reflects whatever Cookie header it did receive in the page
+    title -- a real way to prove a cookie set by one browser launch was
+    actually sent back by a *later, separate* browser launch, which is
+    exactly what "persistent profile" has to mean given this connector
+    launches a fresh browser process per action."""
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        if "Cookie" not in self.headers:
+            # Max-Age is essential here: a session cookie (no Max-Age/
+            # Expires) is correctly discarded by a real browser on a
+            # genuine restart -- real login sessions are persistent
+            # cookies with an expiry, so this is the honest shape to test
+            # against, not a workaround for a connector bug.
+            self.send_header("Set-Cookie", "aura_session=abc123; Path=/; Max-Age=3600")
+        cookie_value = self.headers.get("Cookie", "none")
+        self.end_headers()
+        self.wfile.write(f"<html><head><title>cookie:{cookie_value}</title></head><body></body></html>".encode())
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def local_cookie_page_url():
+    server = HTTPServer(("127.0.0.1", 0), _CookieHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -201,3 +239,83 @@ def test_browser_does_not_false_positive_on_an_ordinary_page(tmp_path, local_pag
     outcome = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_page_url}))
 
     assert outcome.status == OutcomeStatus.EXECUTED
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_without_a_profile_dir_a_cookie_does_not_survive_a_new_browser_launch(tmp_path, local_cookie_page_url):
+    """The contrast case: proves the *default* (no persistent profile)
+    genuinely starts fresh every time, so the persistent-profile test
+    below is proving something real, not something that would pass
+    regardless."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.navigate", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)
+    ConnectorRegistry(broker).register(connector)
+
+    first = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_cookie_page_url}))
+    second = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_cookie_page_url}))
+
+    assert first.message == "cookie:none"
+    assert second.message == "cookie:none"  # no profile -- the cookie from the first launch is gone
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_a_persistent_profile_carries_a_cookie_across_separate_browser_launches(tmp_path, local_cookie_page_url):
+    """The actual "persistent authenticated profiles" proof: a real
+    cookie set by one launched-and-closed browser process is sent back
+    by a *second, separate* browser process pointed at the same on-disk
+    profile directory -- the same shape a real login session takes."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.navigate", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, profile_dir=str(tmp_path / "profile"))
+    ConnectorRegistry(broker).register(connector)
+
+    first = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_cookie_page_url}))
+    second = broker.submit(ActionRequest(action_type="browser.navigate", params={"url": local_cookie_page_url}))
+
+    assert first.message == "cookie:none"
+    assert second.message == "cookie:aura_session=abc123"
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_extract_text_multi_drives_genuinely_separate_tabs_in_one_call(tmp_path, local_page_url, local_captcha_page_url):
+    """Real multi-tab operation: two different pages, opened as two
+    Pages within one shared browser context in a single action, each
+    handled and reported independently -- a CAPTCHA on one must not
+    sink or block the result for the other."""
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.extract_text_multi", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.extract_text_multi",
+        params={"targets": [
+            {"url": local_page_url, "selector": "h1"},
+            {"url": local_captcha_page_url, "selector": "h1"},
+        ]},
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    results = json.loads(outcome.message)
+    assert len(results) == 2
+    assert results[0]["url"] == local_page_url
+    assert results[0]["text"] == "Hello from a real local page"
+    assert results[1]["url"] == local_captcha_page_url
+    assert "CAPTCHA detected" in results[1]["error"]
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_extract_text_multi_is_denied_if_any_target_is_outside_the_allowlist(tmp_path, local_page_url):
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.extract_text_multi", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, allowed_hosts=["only-this-host.example"])
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.extract_text_multi",
+        params={"targets": [{"url": local_page_url}]},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "not on the browser egress allowlist" in outcome.message

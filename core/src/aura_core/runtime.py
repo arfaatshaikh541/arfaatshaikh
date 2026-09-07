@@ -163,6 +163,7 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
 
     registry_.register(BrowserConnector(
         executable_path=settings.browser_executable_path, allowed_hosts=settings.http_allowed_hosts,
+        profile_dir=settings.browser_profile_dir,
     ))
 
     # Always registered, like BrowserConnector -- health_check() itself

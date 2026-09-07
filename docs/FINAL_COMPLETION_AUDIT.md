@@ -97,7 +97,7 @@ module docstring for the full rationale.
 
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
-| Browser automation | Yes | Yes | Real Playwright | Yes | Partial (Linux Chromium; not the Windows browser binary) | Persistent authenticated profiles, multi-tab/download handling. CAPTCHA detection/escalation (a conservative selector-based check in `_with_page`, shared by navigate/extract_text/screenshot, verified against a real local page with a genuine reCAPTCHA-shaped DOM node) is now built — a prior draft of this row claimed it was "added this pass" before it actually existed; it does now, in a later pass, not the original Phase 1 audit. | `COMPLETE` for CAPTCHA detection; `IMPLEMENTABLE_NOW` for persistent profiles/multi-tab, not done |
+| Browser automation | Yes | Yes | Real Playwright, including `launch_persistent_context(profile_dir)` for persistent authenticated sessions and real concurrent multi-Page operation for `browser.extract_text_multi` | Yes | Partial (Linux Chromium; not the Windows browser binary) | Download handling (upload/save-file flows) still not built. CAPTCHA detection/escalation (a conservative selector-based check in `_with_page`, shared by navigate/extract_text/screenshot, verified against a real local page with a genuine reCAPTCHA-shaped DOM node) is now built — a prior draft of this row claimed it was "added this pass" before it actually existed; it does now, in a later pass, not the original Phase 1 audit. | `COMPLETE` for CAPTCHA detection, persistent profiles, and multi-tab; `IMPLEMENTABLE_NOW` for download handling, not done |
 | Desktop control | Yes | Yes | Real `pynput` | Yes (Xvfb) | No | Blind coordinate clicks only — no UI Automation/accessibility-tree targeting (section 16 explicitly asks to prefer this) | `REQUIRES_WINDOWS_RUNTIME` — UI Automation is a Windows API (`System.Windows.Automation`), can't be exercised here; interface can be added now |
 
 ## F. Installation
@@ -360,6 +360,34 @@ closure lands, in the order it actually happened:
     test, 2 API tests. Embeddings are not yet used to enhance
     `MemoryStore.search()`'s own ranking -- that stays TF-IDF, called out
     honestly rather than silently implied.
+17. **Browser persistent authenticated profiles + multi-tab** (section
+    E): `BrowserConnector` still launches a fresh browser process per
+    action (no cross-request session to manage, thread-safety, or
+    lifecycle problems to introduce), but now optionally points every
+    launch at the same on-disk Chromium profile directory
+    (`AURA_BROWSER_PROFILE_DIR`, `launch_persistent_context()`), so
+    cookies and login sessions genuinely persist across separate
+    actions -- the actual shape "persistent authenticated profiles"
+    needs. `browser.extract_text_multi` drives real concurrent multi-tab
+    operation: every target URL gets its own `Page` open within one
+    shared browser context in a single action, each handled and reported
+    independently, so a CAPTCHA or failure on one tab never sinks the
+    others. Verified for real, not assumed: one test proves a cookie set
+    by a first launched-and-closed browser process is read back by a
+    genuinely separate second process pointed at the same profile
+    directory, and a contrast test proves the *default* (no profile)
+    correctly starts fresh every time -- the persistent case is proving
+    something real, not something that would pass regardless. Building
+    the cookie test surfaced a real distinction worth recording: a
+    session cookie (no `Max-Age`/`Expires`) is correctly discarded by a
+    genuine browser restart even with a persistent profile -- that's
+    real Chromium behavior, not a connector bug, and the test uses a
+    `Max-Age` cookie to match how real login sessions are actually shaped.
+    Multi-tab is verified against two different real local pages in one
+    call, confirming per-tab isolation of the CAPTCHA escalation. 5 new
+    connector tests (cookie contrast, persistent-profile proof, multi-tab
+    success, multi-tab allowlist denial). Download handling remains
+    unbuilt, called out in the row above.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

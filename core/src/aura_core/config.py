@@ -31,6 +31,7 @@ class Settings:
     smtp_use_starttls: bool
     smtp_from_address: str
     browser_executable_path: str | None
+    browser_profile_dir: str | None
     github_token: str | None
     imap_host: str | None
     imap_port: int
@@ -65,6 +66,7 @@ def load_settings() -> Settings:
         smtp_use_starttls=os.environ.get("AURA_SMTP_STARTTLS", "true").lower() == "true",
         smtp_from_address=os.environ.get("AURA_SMTP_FROM_ADDRESS", "aura@localhost"),
         browser_executable_path=os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE"),
+        browser_profile_dir=os.environ.get("AURA_BROWSER_PROFILE_DIR"),
         github_token=os.environ.get("AURA_GITHUB_TOKEN"),
         imap_host=os.environ.get("AURA_IMAP_HOST"),
         imap_port=int(os.environ.get("AURA_IMAP_PORT", "993")),
