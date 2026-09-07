@@ -23,6 +23,9 @@ from .connectors import (
     SmtpConnector,
     TelephonyConnector,
     build_github_connector,
+    build_linkedin_connector,
+    build_meta_connector,
+    build_whatsapp_connector,
 )
 from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
@@ -173,5 +176,8 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
     # honestly reports READY_TO_CONNECT without a token rather than this
     # code needing to guess whether one is coming later.
     registry_.register(build_github_connector(token=settings.github_token))
+    registry_.register(build_meta_connector(token=settings.meta_token))
+    registry_.register(build_whatsapp_connector(token=settings.whatsapp_token))
+    registry_.register(build_linkedin_connector(token=settings.linkedin_token))
 
     return registry_

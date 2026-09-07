@@ -123,9 +123,9 @@ module docstring for the full rationale.
 | Email (IMAP receive, threading) | Yes — `ImapConnector` (list/get/search) + `build_threads()` | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise) | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP) | Yes (8 tests: health check, list/get/search through the broker, GREEN tier, default-deny at autonomy 0, and thread reconstruction from a real reply chain's References/In-Reply-To headers) | No (no owner mailbox exercised) | `COMPLETE` for receive + threading; classify/intent and drafts are still not built — `IMPLEMENTABLE_NOW`, flagged |
 | Generic REST/CRM connector | Yes | Yes | Real HTTP client against a configurable capability map | Yes | No | This is correctly an abstraction, not an integration — the spec is right that "a generic REST connector existing" does not mean a CRM integration exists. No concrete CRM adapter (HubSpot/Salesforce/Zoho schema mapping) exists. | `REQUIRES_EXTERNAL_PROVIDER` for which CRM; `REQUIRES_OWNER_CREDENTIAL` for its API key |
 | Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
-| Meta/Instagram | **No** | — | — | — | — | Entire capability. Building the OAuth flow, webhook handler, and Graph API adapter is `IMPLEMENTABLE_NOW` for the code; the live account test is `REQUIRES_OWNER_AUTHORIZATION` + `REQUIRES_PLATFORM_APPROVAL` (Meta app review for several permissions) |
-| WhatsApp Business | **No** | — | — | — | — | Same shape as Meta: adapter code `IMPLEMENTABLE_NOW`, live test `REQUIRES_OWNER_CREDENTIAL` (a WhatsApp Business phone number) + `REQUIRES_EXTERNAL_PROVIDER` |
-| LinkedIn | **No** | — | — | — | — | LinkedIn's current public API surface for a personal/company page is narrow (no general posting API without partner approval). Adapter for what's legitimately available is `IMPLEMENTABLE_NOW`; anything beyond that is `REQUIRES_PLATFORM_APPROVAL` |
+| Meta/Instagram | Yes -- `build_meta_connector()` (Facebook Page: posts, comments, publish, reply) | Yes, always registered (`AURA_META_TOKEN`), honest `READY_TO_CONNECT`/`LIVE` per token presence | Real REST calls against a real local server shaped like Meta Graph API v19 | Yes (6 tests: health both states, real read through the broker, real write with body verification + AMBER tier, GREEN read tiers, default-deny) | No (no live Meta app/token exercised) | Instagram's own publish flow is a genuinely different two-step API (create a media container, then publish it) that a single-request RestApiConnector capability can't model as a drop-in -- not built, called out rather than folded into "Meta" | `COMPLETE` for the Facebook Page connector; Instagram's own publish flow is `IMPLEMENTABLE_NOW`, not attempted; a live account is `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) + `REQUIRES_PLATFORM_APPROVAL` (Meta App Review for most real permissions) |
+| WhatsApp Business | Yes -- `build_whatsapp_connector()` (Cloud API: send message, phone number status) | Yes, always registered (`AURA_WHATSAPP_TOKEN`) | Real REST calls against a real local server shaped like the WhatsApp Cloud API | Yes (5 tests: health both states, real send with body verification + AMBER tier, GREEN read tier, default-deny) | No | Message templates (required for the first message in a 24-hour window) and media messages are not built, only text | `COMPLETE` for the text-message connector; a live account is `REQUIRES_OWNER_CREDENTIAL` (a real WhatsApp Business phone number) + `REQUIRES_EXTERNAL_PROVIDER` |
+| LinkedIn | Yes -- `build_linkedin_connector()` (profile read, UGC post share) | Yes, always registered (`AURA_LINKEDIN_TOKEN`) | Real REST calls against a real local server shaped like LinkedIn's REST API | Yes (5 tests: health both states, real profile read + GREEN tier, real share with body verification + AMBER tier, default-deny) | No | RestApiConnector only sets one static header, so LinkedIn's recommended `X-Restli-Protocol-Version`/`LinkedIn-Version` headers aren't sent (same documented limitation as the GitHub connector) | `COMPLETE` for what LinkedIn's public API legitimately allows without partner approval; anything beyond `ugcPosts`/`me` is `REQUIRES_PLATFORM_APPROVAL`; a live account needs `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) |
 | Git/software workflow (repos, PRs, issues, CI status) | Yes — `build_github_connector()` (a configured `RestApiConnector`) | Yes, always registered (honestly `READY_TO_CONNECT` without `AURA_GITHUB_TOKEN`, `LIVE` once a token is set) | Real REST calls, tested against a real local HTTP server shaped like GitHub's actual API (not a mock of the connector's own methods) | Yes (8 tests: health check with/without token, list/get PRs, get combined status, comment-on-issue, GREEN/AMBER tier classification, default-deny at autonomy 0) | No (no owner token exercised in this pass) | `COMPLETE` for the connector itself; `REQUIRES_OWNER_CREDENTIAL` only for a live authenticated account |
 | Cloud/deployment | Yes -- `CloudConnector`/`CloudProvider` + `MockCloudProvider` | Yes, always registered (mirrors the telephony mock's shape: safe to auto-register since nothing real is ever touched) | **MOCK, correctly labeled** (in-memory deployment ledger; `deploy`/`rollback` genuinely manage which version is "live" per service+environment, not just a label on one record) | Yes (7 tests: deploy/rollback AMBER + status GREEN classification, default-deny at autonomy 0, a real deploy executing through the broker, deploy-chain previous-id tracking, rollback genuinely restoring the prior deployment to live, an unknown deployment id reported honestly) | No | A real cloud provider adapter (AWS/GCP/Azure/Fly.io/etc.) | `COMPLETE` for the provider abstraction and deploy/rollback state machine; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
 
@@ -448,6 +448,29 @@ closure lands, in the order it actually happened:
     runs consistently green, confirming the code itself was correct all
     along. Both C# suites clean-rebuilt and re-run green (AuraVoice.Core.Tests
     55, AuraShell.Core.Tests 20).
+21. **Meta, WhatsApp, and LinkedIn connectors** (section G's three
+    remaining "No" rows): the same real-vendor-configuration-of-
+    RestApiConnector pattern the GitHub connector established --
+    `build_meta_connector()` (Facebook Page posts/comments/publish/
+    reply), `build_whatsapp_connector()` (Cloud API text messages),
+    `build_linkedin_connector()` (profile read, UGC post share). Reads
+    are GREEN tier, writes (`meta.publish_post`, `meta.reply_to_comment`,
+    `whatsapp.send_message`, `linkedin.share_post`) are AMBER, all
+    always registered so their status is honest (`READY_TO_CONNECT`
+    without a token, `LIVE` with one) via `AURA_META_TOKEN`/
+    `AURA_WHATSAPP_TOKEN`/`AURA_LINKEDIN_TOKEN`. Verified against three
+    real local HTTP servers, each shaped like the real vendor API it
+    stands in for -- not mocks of the connector's own methods -- 16 new
+    tests total (6 Meta, 5 WhatsApp, 5 LinkedIn) covering both health
+    states, a real read through the broker, a real write with its body
+    verified against what the fake server actually received, correct
+    GREEN/AMBER classification, and default-deny at autonomy 0.
+    Deliberately scoped narrower than the vendor names might suggest,
+    called out rather than glossed over: Instagram's own publish flow
+    (a genuinely different two-step create-then-publish API, not a
+    single-request capability) is not built; WhatsApp message templates
+    and media messages are not built, only plain text; LinkedIn is
+    limited to what's available without Partner Program approval.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

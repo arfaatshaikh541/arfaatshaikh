@@ -74,6 +74,10 @@ AMBER_ACTION_TYPES = {
     "github.comment_on_issue",
     "cloud.deploy",
     "cloud.rollback",
+    "meta.publish_post",
+    "meta.reply_to_comment",
+    "whatsapp.send_message",
+    "linkedin.share_post",
 }
 
 GREEN_ACTION_TYPES = {
@@ -93,6 +97,10 @@ GREEN_ACTION_TYPES = {
     "email.get_message",
     "email.search_messages",
     "cloud.get_deployment_status",
+    "meta.get_page_posts",
+    "meta.get_post_comments",
+    "whatsapp.get_phone_number_status",
+    "linkedin.get_profile",
 }
 
 

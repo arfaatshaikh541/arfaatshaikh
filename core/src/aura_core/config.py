@@ -33,6 +33,9 @@ class Settings:
     browser_executable_path: str | None
     browser_profile_dir: str | None
     github_token: str | None
+    meta_token: str | None
+    whatsapp_token: str | None
+    linkedin_token: str | None
     imap_host: str | None
     imap_port: int
     imap_username: str | None
@@ -68,6 +71,9 @@ def load_settings() -> Settings:
         browser_executable_path=os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE"),
         browser_profile_dir=os.environ.get("AURA_BROWSER_PROFILE_DIR"),
         github_token=os.environ.get("AURA_GITHUB_TOKEN"),
+        meta_token=os.environ.get("AURA_META_TOKEN"),
+        whatsapp_token=os.environ.get("AURA_WHATSAPP_TOKEN"),
+        linkedin_token=os.environ.get("AURA_LINKEDIN_TOKEN"),
         imap_host=os.environ.get("AURA_IMAP_HOST"),
         imap_port=int(os.environ.get("AURA_IMAP_PORT", "993")),
         imap_username=os.environ.get("AURA_IMAP_USERNAME"),
