@@ -430,7 +430,7 @@ def memory() -> None:
 @click.option("--limit", default=10)
 def memory_search(query: str, limit: int) -> None:
     runtime = build_runtime()
-    results = runtime.memory.search(query, limit=limit)
+    results = runtime.memory.search(query, limit=limit, world_model=runtime.world_model)
     if not results:
         click.echo("No matching memory found.")
     for r in results:
@@ -443,7 +443,7 @@ def memory_ask(question: str) -> None:
     from .memory import answer_question
 
     runtime = build_runtime()
-    result = asyncio.run(answer_question(question, runtime.memory, runtime.model_router))
+    result = asyncio.run(answer_question(question, runtime.memory, runtime.model_router, world_model=runtime.world_model))
     if result.error:
         click.echo(f"Could not answer: {result.error}", err=True)
         raise SystemExit(1)

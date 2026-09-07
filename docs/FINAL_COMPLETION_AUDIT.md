@@ -34,7 +34,7 @@ Blocker taxonomy used (exactly as specified):
 
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
-| Persistent memory (episodic/semantic/decision/commitment) | Yes | Yes | Real (SQLite) | Yes | No | **Closed in the PHASE 5 pass**: `MemoryStore.search()` (stdlib-only TF-IDF cosine ranking across events/facts/decisions/commitments at once — no new dependency, no separate index to drift out of sync), `decision_chain()` (decision supersession was schema-only before this pass — the field existed, nothing ever set it; now wired through `record_decision(supersedes_id=...)`), and `memory.qa.answer_question()` (answers only from real retrieved records, never an unaided model guess). Validated against a bounded (~1,000-row) synthetic history using the spec's own acceptance query verbatim (`tests/endurance/test_synthetic_memory_history.py`) — a genuine, measured proof, not the full 12-month/thousands-of-events production scenario, which belongs in a separately-run soak test per section 23. Recency weighting and cross-referencing into Entities are still not implemented. | `COMPLETE` for search/decision-chain/Q&A; `IMPLEMENTABLE_NOW` (recency weighting, entity cross-referencing) for what's left |
+| Persistent memory (episodic/semantic/decision/commitment) | Yes | Yes | Real (SQLite) | Yes | No | **Closed in the PHASE 5 pass**: `MemoryStore.search()` (stdlib-only TF-IDF cosine ranking across events/facts/decisions/commitments at once — no new dependency, no separate index to drift out of sync), `decision_chain()` (decision supersession was schema-only before this pass — the field existed, nothing ever set it; now wired through `record_decision(supersedes_id=...)`), and `memory.qa.answer_question()` (answers only from real retrieved records, never an unaided model guess). Validated against a bounded (~1,000-row) synthetic history using the spec's own acceptance query verbatim (`tests/endurance/test_synthetic_memory_history.py`) — a genuine, measured proof, not the full 12-month/thousands-of-events production scenario, which belongs in a separately-run soak test per section 23. **Recency weighting and entity cross-referencing are now built too**: `search()` blends cosine relevance with an exponential recency decay (floored at 25% of the original score, so recency is a tie-breaker among comparably relevant results, never a veto over a genuinely stronger old match), and — when a `WorldModelStore` is passed in — tags each result with the World Model entity ids its text mentions by name. Wired all the way through: `aura memory search`/`ask` and `/memory/search`/`/memory/ask` now pass `runtime.world_model` in, not left as a library-only capability nobody's callers use. | `COMPLETE` — search, decision-chain, Q&A, recency weighting, and entity cross-referencing are all built, tested, and wired into the CLI/API |
 | World Model (entities/relationships) | Yes | Yes — `TaskWorker` calls `executive/observation.py`'s `observe()` after every successfully executed `execute_goal_step`, with no separate trigger anything else has to remember to call | Real, extractors registered per action_type (github PR/issue + author/reporter, email message + sender) rather than one generic guesser | Yes (11 unit tests on `observe()` directly + 2 true end-to-end tests driving a real task through `TaskWorker` against the real GitHub fake server) | No | Only GitHub and email connectors have extractors; other connectors (filesystem, HTTP, browser, CRM, telephony) still don't feed the World Model | `COMPLETE` for the observation mechanism and its first two extractors; extractors for the remaining connectors are `IMPLEMENTABLE_NOW`, not done this pass |
 | Executive / Goal Engine | Yes | **No** — see headline finding | Real logic, but single-shot | Yes (as a single-shot call) | No | The entire autonomous loop: scheduling, observation, mandate model, workstreams, evidence, next-action determination | `IMPLEMENTABLE_NOW` — this pass's primary focus |
 | Durable Task Engine | Yes | Partially — `enqueue`/`claim_next`/`complete`/`fail`/lease-reap all real and tested, but **nothing in production code ever calls `claim_next()`** — no worker loop exists | Real | Yes | No | A worker process that actually drains the queue | `IMPLEMENTABLE_NOW` — built this pass as part of the operating loop |
@@ -237,6 +237,24 @@ closure lands, in the order it actually happened:
     else in the test calling `upsert_entity`/`link` directly. Only
     GitHub and email have extractors so far -- the other connectors are
     called out as remaining work in the row above, not glossed over.
+12. **Memory recency weighting + entity cross-referencing** (section A):
+    the two items left over after the PHASE 5 memory-retrieval pass.
+    `MemoryStore.search()` now blends TF-IDF cosine relevance with an
+    exponential recency decay, floored at 25% of the original score
+    specifically so recency can only break ties among comparably
+    relevant results, never let a much weaker but newer match outrank a
+    genuinely strong old one (a real design fix this pass found: an
+    unfloored decay let exactly that happen for old-enough records,
+    caught by a test written to check it, not assumed safe). When a
+    `WorldModelStore` is passed to `search()`, each result is tagged with
+    the ids of every World Model entity its text names -- retrieval
+    doesn't stop at "which record matches" without also surfacing "what
+    this is about." Wired all the way through rather than left as a
+    library-only capability: `aura memory search`/`ask`,
+    `/memory/search`/`/memory/ask`, and `memory.qa.answer_question()`
+    all pass `runtime.world_model` through now. 6 new unit tests, plus
+    the full existing memory-search/QA/endurance suite re-run to confirm
+    the refactor changed no existing ranking behavior.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

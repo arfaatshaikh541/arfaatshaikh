@@ -11,13 +11,14 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base, Commitment, Decision, EpisodicEvent, SemanticFact, _uuid
+from .world_model import WorldModelStore
 
 
 @dataclass
@@ -36,6 +37,7 @@ class MemorySearchResult:
     text: str
     score: float
     created_at: datetime
+    entity_ids: list[str] = field(default_factory=list)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -73,6 +75,31 @@ def _tfidf_cosine_scores(query_tokens: list[str], doc_tokens: list[list[str]]) -
 
     query_vector = vectorize(query_tokens)
     return [cosine(query_vector, vectorize(tokens)) for tokens in doc_tokens]
+
+
+def _age_seconds(created_at: datetime) -> float:
+    # SQLite drops timezone info on round-trip even though the column is
+    # declared DateTime(timezone=True) -- compare against a `now` of the
+    # same awareness rather than assuming one or the other.
+    now = datetime.now(timezone.utc) if created_at.tzinfo is not None else datetime.utcnow()
+    return max((now - created_at).total_seconds(), 0.0)
+
+
+_RECENCY_FLOOR = 0.25  # a record can never be weighted below this, no matter its age
+
+
+def _recency_weight(age_seconds: float, half_life_seconds: float) -> float:
+    """1.0 for a brand-new record, decaying towards (never below)
+    _RECENCY_FLOOR as age grows -- a genuine tie-breaker among comparably
+    relevant results, not a replacement for relevance. The floor matters:
+    without one, a sufficiently old record's weight could approach zero
+    and let a much weaker but recent match outrank a strong old one,
+    which would make recency a veto over relevance rather than a
+    tie-breaker."""
+    if half_life_seconds <= 0:
+        return 1.0
+    decay = 0.5 ** (age_seconds / half_life_seconds)
+    return _RECENCY_FLOOR + (1.0 - _RECENCY_FLOOR) * decay
 
 
 class MemoryStore:
@@ -217,11 +244,23 @@ class MemoryStore:
             return chain
 
     # -- Cross-cutting free-text search -------------------------------------
-    def search(self, query: str, limit: int = 10, kinds: list[str] | None = None) -> list[MemorySearchResult]:
+    def search(
+        self, query: str, limit: int = 10, kinds: list[str] | None = None,
+        recency_half_life_days: float = 90.0, world_model: WorldModelStore | None = None,
+    ) -> list[MemorySearchResult]:
         """TF-IDF cosine search across every memory kind at once, ranked
         by relevance -- the retrieval primitive "why did we decide to
         charge Gridkeep customers that way" needs, since that question
-        names no goal id or exact subject string to look up directly."""
+        names no goal id or exact subject string to look up directly.
+
+        Two refinements on top of plain cosine ranking: recency weighting
+        (a tie-breaker among comparably relevant results -- a strong
+        match from a year ago still beats a weak match from yesterday,
+        since both are scaled by the *same* cosine score, not reordered
+        by age alone) and entity cross-referencing (when `world_model` is
+        given, each result names the World Model entities its text
+        mentions by name, so retrieval doesn't stop at "what memory
+        record matches" without also surfacing "what this is about")."""
         with self._Session() as session:
             candidates: list[tuple[str, str, str, datetime]] = []
             if kinds is None or "event" in kinds:
@@ -246,13 +285,28 @@ class MemoryStore:
             return []
 
         doc_tokens = [_tokenize(text) for _, _, text, _ in candidates]
-        scores = _tfidf_cosine_scores(query_tokens, doc_tokens)
+        cosine_scores = _tfidf_cosine_scores(query_tokens, doc_tokens)
 
-        ranked = sorted(zip(candidates, scores), key=lambda pair: pair[1], reverse=True)
+        half_life_seconds = recency_half_life_days * 86400
+        entity_names = (
+            [(e.id, e.name) for e in world_model.find_entities() if e.name]
+            if world_model is not None else []
+        )
+
+        scored = []
+        for (kind, id_, text, created_at), cosine_score in zip(candidates, cosine_scores):
+            if cosine_score <= 0:
+                continue
+            recency = _recency_weight(_age_seconds(created_at), half_life_seconds)
+            blended_score = cosine_score * recency
+            lowered_text = text.lower()
+            matched_entity_ids = [eid for eid, name in entity_names if name.lower() in lowered_text]
+            scored.append((blended_score, kind, id_, text, created_at, matched_entity_ids))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
         return [
-            MemorySearchResult(kind=kind, id=id_, text=text, score=score, created_at=created_at)
-            for (kind, id_, text, created_at), score in ranked
-            if score > 0
+            MemorySearchResult(kind=kind, id=id_, text=text, score=score, created_at=created_at, entity_ids=entity_ids)
+            for score, kind, id_, text, created_at, entity_ids in scored
         ][:limit]
 
     # -- Commitment -----------------------------------------------------------

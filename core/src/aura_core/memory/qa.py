@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from ..providers import ModelRouter, NoProviderAvailable
 from .store import MemoryStore
+from .world_model import WorldModelStore
 
 
 @dataclass
@@ -30,19 +31,25 @@ def _format_context_line(result, memory: MemoryStore) -> str:
         if len(chain) > 1:
             history = " -> ".join(f"'{d.statement}' ({d.created_at.date().isoformat()})" for d in chain)
             line += f" [decision history: {history}]"
+    if result.entity_ids:
+        line += f" [entities: {', '.join(result.entity_ids)}]"
     return line
 
 
 async def answer_question(
     question: str, memory: MemoryStore, model_router: ModelRouter, limit: int = 5,
+    world_model: WorldModelStore | None = None,
 ) -> MemoryAnswer:
-    results = memory.search(question, limit=limit)
+    results = memory.search(question, limit=limit, world_model=world_model)
     if not results:
         return MemoryAnswer(question=question, error="no relevant memory found for this question")
 
     context_lines = [_format_context_line(r, memory) for r in results]
     context_used = [
-        {"kind": r.kind, "id": r.id, "text": r.text, "score": r.score, "created_at": r.created_at.isoformat()}
+        {
+            "kind": r.kind, "id": r.id, "text": r.text, "score": r.score,
+            "created_at": r.created_at.isoformat(), "entity_ids": r.entity_ids,
+        }
         for r in results
     ]
 

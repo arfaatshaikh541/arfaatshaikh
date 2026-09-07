@@ -343,9 +343,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/memory/search")
     async def memory_search(q: str, limit: int = 10) -> list[dict]:
-        results = runtime.memory.search(q, limit=limit)
+        results = runtime.memory.search(q, limit=limit, world_model=runtime.world_model)
         return [
-            {"kind": r.kind, "id": r.id, "text": r.text, "score": r.score, "created_at": r.created_at.isoformat()}
+            {
+                "kind": r.kind, "id": r.id, "text": r.text, "score": r.score,
+                "created_at": r.created_at.isoformat(), "entity_ids": r.entity_ids,
+            }
             for r in results
         ]
 
@@ -353,7 +356,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def memory_ask(request: AskMemoryRequest) -> dict:
         from ..memory import answer_question
 
-        result = await answer_question(request.question, runtime.memory, runtime.model_router)
+        result = await answer_question(
+            request.question, runtime.memory, runtime.model_router, world_model=runtime.world_model,
+        )
         return {
             "question": result.question, "answer": result.answer,
             "error": result.error, "context_used": result.context_used,
