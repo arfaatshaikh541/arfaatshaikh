@@ -106,7 +106,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     goals = GoalEngine(settings.database_url)
     mandates = MandateEngine(settings.database_url)
     executive = ExecutiveIntelligence(goals, tasks, memory, model_router, broker=broker)
-    worker = TaskWorker(tasks, broker, goals, memory)
+    worker = TaskWorker(tasks, broker, goals, memory, world_model)
     operating_loop = OperatingLoopSupervisor(executive, worker, tasks, mandates, goals)
 
     connectors = _build_connectors(broker, settings)

@@ -25,11 +25,13 @@ from dataclasses import dataclass
 from ..governance.action_broker import ActionBroker, OutcomeStatus
 from ..governance.risk_engine import ActionRequest
 from ..memory import MemoryStore
+from ..memory.world_model import WorldModelStore
 from ..tasks import TaskEngine
 from ..tasks.engine import TaskHandle
 from .executive import ExecutiveIntelligence
 from .goal_engine import GoalEngine
 from .mandate_engine import MandateEngine
+from .observation import observe
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +52,15 @@ class TaskWorker:
     harmless; that's the same "never fabricate success" discipline the
     rest of this codebase already applies everywhere else."""
 
-    def __init__(self, tasks: TaskEngine, broker: ActionBroker, goals: GoalEngine, memory: MemoryStore) -> None:
+    def __init__(
+        self, tasks: TaskEngine, broker: ActionBroker, goals: GoalEngine, memory: MemoryStore,
+        world_model: WorldModelStore | None = None,
+    ) -> None:
         self._tasks = tasks
         self._broker = broker
         self._goals = goals
         self._memory = memory
+        self._world_model = world_model
 
     def run_once(self, worker_id: str = "operating-loop") -> WorkerOutcome | None:
         handle = self._tasks.claim_next(worker_id)
@@ -99,6 +105,8 @@ class TaskWorker:
             self._tasks.complete(handle.id, {"outcome": "executed", "message": outcome.message})
             if goal_id:
                 self._goals.mark_verifying(goal_id)
+            if self._world_model is not None:
+                observe(self._world_model, action_type, params, outcome.message, source=f"task:{handle.id}")
             return WorkerOutcome(handle.id, handle.task_type, "executed", outcome.message)
 
         if outcome.status == OutcomeStatus.PENDING_APPROVAL:

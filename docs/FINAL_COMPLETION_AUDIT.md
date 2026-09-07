@@ -35,7 +35,7 @@ Blocker taxonomy used (exactly as specified):
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
 | Persistent memory (episodic/semantic/decision/commitment) | Yes | Yes | Real (SQLite) | Yes | No | **Closed in the PHASE 5 pass**: `MemoryStore.search()` (stdlib-only TF-IDF cosine ranking across events/facts/decisions/commitments at once — no new dependency, no separate index to drift out of sync), `decision_chain()` (decision supersession was schema-only before this pass — the field existed, nothing ever set it; now wired through `record_decision(supersedes_id=...)`), and `memory.qa.answer_question()` (answers only from real retrieved records, never an unaided model guess). Validated against a bounded (~1,000-row) synthetic history using the spec's own acceptance query verbatim (`tests/endurance/test_synthetic_memory_history.py`) — a genuine, measured proof, not the full 12-month/thousands-of-events production scenario, which belongs in a separately-run soak test per section 23. Recency weighting and cross-referencing into Entities are still not implemented. | `COMPLETE` for search/decision-chain/Q&A; `IMPLEMENTABLE_NOW` (recency weighting, entity cross-referencing) for what's left |
-| World Model (entities/relationships) | Yes | Partially — `WorldModelStore` exists on `Runtime` but nothing writes to it automatically; only reachable via direct method calls | Real | Yes | No | Nothing populates it from observation; no connector/executive code calls `upsert_entity`/`link` | `IMPLEMENTABLE_NOW` |
+| World Model (entities/relationships) | Yes | Yes — `TaskWorker` calls `executive/observation.py`'s `observe()` after every successfully executed `execute_goal_step`, with no separate trigger anything else has to remember to call | Real, extractors registered per action_type (github PR/issue + author/reporter, email message + sender) rather than one generic guesser | Yes (11 unit tests on `observe()` directly + 2 true end-to-end tests driving a real task through `TaskWorker` against the real GitHub fake server) | No | Only GitHub and email connectors have extractors; other connectors (filesystem, HTTP, browser, CRM, telephony) still don't feed the World Model | `COMPLETE` for the observation mechanism and its first two extractors; extractors for the remaining connectors are `IMPLEMENTABLE_NOW`, not done this pass |
 | Executive / Goal Engine | Yes | **No** — see headline finding | Real logic, but single-shot | Yes (as a single-shot call) | No | The entire autonomous loop: scheduling, observation, mandate model, workstreams, evidence, next-action determination | `IMPLEMENTABLE_NOW` — this pass's primary focus |
 | Durable Task Engine | Yes | Partially — `enqueue`/`claim_next`/`complete`/`fail`/lease-reap all real and tested, but **nothing in production code ever calls `claim_next()`** — no worker loop exists | Real | Yes | No | A worker process that actually drains the queue | `IMPLEMENTABLE_NOW` — built this pass as part of the operating loop |
 | Model Router | Yes | Yes | Real (Ollama) + explicit test-only fallback | Yes | No (needs Ollama running on the machine) | Single-role routing only — no fast-reflex/reasoning/embedding role separation (section 18) | `IMPLEMENTABLE_NOW` (role separation) partially addressed; full multi-model routing is a larger effort, tracked, not done this pass |
@@ -216,6 +216,27 @@ closure lands, in the order it actually happened:
     remaining API endpoints and the native C#/WPF clients attaching the
     saved token automatically are still open work, called out honestly
     in the row above rather than folded into this closure.
+11. **World Model auto-population from observation** (section B):
+    `executive/observation.py`'s `observe()` is called by `TaskWorker`
+    after every successfully executed `execute_goal_step`, so
+    `WorldModelStore` actually fills in from real activity instead of
+    sitting empty except for direct method calls -- this document's own
+    prior finding. Deliberately narrow: explicit per-action_type
+    extractors (GitHub PRs/issues with their author/reporter linked as a
+    `person` entity; email messages with their sender linked) rather than
+    one generic JSON-to-entity guesser, since guessing wrong would
+    silently pollute the World Model, which is worse than not observing
+    at all. A malformed payload or an unregistered action_type is a
+    silent no-op, never a reason to fail a task that already succeeded.
+    Verified two ways: 11 unit tests against `observe()` directly with
+    crafted JSON (including re-observing the same PR twice updating
+    rather than duplicating the entity), and 2 true end-to-end tests
+    driving a real `execute_goal_step` task through `TaskWorker` against
+    the real GitHub connector's fake server, checking the resulting
+    Entity and Relationship rows in a real `WorldModelStore` with nothing
+    else in the test calling `upsert_entity`/`link` directly. Only
+    GitHub and email have extractors so far -- the other connectors are
+    called out as remaining work in the row above, not glossed over.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

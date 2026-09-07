@@ -3,6 +3,7 @@ from .goal_engine import GoalEngine, GoalNotReadyError
 from .goal_models import GOAL_STATUSES, Goal
 from .mandate_engine import MandateEngine, MandateNotReadyError, MandateReport, WorkstreamSummary
 from .mandate_models import MANDATE_AUTHORITY_LEVELS, MANDATE_STATUSES, Mandate
+from .observation import observe, register_extractor
 from .operating_loop import OperatingLoopSupervisor, TaskWorker, WorkerOutcome
 
 __all__ = [
@@ -11,4 +12,5 @@ __all__ = [
     "MandateEngine", "MandateNotReadyError", "MandateReport", "WorkstreamSummary",
     "Mandate", "MANDATE_STATUSES", "MANDATE_AUTHORITY_LEVELS",
     "OperatingLoopSupervisor", "TaskWorker", "WorkerOutcome",
+    "observe", "register_extractor",
 ]
