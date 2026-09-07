@@ -62,6 +62,7 @@ AMBER_ACTION_TYPES = {
     "computer_control.click",
     "computer_control.type_text",
     "computer_control.key_press",
+    "computer_control.click_element",
     "social.publish",
     "email.send_external",
     "telephony.call",
@@ -70,6 +71,8 @@ AMBER_ACTION_TYPES = {
     "filesystem.write_file",
     "browser.navigate",
     "browser.extract_text_multi",
+    "browser.download_file",
+    "email.save_draft",
     "crm.write",
     "github.comment_on_issue",
     "cloud.deploy",
@@ -77,7 +80,10 @@ AMBER_ACTION_TYPES = {
     "meta.publish_post",
     "meta.reply_to_comment",
     "whatsapp.send_message",
+    "whatsapp.send_template_message",
+    "whatsapp.send_media_message",
     "linkedin.share_post",
+    "instagram.publish_post",
 }
 
 GREEN_ACTION_TYPES = {
@@ -101,6 +107,7 @@ GREEN_ACTION_TYPES = {
     "meta.get_post_comments",
     "whatsapp.get_phone_number_status",
     "linkedin.get_profile",
+    "computer_control.find_element",
 }
 
 

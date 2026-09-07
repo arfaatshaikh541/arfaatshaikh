@@ -167,7 +167,7 @@ class ImapConnector(Connector):
             name="email_inbox",
             auth_method="imap_credentials" if username else "none",
             required_credentials=["username", "password"] if username else [],
-            capabilities=["email.list_messages", "email.get_message", "email.search_messages"],
+            capabilities=["email.list_messages", "email.get_message", "email.search_messages", "email.save_draft"],
             notes=f"{host}:{port}",
         )
 
@@ -262,9 +262,45 @@ class ImapConnector(Connector):
         except (OSError, imaplib.IMAP4.error) as exc:
             return HandlerResult(CapabilityStatus.DEGRADED, f"search_messages failed: {exc}")
 
+    def save_draft(self, request: ActionRequest) -> HandlerResult:
+        """Real IMAP APPEND with the \\Draft flag, closing the "drafts"
+        half of section 12's email gap. Not sent -- appended to the
+        drafts folder only, exactly like composing a message and closing
+        the window without pressing send in any real mail client."""
+        folder = request.params.get("folder", "Drafts")
+        to = request.params.get("to", "")
+        subject = request.params.get("subject", "")
+        body_text = request.params.get("body", "")
+
+        message = EmailMessage()
+        if to:
+            message["To"] = to
+        message["Subject"] = subject
+        message.set_content(body_text)
+
+        try:
+            client = self._connect()
+            try:
+                # imaplib does not quote the mailbox argument for you --
+                # an unquoted name containing a space breaks the raw IMAP
+                # command syntax. A quoted string is always valid IMAP
+                # syntax, so quoting unconditionally (with minimal
+                # backslash/quote escaping) is simpler and safer than
+                # only quoting when a space happens to be present.
+                quoted_folder = '"' + folder.replace("\\", "\\\\").replace('"', '\\"') + '"'
+                status, response = client.append(quoted_folder, "(\\Draft)", None, message.as_bytes())
+                if status != "OK":
+                    return HandlerResult(CapabilityStatus.DEGRADED, f"append failed: {response}")
+                return HandlerResult(CapabilityStatus.LIVE, json.dumps({"folder": folder, "to": to, "subject": subject}))
+            finally:
+                client.logout()
+        except (OSError, imaplib.IMAP4.error) as exc:
+            return HandlerResult(CapabilityStatus.DEGRADED, f"save_draft failed: {exc}")
+
     def handlers(self) -> dict:
         return {
             "email.list_messages": self.list_messages,
             "email.get_message": self.get_message,
             "email.search_messages": self.search_messages,
+            "email.save_draft": self.save_draft,
         }

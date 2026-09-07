@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -9,12 +10,13 @@ import pytest
 
 from aura_core.connectors import ConnectorRegistry
 from aura_core.connectors.desktop_connector import DesktopControlConnector
+from aura_core.connectors.ui_automation import MockUiAutomationProvider, UiElement
 from aura_core.governance.action_broker import ActionBroker, OutcomeStatus
 from aura_core.governance.approval_engine import ApprovalEngine
 from aura_core.governance.audit_log import AuditLog
 from aura_core.governance.credential_broker import CredentialBroker
 from aura_core.governance.policy_engine import PolicyEngine
-from aura_core.governance.risk_engine import ActionRequest, RiskEngine
+from aura_core.governance.risk_engine import ActionRequest, RiskEngine, RiskTier
 from aura_core.status import CapabilityStatus
 
 _XVFB_DISPLAY = ":93"
@@ -137,3 +139,67 @@ def test_type_text_and_key_press_execute_without_error_against_a_real_display(tm
 
     key_outcome = broker.submit(ActionRequest(action_type="computer_control.key_press", params={"key": "enter"}))
     assert key_outcome.status == OutcomeStatus.EXECUTED
+
+
+def test_find_element_is_honestly_not_connected_without_a_provider(tmp_path):
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("computer_control.find_element", 4)
+    ConnectorRegistry(broker).register(DesktopControlConnector())
+
+    outcome = broker.submit(ActionRequest(action_type="computer_control.find_element", params={"name": "Submit"}))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "not_connected" in outcome.message.lower()
+
+
+def test_find_element_returns_the_real_element_from_the_mock_accessibility_tree(tmp_path):
+    provider = MockUiAutomationProvider([UiElement(name="Submit", role="button", x=100, y=200, width=80, height=30)])
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("computer_control.find_element", 4)
+    ConnectorRegistry(broker).register(DesktopControlConnector(ui_automation=provider))
+
+    outcome = broker.submit(ActionRequest(action_type="computer_control.find_element", params={"name": "Submit"}))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    found = json.loads(outcome.message)
+    assert found == {"name": "Submit", "role": "button", "x": 100, "y": 200, "width": 80, "height": 30, "automation_id": None}
+
+
+def test_find_element_reports_no_match_honestly(tmp_path):
+    provider = MockUiAutomationProvider([])
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("computer_control.find_element", 4)
+    ConnectorRegistry(broker).register(DesktopControlConnector(ui_automation=provider))
+
+    outcome = broker.submit(ActionRequest(action_type="computer_control.find_element", params={"name": "Nonexistent"}))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "no matching element found" in outcome.message
+
+
+def test_click_element_resolves_through_the_mock_tree_and_clicks_the_real_display(tmp_path, virtual_display):
+    provider = MockUiAutomationProvider([UiElement(name="Submit", role="button", x=100, y=200, width=80, height=30)])
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("computer_control.click_element", 4)
+    ConnectorRegistry(broker).register(DesktopControlConnector(ui_automation=provider))
+
+    outcome = broker.submit(ActionRequest(action_type="computer_control.click_element", params={"name": "Submit"}))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    assert "Submit" in outcome.message
+
+
+def test_find_element_is_green_tier_and_click_element_is_amber_tier():
+    risk = RiskEngine()
+    assert risk.classify(ActionRequest(action_type="computer_control.find_element")).tier == RiskTier.GREEN
+    assert risk.classify(ActionRequest(action_type="computer_control.click_element")).tier == RiskTier.AMBER
+
+
+def test_click_element_is_denied_by_default_at_autonomy_zero(tmp_path):
+    provider = MockUiAutomationProvider([UiElement(name="Submit", role="button", x=100, y=200, width=80, height=30)])
+    broker, _policy = make_broker(tmp_path)
+    ConnectorRegistry(broker).register(DesktopControlConnector(ui_automation=provider))
+
+    outcome = broker.submit(ActionRequest(action_type="computer_control.click_element", params={"name": "Submit"}))
+
+    assert outcome.status == OutcomeStatus.DENIED

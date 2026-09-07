@@ -1,7 +1,7 @@
-"""WhatsAppConnector is a concrete configuration of RestApiConnector --
-these tests prove the configuration (paths, auth header, capability map,
-risk tiers) is correct against a real local HTTP server shaped like
-Meta's WhatsApp Cloud API, not a mock of the connector's own methods.
+"""WhatsAppConnector is a dedicated Connector against Meta's real WhatsApp
+Cloud API -- these tests prove its request shapes (text, template, media)
+and risk tiers are correct against a real local HTTP server shaped like
+the Cloud API, not a mock of the connector's own methods.
 """
 from __future__ import annotations
 
@@ -128,3 +128,75 @@ def test_a_write_at_autonomy_level_zero_is_denied_by_default(tmp_path, fake_what
     ))
 
     assert outcome.status == OutcomeStatus.DENIED
+
+
+def test_send_template_message_builds_the_real_cloud_api_template_body(tmp_path, fake_whatsapp):
+    broker, policy, risk = make_broker(tmp_path)
+    assert risk.classify(ActionRequest(action_type="whatsapp.send_template_message")).tier == RiskTier.AMBER
+
+    policy.set_autonomy_level("whatsapp.send_template_message", 4)
+    ConnectorRegistry(broker).register(build_whatsapp_connector(token="tok", base_url=fake_whatsapp))
+
+    outcome = broker.submit(ActionRequest(
+        action_type="whatsapp.send_template_message",
+        params={
+            "phone_number_id": "phone-123",
+            "to": "15551234567",
+            "template_name": "order_confirmation",
+            "language_code": "en_US",
+            "components": [{"type": "body", "parameters": [{"type": "text", "text": "Order #42"}]}],
+        },
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    assert _FakeWhatsAppHandler.received_body == {
+        "messaging_product": "whatsapp",
+        "to": "15551234567",
+        "type": "template",
+        "template": {
+            "name": "order_confirmation",
+            "language": {"code": "en_US"},
+            "components": [{"type": "body", "parameters": [{"type": "text", "text": "Order #42"}]}],
+        },
+    }
+
+
+def test_send_media_message_builds_the_real_cloud_api_media_body(tmp_path, fake_whatsapp):
+    broker, policy, risk = make_broker(tmp_path)
+    assert risk.classify(ActionRequest(action_type="whatsapp.send_media_message")).tier == RiskTier.AMBER
+
+    policy.set_autonomy_level("whatsapp.send_media_message", 4)
+    ConnectorRegistry(broker).register(build_whatsapp_connector(token="tok", base_url=fake_whatsapp))
+
+    outcome = broker.submit(ActionRequest(
+        action_type="whatsapp.send_media_message",
+        params={
+            "phone_number_id": "phone-123",
+            "to": "15551234567",
+            "media_type": "image",
+            "media_link": "https://example.com/receipt.png",
+            "caption": "Your receipt",
+        },
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    assert _FakeWhatsAppHandler.received_body == {
+        "messaging_product": "whatsapp",
+        "to": "15551234567",
+        "type": "image",
+        "image": {"link": "https://example.com/receipt.png", "caption": "Your receipt"},
+    }
+
+
+def test_send_media_message_is_denied_honestly_with_neither_media_id_nor_media_link(tmp_path, fake_whatsapp):
+    broker, policy, _risk = make_broker(tmp_path)
+    policy.set_autonomy_level("whatsapp.send_media_message", 4)
+    ConnectorRegistry(broker).register(build_whatsapp_connector(token="tok", base_url=fake_whatsapp))
+
+    outcome = broker.submit(ActionRequest(
+        action_type="whatsapp.send_media_message",
+        params={"phone_number_id": "phone-123", "to": "15551234567", "media_type": "image"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "requires either 'media_id' or 'media_link'" in outcome.message

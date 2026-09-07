@@ -6,6 +6,7 @@ testing infrastructure only, not a production email server."""
 from __future__ import annotations
 
 import json
+import re
 import socketserver
 import threading
 
@@ -40,6 +41,7 @@ def _make_message(uid: int, subject: str, *, message_id: str, in_reply_to: str |
 class _FakeImapServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     mailbox: list[dict] = []
+    appended: list[dict] = []
 
 
 class _FakeImapHandler(socketserver.StreamRequestHandler):
@@ -69,6 +71,8 @@ class _FakeImapHandler(socketserver.StreamRequestHandler):
                 self.wfile.write(f"{tag} OK [{mode}] {command} completed\r\n".encode())
             elif command == "UID":
                 self._handle_uid(tag, rest)
+            elif command == "APPEND":
+                self._handle_append(tag, rest)
             elif command == "LOGOUT":
                 self.wfile.write(b"* BYE logging out\r\n")
                 self.wfile.write(f"{tag} OK LOGOUT completed\r\n".encode())
@@ -103,6 +107,33 @@ class _FakeImapHandler(socketserver.StreamRequestHandler):
         else:
             self.wfile.write(f"{tag} BAD unrecognized UID subcommand\r\n".encode())
 
+    def _handle_append(self, tag: str, rest: str) -> None:
+        """Real RFC 3501 literal handling: announce readiness for the
+        literal, read exactly the declared byte count off the wire, then
+        consume the trailing CRLF -- not a shortcut that trusts a
+        pre-parsed message, since that's the actual protocol behavior
+        this exists to prove imaplib's APPEND client code drives
+        correctly."""
+        match = re.search(r"\{(\d+)\}\s*$", rest)
+        if not match:
+            self.wfile.write(f"{tag} BAD malformed APPEND\r\n".encode())
+            return
+
+        size = int(match.group(1))
+        head = rest[: match.start()].strip()
+        # The mailbox name is either a quoted string (which may itself
+        # contain spaces -- "My Drafts" -- so splitting on whitespace
+        # first would truncate it) or a single bare token.
+        mailbox_match = re.match(r'"((?:[^"\\]|\\.)*)"|(\S+)', head)
+        mailbox = (mailbox_match.group(1) or mailbox_match.group(2)) if mailbox_match else head
+
+        self.wfile.write(b"+ Ready for literal data\r\n")
+        literal = self.rfile.read(size)
+        self.rfile.readline()  # trailing CRLF after the literal
+
+        self.server.appended.append({"mailbox": mailbox, "content": literal})
+        self.wfile.write(f"{tag} OK APPEND completed\r\n".encode())
+
     @staticmethod
     def _matches(message: dict, criteria: str) -> bool:
         criteria = criteria.strip()
@@ -123,6 +154,7 @@ def fake_imap():
         _make_message(2, "Re: Widget order #100", message_id="<msg-2@example.test>", in_reply_to="<msg-1@example.test>"),
         _make_message(3, "Unrelated newsletter", message_id="<msg-3@example.test>"),
     ]
+    _FakeImapServer.appended = []
     server = _FakeImapServer(("127.0.0.1", 0), _FakeImapHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -236,3 +268,61 @@ def test_build_threads_groups_a_reply_with_its_original_and_leaves_unrelated_mai
     assert sizes == [1, 2]
     reply_thread = next(t for t in threads if len(t) == 2)
     assert {m["subject"] for m in reply_thread} == {"Widget order #100", "Re: Widget order #100"}
+
+
+def test_save_draft_appends_a_real_message_to_the_drafts_folder(tmp_path, fake_imap):
+    host, port = fake_imap
+    broker, policy, _risk = make_broker(tmp_path)
+    policy.set_autonomy_level("email.save_draft", 4)
+    connector = ImapConnector(host, port, use_ssl=False, username="tester", password="pw")
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="email.save_draft",
+        params={"to": "vendor@example.test", "subject": "Draft: order follow-up", "body": "Checking on the shipment."},
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    result = json.loads(outcome.message)
+    assert result["folder"] == "Drafts"
+    assert result["to"] == "vendor@example.test"
+
+    assert len(_FakeImapServer.appended) == 1
+    appended = _FakeImapServer.appended[0]
+    assert appended["mailbox"] == "Drafts"
+    assert b"Checking on the shipment." in appended["content"]
+    assert b"Draft: order follow-up" in appended["content"]
+
+
+def test_save_draft_defaults_to_the_drafts_folder_and_uses_a_custom_one_when_given(tmp_path, fake_imap):
+    host, port = fake_imap
+    broker, policy, _risk = make_broker(tmp_path)
+    policy.set_autonomy_level("email.save_draft", 4)
+    connector = ImapConnector(host, port, use_ssl=False, username="tester", password="pw")
+    ConnectorRegistry(broker).register(connector)
+
+    broker.submit(ActionRequest(
+        action_type="email.save_draft", params={"folder": "My Drafts", "subject": "s", "body": "b"},
+    ))
+
+    assert _FakeImapServer.appended[0]["mailbox"] == "My Drafts"
+
+
+def test_save_draft_is_amber_tier(tmp_path):
+    _broker, _policy, risk = make_broker(tmp_path)
+    assert risk.classify(ActionRequest(action_type="email.save_draft")).tier == RiskTier.AMBER
+
+
+def test_save_draft_is_denied_by_default_at_autonomy_zero(tmp_path, fake_imap):
+    host, port = fake_imap
+    broker, _policy, _risk = make_broker(tmp_path)
+    connector = ImapConnector(host, port, use_ssl=False, username="tester", password="pw")
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="email.save_draft", params={"subject": "s", "body": "b"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert _FakeImapServer.appended == []
+

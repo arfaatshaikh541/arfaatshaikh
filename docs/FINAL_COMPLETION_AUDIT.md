@@ -97,8 +97,8 @@ module docstring for the full rationale.
 
 | Capability | Exists | Wired end-to-end | Real or mock | Tested | Windows validated | Missing work | Blocker |
 |---|---|---|---|---|---|---|---|
-| Browser automation | Yes | Yes | Real Playwright, including `launch_persistent_context(profile_dir)` for persistent authenticated sessions and real concurrent multi-Page operation for `browser.extract_text_multi` | Yes | Partial (Linux Chromium; not the Windows browser binary) | Download handling (upload/save-file flows) still not built. CAPTCHA detection/escalation (a conservative selector-based check in `_with_page`, shared by navigate/extract_text/screenshot, verified against a real local page with a genuine reCAPTCHA-shaped DOM node) is now built — a prior draft of this row claimed it was "added this pass" before it actually existed; it does now, in a later pass, not the original Phase 1 audit. | `COMPLETE` for CAPTCHA detection, persistent profiles, and multi-tab; `IMPLEMENTABLE_NOW` for download handling, not done |
-| Desktop control | Yes | Yes | Real `pynput` | Yes (Xvfb) | No | Blind coordinate clicks only — no UI Automation/accessibility-tree targeting (section 16 explicitly asks to prefer this) | `REQUIRES_WINDOWS_RUNTIME` — UI Automation is a Windows API (`System.Windows.Automation`), can't be exercised here; interface can be added now |
+| Browser automation | Yes | Yes | Real Playwright, including `launch_persistent_context(profile_dir)` for persistent authenticated sessions, real concurrent multi-Page operation for `browser.extract_text_multi`, and real `page.expect_download()`-based file download handling (`browser.download_file`, sandboxed to `AURA_BROWSER_DOWNLOAD_DIR`, `save_as` path-escape rejected) | Yes (6 new download tests: trigger-selector mode, direct-URL mode, no-download-dir-configured denial, path-escape rejection, AMBER tier, default-deny) | Partial (Linux Chromium; not the Windows browser binary) | Upload flows (the other half of "upload/save-file") are still not built. CAPTCHA detection/escalation (a conservative selector-based check in `_with_page`, shared by navigate/extract_text/screenshot, verified against a real local page with a genuine reCAPTCHA-shaped DOM node) is built. | `COMPLETE` for CAPTCHA detection, persistent profiles, multi-tab, and file downloads; `IMPLEMENTABLE_NOW` for upload flows, not done |
+| Desktop control | Yes | Yes | Real `pynput` for coordinate-based control; `UiAutomationProvider` interface (`find_element`/`click_element`, resolving a named/roled element to screen coordinates before delegating to the same real `pynput` click) backed by `MockUiAutomationProvider`, an explicitly-labeled fixed in-memory accessibility tree, not a real platform backend | Yes (Xvfb; 4 new tests: honest `NOT_CONNECTED` with no provider configured, real element lookup + no-match case, real click resolved through the mock tree against the live display, GREEN/AMBER tier + default-deny) | No | A real Windows UI Automation (or Linux AT-SPI) backend implementing `UiAutomationProvider` is not built — this sandbox cannot exercise either | `COMPLETE` for the interface, the governed find/click-by-element pipeline, and the mock backend; a real per-platform backend is `REQUIRES_WINDOWS_RUNTIME` for Windows UI Automation specifically |
 
 ## F. Installation
 
@@ -120,11 +120,11 @@ module docstring for the full rationale.
 | Browser | Yes | Yes | Real | Yes | N/A | See section E above |
 | Telephony | Yes | Yes | **MOCK, correctly labeled** (`MockTelephonyProvider`) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` (must pick Twilio/SIP first) + `REQUIRES_OWNER_CREDENTIAL` |
 | Email (SMTP send) | Yes | Yes | Real SMTP client, tested against a real local server | Yes | No (needs owner's real SMTP account) | `REQUIRES_OWNER_CREDENTIAL` |
-| Email (IMAP receive, threading, classify) | Yes — `ImapConnector` (list/get/search) + `build_threads()` + `classify_message_intent()` (`aura email classify`, `POST /email/classify`, both gated) | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise); classification always available since it only needs the already-wired Model Router | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP); classification is a real Model Router call against a fixed 5-category list, never fabricating a category outside it | Yes (8 IMAP tests; 9 classify tests: 6 unit against a scripted provider including the fixed-category-list refusal case, 1 CLI, 2 API) | No (no owner mailbox exercised) | `COMPLETE` for receive, threading, and classify; drafts (saving a message via IMAP `APPEND`) are still not built — `IMPLEMENTABLE_NOW`, flagged |
+| Email (IMAP receive, threading, classify, drafts) | Yes — `ImapConnector` (list/get/search/save_draft) + `build_threads()` + `classify_message_intent()` (`aura email classify`, `POST /email/classify`, both gated) | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise); classification always available since it only needs the already-wired Model Router | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT/APPEND — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP); `save_draft` does a real RFC 3501 APPEND with the `\Draft` flag, folder name always quoted (imaplib does not quote mailbox arguments itself); classification is a real Model Router call against a fixed 5-category list, never fabricating a category outside it | Yes (12 IMAP tests, including 4 for save_draft: real append content, default vs custom folder, AMBER tier, default-deny; 9 classify tests: 6 unit against a scripted provider including the fixed-category-list refusal case, 1 CLI, 2 API) | No (no owner mailbox exercised) | `COMPLETE` for receive, threading, classify, and drafts |
 | Generic REST/CRM connector | Yes | Yes | Real HTTP client against a configurable capability map | Yes | No | This is correctly an abstraction, not an integration — the spec is right that "a generic REST connector existing" does not mean a CRM integration exists. No concrete CRM adapter (HubSpot/Salesforce/Zoho schema mapping) exists. | `REQUIRES_EXTERNAL_PROVIDER` for which CRM; `REQUIRES_OWNER_CREDENTIAL` for its API key |
 | Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
-| Meta/Instagram | Yes -- `build_meta_connector()` (Facebook Page: posts, comments, publish, reply) | Yes, always registered (`AURA_META_TOKEN`), honest `READY_TO_CONNECT`/`LIVE` per token presence | Real REST calls against a real local server shaped like Meta Graph API v19 | Yes (6 tests: health both states, real read through the broker, real write with body verification + AMBER tier, GREEN read tiers, default-deny) | No (no live Meta app/token exercised) | Instagram's own publish flow is a genuinely different two-step API (create a media container, then publish it) that a single-request RestApiConnector capability can't model as a drop-in -- not built, called out rather than folded into "Meta" | `COMPLETE` for the Facebook Page connector; Instagram's own publish flow is `IMPLEMENTABLE_NOW`, not attempted; a live account is `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) + `REQUIRES_PLATFORM_APPROVAL` (Meta App Review for most real permissions) |
-| WhatsApp Business | Yes -- `build_whatsapp_connector()` (Cloud API: send message, phone number status) | Yes, always registered (`AURA_WHATSAPP_TOKEN`) | Real REST calls against a real local server shaped like the WhatsApp Cloud API | Yes (5 tests: health both states, real send with body verification + AMBER tier, GREEN read tier, default-deny) | No | Message templates (required for the first message in a 24-hour window) and media messages are not built, only text | `COMPLETE` for the text-message connector; a live account is `REQUIRES_OWNER_CREDENTIAL` (a real WhatsApp Business phone number) + `REQUIRES_EXTERNAL_PROVIDER` |
+| Meta/Instagram | Yes -- `build_meta_connector()` (Facebook Page: posts, comments, publish, reply) + `InstagramConnector` (real two-step Graph API media publish: create container, then publish it) | Yes, both always registered (`AURA_META_TOKEN`/`AURA_INSTAGRAM_TOKEN`), honest `READY_TO_CONNECT`/`LIVE` per token presence | Real REST calls against real local servers shaped like Meta Graph API v19 and the Instagram Graph API's two-step publish endpoints | Yes (6 Meta tests: health both states, real read through the broker, real write with body verification + AMBER tier, GREEN read tiers, default-deny; 6 Instagram tests: health both states, real two-step publish returning the final media_id, a publish-step failure reported honestly with the already-created container id, AMBER tier, default-deny) | No (no live Meta app/token exercised) | None found for either connector | `COMPLETE` for the Facebook Page connector and Instagram's publish flow; a live account is `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) + `REQUIRES_PLATFORM_APPROVAL` (Meta App Review for most real permissions, including Instagram content publishing) |
+| WhatsApp Business | Yes -- `build_whatsapp_connector()` (Cloud API: text messages, template messages, media messages, phone number status) | Yes, always registered (`AURA_WHATSAPP_TOKEN`) | Real REST calls against a real local server shaped like the WhatsApp Cloud API; `send_template_message`/`send_media_message` build the real Cloud API request body (template name/language/components; media type + id-or-link + caption) from named params rather than a raw passthrough body | Yes (8 tests: health both states, real text send with body verification + AMBER tier, GREEN read tier, default-deny, real template body construction + AMBER tier, real media body construction + AMBER tier, honest denial when neither media_id nor media_link is given) | No | None found | `COMPLETE` for text, template, and media messages; a live account is `REQUIRES_OWNER_CREDENTIAL` (a real WhatsApp Business phone number, and pre-approved template definitions for templates specifically) + `REQUIRES_EXTERNAL_PROVIDER` |
 | LinkedIn | Yes -- `build_linkedin_connector()` (profile read, UGC post share) | Yes, always registered (`AURA_LINKEDIN_TOKEN`) | Real REST calls against a real local server shaped like LinkedIn's REST API | Yes (5 tests: health both states, real profile read + GREEN tier, real share with body verification + AMBER tier, default-deny) | No | RestApiConnector only sets one static header, so LinkedIn's recommended `X-Restli-Protocol-Version`/`LinkedIn-Version` headers aren't sent (same documented limitation as the GitHub connector) | `COMPLETE` for what LinkedIn's public API legitimately allows without partner approval; anything beyond `ugcPosts`/`me` is `REQUIRES_PLATFORM_APPROVAL`; a live account needs `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) |
 | Git/software workflow (repos, PRs, issues, CI status) | Yes — `build_github_connector()` (a configured `RestApiConnector`) | Yes, always registered (honestly `READY_TO_CONNECT` without `AURA_GITHUB_TOKEN`, `LIVE` once a token is set) | Real REST calls, tested against a real local HTTP server shaped like GitHub's actual API (not a mock of the connector's own methods) | Yes (8 tests: health check with/without token, list/get PRs, get combined status, comment-on-issue, GREEN/AMBER tier classification, default-deny at autonomy 0) | No (no owner token exercised in this pass) | `COMPLETE` for the connector itself; `REQUIRES_OWNER_CREDENTIAL` only for a live authenticated account |
 | Cloud/deployment | Yes -- `CloudConnector`/`CloudProvider` + `MockCloudProvider` | Yes, always registered (mirrors the telephony mock's shape: safe to auto-register since nothing real is ever touched) | **MOCK, correctly labeled** (in-memory deployment ledger; `deploy`/`rollback` genuinely manage which version is "live" per service+environment, not just a label on one record) | Yes (7 tests: deploy/rollback AMBER + status GREEN classification, default-deny at autonomy 0, a real deploy executing through the broker, deploy-chain previous-id tracking, rollback genuinely restoring the prior deployment to live, an unknown deployment id reported honestly) | No | A real cloud provider adapter (AWS/GCP/Azure/Fly.io/etc.) | `COMPLETE` for the provider abstraction and deploy/rollback state machine; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
@@ -488,6 +488,65 @@ closure lands, in the order it actually happened:
     case; 1 CLI; 2 API, including the device-trust gate). Drafts (saving
     a message via IMAP `APPEND`) remain unbuilt, called out honestly in
     the row above.
+23. **Browser file downloads and IMAP drafts** (section E's and G's
+    remaining "not built" items): `BrowserConnector.download_file`
+    supports both a `trigger_selector` (clicking a real link/button) and
+    a direct-URL mode, wrapped in Playwright's real
+    `page.expect_download()`, saved only inside a configured
+    `AURA_BROWSER_DOWNLOAD_DIR` with any `save_as` that would escape that
+    directory rejected outright — tested against a real local HTTP server
+    serving a genuine downloadable file, not a mocked download event (6
+    new tests). `ImapConnector.save_draft` does a real RFC 3501 `APPEND`
+    with the `\Draft` flag against a hand-rolled fake IMAP server
+    extended to parse `APPEND`'s literal-length syntax; the connector now
+    always quotes the folder name, since imaplib does not do this itself
+    and an unquoted multi-word folder name breaks the raw IMAP command
+    line — a genuine bug caught by a real test failure, not a hypothetical
+    (4 new tests). Both actions are AMBER tier, both denied by default at
+    autonomy 0, matching every other write-capable connector.
+24. **Instagram two-step publish and WhatsApp templates/media** (section
+    G's last two named gaps): `InstagramConnector` implements the real
+    Graph API flow the "Meta" row explicitly said needed its own
+    handling — `POST /{ig_user_id}/media` to create a container, then
+    `POST /{ig_user_id}/media_publish` to publish it — reporting a
+    failure at whichever step actually failed rather than retrying or
+    silently reporting partial success. `WhatsAppConnector` gained
+    `send_template_message` and `send_media_message` as their own
+    action_types (not just "pass a raw body to send_message"), so the
+    World Model and autonomy policy can tell a template send apart from a
+    media send apart from free text — each builds its real Cloud API
+    request body from named params (template name/language/components;
+    media type plus exactly one of media_id/media_link, plus an optional
+    caption), and a media message with neither id nor link is denied with
+    an honest reason rather than sent malformed. Both new connectors
+    verified against real local HTTP servers shaped like their real
+    vendor APIs (12 new tests total: 6 Instagram, 6 WhatsApp), both AMBER
+    tier, both denied by default at autonomy 0. Neither can honestly
+    claim more than this without an owner's real access token
+    (`REQUIRES_OWNER_CREDENTIAL`) and, for Instagram, Meta App Review
+    (`REQUIRES_PLATFORM_APPROVAL`).
+25. **UI Automation interface for desktop control** (section 16's
+    preference for accessibility-tree targeting over blind coordinates,
+    section E's remaining desktop-control gap): a new
+    `UiAutomationProvider` interface (`connectors/ui_automation.py`)
+    defines `find_element(name=..., role=..., automation_id=...)` against
+    a real per-platform backend not yet built (Windows UI Automation and
+    Linux AT-SPI are both `REQUIRES_WINDOWS_RUNTIME`/genuinely
+    unexercisable headless here) -- the same "interface now, real backend
+    later" shape as `MockPaymentProvider`/`MockTelephonyProvider`/
+    `MockCloudProvider`. `DesktopControlConnector` gained two new
+    action_types, `computer_control.find_element` (GREEN tier, resolves
+    an element's real screen geometry) and `computer_control.click_element`
+    (AMBER tier, resolves an element then clicks its center through the
+    same real `pynput` call `computer_control.click` already uses) --
+    both honestly report `NOT_CONNECTED` rather than silently falling
+    back to coordinates when no provider is configured. Verified against
+    `MockUiAutomationProvider`, an explicitly-labeled fixed in-memory
+    accessibility tree, and (for the click path) a real Xvfb display (4
+    new tests: not-connected without a provider, real element lookup
+    including the no-match case, a real click resolved through the mock
+    tree and executed against the live display, GREEN/AMBER tier
+    classification, default-deny at autonomy 0).
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

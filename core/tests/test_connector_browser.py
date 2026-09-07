@@ -316,6 +316,134 @@ def test_extract_text_multi_is_denied_if_any_target_is_outside_the_allowlist(tmp
         action_type="browser.extract_text_multi",
         params={"targets": [{"url": local_page_url}]},
     ))
-
     assert outcome.status == OutcomeStatus.DENIED
     assert "not on the browser egress allowlist" in outcome.message
+
+
+class _DownloadHandler(BaseHTTPRequestHandler):
+    """A real local page with a genuine link-triggered download, plus a
+    second URL that serves the file directly with a Content-Disposition
+    header -- the two shapes download_file supports (click a trigger vs.
+    a direct download link)."""
+
+    def do_GET(self):
+        if self.path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(
+                b'<html><body><a id="dl" href="/report.txt" download>Download report</a></body></html>'
+            )
+        elif self.path == "/report.txt":
+            body = b"quarterly report contents"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", 'attachment; filename="report.txt"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def download_page_url():
+    server = HTTPServer(("127.0.0.1", 0), _DownloadHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/"
+    finally:
+        server.shutdown()
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_download_file_via_a_trigger_selector_saves_the_real_content(tmp_path, download_page_url):
+    download_dir = tmp_path / "downloads"
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.download_file", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, download_dir=str(download_dir))
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.download_file",
+        params={"url": download_page_url, "trigger_selector": "#dl", "save_as": "saved-report.txt"},
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    result = json.loads(outcome.message)
+    saved_path = download_dir / "saved-report.txt"
+    assert result["saved_to"] == str(saved_path)
+    assert saved_path.read_bytes() == b"quarterly report contents"
+
+
+@pytest.mark.skipif(not _HAS_BROWSER, reason="no compatible Chromium binary in this environment")
+def test_download_file_with_a_direct_url_and_no_selector_also_works(tmp_path, download_page_url):
+    download_dir = tmp_path / "downloads"
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.download_file", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, download_dir=str(download_dir))
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.download_file",
+        params={"url": download_page_url + "report.txt", "save_as": "direct.txt"},
+    ))
+
+    assert outcome.status == OutcomeStatus.EXECUTED
+    assert (download_dir / "direct.txt").read_bytes() == b"quarterly report contents"
+
+
+def test_download_file_is_denied_honestly_with_no_download_directory_configured(tmp_path):
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.download_file", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE)  # no download_dir
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.download_file",
+        params={"url": "http://example.test/f.txt", "save_as": "f.txt"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "no download directory configured" in outcome.message
+
+
+def test_download_file_rejects_a_save_as_that_escapes_the_download_directory(tmp_path):
+    download_dir = tmp_path / "downloads"
+    broker, policy = make_broker(tmp_path)
+    policy.set_autonomy_level("browser.download_file", 4)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, download_dir=str(download_dir))
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.download_file",
+        params={"url": "http://example.test/f.txt", "save_as": "../../etc/evil.txt"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "escapes the configured download directory" in outcome.message
+
+
+def test_download_file_is_amber_tier(tmp_path):
+    _broker, _policy = make_broker(tmp_path)
+    assert RiskEngine().classify(ActionRequest(action_type="browser.download_file")).tier.value == "AMBER"
+
+
+def test_download_file_is_denied_by_default_at_autonomy_zero(tmp_path):
+    download_dir = tmp_path / "downloads"
+    broker, _policy = make_broker(tmp_path)
+    connector = BrowserConnector(executable_path=_EXECUTABLE, download_dir=str(download_dir))
+    ConnectorRegistry(broker).register(connector)
+
+    outcome = broker.submit(ActionRequest(
+        action_type="browser.download_file",
+        params={"url": "http://example.test/f.txt", "save_as": "f.txt"},
+    ))
+
+    assert outcome.status == OutcomeStatus.DENIED
+    assert "autonomy level 0" in outcome.message

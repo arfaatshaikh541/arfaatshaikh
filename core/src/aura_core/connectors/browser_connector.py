@@ -43,7 +43,7 @@ _CAPTCHA_SELECTORS = [
 class BrowserConnector(Connector):
     def __init__(
         self, executable_path: str | None = None, allowed_hosts: list[str] | None = None,
-        profile_dir: str | None = None,
+        profile_dir: str | None = None, download_dir: str | None = None,
     ) -> None:
         # AURA_PLAYWRIGHT_EXECUTABLE lets this run in environments (like
         # this one) where the installed browser revision doesn't match
@@ -51,12 +51,29 @@ class BrowserConnector(Connector):
         self._executable_path = executable_path or os.environ.get("AURA_PLAYWRIGHT_EXECUTABLE")
         self._allowed_hosts = set(allowed_hosts or [])
         self._profile_dir = profile_dir
+        self._download_dir = download_dir
         self.manifest = ConnectorManifest(
             name="browser",
             auth_method="none",
-            capabilities=["browser.navigate", "browser.extract_text", "browser.screenshot", "browser.extract_text_multi"],
+            capabilities=[
+                "browser.navigate", "browser.extract_text", "browser.screenshot",
+                "browser.extract_text_multi", "browser.download_file",
+            ],
             notes=f"headless Chromium via Playwright{'; persistent profile' if profile_dir else ''}",
         )
+
+    def _resolve_download_path(self, save_as: str) -> str | None:
+        """Same sandbox-escape protection FilesystemConnector applies --
+        a download is a real write to disk, and `save_as` is owner/model-
+        supplied text, so `../../whatever` must never land outside the
+        configured download directory."""
+        if self._download_dir is None:
+            return None
+        root = os.path.abspath(self._download_dir)
+        candidate = os.path.abspath(os.path.join(root, save_as))
+        if candidate != root and not candidate.startswith(root + os.sep):
+            return None
+        return candidate
 
     def _check_allowed(self, url: str) -> str | None:
         from urllib.parse import urlparse
@@ -199,10 +216,66 @@ class BrowserConnector(Connector):
         except Exception as exc:  # noqa: BLE001
             return HandlerResult(CapabilityStatus.DEGRADED, f"multi-tab browser action failed: {exc}")
 
+    def download_file(self, request: ActionRequest) -> HandlerResult:
+        """Real Playwright download handling via page.expect_download(),
+        closing the "download handling" gap named in
+        FINAL_COMPLETION_AUDIT.md's browser row. Two trigger shapes:
+        `trigger_selector` given -- navigate to `url`, click the element
+        that starts the download (a real link/button click, not a raw
+        HTTP GET, so it works for JS-driven download flows too); omitted
+        -- `url` is treated as a direct download link, and the download
+        event is caught around the navigation itself (a pure file
+        response often aborts Playwright's navigation with an error even
+        though the download still fires -- that's expected, not a
+        failure, so it's swallowed here specifically).
+        """
+        from playwright.sync_api import sync_playwright
+
+        url = request.params["url"]
+        save_as = request.params["save_as"]
+        trigger_selector = request.params.get("trigger_selector")
+
+        target_path = self._resolve_download_path(save_as)
+        if target_path is None:
+            if self._download_dir is None:
+                return HandlerResult(CapabilityStatus.DEGRADED, "no download directory configured -- set AURA_BROWSER_DOWNLOAD_DIR")
+            return HandlerResult(CapabilityStatus.DEGRADED, f"'{save_as}' escapes the configured download directory")
+
+        denial = self._check_allowed(url)
+        if denial:
+            return HandlerResult(CapabilityStatus.BLOCKED_BY_POLICY, denial)
+
+        try:
+            with sync_playwright() as p:
+                context, browser = self._launch(p)
+                try:
+                    page = context.new_page()
+                    with page.expect_download(timeout=15000) as download_info:
+                        if trigger_selector:
+                            page.goto(url, timeout=15000)
+                            page.click(trigger_selector)
+                        else:
+                            try:
+                                page.goto(url, timeout=15000)
+                            except Exception:  # noqa: BLE001 -- a direct-file response legitimately aborts navigation
+                                pass
+                    download = download_info.value
+                    download.save_as(target_path)
+                    return HandlerResult(CapabilityStatus.LIVE, json.dumps({
+                        "saved_to": target_path, "suggested_filename": download.suggested_filename,
+                    }))
+                finally:
+                    context.close()
+                    if browser is not None:
+                        browser.close()
+        except Exception as exc:  # noqa: BLE001
+            return HandlerResult(CapabilityStatus.DEGRADED, f"download failed: {exc}")
+
     def handlers(self) -> dict:
         return {
             "browser.navigate": self.navigate,
             "browser.extract_text": self.extract_text,
             "browser.screenshot": self.screenshot,
             "browser.extract_text_multi": self.extract_text_multi,
+            "browser.download_file": self.download_file,
         }

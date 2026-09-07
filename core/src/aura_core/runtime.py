@@ -26,6 +26,7 @@ from .connectors import (
     build_linkedin_connector,
     build_meta_connector,
     build_whatsapp_connector,
+    InstagramConnector,
 )
 from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
@@ -169,7 +170,7 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
 
     registry_.register(BrowserConnector(
         executable_path=settings.browser_executable_path, allowed_hosts=settings.http_allowed_hosts,
-        profile_dir=settings.browser_profile_dir,
+        profile_dir=settings.browser_profile_dir, download_dir=settings.browser_download_dir,
     ))
 
     # Always registered, like BrowserConnector -- health_check() itself
@@ -179,5 +180,6 @@ def _build_connectors(broker: ActionBroker, settings: Settings) -> ConnectorRegi
     registry_.register(build_meta_connector(token=settings.meta_token))
     registry_.register(build_whatsapp_connector(token=settings.whatsapp_token))
     registry_.register(build_linkedin_connector(token=settings.linkedin_token))
+    registry_.register(InstagramConnector(token=settings.instagram_token))
 
     return registry_
