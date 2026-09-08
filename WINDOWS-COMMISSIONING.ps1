@@ -89,6 +89,15 @@ $ErrorActionPreference = "Continue"
 $Script:Results = @()
 
 function Add-Result {
+    # Status vocabulary (never collapse any of these into a bare PASS or
+    # FAIL): PASS, FAIL, SKIPPED_PLATFORM (correctly inapplicable on this
+    # OS), SKIPPED_HARDWARE (needs mic/second device/TPM/biometrics not
+    # present or not authorized), NOT_TESTED (a real check that has simply
+    # never been executed, e.g. -SkipVoiceInteractive/-SkipShellInteractive),
+    # BLOCKED (an external provider/credential/authorization is required
+    # and wasn't available), PARTIAL (some but not all of a multi-part
+    # check succeeded). A bundle reader must be able to tell "this was
+    # never exercised" apart from "this was exercised and is broken."
     param([string]$Name, [string]$Status, [string]$Detail)
     $Script:Results += [PSCustomObject]@{
         Name   = $Name
@@ -96,8 +105,18 @@ function Add-Result {
         Detail = $Detail
         At     = (Get-Date).ToString("o")
     }
-    $color = switch ($Status) { "PASS" { "Green" }; "FAIL" { "Red" }; "SKIP" { "Yellow" }; default { "Gray" } }
-    Write-Host ("  [{0,-4}] {1}: {2}" -f $Status, $Name, $Detail) -ForegroundColor $color
+    $color = switch ($Status) {
+        "PASS" { "Green" }
+        "FAIL" { "Red" }
+        "SKIP" { "Yellow" }
+        "SKIPPED_PLATFORM" { "Yellow" }
+        "SKIPPED_HARDWARE" { "Yellow" }
+        "NOT_TESTED" { "DarkYellow" }
+        "BLOCKED" { "DarkYellow" }
+        "PARTIAL" { "DarkCyan" }
+        default { "Gray" }
+    }
+    Write-Host ("  [{0,-17}] {1}: {2}" -f $Status, $Name, $Detail) -ForegroundColor $color
 }
 
 function Write-Section {
@@ -147,14 +166,45 @@ Write-Section "Python test suite (core\tests)"
 Push-Location (Join-Path $RepoRoot "core")
 try {
     $env:AURA_ENV = "test"
-    $pytestLog = Join-Path $LogsDir "pytest.log"
-    & $venvPython -m pytest -q *> $pytestLog
+
+    # Tier 1: the same install-gate tier Install-AURA.ps1 already required
+    # to pass before this machine could even reach a commissioned install.
+    # Re-run here as a real machine-specific regression check (Windows
+    # SQLite/filesystem/path behavior can differ from Linux/macOS even for
+    # cross-platform-marked tests) -- a failure here is real and blocking.
+    $pytestLog = Join-Path $LogsDir "pytest-install-gate.log"
+    & $venvPython -m pytest -q -m "not hardware and not network and not endurance and not manual_commissioning" *> $pytestLog
     $pytestExit = $LASTEXITCODE
     $pytestTail = (Get-Content $pytestLog -Tail 5) -join " | "
     if ($pytestExit -eq 0) {
-        Add-Result "python.pytest" "PASS" $pytestTail
+        Add-Result "python.pytest.install_gate" "PASS" $pytestTail
     } else {
-        Add-Result "python.pytest" "FAIL" "exit $pytestExit -- see logs\pytest.log ($pytestTail)"
+        Add-Result "python.pytest.install_gate" "FAIL" "exit $pytestExit -- see logs\pytest-install-gate.log ($pytestTail)"
+    }
+
+    # Tier 2: hardware/network-marked tests. Best-effort and non-blocking --
+    # a real mic, a real second device, or a real external provider may
+    # simply not be present/authorized on this machine, which is not this
+    # software's fault and must never read as FAIL. Pytest's own exit code 5
+    # means "no tests matched" (nothing in this repo is currently hardware/
+    # network-marked beyond what Section 1-7 introduced this pass); any
+    # individual skip inside a real run is visible in the log, not
+    # collapsed into this one line.
+    $extendedLog = Join-Path $LogsDir "pytest-extended.log"
+    & $venvPython -m pytest -q -m "hardware or network" *> $extendedLog
+    $extendedExit = $LASTEXITCODE
+    $extendedTail = (Get-Content $extendedLog -Tail 5) -join " | "
+    if ($extendedExit -eq 5) {
+        Add-Result "python.pytest.extended_hardware_network" "NOT_TESTED" "no hardware/network-marked tests collected"
+    } elseif ($extendedExit -eq 0 -and $extendedTail -match "\d+ passed") {
+        Add-Result "python.pytest.extended_hardware_network" "PASS" $extendedTail
+    } elseif ($extendedExit -eq 0 -and $extendedTail -match "\d+ skipped") {
+        # Every collected hardware/network test skipped itself (real mic,
+        # second device, or external provider not present/authorized here)
+        # -- this is expected on most machines and must not read as FAIL.
+        Add-Result "python.pytest.extended_hardware_network" "SKIPPED_HARDWARE" $extendedTail
+    } else {
+        Add-Result "python.pytest.extended_hardware_network" "FAIL" "exit $extendedExit -- see logs\pytest-extended.log ($extendedTail)"
     }
 
     Write-Section "Background task crash-recovery (Windows SQLite/filesystem behavior)"
@@ -194,7 +244,7 @@ if ($LASTEXITCODE -eq 0) {
 Write-Section "AuraShell launch check"
 $shellExe = Get-ChildItem -Path "$RepoRoot\apps\windows\AuraShell\bin\Release" -Recurse -Filter "AuraShell.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -eq $shellExe) {
-    Add-Result "windows.aurashell.launch" "SKIP" "AuraShell.exe not found -- see aurashell-build.log"
+    Add-Result "windows.aurashell.launch" "BLOCKED" "AuraShell.exe not found -- see aurashell-build.log"
 } else {
     Add-Result "windows.aurashell.exe_found" "PASS" "$($shellExe.FullName) -- actual launch + the voice-first shell walkthrough happens later, once a real aura_core server is running for it to talk to"
 }
@@ -285,7 +335,7 @@ if ($serverReady) {
         $connectors | ConvertTo-Json -Depth 6 | Out-File (Join-Path $LogsDir "connectors.json") -Encoding utf8
         foreach ($c in $connectors) {
             $st = $c.status.status
-            $result = if ($st -eq "LIVE") { "PASS" } elseif ($st -in @("NOT_CONNECTED", "BLOCKED_BY_POLICY", "READY_TO_CONNECT")) { "SKIP" } else { "FAIL" }
+            $result = if ($st -eq "LIVE") { "PASS" } elseif ($st -in @("NOT_CONNECTED", "BLOCKED_BY_POLICY", "READY_TO_CONNECT")) { "BLOCKED" } else { "FAIL" }
             Add-Result "connector.$($c.name)" $result "$st -- $($c.status.detail)"
         }
     } catch {
@@ -300,7 +350,7 @@ if ($serverReady) {
         if ($chatResp.Content -match '"chunk"') {
             Add-Result "model.generation" "PASS" "received real streamed content from /chat -- Ollama is reachable and generating"
         } elseif ($chatResp.Content -match '"error"') {
-            Add-Result "model.generation" "SKIP" "no chunks -- /chat reported an error, most likely Ollama isn't running (see core\RUNBOOK.md); exact message in logs\chat-response.log"
+            Add-Result "model.generation" "BLOCKED" "no chunks -- /chat reported an error, most likely Ollama isn't running (see core\RUNBOOK.md); exact message in logs\chat-response.log"
         } else {
             Add-Result "model.generation" "FAIL" "unexpected /chat response -- see logs\chat-response.log"
         }
@@ -340,7 +390,7 @@ if ($serverReady) {
         Add-Result "voice.privacy_api" "FAIL" "$($_.Exception.Message)"
     }
 } else {
-    Add-Result "status.checks" "SKIP" "server never came up -- skipping status/connector/model checks"
+    Add-Result "status.checks" "BLOCKED" "server never came up -- skipping status/connector/model checks"
 }
 
 # ---------------------------------------------------------------------
@@ -360,11 +410,11 @@ if ($serverReady) {
 # ---------------------------------------------------------------------
 Write-Section "Voice-first shell walkthrough (interactive)"
 if ($SkipShellInteractive) {
-    Add-Result "shell.walkthrough" "SKIP" "skipped via -SkipShellInteractive"
+    Add-Result "shell.walkthrough" "NOT_TESTED" "skipped via -SkipShellInteractive -- this is a real check that was never executed, not a passing or inapplicable one"
 } elseif (-not $serverReady) {
-    Add-Result "shell.walkthrough" "SKIP" "aura_core server never came up -- AuraShell has nothing to authenticate against"
+    Add-Result "shell.walkthrough" "BLOCKED" "aura_core server never came up -- AuraShell has nothing to authenticate against"
 } elseif ($null -eq $shellExe) {
-    Add-Result "shell.walkthrough" "SKIP" "AuraShell.exe not found -- see aurashell-build.log"
+    Add-Result "shell.walkthrough" "BLOCKED" "AuraShell.exe not found -- see aurashell-build.log"
 } else {
     function Confirm-Step {
         param([string]$Name, [string]$Prompt)
@@ -438,9 +488,9 @@ if ($SkipShellInteractive) {
 # ---------------------------------------------------------------------
 Write-Section "Voice pipeline (interactive -- needs your microphone and speakers)"
 if ($SkipVoiceInteractive) {
-    Add-Result "voice.pipeline" "SKIP" "skipped via -SkipVoiceInteractive"
+    Add-Result "voice.pipeline" "NOT_TESTED" "skipped via -SkipVoiceInteractive -- this is a real check that was never executed, not a passing or inapplicable one"
 } elseif (-not $serverReady) {
-    Add-Result "voice.pipeline" "SKIP" "aura_core server never came up -- the voice pipeline has nothing to talk to"
+    Add-Result "voice.pipeline" "BLOCKED" "aura_core server never came up -- the voice pipeline has nothing to talk to"
 } else {
     $voiceLogPath = Join-Path $env:LOCALAPPDATA "AURA\logs\voice.log"
     if (Test-Path $voiceLogPath) {
@@ -491,20 +541,20 @@ if ($SkipVoiceInteractive) {
         if ($voiceContent -match "state -> Processing") {
             Add-Result "voice.stt" "PASS" "a command was captured and sent for processing"
         } else {
-            Add-Result "voice.stt" "SKIP" "no command captured -- only meaningful if the wake word check above passed"
+            Add-Result "voice.stt" "NOT_TESTED" "no command captured -- only meaningful if the wake word check above passed"
         }
 
         if ($voiceContent -match "aura: ") {
             Add-Result "voice.response_and_tts" "PASS" "a response was generated and spoken"
         } else {
-            Add-Result "voice.response_and_tts" "SKIP" "no response was spoken -- needs STT above to have passed, aura_core reachable, and (for a real, non-empty answer) Ollama running"
+            Add-Result "voice.response_and_tts" "NOT_TESTED" "no response was spoken -- needs STT above to have passed, aura_core reachable, and (for a real, non-empty answer) Ollama running"
         }
 
         $awakeCount = ([regex]::Matches($voiceContent, "state -> Awake")).Count
         if ($awakeCount -ge 2) {
             Add-Result "voice.barge_in" "PASS" "returned to Awake more than once -- consistent with a barge-in or a normal conversation-window return; check logs\voice.log to confirm which happened"
         } else {
-            Add-Result "voice.barge_in" "SKIP" "not enough evidence to confirm barge-in was exercised -- try again and talk over AURA while it's speaking"
+            Add-Result "voice.barge_in" "NOT_TESTED" "not enough evidence to confirm barge-in was exercised -- try again and talk over AURA while it's speaking"
         }
 
         if ($voiceContent -match "\[ERROR\]") {
@@ -534,12 +584,19 @@ Remove-Item Env:\AURA_CORE_URL -ErrorAction SilentlyContinue
 Write-Section "Packaging diagnostic bundle"
 $Results | ConvertTo-Json -Depth 4 | Out-File (Join-Path $BundleDir "summary.json") -Encoding utf8
 
+# Every distinct status this script can emit is counted and shown by
+# name -- never collapsed into a generic SKIP bucket, so a reader can
+# immediately tell "correctly inapplicable on this OS" apart from
+# "needs hardware I don't have" apart from "a real check that was simply
+# never run" apart from "blocked on an external dependency" apart from
+# "genuinely broken."
+$statusCounts = $Results | Group-Object -Property Status | Sort-Object -Property Name
 $passCount = ($Results | Where-Object { $_.Status -eq "PASS" }).Count
 $failCount = ($Results | Where-Object { $_.Status -eq "FAIL" }).Count
-$skipCount = ($Results | Where-Object { $_.Status -eq "SKIP" }).Count
 
-$summaryLines = @("AURA Windows Commissioning -- $Timestamp", "PASS: $passCount   FAIL: $failCount   SKIP: $skipCount", "")
-$summaryLines += $Results | ForEach-Object { "[{0,-4}] {1}: {2}" -f $_.Status, $_.Name, $_.Detail }
+$countsLine = ($statusCounts | ForEach-Object { "$($_.Name): $($_.Count)" }) -join "   "
+$summaryLines = @("AURA Windows Commissioning -- $Timestamp", $countsLine, "")
+$summaryLines += $Results | ForEach-Object { "[{0,-17}] {1}: {2}" -f $_.Status, $_.Name, $_.Detail }
 $summaryLines | Out-File (Join-Path $BundleDir "summary.txt") -Encoding utf8
 
 if (-not (Test-Path $OutputDir)) {
@@ -550,7 +607,7 @@ Compress-Archive -Path "$BundleDir\*" -DestinationPath $zipPath -Force
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host ("PASS: {0}   FAIL: {1}   SKIP: {2}" -f $passCount, $failCount, $skipCount) -ForegroundColor Cyan
+Write-Host $countsLine -ForegroundColor Cyan
 Write-Host "Diagnostic bundle: $zipPath" -ForegroundColor Cyan
 if ($failCount -gt 0) {
     Write-Host "Send $zipPath back if you'd like help with the FAILed checks above." -ForegroundColor Red

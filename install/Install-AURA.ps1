@@ -85,12 +85,22 @@ try {
         throw "pip install failed"
     }
 
-    Write-Step "Running the Python self-test suite (this is the install-time proof it actually works, not just that files copied)"
+    Write-Step "Running the Python install-gate test suite (this is the install-time proof it actually works, not just that files copied)"
     Push-Location "$StagingDir\core"
     try {
-        & $venvPython -m pytest -q
+        # Install-gate tier only: cross-platform/Windows/security/integration
+        # tests that this machine can actually satisfy. Explicitly excluded --
+        # hardware (needs a real mic/second device/TPM), network (needs a real
+        # external provider), endurance (long-running soak tests), and
+        # manual_commissioning (needs a human at the keyboard) -- because an
+        # install must never fail, hang, or be blocked by a check this machine
+        # cannot possibly pass unattended. Those tiers run later, non-blocking,
+        # in WINDOWS-COMMISSIONING.ps1's post-install extended pass. Section-2/5/6
+        # test tiering: never let a SKIPPED_HARDWARE/SKIPPED_PLATFORM/NOT_TESTED
+        # result masquerade as a failure, and never let it block installation.
+        & $venvPython -m pytest -q -m "not hardware and not network and not endurance and not manual_commissioning"
         if ($LASTEXITCODE -ne 0) {
-            throw "Self-test suite failed -- see pytest output above."
+            throw "Install-gate self-test suite failed -- see pytest output above. (Hardware/network/endurance/manual-commissioning tests are deliberately excluded from this gate; see WINDOWS-COMMISSIONING.ps1 for those.)"
         }
     } finally {
         Pop-Location

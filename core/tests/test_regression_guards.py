@@ -166,6 +166,34 @@ def test_installer_still_preserves_the_database_models_and_device_token_across_u
     assert "dotnet test" in installer_text, "installer no longer runs the C# test suites as part of its self-test gate"
 
 
+def test_installer_never_lets_hardware_or_network_tests_block_installation():
+    """Section 5/6's install-time test tiering: a real Windows install must
+    never fail, hang, or be blocked by a check this machine cannot possibly
+    satisfy unattended (no mic, no second device, no external provider).
+    Those tiers are exercised separately, non-blocking, by
+    WINDOWS-COMMISSIONING.ps1 after a successful install -- not by the
+    installer's own self-test gate."""
+    installer_text = (REPO_ROOT / "install" / "Install-AURA.ps1").read_text()
+    assert "not hardware and not network and not endurance and not manual_commissioning" in installer_text
+
+
+def test_commissioning_script_actually_emits_the_distinct_honest_statuses():
+    """Section 81/82: a check that was never run (NOT_TESTED), one blocked
+    on an external dependency (BLOCKED), and one that needs hardware not
+    present here (SKIPPED_HARDWARE) must each be real Add-Result call sites
+    in the commissioning script -- not just words mentioned in a comment --
+    so a bundle reader can tell "never ran" apart from "ran and is broken."
+    (SKIPPED_PLATFORM and PARTIAL are also part of Add-Result's supported
+    vocabulary, for other scripts/future checks that need them, but this
+    script -- which only ever runs on Windows -- has no current call site
+    that would honestly produce either one.)"""
+    commissioning_text = (REPO_ROOT / "WINDOWS-COMMISSIONING.ps1").read_text()
+    assert 'Add-Result "shell.walkthrough" "NOT_TESTED"' in commissioning_text
+    assert 'Add-Result "voice.pipeline" "NOT_TESTED"' in commissioning_text
+    assert 'Add-Result "status.checks" "BLOCKED"' in commissioning_text
+    assert 'SKIPPED_HARDWARE' in commissioning_text and 'extended_hardware_network' in commissioning_text
+
+
 def test_interface_mode_manager_still_always_boots_fresh_never_resuming_backend_mode():
     """Static text guard (C# state machine, not runnable from Python):
     InterfaceModeManager.Mode must still be hard-initialized to Booting,
