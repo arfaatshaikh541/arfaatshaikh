@@ -824,6 +824,44 @@ closure lands, in the order it actually happened:
     echo cancellation, explicit default-device-change callbacks, and
     Bluetooth-specific handling remain unbuilt, named honestly in the doc.
 
+34. **Full-repository merge-and-complete audit; multi-device HTTP surface
+    and pairing flow; regression guards** (full detail: `docs/
+    AURA_SYSTEM_INTEGRATION_REPORT.md`): a direct, read-only audit of
+    every subsystem and every remote branch confirmed there is no
+    competing or regressed "AURA" implementation anywhere in this
+    repository's history -- the other Gridkeep-named branches are an
+    entirely unrelated SaaS product and marketing websites, sharing no
+    code with `aura_core`/`AuraShell`/`AuraVoice`. The one real gap found
+    in the multi-device story: `identity/enrollment.py`'s `DeviceTrust`
+    already supported multiple devices per owner (labels, timestamps,
+    revocation, CLI list/revoke) but had no HTTP surface, so the WPF
+    Backend Mode UI had nothing to call. Closed with new
+    backend-elevation-gated `GET /devices`, `POST /devices/{id}/revoke`,
+    `POST /devices/{id}/rename`, plus a real "Add Device" pairing flow
+    (`identity/pairing.py`'s `DevicePairingService`: `POST
+    /devices/pairing/start`, elevation-gated; `POST
+    /devices/pairing/claim`, deliberately ungated since the joining
+    device has no token yet, secured entirely by a high-entropy,
+    single-use, 10-minute code) -- proven end-to-end with two genuinely
+    separate HTTP clients sharing no state but the code. Also found and
+    fixed a real installer bug: the device-token directory
+    (`core\.aura\`) was not preserved across updates, meaning every
+    update would have silently forced re-enrollment. Added a new
+    `test_regression_guards.py` (9 tests) asserting the specific
+    invariants this project has repeatedly been asked to never silently
+    lose: device revocation genuinely blocks access, backend elevation
+    never survives a restart, the capability registry never advertises
+    an unregistered capability, and both the installer script and
+    `InterfaceModeManager`'s always-boot-to-Booting behavior are present
+    in source. 20 new Python tests, 9 new C# tests. **What remains
+    explicitly not attempted, stated in the report rather than
+    fabricated**: per-device cryptographic identity, secure
+    device-to-device transport, cross-device sync/conflict resolution,
+    offline node operation, task distribution across nodes, mobile
+    nodes, real telephony, and cybersecurity scanning capabilities --
+    each a substantial independent subsystem this single pass could not
+    responsibly build as unverified, untested code.
+
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
 label just because it hasn't been reached yet.
