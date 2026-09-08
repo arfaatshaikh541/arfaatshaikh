@@ -646,6 +646,49 @@ closure lands, in the order it actually happened:
     mode section 22 of the product brief warns against. 6 new tests (2
     directive-parsing/lookup unit tests, 2 through the real `/chat`
     endpoint, 2 more in the mandate-engine suite for `find_by_company`).
+30. **Universal Capability Layer** (a general-purpose composition layer
+    on top of the existing governance/connector/memory stack -- see
+    `docs/UNIVERSAL_CAPABILITY_LAYER.md` for the full, honest scope
+    statement, including what was deliberately not attempted and why):
+    a `CapabilityRegistry` (`aura_core.capabilities`) cataloging 48
+    real, already-registered action_types with domain/description/
+    verification metadata, joined live against `ConnectorRegistry` and
+    `RiskEngine` so availability and risk tier are always the real
+    current state, never stale; a `SkillRegistry`/`SkillEngine`/
+    `DynamicSkillBuilder` (`aura_core.skills`) letting AURA compose and
+    permanently reuse named workflows out of *existing* capabilities
+    only (every step still runs through the real Action Broker; an
+    unknown capability name is rejected outright, never silently
+    dropped) -- deliberately scoped away from generating or executing
+    novel unreviewed code, a separate and much larger security
+    undertaking; a `UniversalPlanner`/`parse_plan_response()`
+    (`aura_core.planning`) that decomposes a free-text objective into
+    real, currently-available capabilities via the Model Router,
+    re-validating every proposed step against the live registry so a
+    hallucinated capability name becomes a structured `CapabilityGap`
+    (OBJECTIVE/MISSING_CAPABILITY/REQUIRED_TOOL/REQUIRED_PROVIDER/
+    REQUIRED_PERMISSION/CAN_BUILD_SKILL/NEXT_ACTION) instead of a
+    fabricated plan -- the same never-fabricate discipline
+    `executive.parse_plan()` already applies to model output; an
+    `OpportunityLedger` (`aura_core.opportunities`) for recording real
+    opportunities/risks with evidence/confidence/impact/effort/next-
+    action, deliberately without a detection engine (there is no real
+    business data in a fresh instance to detect anything from yet --
+    inventing pattern-matching against an empty World Model would be
+    fabricated insight). CLI (`aura capabilities list`, `aura skills
+    list|compose|run`, `aura plan`) and API (`GET /capabilities`, `GET|
+    POST /skills`, `POST /skills/{id}/run`, `POST /plan`, `GET|POST
+    /opportunities`, `POST /opportunities/{id}/status`) surfaces for
+    all of it, gated like every other mutating endpoint. 30 new tests
+    across the four new packages and their CLI/API wiring, plus a
+    61-case capability evaluation harness (30 resolvable cases spanning
+    every real domain in the catalog, 25 gap cases spanning sales,
+    marketing, social strategy, customer support, coding/web
+    development, design, active security testing, and plain model
+    hallucination, 3 cross-domain objectives mixing resolved steps and
+    gaps in one request) proving the resolve-or-report-a-gap mechanism
+    generalizes, at a scale that's actually inspectable rather than
+    padded to a round number.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

@@ -69,6 +69,39 @@ class RunDirectiveRequest(BaseModel):
     directive: str
 
 
+class ComposeSkillStepRequest(BaseModel):
+    capability_name: str
+    params_template: dict = {}
+    on_failure: str = "abort"
+
+
+class ComposeSkillRequest(BaseModel):
+    name: str
+    description: str
+    domain: str
+    steps: list[ComposeSkillStepRequest]
+
+
+class RunSkillRequest(BaseModel):
+    context: dict = {}
+
+
+class PlanRequest(BaseModel):
+    objective: str
+
+
+class RecordOpportunityRequest(BaseModel):
+    kind: str = "opportunity"
+    category: str
+    summary: str
+    evidence: str = ""
+    confidence: float = 0.5
+    estimated_impact: str = "unknown"
+    effort: str = "unknown"
+    recommended_next_action: str = ""
+    source: str = "owner"
+
+
 class AskMemoryRequest(BaseModel):
     question: str
 
@@ -342,6 +375,87 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             observation_interval_seconds=request.observation_interval_seconds,
         )
         return {"id": mandate.id, "status": mandate.status}
+
+    @app.get("/capabilities")
+    async def list_capabilities(domain: str | None = None) -> list[dict]:
+        items = runtime.capabilities.list_by_domain(domain) if domain else runtime.capabilities.list_all()
+        return [
+            {
+                "name": c.name, "description": c.description, "domain": c.domain,
+                "tools": list(c.tools), "verification": c.verification,
+                "available": runtime.capabilities.is_handler_registered(c.name),
+            }
+            for c in items
+        ]
+
+    @app.get("/skills")
+    async def list_skills() -> list[dict]:
+        return [
+            {"id": s.id, "name": s.name, "domain": s.domain, "steps": len(s.steps()), "created_by": s.created_by}
+            for s in runtime.skills.list_all()
+        ]
+
+    @app.post("/skills", dependencies=gated)
+    async def compose_skill(request: ComposeSkillRequest) -> dict:
+        from ..skills import SkillStep, UnknownCapabilityError
+
+        steps = [SkillStep(capability_name=s.capability_name, params_template=s.params_template, on_failure=s.on_failure) for s in request.steps]
+        try:
+            skill = runtime.skill_builder.compose(request.name, request.description, request.domain, steps, created_by="owner")
+        except (UnknownCapabilityError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"id": skill.id, "name": skill.name, "steps": len(steps)}
+
+    @app.post("/skills/{skill_id}/run", dependencies=gated)
+    async def run_skill(skill_id: str, request: RunSkillRequest) -> dict:
+        skill = runtime.skills.get(skill_id)
+        if skill is None:
+            raise HTTPException(status_code=404, detail=f"no such skill '{skill_id}'")
+        result = runtime.skill_engine.run(skill, context=request.context)
+        return {
+            "skill_id": result.skill_id, "status": result.status,
+            "steps": [
+                {"capability_name": s.capability_name, "status": s.outcome.status.value, "message": s.outcome.message}
+                for s in result.step_results
+            ],
+        }
+
+    @app.post("/plan", dependencies=gated)
+    async def plan_objective(request: PlanRequest) -> dict:
+        result = await runtime.planner.plan(request.objective)
+        return {
+            "objective": result.objective,
+            "fully_resolved": result.fully_resolved,
+            "steps": [{"capability_name": s.capability_name, "params": s.params, "reasoning": s.reasoning} for s in result.steps],
+            "gaps": [g.to_dict() for g in result.gaps],
+        }
+
+    @app.get("/opportunities")
+    async def list_opportunities(kind: str | None = None) -> list[dict]:
+        return [
+            {
+                "id": o.id, "kind": o.kind, "category": o.category, "summary": o.summary,
+                "evidence": o.evidence, "confidence": o.confidence, "estimated_impact": o.estimated_impact,
+                "effort": o.effort, "recommended_next_action": o.recommended_next_action,
+                "source": o.source, "status": o.status,
+            }
+            for o in runtime.opportunities.list_open(kind=kind)
+        ]
+
+    @app.post("/opportunities", dependencies=gated)
+    async def record_opportunity(request: RecordOpportunityRequest) -> dict:
+        from ..opportunities import OpportunityInput
+
+        record = runtime.opportunities.record(OpportunityInput(**request.model_dump()))
+        return {"id": record.id, "status": record.status}
+
+    @app.post("/opportunities/{opportunity_id}/status", dependencies=gated)
+    async def set_opportunity_status(opportunity_id: str, status: str) -> dict:
+        try:
+            runtime.opportunities.set_status(opportunity_id, status)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        return {"id": opportunity_id, "status": status}
 
     @app.post("/mandates/run", dependencies=gated)
     async def run_mandate_directive(request: RunDirectiveRequest) -> dict:

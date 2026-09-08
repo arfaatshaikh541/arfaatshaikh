@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .actions import TriggerMap, build_default_handlers, build_default_triggers
+from .capabilities import CapabilityRegistry
 from .config import Settings, load_settings
 from .connectors import (
     BrowserConnector,
@@ -33,7 +34,10 @@ from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker
 from .guardian import SecurityGuardian
 from .identity import EnrollmentEngine
 from .memory import MemoryStore, WorldModelStore
+from .opportunities import OpportunityLedger
+from .planning import UniversalPlanner
 from .providers import ModelRouter, OllamaEmbeddingProvider, OllamaProvider
+from .skills import DynamicSkillBuilder, SkillEngine, SkillRegistry
 from .status import CapabilityStatus, registry
 from .tasks import TaskEngine
 
@@ -71,6 +75,12 @@ class Runtime:
     triggers: TriggerMap
     model_router: ModelRouter
     connectors: ConnectorRegistry
+    capabilities: CapabilityRegistry
+    skills: SkillRegistry
+    skill_engine: SkillEngine
+    skill_builder: DynamicSkillBuilder
+    planner: UniversalPlanner
+    opportunities: OpportunityLedger
 
 
 def _seed_default_policies(policy: PolicyEngine) -> None:
@@ -125,12 +135,21 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
 
     connectors = _build_connectors(broker, settings)
 
+    capabilities = CapabilityRegistry(connectors, risk)
+    skills = SkillRegistry(settings.database_url)
+    skill_engine = SkillEngine(broker)
+    skill_builder = DynamicSkillBuilder(capabilities, skills)
+    planner = UniversalPlanner(model_router, capabilities)
+    opportunities = OpportunityLedger(settings.database_url)
+
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit, enrollment=enrollment,
         broker=broker, guardian=guardian, tasks=tasks, goals=goals, mandates=mandates,
         executive=executive, worker=worker, operating_loop=operating_loop,
         triggers=triggers, model_router=model_router, connectors=connectors,
+        capabilities=capabilities, skills=skills, skill_engine=skill_engine,
+        skill_builder=skill_builder, planner=planner, opportunities=opportunities,
     )
 
 

@@ -633,6 +633,109 @@ def diagnose() -> None:
         click.echo(f"  {name:30s} {info['status']:18s} {info['detail']}")
 
 
+@main.group("capabilities")
+def capabilities_group() -> None:
+    """List what AURA can actually do -- the Universal Capability
+    Registry, joined against which connectors are really registered in
+    this running process."""
+
+
+@capabilities_group.command("list")
+@click.option("--domain", default=None, help="Only show capabilities tagged with this domain.")
+@click.option("--available-only", is_flag=True, help="Only show capabilities whose handler is actually registered right now.")
+def capabilities_list(domain: str | None, available_only: bool) -> None:
+    runtime = build_runtime()
+    items = runtime.capabilities.list_by_domain(domain) if domain else runtime.capabilities.list_all()
+    for capability in items:
+        registered = runtime.capabilities.is_handler_registered(capability.name)
+        if available_only and not registered:
+            continue
+        marker = "available" if registered else "not registered"
+        click.echo(f"{capability.name:35s} [{capability.domain:12s}] ({marker}) {capability.description}")
+
+
+@main.group("skills")
+def skills_group() -> None:
+    """Create, list, and run Skills -- named, reusable compositions of
+    existing capabilities, persisted across restarts."""
+
+
+@skills_group.command("list")
+def skills_list() -> None:
+    runtime = build_runtime()
+    for skill in runtime.skills.list_all():
+        click.echo(f"{skill.id} [{skill.domain}] {skill.name} ({len(skill.steps())} steps, created_by={skill.created_by})")
+
+
+@skills_group.command("compose")
+@click.argument("name")
+@click.argument("description")
+@click.argument("domain")
+@click.option(
+    "--step", "steps", multiple=True, required=True,
+    help='JSON object per step, e.g. \'{"capability_name": "filesystem.write_file", "params_template": {"path": "x"}}\'',
+)
+def skills_compose(name: str, description: str, domain: str, steps: tuple[str, ...]) -> None:
+    import json as _json
+
+    from .skills import SkillStep, UnknownCapabilityError
+
+    runtime = build_runtime()
+    parsed_steps = [SkillStep.from_dict(_json.loads(s)) for s in steps]
+    try:
+        skill = runtime.skill_builder.compose(name, description, domain, parsed_steps, created_by="owner")
+    except UnknownCapabilityError as exc:
+        click.echo(str(exc), err=True)
+        raise SystemExit(1)
+    click.echo(f"Created skill {skill.id} ({len(parsed_steps)} steps)")
+
+
+@skills_group.command("run")
+@click.argument("skill_id")
+@click.option("--context", default="{}", help="JSON object of values to fill into the skill's step param templates.")
+def skills_run(skill_id: str, context: str) -> None:
+    import json as _json
+
+    runtime = build_runtime()
+    skill = runtime.skills.get(skill_id)
+    if skill is None:
+        click.echo(f"no such skill '{skill_id}'", err=True)
+        raise SystemExit(1)
+
+    result = runtime.skill_engine.run(skill, context=_json.loads(context))
+    click.echo(f"[{result.status}] {result.skill_name}")
+    for step in result.step_results:
+        click.echo(f"  {step.capability_name}: {step.outcome.status.value} -- {step.outcome.message}")
+    if not result.succeeded:
+        raise SystemExit(1)
+
+
+@main.command("plan")
+@click.argument("objective")
+def plan_objective(objective: str) -> None:
+    """Decomposes a free-text objective into real, currently-available
+    capabilities via the Universal Planner. Prints resolved steps and
+    any capability gaps -- never fabricates a plan the system can't
+    actually run."""
+    import asyncio
+
+    runtime = build_runtime()
+    result = asyncio.run(runtime.planner.plan(objective))
+
+    click.echo(f"Objective: {result.objective}")
+    if result.steps:
+        click.echo("Resolved steps:")
+        for step in result.steps:
+            click.echo(f"  - {step.capability_name} {step.params} ({step.reasoning})")
+    if result.gaps:
+        click.echo("Capability gaps:")
+        for gap in result.gaps:
+            for key, value in gap.to_dict().items():
+                click.echo(f"    {key}: {value}")
+    if not result.steps and not result.gaps:
+        click.echo("(nothing resolved)")
+
+
 @main.command()
 @click.option(
     "--socket-path", default=None,
