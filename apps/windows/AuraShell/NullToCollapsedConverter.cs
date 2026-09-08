@@ -16,3 +16,14 @@ public sealed class NullToCollapsedConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>The inverse: visible only once a real value exists (e.g. an
+/// active device-pairing code) -- collapsed while it's null.</summary>
+public sealed class NullToCollapsedInverseConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is null ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

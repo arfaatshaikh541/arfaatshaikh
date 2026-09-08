@@ -124,6 +124,19 @@ class EnrollmentEngine:
                 device.revoked_at = datetime.now(timezone.utc)
                 session.commit()
 
+    def rename_device(self, device_id: str, new_label: str) -> bool:
+        """Returns False for an unknown device id rather than raising --
+        the caller (the /devices/{id}/rename endpoint) turns that into a
+        404, the same pattern revoke_device's silent no-op would need if
+        it needed to report success/failure at all."""
+        with self._Session() as session:
+            device = session.get(DeviceTrust, device_id)
+            if device is None:
+                return False
+            device.label = new_label
+            session.commit()
+            return True
+
     def has_owner_pin(self) -> bool:
         with self._Session() as session:
             owner = session.execute(select(Owner)).scalars().first()

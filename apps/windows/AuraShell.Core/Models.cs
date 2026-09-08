@@ -82,6 +82,27 @@ public sealed record WhoAmIInfo(
 public sealed record VoicePrivacyInfo(
     [property: JsonPropertyName("mode")] string Mode);
 
+/// <summary>A real trusted device (identity/enrollment.py's DeviceTrust)
+/// -- never carries the token itself, which is shown to the device it
+/// belongs to exactly once, at pairing time, and never again.</summary>
+public sealed record DeviceInfo(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("created_at")] string CreatedAt,
+    [property: JsonPropertyName("last_seen_at")] string? LastSeenAt,
+    [property: JsonPropertyName("revoked")] bool Revoked,
+    [property: JsonPropertyName("revoked_at")] string? RevokedAt);
+
+/// <summary>A short-lived, single-use code for enrolling a second
+/// device (see /devices/pairing/start) -- shown to the owner (e.g. as
+/// text or a QR code) to type/scan on the new device.</summary>
+public sealed record PairingSessionInfo(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("expires_at")] string ExpiresAt);
+
+public sealed record PairingClaimResult(
+    [property: JsonPropertyName("device_token")] string DeviceToken);
+
 /// <summary>
 /// Real system state pulled from diagnostics/health.py's collect_diagnostics
 /// (see /backend/diagnostics) -- never fabricated demo data. RecentGuardianEvents

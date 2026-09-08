@@ -57,6 +57,70 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
     public ICommand RefreshDiagnosticsCommand { get; }
     public ICommand RefreshAuditCommand { get; }
 
+    /// <summary>Real multi-device trust (identity/enrollment.py's
+    /// DeviceTrust) — every row here is a real, currently-enrolled or
+    /// revoked device, never fabricated demo data.</summary>
+    public ObservableCollection<DeviceInfo> Devices { get; } = new();
+
+    private DeviceInfo? _selectedDevice;
+    public DeviceInfo? SelectedDevice
+    {
+        get => _selectedDevice;
+        set
+        {
+            if (SetProperty(ref _selectedDevice, value))
+            {
+                (RevokeSelectedDeviceCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (RenameSelectedDeviceCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    private string _renameInput = string.Empty;
+    public string RenameInput
+    {
+        get => _renameInput;
+        set
+        {
+            if (SetProperty(ref _renameInput, value))
+            {
+                (RenameSelectedDeviceCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>The active "Add Device" pairing code (section 15/16) —
+    /// null except for the brief window between StartDevicePairingAsync
+    /// succeeding and the code expiring or being claimed. Never persisted
+    /// -- a fresh page load or mode re-entry shows nothing until the
+    /// owner starts a new session, matching the server's own
+    /// in-memory-only pairing sessions (identity/pairing.py).</summary>
+    public string? PairingCode
+    {
+        get => _pairingCode;
+        private set => SetProperty(ref _pairingCode, value);
+    }
+    private string? _pairingCode;
+
+    public DateTime? PairingExpiresAtUtc
+    {
+        get => _pairingExpiresAtUtc;
+        private set => SetProperty(ref _pairingExpiresAtUtc, value);
+    }
+    private DateTime? _pairingExpiresAtUtc;
+
+    public string? DeviceOperationError
+    {
+        get => _deviceOperationError;
+        private set => SetProperty(ref _deviceOperationError, value);
+    }
+    private string? _deviceOperationError;
+
+    public ICommand RefreshDevicesCommand { get; }
+    public ICommand StartDevicePairingCommand { get; }
+    public ICommand RevokeSelectedDeviceCommand { get; }
+    public ICommand RenameSelectedDeviceCommand { get; }
+
     public string? OwnerName
     {
         get => _ownerName;
@@ -106,6 +170,11 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
         CancelBackendAuthCommand = new RelayCommand(CancelBackendAuthAsync);
         RefreshDiagnosticsCommand = new RelayCommand(RefreshDiagnosticsAsync);
         RefreshAuditCommand = new RelayCommand(RefreshAuditAsync);
+        RefreshDevicesCommand = new RelayCommand(RefreshDevicesAsync);
+        StartDevicePairingCommand = new RelayCommand(StartDevicePairingAsync);
+        RevokeSelectedDeviceCommand = new RelayCommand(RevokeSelectedDeviceAsync, () => SelectedDevice is not null);
+        RenameSelectedDeviceCommand = new RelayCommand(
+            RenameSelectedDeviceAsync, () => SelectedDevice is not null && !string.IsNullOrWhiteSpace(RenameInput));
         // AuthenticateAsync requires Mode == AuthRequired (see
         // InterfaceModeManager.BeginAuthentication) -- that's exactly the
         // mode a failed attempt returns to, so this is a legal "Retry"
@@ -152,6 +221,68 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
         {
             AuditEntries.Add(entry);
         }
+    }
+
+    public async Task RefreshDevicesAsync()
+    {
+        if (_elevationToken is null)
+        {
+            return;
+        }
+        var devices = await _client.GetDevicesAsync(_elevationToken);
+        Devices.Clear();
+        foreach (var device in devices)
+        {
+            Devices.Add(device);
+        }
+    }
+
+    /// <summary>
+    /// The root side of the "Add Device" flow (section 15/16): mints a
+    /// real, short-lived pairing code the owner shows (as text or a QR
+    /// code) to the new device. Only reachable from Backend Mode, which
+    /// already required a fresh PIN challenge to enter -- there is no
+    /// separate, weaker gate just for this action.
+    /// </summary>
+    public async Task StartDevicePairingAsync()
+    {
+        if (_elevationToken is null)
+        {
+            return;
+        }
+        try
+        {
+            var session = await _client.StartDevicePairingAsync(_elevationToken);
+            PairingCode = session.Code;
+            PairingExpiresAtUtc = DateTimeOffset.Parse(session.ExpiresAt).UtcDateTime;
+            DeviceOperationError = null;
+        }
+        catch (HttpRequestException)
+        {
+            DeviceOperationError = "Could not start a pairing session.";
+        }
+    }
+
+    private async Task RevokeSelectedDeviceAsync()
+    {
+        if (_elevationToken is null || SelectedDevice is null)
+        {
+            return;
+        }
+        await _client.RevokeDeviceAsync(SelectedDevice.Id, _elevationToken);
+        SelectedDevice = null;
+        await RefreshDevicesAsync();
+    }
+
+    private async Task RenameSelectedDeviceAsync()
+    {
+        if (_elevationToken is null || SelectedDevice is null || string.IsNullOrWhiteSpace(RenameInput))
+        {
+            return;
+        }
+        await _client.RenameDeviceAsync(SelectedDevice.Id, RenameInput, _elevationToken);
+        RenameInput = string.Empty;
+        await RefreshDevicesAsync();
     }
 
     /// <summary>
@@ -306,6 +437,7 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
             await Backend.InitializeAsync();
             await RefreshDiagnosticsAsync();
             await RefreshAuditAsync();
+            await RefreshDevicesAsync();
         }
         catch (HttpRequestException)
         {
@@ -331,6 +463,11 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
         // wipe what it showed, not merely hide the view that showed it.
         Diagnostics = null;
         AuditEntries.Clear();
+        Devices.Clear();
+        SelectedDevice = null;
+        RenameInput = string.Empty;
+        PairingCode = null;
+        PairingExpiresAtUtc = null;
         if (token is not null)
         {
             try
@@ -443,6 +580,11 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
                 ElevationRemaining = null;
                 Diagnostics = null;
                 AuditEntries.Clear();
+                Devices.Clear();
+                SelectedDevice = null;
+                RenameInput = string.Empty;
+                PairingCode = null;
+                PairingExpiresAtUtc = null;
                 Mode.OnBackendElevationExpired();
                 Voice.StartObserving();
                 return;

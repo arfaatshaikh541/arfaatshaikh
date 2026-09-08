@@ -23,7 +23,7 @@ from ..config import Settings
 from ..executive import GoalNotReadyError, MandateNotReadyError, parse_status_query
 from ..governance.action_broker import OutcomeStatus
 from ..governance.risk_engine import ActionRequest
-from ..identity import BackendRateLimitedError, InvalidBackendCredentialError, NotEnrolledError
+from ..identity import BackendRateLimitedError, InvalidBackendCredentialError, NotEnrolledError, PairingCodeInvalidError
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -100,6 +100,15 @@ class BackendAuthenticateRequest(BaseModel):
 
 class SetBackendPinRequest(BaseModel):
     pin: str
+
+
+class DevicePairingClaimRequest(BaseModel):
+    code: str
+    device_label: str
+
+
+class DeviceRenameRequest(BaseModel):
+    label: str
 
 
 class RecordOpportunityRequest(BaseModel):
@@ -647,6 +656,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             }
             for e in entries
         ]
+
+    @app.get("/devices", dependencies=backend_gated)
+    async def list_devices() -> list[dict]:
+        # Real multi-device trust (identity/enrollment.py's DeviceTrust,
+        # unchanged this pass -- it already supported multiple devices
+        # per owner; what was missing was an HTTP surface for it). Never
+        # includes the token hash -- there is no legitimate reason for
+        # any client, even an elevated one, to see it.
+        return [
+            {
+                "id": d.id, "label": d.label, "created_at": d.created_at.isoformat(),
+                "last_seen_at": d.last_seen_at.isoformat() if d.last_seen_at else None,
+                "revoked": d.revoked_at is not None,
+                "revoked_at": d.revoked_at.isoformat() if d.revoked_at else None,
+            }
+            for d in runtime.enrollment.list_devices()
+        ]
+
+    @app.post("/devices/{device_id}/revoke", dependencies=backend_gated)
+    async def revoke_device(device_id: str) -> dict:
+        # Idempotent and silent on an unknown id, matching
+        # EnrollmentEngine.revoke_device's own no-op-on-missing
+        # behavior -- a lost device the owner already revoked (e.g. from
+        # a different session) is not an error to report here.
+        runtime.enrollment.revoke_device(device_id)
+        return {"revoked": True}
+
+    @app.post("/devices/{device_id}/rename", dependencies=backend_gated)
+    async def rename_device(device_id: str, request: DeviceRenameRequest) -> dict:
+        renamed = runtime.enrollment.rename_device(device_id, request.label)
+        if not renamed:
+            raise HTTPException(status_code=404, detail="no such device")
+        return {"id": device_id, "label": request.label}
+
+    @app.post("/devices/pairing/start", dependencies=backend_gated)
+    async def start_device_pairing() -> dict:
+        # Requires backend elevation -- only an already-elevated owner,
+        # on an already-trusted device, may authorize a brand-new device
+        # to join (section 15/16's "Root Device approves enrollment").
+        session = runtime.device_pairing.start()
+        return {"code": session.code, "expires_at": session.expires_at.isoformat()}
+
+    @app.post("/devices/pairing/claim")
+    async def claim_device_pairing(request: DevicePairingClaimRequest) -> dict:
+        # Deliberately ungated: the device calling this has no device
+        # token yet -- that is the entire point of pairing. Its security
+        # comes entirely from the code itself (high-entropy, single-use,
+        # short-lived -- see identity/pairing.py), not from any header.
+        try:
+            raw_token = runtime.device_pairing.claim(request.code, request.device_label)
+        except PairingCodeInvalidError as exc:
+            raise HTTPException(status_code=401, detail=str(exc))
+        return {"device_token": raw_token}
 
     @app.get("/opportunities")
     async def list_opportunities(kind: str | None = None) -> list[dict]:

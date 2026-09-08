@@ -18,6 +18,7 @@
     <UserControl.Resources>
         <local:BoolToKillSwitchLabelConverter x:Key="KillSwitchLabelConverter" />
         <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
+        <local:NullToCollapsedInverseConverter x:Key="NullToCollapsedInverseConverter" />
     </UserControl.Resources>
     <UserControl.InputBindings>
         <KeyBinding Key="Return" Command="{Binding Backend.Chat.SendCommand}" />
@@ -119,6 +120,50 @@
                                 <GridViewColumn Header="Action" DisplayMemberBinding="{Binding ActionType}" Width="240" />
                                 <GridViewColumn Header="Risk" DisplayMemberBinding="{Binding RiskTier}" Width="70" />
                                 <GridViewColumn Header="Result" DisplayMemberBinding="{Binding ResultStatus}" Width="100" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Devices">
+                <!--
+                    Real multi-device trust (identity/enrollment.py's
+                    DeviceTrust, exposed over HTTP by /devices and
+                    /devices/pairing/*) — every row here is a genuinely
+                    enrolled device, revoking and renaming call the real
+                    endpoints, and "Add Device" mints a real short-lived
+                    pairing code a second device redeems for its own
+                    real device token (see InterfaceShellViewModel's
+                    StartDevicePairingAsync/RevokeSelectedDeviceAsync/
+                    RenameSelectedDeviceAsync).
+                -->
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="Refresh" Command="{Binding RefreshDevicesCommand}" />
+                            <Button Content="Add Device" Margin="8,0,0,0" Command="{Binding StartDevicePairingCommand}" />
+                            <Button Content="Revoke" Margin="8,0,0,0" Command="{Binding RevokeSelectedDeviceCommand}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBox Width="220" Text="{Binding RenameInput, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Content="Rename Selected" Margin="8,0,0,0" Command="{Binding RenameSelectedDeviceCommand}" />
+                        </StackPanel>
+                        <TextBlock Foreground="#9A9AA5"
+                                   Text="Show this code on the new device -- it expires soon and can only be used once."
+                                   Visibility="{Binding PairingCode, Converter={StaticResource NullToCollapsedInverseConverter}}" />
+                        <TextBlock Foreground="White" FontSize="24" FontWeight="Bold"
+                                   Text="{Binding PairingCode}"
+                                   Visibility="{Binding PairingCode, Converter={StaticResource NullToCollapsedInverseConverter}}" />
+                        <TextBlock Foreground="#E05252" Text="{Binding DeviceOperationError}" />
+                    </StackPanel>
+                    <ListView ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Label" DisplayMemberBinding="{Binding Label}" Width="180" />
+                                <GridViewColumn Header="Created" DisplayMemberBinding="{Binding CreatedAt}" Width="200" />
+                                <GridViewColumn Header="Last Seen" DisplayMemberBinding="{Binding LastSeenAt}" Width="200" />
+                                <GridViewColumn Header="Revoked" DisplayMemberBinding="{Binding Revoked}" Width="80" />
                             </GridView>
                         </ListView.View>
                     </ListView>

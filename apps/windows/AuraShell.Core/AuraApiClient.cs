@@ -223,6 +223,76 @@ public sealed class AuraApiClient
     }
 
     /// <summary>
+    /// Real multi-device trust (identity/enrollment.py's DeviceTrust) --
+    /// never returns a token, only the metadata every device row already
+    /// carried before this HTTP surface existed (label, timestamps,
+    /// revocation state).
+    /// </summary>
+    public async Task<List<DeviceInfo>> GetDevicesAsync(string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/devices");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<List<DeviceInfo>>(JsonOptions, ct);
+        return result ?? new List<DeviceInfo>();
+    }
+
+    /// <summary>Idempotent -- safe to call again for an already-revoked
+    /// or unknown device id (matches EnrollmentEngine.revoke_device's own
+    /// silent no-op on an unknown id).</summary>
+    public async Task RevokeDeviceAsync(string deviceId, string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/devices/{deviceId}/revoke");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RenameDeviceAsync(string deviceId, string newLabel, string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/devices/{deviceId}/rename")
+        {
+            Content = JsonContent.Create(new { label = newLabel }),
+        };
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// The "Add Device" flow's root-side half (section 15/16): requires
+    /// backend elevation, same as every other privileged device
+    /// operation -- only an already-authenticated, already-elevated
+    /// owner may authorize a brand-new device to join.
+    /// </summary>
+    public async Task<PairingSessionInfo> StartDevicePairingAsync(string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/devices/pairing/start");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PairingSessionInfo>(JsonOptions, ct);
+        return result ?? throw new InvalidOperationException("pairing start succeeded but returned no session body");
+    }
+
+    /// <summary>
+    /// The "Add Device" flow's new-device-side half: deliberately no
+    /// elevation or device-token header is attached here -- this device
+    /// has neither yet. Its only credential is the pairing code itself.
+    /// Throws HttpRequestException (401) for an invalid, already-used,
+    /// or expired code, never distinguishing which.
+    /// </summary>
+    public async Task<string> ClaimDevicePairingAsync(string code, string deviceLabel, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            "/devices/pairing/claim", new { code, device_label = deviceLabel }, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PairingClaimResult>(JsonOptions, ct);
+        return result?.DeviceToken ?? throw new InvalidOperationException("pairing claim succeeded but returned no device token");
+    }
+
+    /// <summary>
     /// Consumes /voice/state/stream's genuine server push -- one HTTP
     /// request stays open for the lifetime of enumeration, and a new
     /// state string is yielded exactly when aura_core observed a real

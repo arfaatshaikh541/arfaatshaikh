@@ -322,6 +322,97 @@ public class AuraApiClientTests
     }
 
     [Fact]
+    public async Task GetDevicesAsync_attaches_the_elevation_header_and_never_needs_a_token_field()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/devices", """
+            [{"id": "d1", "label": "primary", "created_at": "2026-01-01T00:00:00+00:00",
+              "last_seen_at": null, "revoked": false, "revoked_at": null}]
+            """);
+        var client = MakeClient(handler);
+
+        var devices = await client.GetDevicesAsync("tok-123");
+
+        var device = Assert.Single(devices);
+        Assert.Equal("primary", device.Label);
+        Assert.False(device.Revoked);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+    }
+
+    [Fact]
+    public async Task RevokeDeviceAsync_posts_to_the_correct_device_id()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/d1/revoke", """{"revoked": true}""");
+        var client = MakeClient(handler);
+
+        await client.RevokeDeviceAsync("d1", "tok-123");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("/devices/d1/revoke", request.RequestUri!.AbsolutePath);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+    }
+
+    [Fact]
+    public async Task RenameDeviceAsync_posts_the_new_label()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/d1/rename", """{"id": "d1", "label": "Ada Desktop"}""");
+        var client = MakeClient(handler);
+
+        await client.RenameDeviceAsync("d1", "Ada Desktop", "tok-123");
+
+        var request = Assert.Single(handler.Requests);
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("Ada Desktop", body);
+    }
+
+    [Fact]
+    public async Task StartDevicePairingAsync_returns_the_real_code_and_expiry()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/start", """
+            {"code": "ABCD1234", "expires_at": "2026-01-01T00:10:00+00:00"}
+            """);
+        var client = MakeClient(handler);
+
+        var session = await client.StartDevicePairingAsync("tok-123");
+
+        Assert.Equal("ABCD1234", session.Code);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+    }
+
+    [Fact]
+    public async Task ClaimDevicePairingAsync_never_attaches_a_device_token_or_elevation_header()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/claim", """{"device_token": "new-token-abc"}""");
+        var client = MakeClient(handler);
+
+        var token = await client.ClaimDevicePairingAsync("ABCD1234", "iPhone");
+
+        Assert.Equal("new-token-abc", token);
+        var request = Assert.Single(handler.Requests);
+        Assert.False(request.Headers.Contains(DeviceTokenHeader.Name));
+        Assert.False(request.Headers.Contains(BackendElevationHeader.Name));
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("ABCD1234", body);
+        Assert.Contains("iPhone", body);
+    }
+
+    [Fact]
+    public async Task ClaimDevicePairingAsync_throws_on_an_invalid_or_expired_code()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/claim", """{"detail": "invalid"}""", HttpStatusCode.Unauthorized);
+        var client = MakeClient(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.ClaimDevicePairingAsync("WRONGCODE", "iPhone"));
+    }
+
+    [Fact]
     public async Task StreamVoiceStateAsync_yields_each_pushed_state_in_order()
     {
         var handler = new FakeHttpMessageHandler();

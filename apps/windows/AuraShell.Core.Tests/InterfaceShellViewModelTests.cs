@@ -201,12 +201,17 @@ public class InterfaceShellViewModelTests
               "action_type": "security.backend_elevation_attempt", "risk_tier": "RED",
               "decision": "ALLOW", "result_status": "EXECUTED", "result_message": "ok"}]
             """);
+        handler.MapJson(HttpMethod.Get, "/devices", """
+            [{"id": "d1", "label": "primary", "created_at": "2026-01-01T00:00:00+00:00",
+              "last_seen_at": null, "revoked": false, "revoked_at": null}]
+            """);
         shell.BackendPinInput = "482913";
         await shell.SubmitBackendPinAsync();
 
         Assert.NotNull(shell.Diagnostics);
         Assert.True(shell.Diagnostics!.AuditChainValid);
         Assert.Single(shell.AuditEntries);
+        Assert.Single(shell.Devices);
 
         handler.MapJson(HttpMethod.Post, "/backend/deauthenticate", """{"revoked": true}""");
         handler.MapSseBody(HttpMethod.Get, "/voice/state/stream", "data: {\"event\": \"state\", \"data\": \"Idle\"}\n\n");
@@ -214,6 +219,82 @@ public class InterfaceShellViewModelTests
 
         Assert.Null(shell.Diagnostics);
         Assert.Empty(shell.AuditEntries);
+        Assert.Empty(shell.Devices);
+    }
+
+    [Fact]
+    public async Task Add_device_pairing_and_revoke_flow_works_end_to_end_through_the_shell()
+    {
+        var handler = new FakeHttpMessageHandler();
+        var shell = await StartedInVoiceModeAsync(handler);
+        await shell.RequestBackendToggleAsync();
+        handler.MapJson(HttpMethod.Post, "/backend/authenticate",
+            """{"elevation_token": "tok-abc", "expires_in_seconds": 900.0}""");
+        handler.MapJson(HttpMethod.Get, "/status", "{}");
+        handler.MapJson(HttpMethod.Get, "/approvals", "[]");
+        handler.MapJson(HttpMethod.Get, "/backend/diagnostics", """
+            {"audit_chain_valid": true, "audit_entries_checked": 0,
+             "recent_guardian_events": [], "capability_status": {}}
+            """);
+        handler.MapJson(HttpMethod.Get, "/backend/audit", "[]");
+        handler.MapJson(HttpMethod.Get, "/devices", """
+            [{"id": "d1", "label": "primary", "created_at": "2026-01-01T00:00:00+00:00",
+              "last_seen_at": null, "revoked": false, "revoked_at": null}]
+            """);
+        shell.BackendPinInput = "482913";
+        await shell.SubmitBackendPinAsync();
+
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/start",
+            """{"code": "ABCD1234", "expires_at": "2026-01-01T00:10:00+00:00"}""");
+        await shell.StartDevicePairingAsync();
+        Assert.Equal("ABCD1234", shell.PairingCode);
+        Assert.NotNull(shell.PairingExpiresAtUtc);
+
+        shell.SelectedDevice = shell.Devices[0];
+        handler.MapJson(HttpMethod.Post, "/devices/d1/revoke", """{"revoked": true}""");
+        handler.MapJson(HttpMethod.Get, "/devices", "[]"); // post-revoke refresh shows it gone (or updated) -- honest state, not stale
+        shell.RevokeSelectedDeviceCommand.Execute(null);
+        await Task.Delay(50); // RelayCommand.Execute is async void; give it a tick to complete
+
+        Assert.Null(shell.SelectedDevice);
+        Assert.Empty(shell.Devices);
+        Assert.Contains(handler.Requests, r => r.RequestUri!.AbsolutePath == "/devices/d1/revoke");
+    }
+
+    [Fact]
+    public async Task Renaming_the_selected_device_persists_through_the_shell()
+    {
+        var handler = new FakeHttpMessageHandler();
+        var shell = await StartedInVoiceModeAsync(handler);
+        await shell.RequestBackendToggleAsync();
+        handler.MapJson(HttpMethod.Post, "/backend/authenticate",
+            """{"elevation_token": "tok-abc", "expires_in_seconds": 900.0}""");
+        handler.MapJson(HttpMethod.Get, "/status", "{}");
+        handler.MapJson(HttpMethod.Get, "/approvals", "[]");
+        handler.MapJson(HttpMethod.Get, "/backend/diagnostics", """
+            {"audit_chain_valid": true, "audit_entries_checked": 0,
+             "recent_guardian_events": [], "capability_status": {}}
+            """);
+        handler.MapJson(HttpMethod.Get, "/backend/audit", "[]");
+        handler.MapJson(HttpMethod.Get, "/devices", """
+            [{"id": "d1", "label": "primary", "created_at": "2026-01-01T00:00:00+00:00",
+              "last_seen_at": null, "revoked": false, "revoked_at": null}]
+            """);
+        shell.BackendPinInput = "482913";
+        await shell.SubmitBackendPinAsync();
+
+        shell.SelectedDevice = shell.Devices[0];
+        shell.RenameInput = "Ada Desktop";
+        handler.MapJson(HttpMethod.Post, "/devices/d1/rename", """{"id": "d1", "label": "Ada Desktop"}""");
+        handler.MapJson(HttpMethod.Get, "/devices", """
+            [{"id": "d1", "label": "Ada Desktop", "created_at": "2026-01-01T00:00:00+00:00",
+              "last_seen_at": null, "revoked": false, "revoked_at": null}]
+            """);
+        shell.RenameSelectedDeviceCommand.Execute(null);
+        await Task.Delay(50); // RelayCommand.Execute is async void; give it a tick to complete
+
+        Assert.Equal("Ada Desktop", shell.Devices[0].Label);
+        Assert.Equal(string.Empty, shell.RenameInput);
     }
 
     [Fact]
