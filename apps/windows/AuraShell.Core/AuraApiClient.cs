@@ -105,6 +105,66 @@ public sealed class AuraApiClient
     }
 
     /// <summary>
+    /// Ungated on purpose (see api/app.py's /interface/config) -- the
+    /// shell reads this before the owner has authenticated at all, to
+    /// know which hotkey to register and which mode to boot into.
+    /// </summary>
+    public async Task<InterfaceConfig> GetInterfaceConfigAsync(CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<InterfaceConfig>("/interface/config", JsonOptions, ct);
+        return result ?? new InterfaceConfig("voice", "Ctrl+Alt+Shift+A", true, 900);
+    }
+
+    /// <summary>
+    /// The real Backend Mode entry point: presents the owner's PIN
+    /// alongside the already-attached device token. A wrong PIN or an
+    /// untrusted device throws HttpRequestException (401); too many
+    /// recent failures throws it with a 429 the caller can inspect via
+    /// StatusCode -- InterfaceModeManager is expected to surface both as
+    /// "authentication failed," never distinguishing which factor was
+    /// wrong, matching the server's own refusal to say.
+    /// </summary>
+    public async Task<BackendAuthResult> BackendAuthenticateAsync(string pin, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("/backend/authenticate", new { pin }, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<BackendAuthResult>(JsonOptions, ct);
+        return result ?? throw new InvalidOperationException("backend authentication succeeded but returned no elevation token");
+    }
+
+    /// <summary>
+    /// Always safe to call, including with an already-expired or unknown
+    /// token -- revocation is idempotent by design (see
+    /// identity/elevation.py). InterfaceModeManager calls this
+    /// unconditionally on every Backend -> Voice transition.
+    /// </summary>
+    public async Task BackendDeauthenticateAsync(string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/backend/deauthenticate");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Returns null for an expired/unknown token rather than throwing --
+    /// this is a routine liveness poll (e.g. the shell checking whether
+    /// it should self-downgrade before the server would reject the next
+    /// real request), not a security decision point itself.
+    /// </summary>
+    public async Task<BackendSessionStatus?> GetBackendSessionAsync(string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/backend/session");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+        return await response.Content.ReadFromJsonAsync<BackendSessionStatus>(JsonOptions, ct);
+    }
+
+    /// <summary>
     /// Streams /chat as it genuinely arrives. Reads the response body line
     /// by line and yields a ChatEvent per "data: {...}" line — no
     /// buffering of the full response before the first event is produced,

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net;
 using AuraShell.Core;
 using Xunit;
@@ -153,6 +154,91 @@ public class AuraApiClientTests
 
         Assert.Equal("Speaking", state.State);
         Assert.Equal("2026-01-01T00:00:00+00:00", state.ReportedAt);
+    }
+
+    [Fact]
+    public async Task GetInterfaceConfigAsync_deserializes_the_real_config_shape()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/interface/config", """
+            {"default_interface_mode": "voice", "backend_toggle_hotkey": "Ctrl+Alt+Shift+A",
+             "require_backend_reauth": true, "backend_elevation_ttl_seconds": 900}
+            """);
+        var client = MakeClient(handler);
+
+        var config = await client.GetInterfaceConfigAsync();
+
+        Assert.Equal("voice", config.DefaultInterfaceMode);
+        Assert.Equal("Ctrl+Alt+Shift+A", config.BackendToggleHotkey);
+        Assert.True(config.RequireBackendReauth);
+    }
+
+    [Fact]
+    public async Task BackendAuthenticateAsync_posts_the_pin_and_returns_the_elevation_token()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/backend/authenticate", """
+            {"elevation_token": "tok-123", "expires_in_seconds": 900.0}
+            """);
+        var client = MakeClient(handler);
+
+        var result = await client.BackendAuthenticateAsync("482913");
+
+        Assert.Equal("tok-123", result.ElevationToken);
+        Assert.Equal(900.0, result.ExpiresInSeconds);
+        var request = Assert.Single(handler.Requests);
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("482913", body);
+    }
+
+    [Fact]
+    public async Task BackendAuthenticateAsync_throws_on_a_401_without_leaking_which_factor_was_wrong()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/backend/authenticate", """{"detail": "backend authentication failed"}""", HttpStatusCode.Unauthorized);
+        var client = MakeClient(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.BackendAuthenticateAsync("000000"));
+    }
+
+    [Fact]
+    public async Task BackendDeauthenticateAsync_attaches_the_elevation_header_not_the_device_token_header()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/backend/deauthenticate", """{"revoked": true}""");
+        var client = MakeClient(handler);
+
+        await client.BackendDeauthenticateAsync("tok-123");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+        Assert.False(request.Headers.Contains(DeviceTokenHeader.Name));
+    }
+
+    [Fact]
+    public async Task GetBackendSessionAsync_returns_null_for_an_expired_or_unknown_token_rather_than_throwing()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/backend/session", """{"detail": "no active backend elevation"}""", HttpStatusCode.Unauthorized);
+        var client = MakeClient(handler);
+
+        var status = await client.GetBackendSessionAsync("expired-token");
+
+        Assert.Null(status);
+    }
+
+    [Fact]
+    public async Task GetBackendSessionAsync_returns_the_real_remaining_time_for_an_active_session()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/backend/session", """{"active": true, "seconds_remaining": 842.5}""");
+        var client = MakeClient(handler);
+
+        var status = await client.GetBackendSessionAsync("tok-123");
+
+        Assert.NotNull(status);
+        Assert.True(status!.Active);
+        Assert.Equal(842.5, status.SecondsRemaining);
     }
 
     private sealed class ThrowingHandler : HttpMessageHandler

@@ -14,6 +14,7 @@ permissions instead, which is real but weaker than DPAPI.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timezone
 
@@ -34,6 +35,13 @@ class NotEnrolledError(RuntimeError):
 
 def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+_PIN_ITERATIONS = 200_000
+
+
+def _hash_pin(raw_pin: str, salt: bytes, iterations: int) -> str:
+    return hashlib.pbkdf2_hmac("sha256", raw_pin.encode(), salt, iterations).hex()
 
 
 class EnrollmentEngine:
@@ -107,3 +115,38 @@ class EnrollmentEngine:
             if device is not None:
                 device.revoked_at = datetime.now(timezone.utc)
                 session.commit()
+
+    def has_owner_pin(self) -> bool:
+        with self._Session() as session:
+            owner = session.execute(select(Owner)).scalars().first()
+            return owner is not None and owner.pin_hash is not None
+
+    def set_owner_pin(self, raw_pin: str) -> None:
+        """Sets or replaces the owner's backend-elevation PIN. A fresh
+        random salt every time, per standard password-hashing practice
+        -- even a PIN change never reuses a prior salt."""
+        with self._Session() as session:
+            owner = session.execute(select(Owner)).scalars().first()
+            if owner is None:
+                raise NotEnrolledError("no owner enrolled yet -- call enroll_owner() first")
+
+            salt = secrets.token_bytes(16)
+            owner.pin_salt = salt.hex()
+            owner.pin_iterations = _PIN_ITERATIONS
+            owner.pin_hash = _hash_pin(raw_pin, salt, _PIN_ITERATIONS)
+            session.commit()
+
+    def verify_owner_pin(self, raw_pin: str) -> bool:
+        """Constant-time comparison against the stored hash. Returns
+        False both when no PIN has ever been configured and when the
+        PIN presented is simply wrong -- the caller must never be able
+        to distinguish "not set up" from "incorrect" through this
+        method's return value alone (see identity/elevation.py, which
+        is the only production caller)."""
+        with self._Session() as session:
+            owner = session.execute(select(Owner)).scalars().first()
+            if owner is None or owner.pin_hash is None:
+                return False
+            salt = bytes.fromhex(owner.pin_salt)
+            candidate = _hash_pin(raw_pin, salt, owner.pin_iterations)
+            return hmac.compare_digest(candidate, owner.pin_hash)

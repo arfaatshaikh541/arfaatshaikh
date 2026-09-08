@@ -689,6 +689,50 @@ closure lands, in the order it actually happened:
     gaps in one request) proving the resolve-or-report-a-gap mechanism
     generalizes, at a scale that's actually inspectable rather than
     padded to a round number.
+31. **Voice-first secure operating interface -- the real security
+    boundary and state machine** (full scope statement:
+    `docs/VOICE_FIRST_SECURE_INTERFACE.md`; the WPF visual shell itself
+    remains `REQUIRES_WINDOWS_RUNTIME` for both building and any visual
+    verification, unchanged by this pass): a second, independent
+    authentication factor for Backend Mode -- `identity/elevation.py`'s
+    `BackendElevationService`, requiring the owner's PIN (new:
+    `Owner.pin_hash`/`pin_salt`/`pin_iterations`, PBKDF2-HMAC-SHA256)
+    on top of the existing device-trust session, with elevation
+    sessions held only in process memory (never persisted, so a crash/
+    restart/update structurally cannot leave Backend Mode elevated),
+    real exponential backoff on repeated failures, and every attempt
+    written to the real hash-chained Audit Log without ever recording
+    the PIN. Enforced at the API layer via a new `require_backend_elevation`
+    dependency (`POST /backend/pin|authenticate|deauthenticate`, `GET
+    /backend/session|diagnostics|audit`, ungated `GET /interface/config`)
+    independent of, and layered on top of, the existing device-token
+    gate -- `/chat` has no path to it at all. Voice/chat also gained a
+    real path into the "Universal Capability Layer" planner built in
+    the previous pass: `/chat` now tries `UniversalPlanner.plan()`
+    before falling back to conversational model output, executing a
+    fully-resolved plan through the real Action Broker, voicing an
+    approval gate naturally ("I've prepared to... Shall I proceed?")
+    and stopping there rather than cascading past it, and reporting a
+    mixed resolved/gap plan honestly -- proven with a scripted model
+    provider driving a real file write, a real approval block, and a
+    real fallback-to-conversation regression check. On the C# side
+    (`AuraShell.Core`, plain `net8.0`, builds and tests on Linux): an
+    `InterfaceModeManager` implementing the full Booting/AuthRequired/
+    Authenticating/VoiceMode/BackendAuthRequired/BackendAuthenticating/
+    BackendMode/Locked/ErrorRecovery state machine (always starts at
+    Booting, so a crash while Backend Mode was open cannot reopen it;
+    the hotkey's asymmetric behavior -- entering needs authentication,
+    leaving doesn't -- resolved in one `RequestBackendToggle()` method);
+    `HotkeyDefinition`/`HotkeyDebouncer` (a platform-independent hotkey
+    representation parsed from centralized config, plus real
+    clock-injectable debounce/dedup logic); `AuraApiClient` extended
+    with the new backend-auth HTTP calls. 19 new Python tests (10
+    elevation-service, 9 API), 34 new C# tests (`AuraShell.Core.Tests`
+    20 -> 55). The default hotkey (`Ctrl+Alt+Shift+A`, centralized in
+    `Settings.backend_toggle_hotkey`) was chosen after a documented
+    collision audit against Windows/browser/IDE/accessibility default
+    bindings rather than picked blindly -- see the doc for exactly what
+    that audit did and did not verify.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

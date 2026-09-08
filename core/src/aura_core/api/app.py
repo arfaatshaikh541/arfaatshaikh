@@ -20,6 +20,9 @@ from starlette.concurrency import run_in_threadpool
 
 from ..config import Settings
 from ..executive import GoalNotReadyError, MandateNotReadyError, parse_status_query
+from ..governance.action_broker import OutcomeStatus
+from ..governance.risk_engine import ActionRequest
+from ..identity import BackendRateLimitedError, InvalidBackendCredentialError, NotEnrolledError
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -88,6 +91,14 @@ class RunSkillRequest(BaseModel):
 
 class PlanRequest(BaseModel):
     objective: str
+
+
+class BackendAuthenticateRequest(BaseModel):
+    pin: str
+
+
+class SetBackendPinRequest(BaseModel):
+    pin: str
 
 
 class RecordOpportunityRequest(BaseModel):
@@ -160,6 +171,43 @@ def _format_mandate_report(report) -> str:
     return "\n".join(lines)
 
 
+def _execute_plan_steps(broker, steps, requested_by: str) -> tuple[str, bool]:
+    """Runs a UniversalPlanner-resolved plan's steps through the real
+    Action Broker, one at a time, stopping (without cascading past it)
+    the moment one needs owner approval -- "I've prepared X... shall I?"
+    per section 19, never silently executing further steps behind that
+    gate. Returns (voice-friendly message, True if execution paused for
+    approval)."""
+    lines: list[str] = []
+    for step in steps:
+        outcome = broker.submit(ActionRequest(action_type=step.capability_name, params=step.params, requested_by=requested_by))
+        if outcome.status == OutcomeStatus.PENDING_APPROVAL:
+            lines.append(f"I've prepared to {step.capability_name.replace('_', ' ').replace('.', ' ')}. {outcome.message} Shall I proceed?")
+            return "\n".join(lines), True
+        if outcome.status == OutcomeStatus.EXECUTED:
+            lines.append(outcome.message)
+        else:
+            lines.append(f"I couldn't complete that: {outcome.message}")
+            return "\n".join(lines), False
+    return "\n".join(lines), False
+
+
+def _format_gaps_for_voice(gaps) -> str:
+    """A capability gap, spoken naturally -- the voice-facing sibling of
+    the structured OBJECTIVE/MISSING_CAPABILITY/... object the CLI and
+    API's /plan endpoint return verbatim for a human reading a screen.
+    Never silence about what's missing; never a raw field dump either."""
+    parts = []
+    for gap in gaps:
+        sentence = f"I don't have a way to {gap.missing_capability} yet."
+        if gap.required_provider:
+            sentence += f" That would need {gap.required_provider} connected."
+        elif gap.required_tool:
+            sentence += f" That would need {gap.required_tool}."
+        parts.append(sentence)
+    return " ".join(parts)
+
+
 def _check_voice_provider(name: str, provider) -> None:
     if provider.is_available():
         registry.set(name, CapabilityStatus.LIVE, "model loaded and verified")
@@ -202,6 +250,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(status_code=401, detail="valid X-Aura-Device-Token header required")
 
     gated = [Depends(require_device_token)]
+
+    async def require_backend_elevation(x_aura_backend_elevation: str | None = Header(default=None)) -> None:
+        # The additional boundary Backend Mode requires beyond ordinary
+        # device-session trust -- see identity/elevation.py's module
+        # docstring for why a trusted device session is not, on its own,
+        # sufficient to reach anything under /backend. This check is
+        # independent of require_device_token and is never satisfied by
+        # it: a request with a valid device token but no (or an expired/
+        # revoked) elevation token is still rejected here. This is what
+        # makes "voice commands cannot bypass backend authentication" and
+        # "frontend manipulation cannot expose privileged data" true --
+        # the boundary lives here, at the API layer, not in any UI state.
+        if runtime.backend_elevation.verify(x_aura_backend_elevation) is None:
+            raise HTTPException(status_code=401, detail="valid X-Aura-Backend-Elevation header required")
+
+    backend_gated = [Depends(require_device_token), Depends(require_backend_elevation)]
 
     @app.get("/health")
     async def health() -> dict:
@@ -430,6 +494,99 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "gaps": [g.to_dict() for g in result.gaps],
         }
 
+    @app.get("/interface/config")
+    async def interface_config() -> dict:
+        """Ungated on purpose: the native shell needs this before the
+        owner has authenticated at all, to know what hotkey to register
+        and what mode to boot into. None of these values are secrets --
+        they're the same "which key combination toggles Backend Mode"
+        information a config file would hold, just centralized here per
+        docs/VOICE_FIRST_SECURE_INTERFACE.md rather than duplicated into
+        the shell's own settings."""
+        return {
+            "default_interface_mode": settings.default_interface_mode,
+            "backend_toggle_hotkey": settings.backend_toggle_hotkey,
+            "require_backend_reauth": settings.require_backend_reauth,
+            "backend_elevation_ttl_seconds": settings.backend_elevation_ttl_seconds,
+        }
+
+    @app.post("/backend/pin", dependencies=gated)
+    async def set_backend_pin(request: SetBackendPinRequest) -> dict:
+        """Setting the PIN only ever requires the ordinary owner/device
+        session -- not backend elevation itself, since that would be
+        circular for a first-time setup. Changing security configuration
+        this way is still only reachable by an already-trusted device,
+        never by voice/remote content (see /chat and the planner, which
+        have no path to this endpoint)."""
+        try:
+            runtime.enrollment.set_owner_pin(request.pin)
+        except NotEnrolledError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return {"pin_configured": True}
+
+    @app.post("/backend/authenticate")
+    async def backend_authenticate(
+        request: BackendAuthenticateRequest, x_aura_device_token: str | None = Header(default=None),
+    ) -> dict:
+        """The real Backend Mode entry point: a valid device token AND
+        the owner's PIN are both required, independent of whether the
+        caller already has an ordinary authenticated session. See
+        identity/elevation.py for why."""
+        if x_aura_device_token is None:
+            raise HTTPException(status_code=401, detail="X-Aura-Device-Token header required")
+        try:
+            token = runtime.backend_elevation.authenticate(x_aura_device_token, request.pin)
+        except BackendRateLimitedError as exc:
+            raise HTTPException(status_code=429, detail=str(exc), headers={"Retry-After": str(int(exc.retry_after_seconds) + 1)})
+        except InvalidBackendCredentialError as exc:
+            raise HTTPException(status_code=401, detail=str(exc))
+        session = runtime.backend_elevation.verify(token)
+        return {"elevation_token": token, "expires_in_seconds": session.seconds_remaining()}
+
+    @app.post("/backend/deauthenticate")
+    async def backend_deauthenticate(x_aura_backend_elevation: str | None = Header(default=None)) -> dict:
+        """Always succeeds (idempotent) -- leaving Backend Mode never
+        requires proving anything, only ordinary state cleanup, per the
+        product brief's explicit rule that returning to Voice Mode is
+        never itself an authentication event."""
+        if x_aura_backend_elevation:
+            runtime.backend_elevation.revoke(x_aura_backend_elevation)
+        return {"revoked": True}
+
+    @app.get("/backend/session")
+    async def backend_session_status(x_aura_backend_elevation: str | None = Header(default=None)) -> dict:
+        session = runtime.backend_elevation.verify(x_aura_backend_elevation)
+        if session is None:
+            raise HTTPException(status_code=401, detail="no active backend elevation")
+        return {"active": True, "seconds_remaining": session.seconds_remaining()}
+
+    @app.get("/backend/diagnostics", dependencies=backend_gated)
+    async def backend_diagnostics() -> dict:
+        """Real system state only -- see diagnostics/health.py. Nothing
+        here is a fabricated activity log; every field is computed from
+        the real audit chain and the real Security Guardian."""
+        from ..diagnostics import collect_diagnostics
+
+        report = collect_diagnostics(runtime.audit, runtime.guardian)
+        return {
+            "audit_chain_valid": report.audit_chain_valid,
+            "audit_entries_checked": report.audit_entries_checked,
+            "recent_guardian_events": report.recent_guardian_events,
+            "capability_status": report.capability_status,
+        }
+
+    @app.get("/backend/audit", dependencies=backend_gated)
+    async def backend_audit(after_seq: int = 0, limit: int = 100) -> list[dict]:
+        entries = runtime.audit.entries_after(after_seq)[:limit]
+        return [
+            {
+                "seq": e.seq, "timestamp": e.timestamp_iso, "actor": e.actor, "action_type": e.action_type,
+                "risk_tier": e.risk_tier, "decision": e.decision, "result_status": e.result_status,
+                "result_message": e.result_message,
+            }
+            for e in entries
+        ]
+
     @app.get("/opportunities")
     async def list_opportunities(kind: str | None = None) -> list[dict]:
         return [
@@ -577,6 +734,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 report = runtime.mandates.report(mandate.id, runtime.goals, runtime.memory)
                 yield _sse("chunk", _format_mandate_report(report))
                 yield _sse("done", "ok")
+                return
+
+            # Voice/chat as a first-class channel into the same
+            # general-purpose planner/execution architecture every other
+            # interface uses (never a hardcoded voice-command list): try
+            # to resolve the request into real, currently-available
+            # capabilities before ever falling back to a purely
+            # conversational model response. A request the planner
+            # cannot resolve to anything concrete (including every
+            # request in AURA_ENV=test, which has no real model to plan
+            # with) falls through to the model exactly as before --
+            # informational/conversational questions are not forced
+            # through the planner just because they didn't match a
+            # deterministic trigger.
+            plan_result = await runtime.planner.plan(request.message)
+            if plan_result.fully_resolved:
+                yield _sse("lane", "planner")
+                message, needs_approval = _execute_plan_steps(runtime.broker, plan_result.steps, "owner")
+                yield _sse("chunk", message)
+                yield _sse("done", "pending_approval" if needs_approval else "ok")
+                return
+            if plan_result.steps and plan_result.gaps:
+                # A mixed plan (some of the request is doable, some
+                # isn't) -- report both halves honestly rather than
+                # silently doing only the resolvable part or discarding
+                # the whole request.
+                yield _sse("lane", "planner")
+                message, needs_approval = _execute_plan_steps(runtime.broker, plan_result.steps, "owner")
+                gap_message = _format_gaps_for_voice(plan_result.gaps)
+                yield _sse("chunk", f"{message}\n{gap_message}")
+                yield _sse("done", "pending_approval" if needs_approval else "partial")
                 return
 
             yield _sse("lane", "model")

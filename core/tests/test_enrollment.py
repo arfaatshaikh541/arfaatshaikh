@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from aura_core.identity import AlreadyEnrolledError, EnrollmentEngine, NotEnrolledError
@@ -24,6 +26,63 @@ def test_enrolling_creates_an_owner_and_a_working_device_token(tmp_path):
     device = engine.verify_token(raw_token)
     assert device is not None
     assert device.owner_id == owner.id
+
+
+def test_a_fresh_owner_has_no_backend_pin_yet(tmp_path):
+    engine = make_engine(tmp_path)
+    engine.enroll_owner("Ada")
+
+    assert engine.has_owner_pin() is False
+    assert engine.verify_owner_pin("0000") is False  # never raises for "not configured"
+
+
+def test_setting_and_verifying_a_backend_pin(tmp_path):
+    engine = make_engine(tmp_path)
+    engine.enroll_owner("Ada")
+
+    engine.set_owner_pin("482913")
+
+    assert engine.has_owner_pin() is True
+    assert engine.verify_owner_pin("482913") is True
+    assert engine.verify_owner_pin("000000") is False
+
+
+def test_the_raw_pin_and_a_fast_hash_are_never_stored(tmp_path):
+    engine = make_engine(tmp_path)
+    engine.enroll_owner("Ada")
+    engine.set_owner_pin("482913")
+
+    with engine._Session() as session:
+        from aura_core.identity.models import Owner
+        owner = session.query(Owner).first()
+        assert "482913" not in owner.pin_hash
+        assert owner.pin_hash != hashlib.sha256(b"482913").hexdigest()  # not a bare fast hash
+        assert owner.pin_iterations >= 100_000  # a real, slow KDF, not a single round
+
+
+def test_setting_a_pin_twice_uses_a_fresh_salt(tmp_path):
+    engine = make_engine(tmp_path)
+    engine.enroll_owner("Ada")
+
+    engine.set_owner_pin("111111")
+    with engine._Session() as session:
+        from aura_core.identity.models import Owner
+        first_salt = session.query(Owner).first().pin_salt
+
+    engine.set_owner_pin("111111")
+    with engine._Session() as session:
+        from aura_core.identity.models import Owner
+        second_salt = session.query(Owner).first().pin_salt
+
+    assert first_salt != second_salt
+    assert engine.verify_owner_pin("111111") is True
+
+
+def test_setting_a_pin_before_enrollment_is_honestly_rejected(tmp_path):
+    engine = make_engine(tmp_path)
+
+    with pytest.raises(NotEnrolledError):
+        engine.set_owner_pin("123456")
 
 
 def test_the_raw_token_is_never_stored_only_its_hash(tmp_path):

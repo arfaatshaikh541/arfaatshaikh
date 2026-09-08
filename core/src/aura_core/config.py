@@ -43,6 +43,10 @@ class Settings:
     imap_username: str | None
     imap_password: str | None
     imap_use_ssl: bool
+    backend_elevation_ttl_seconds: int
+    default_interface_mode: str
+    backend_toggle_hotkey: str
+    require_backend_reauth: bool
 
 
 def _split_csv(value: str | None) -> list[str]:
@@ -83,4 +87,11 @@ def load_settings() -> Settings:
         imap_username=os.environ.get("AURA_IMAP_USERNAME"),
         imap_password=os.environ.get("AURA_IMAP_PASSWORD"),
         imap_use_ssl=os.environ.get("AURA_IMAP_USE_SSL", "true").lower() == "true",
+        backend_elevation_ttl_seconds=int(os.environ.get("AURA_BACKEND_ELEVATION_TTL_SECONDS", "900")),
+        default_interface_mode=os.environ.get("AURA_DEFAULT_INTERFACE_MODE", "voice"),
+        # See docs/VOICE_FIRST_SECURE_INTERFACE.md#hotkey-collision-audit for
+        # why this combination was chosen. Centralized here, not scattered
+        # through UI code, per that document's own requirement.
+        backend_toggle_hotkey=os.environ.get("AURA_BACKEND_TOGGLE_HOTKEY", "Ctrl+Alt+Shift+A"),
+        require_backend_reauth=os.environ.get("AURA_REQUIRE_BACKEND_REAUTH", "true").lower() == "true",
     )

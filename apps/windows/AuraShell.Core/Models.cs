@@ -48,3 +48,17 @@ public sealed record ApprovalDecisionResult(
 public sealed record VoiceStateInfo(
     [property: JsonPropertyName("state")] string State,
     [property: JsonPropertyName("reported_at")] string? ReportedAt);
+
+public sealed record InterfaceConfig(
+    [property: JsonPropertyName("default_interface_mode")] string DefaultInterfaceMode,
+    [property: JsonPropertyName("backend_toggle_hotkey")] string BackendToggleHotkey,
+    [property: JsonPropertyName("require_backend_reauth")] bool RequireBackendReauth,
+    [property: JsonPropertyName("backend_elevation_ttl_seconds")] int BackendElevationTtlSeconds);
+
+public sealed record BackendAuthResult(
+    [property: JsonPropertyName("elevation_token")] string ElevationToken,
+    [property: JsonPropertyName("expires_in_seconds")] double ExpiresInSeconds);
+
+public sealed record BackendSessionStatus(
+    [property: JsonPropertyName("active")] bool Active,
+    [property: JsonPropertyName("seconds_remaining")] double SecondsRemaining);

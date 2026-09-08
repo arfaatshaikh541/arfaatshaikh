@@ -32,7 +32,7 @@ from .connectors import (
 from .executive import ExecutiveIntelligence, GoalEngine, MandateEngine, OperatingLoopSupervisor, TaskWorker
 from .governance import ActionBroker, ApprovalEngine, AuditLog, CredentialBroker, PolicyEngine, RiskEngine
 from .guardian import SecurityGuardian
-from .identity import EnrollmentEngine
+from .identity import BackendElevationService, EnrollmentEngine
 from .memory import MemoryStore, WorldModelStore
 from .opportunities import OpportunityLedger
 from .planning import UniversalPlanner
@@ -64,6 +64,7 @@ class Runtime:
     credentials: CredentialBroker
     audit: AuditLog
     enrollment: EnrollmentEngine
+    backend_elevation: BackendElevationService
     broker: ActionBroker
     guardian: SecurityGuardian
     tasks: TaskEngine
@@ -102,6 +103,9 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     credentials = CredentialBroker()
     audit = AuditLog(settings.database_url)
     enrollment = EnrollmentEngine(settings.database_url)
+    backend_elevation = BackendElevationService(
+        enrollment, audit, session_ttl_seconds=settings.backend_elevation_ttl_seconds,
+    )
     _seed_default_policies(policy)
 
     guardian = SecurityGuardian(audit, policy, settings.database_url)
@@ -145,6 +149,7 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
     return Runtime(
         settings=settings, memory=memory, world_model=world_model, policy=policy, risk=risk,
         approvals=approvals, credentials=credentials, audit=audit, enrollment=enrollment,
+        backend_elevation=backend_elevation,
         broker=broker, guardian=guardian, tasks=tasks, goals=goals, mandates=mandates,
         executive=executive, worker=worker, operating_loop=operating_loop,
         triggers=triggers, model_router=model_router, connectors=connectors,
