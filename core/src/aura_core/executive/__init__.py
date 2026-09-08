@@ -1,4 +1,4 @@
-from .directives import STANDARD_DEPARTMENTS, parse_run_directive
+from .directives import STANDARD_DEPARTMENTS, parse_run_directive, parse_status_query
 from .executive import ExecutiveIntelligence, Plan, ReviewOutcome, parse_plan
 from .goal_engine import GoalEngine, GoalNotReadyError
 from .goal_models import GOAL_STATUSES, Goal
@@ -11,7 +11,7 @@ __all__ = [
     "ExecutiveIntelligence", "ReviewOutcome", "Plan", "parse_plan",
     "GoalEngine", "GoalNotReadyError", "GOAL_STATUSES", "Goal",
     "MandateEngine", "MandateNotReadyError", "MandateReport", "WorkstreamSummary",
-    "UnrecognizedDirectiveError", "parse_run_directive", "STANDARD_DEPARTMENTS",
+    "UnrecognizedDirectiveError", "parse_run_directive", "parse_status_query", "STANDARD_DEPARTMENTS",
     "Mandate", "MANDATE_STATUSES", "MANDATE_AUTHORITY_LEVELS",
     "OperatingLoopSupervisor", "TaskWorker", "WorkerOutcome",
     "observe", "register_extractor",

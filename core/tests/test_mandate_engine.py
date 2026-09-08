@@ -11,6 +11,7 @@ from aura_core.executive import (
     MandateNotReadyError,
     UnrecognizedDirectiveError,
     parse_run_directive,
+    parse_status_query,
 )
 from aura_core.memory import MemoryStore
 
@@ -101,6 +102,33 @@ def test_create_from_directive_survives_a_restart(tmp_path):
     assert reloaded is not None
     assert reloaded.title == "Run Gridkeep"
     assert reloaded.mission == "Operate and grow Gridkeep"
+
+
+def test_parse_status_query_recognizes_known_shapes_but_nothing_else():
+    assert parse_status_query("What's happening with Gridkeep?") == "Gridkeep"
+    assert parse_status_query("whats happening with Gridkeep") == "Gridkeep"
+    assert parse_status_query("What's the status on Gridkeep?") == "Gridkeep"
+    assert parse_status_query("Status on Gridkeep") == "Gridkeep"
+    assert parse_status_query("How is Gridkeep doing?") == "Gridkeep"
+    assert parse_status_query("Tell me about Gridkeep") is None
+    assert parse_status_query("Run Gridkeep") is None
+
+
+def test_find_by_company_matches_a_real_mandate_by_title_or_mission(tmp_path):
+    mandates, _goals, _memory = make_stack(tmp_path)
+    mandates.create_from_directive("Run Gridkeep")
+
+    found = mandates.find_by_company("Gridkeep")
+
+    assert found is not None
+    assert found.title == "Run Gridkeep"
+
+
+def test_find_by_company_returns_none_for_no_match(tmp_path):
+    mandates, _goals, _memory = make_stack(tmp_path)
+    mandates.create_from_directive("Run Gridkeep")
+
+    assert mandates.find_by_company("Nonexistent Co") is None
 
 
 def test_due_for_observation_respects_the_interval(tmp_path):

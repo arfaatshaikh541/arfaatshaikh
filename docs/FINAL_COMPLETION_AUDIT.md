@@ -135,7 +135,7 @@ module docstring for the full rationale.
 |---|---|
 | "Run Gridkeep" creates a persisted mandate, without a generic goal-form | **Yes** — `mandates.create_from_directive("Run Gridkeep")` (also `aura mandates run` / `POST /mandates/run`) parses the directive, creates a `draft` mandate titled "Run Gridkeep" with mission "Operate and grow Gridkeep", scaffolds the 13 standard operating departments as objectives, and persists through a real restart (fresh `MandateEngine` against the same `database_url`) | `COMPLETE` for the directive-parsing and department-scaffolding mechanism; the mandate deliberately cannot `activate()` until real KPIs/constraints for the actual business are supplied, since those are facts about a real company this system has no way to invent |
 | Sales/marketing/ops/product/finance workstream logic | **No** — this is business-specific orchestration logic that has to be authored, not inferred; it's not a "gap" so much as work that hasn't started because it depends on the mandate model existing first | `IMPLEMENTABLE_NOW` for the workstream *mechanism* (built this pass); the actual Gridkeep business content (what a "sales workstream" concretely does) needs the owner's real Gridkeep business specifics — genuinely `REQUIRES_OWNER_AUTHORIZATION`/input, not an engineering gap |
-| "What's happening with Gridkeep?" answered from real state, not chat memory | Partial — `GET /mandates/{id}/report` already builds its answer entirely from real workstream/decision state (`MandateReport`), never chat memory; **not yet wired**: routing a free-text chat query to that report requires resolving a company name mentioned in chat text to a mandate_id and classifying the query as a status request | `IMPLEMENTABLE_NOW`, not attempted this pass — a distinct piece of work from directive creation, deliberately not bolted hastily into the shared `/chat` path |
+| "What's happening with Gridkeep?" answered from real state, not chat memory | **Yes** — `POST /chat` recognizes an executive-status question via `parse_status_query()`, resolves it to a real mandate via `find_by_company()`, and renders the real `MandateReport` as text, all before the query ever reaches the model; an unmatched company name gets an honest "no mandate found" rather than a generic chatbot answer | `COMPLETE` |
 
 ## I. Testing
 
@@ -628,17 +628,24 @@ closure lands, in the order it actually happened:
     about a real company this system has no way to know on its own. A
     directive-created mandate persists through a fresh `MandateEngine`
     against the same database_url, exactly like a process restart. 9 new
-    tests (engine, CLI, API). **Not done in this pass, called out rather
-    than silently left**: routing a free-text chat query like "What's
-    happening with Gridkeep?" to the real `MandateReport` (which already
-    exists and is already built from real workstream/decision state, not
-    chat memory, via `GET /mandates/{id}/report`) requires resolving a
-    company name mentioned in chat text to a specific mandate_id and
-    intent-classifying the query as a status request -- genuinely
-    buildable without credentials or hardware, but a distinct piece of
-    work from directive creation, not attempted here rather than bolted
-    on hastily into the shared `/chat` path where a wrong classification
-    could misfire on unrelated conversation.
+    tests (engine, CLI, API).
+29. **"What's happening with Gridkeep?" answered from real state, in
+    chat** (closing item 28's one remaining piece): `parse_status_query()`
+    matches four explicit phrasings ("what's happening with X", "what's
+    the status/update on/with X", "status/update on/for X", "how is X
+    doing") -- never a guess, same discipline as `parse_run_directive()`.
+    `MandateEngine.find_by_company()` does a plain substring match
+    against every mandate's title/mission (most-recently-created match
+    wins), regardless of status, so a mandate that was created but never
+    activated is still found. Wired into `/chat` as a new deterministic
+    lane (`"mandate_status"`) checked right after the existing exact-
+    match trigger lookup and before the query ever reaches the model --
+    a match renders the real `MandateReport` as text; no match answers
+    honestly ("No mandate found matching 'X'") rather than falling
+    through to a generic chatbot response, which is exactly the failure
+    mode section 22 of the product brief warns against. 6 new tests (2
+    directive-parsing/lookup unit tests, 2 through the real `/chat`
+    endpoint, 2 more in the mandate-engine suite for `find_by_company`).
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

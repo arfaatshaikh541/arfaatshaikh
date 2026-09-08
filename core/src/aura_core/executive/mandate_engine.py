@@ -172,6 +172,22 @@ class MandateEngine:
             stmt = select(Mandate).where(Mandate.status == "active").order_by(Mandate.priority)
             return list(session.scalars(stmt))
 
+    def find_by_company(self, company: str) -> Mandate | None:
+        """A plain, honest substring match against title/mission -- not
+        fuzzy NLP, not a guess -- across every mandate regardless of
+        status, so "what's happening with Gridkeep" finds a mandate
+        that was created but never activated too. Most-recently-created
+        match wins if more than one mandate mentions the same name."""
+        needle = company.lower().strip()
+        if not needle:
+            return None
+        with self._Session() as session:
+            stmt = select(Mandate).order_by(Mandate.created_at.desc())
+            for mandate in session.scalars(stmt):
+                if needle in mandate.title.lower() or needle in mandate.mission.lower():
+                    return mandate
+        return None
+
     def due_for_observation(self) -> list[Mandate]:
         due = []
         for mandate in self.list_active():

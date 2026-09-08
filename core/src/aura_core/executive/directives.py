@@ -28,6 +28,13 @@ STANDARD_DEPARTMENTS = [
 
 _RUN_PATTERN = re.compile(r"^\s*(?:run|operate)\s+(.+?)\s*$", re.IGNORECASE)
 
+_STATUS_PATTERNS = [
+    re.compile(r"^\s*what.?s\s+happening\s+with\s+(.+?)\s*\??\s*$", re.IGNORECASE),
+    re.compile(r"^\s*what.?s\s+the\s+(?:status|update)\s+(?:on|with)\s+(.+?)\s*\??\s*$", re.IGNORECASE),
+    re.compile(r"^\s*(?:status|update)\s+(?:on|for)\s+(.+?)\s*\??\s*$", re.IGNORECASE),
+    re.compile(r"^\s*how\s+is\s+(.+?)\s+doing\s*\??\s*$", re.IGNORECASE),
+]
+
 
 def parse_run_directive(text: str) -> str | None:
     """Returns the company name from a "Run X" / "Operate X" directive,
@@ -37,3 +44,17 @@ def parse_run_directive(text: str) -> str | None:
     unparseable model plan elsewhere in this codebase."""
     match = _RUN_PATTERN.match(text)
     return match.group(1) if match else None
+
+
+def parse_status_query(text: str) -> str | None:
+    """Returns the company name from an executive-status question
+    ("What's happening with Gridkeep?", "Status on Gridkeep", "How is
+    Gridkeep doing?"), or None if `text` doesn't match one of these
+    exact shapes -- same never-guess discipline as parse_run_directive.
+    A caller with a match should answer from real mandate/workstream
+    state (MandateEngine.report()), never a generic chat response."""
+    for pattern in _STATUS_PATTERNS:
+        match = pattern.match(text)
+        if match:
+            return match.group(1)
+    return None

@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ..config import Settings
-from ..executive import GoalNotReadyError, MandateNotReadyError
+from ..executive import GoalNotReadyError, MandateNotReadyError, parse_status_query
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -106,6 +106,25 @@ class VoiceStateRequest(BaseModel):
 def _sse(event: str, data: str) -> bytes:
     payload = json.dumps({"event": event, "data": data})
     return f"data: {payload}\n\n".encode()
+
+
+def _format_mandate_report(report) -> str:
+    """Plain-text rendering of a real MandateReport for chat/voice
+    output -- every line traces back to real workstream/decision state
+    (see MandateEngine.report()), never a fabricated summary."""
+    lines = [f"{report.title} [{report.status}]"]
+    lines.append(f"Counts: {report.counts}" if report.counts else "No workstreams yet.")
+    for workstream in report.workstreams:
+        lines.append(f"  [{workstream.bucket}] {workstream.statement} (progress={workstream.progress:.0%})")
+        if workstream.latest_decision:
+            lines.append(f"      last decision: {workstream.latest_decision}")
+    if report.blockers:
+        lines.append("Blockers:")
+        lines.extend(f"  - {b}" for b in report.blockers)
+    if report.next_actions:
+        lines.append("Next actions:")
+        lines.extend(f"  - {a}" for a in report.next_actions)
+    return "\n".join(lines)
 
 
 def _check_voice_provider(name: str, provider) -> None:
@@ -426,6 +445,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 yield _sse("lane", "deterministic")
                 yield _sse("chunk", outcome.message)
                 yield _sse("done", outcome.status.value)
+                return
+
+            company = parse_status_query(request.message)
+            if company is not None:
+                # An executive-status question ("What's happening with
+                # Gridkeep?") must be answered from real mandate/
+                # workstream state, never generic chatbot advice
+                # (section 22 of the product brief) -- resolved here,
+                # deterministically, before ever reaching the model.
+                yield _sse("lane", "mandate_status")
+                mandate = runtime.mandates.find_by_company(company)
+                if mandate is None:
+                    yield _sse("chunk", f"No mandate found matching '{company}'.")
+                    yield _sse("done", "not_found")
+                    return
+                report = runtime.mandates.report(mandate.id, runtime.goals, runtime.memory)
+                yield _sse("chunk", _format_mandate_report(report))
+                yield _sse("done", "ok")
                 return
 
             yield _sse("lane", "model")
