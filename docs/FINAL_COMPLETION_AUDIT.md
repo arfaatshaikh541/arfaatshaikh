@@ -862,6 +862,94 @@ closure lands, in the order it actually happened:
     each a substantial independent subsystem this single pass could not
     responsibly build as unverified, untested code.
 
+35. **Fixed the real Windows install-time crash the user reported (Section
+    1 of the 150-section final-production spec), plus platform test
+    tiering (Sections 2, 5, 6) and a Python 3.14 static audit (Section
+    7)**: the user reported the installer failing during the Python
+    self-test stage on Windows and named three specific mechanisms. All
+    three were confirmed by direct code reading, and one led to a deeper,
+    previously-undocumented finding. (1) `test_connector_desktop_control
+    .py`'s `virtual_display` fixture called `subprocess.run(["which",
+    "Xvfb"])` unconditionally -- there is no `which.exe` on Windows, so
+    this raised `FileNotFoundError` before the fixture's own
+    `pytest.skip()` could run. Fixed with a Linux-only guard plus
+    `shutil.which` (never raises). (2) `test_health_check_is_unavailable_
+    without_a_display` asserted that a DISPLAY-less desktop connector
+    reports `UNAVAILABLE` -- true only for pynput's Linux/X11 (Xlib)
+    backend; Windows' Win32 pynput backend has no DISPLAY concept and
+    would report `LIVE`. Marked Linux-only and paired with a new,
+    genuinely opposite Windows-only test -- real code, but NOT_TESTED
+    here (no Windows machine reachable). (3) Investigating the reported
+    Unix-socket test failures led to verifying, directly against the
+    installed CPython's own `asyncio` source
+    (`inspect.getsource(asyncio.base_events.BaseEventLoop.create_unix_
+    server)`), that it raises `NotImplementedError` by default and is
+    only overridden by POSIX's `asyncio/unix_events.py` -- meaning `aura
+    serve`'s Unix-domain-socket default (via `uvicorn.run(app,
+    uds=path)`) would crash immediately on native Windows Python, not
+    just in tests. This is a real runtime bug, not a test-only one. Fixed
+    at the root with a new pure function, `resolve_serve_transport`
+    (`core/src/aura_core/cli.py`): Windows now defaults to loopback TCP
+    (`127.0.0.1`), Linux/macOS keep the existing real Unix-socket
+    default, and an explicit `--host`/`--socket-path` always wins on any
+    platform -- the existing, tested Linux/macOS path was not touched.
+    Considered and deliberately did not build the full `IpcTransport`/
+    `WindowsNamedPipeTransport` class hierarchy the spec also requested:
+    a correct ASGI-over-named-pipes server is substantial, novel
+    infrastructure with no way to test it in this sandbox, whereas
+    loopback TCP reuses an already-real, already-tested code path
+    (`--host` already existed) without weakening the untouched Linux/
+    macOS transport -- a deliberate scope trade-off, not an oversight.
+    Also found and fixed two real, pre-existing environment-only gaps
+    exposed while chasing this down (not code bugs, but they were
+    masking real test results in this sandbox): a missing system
+    `espeak-ng-data` package was crashing `aura serve` subprocesses in
+    `test_ipc_unix_socket.py`; a stray, gitignored `core/aura_core.db`
+    left over from earlier manual CLI testing had a real owner enrolled
+    in it, which made `test_api_voice.py`'s three tests 401 against the
+    now-enforced device-token gate they were never updated to send.
+    Neither is present in a real fresh install. Registered a full pytest
+    marker vocabulary (`cross_platform`, `windows`, `linux`, `macos`,
+    `hardware`, `network`, `integration`, `endurance`, `security`,
+    `installer`, `manual_commissioning`) in `pyproject.toml` and applied
+    it to every test touched this pass. `Install-AURA.ps1`'s install-gate
+    pytest invocation now explicitly excludes
+    hardware/network/endurance/manual_commissioning tests, so a real
+    install can never be blocked or hung by a check the install machine
+    has no way to satisfy unattended; those tiers instead run
+    non-blocking in `WINDOWS-COMMISSIONING.ps1`'s post-install pass.
+    `WINDOWS-COMMISSIONING.ps1`'s `Add-Result` now reports the full
+    honest status vocabulary (`PASS`, `FAIL`, `SKIPPED_PLATFORM`,
+    `SKIPPED_HARDWARE`, `NOT_TESTED`, `BLOCKED`, `PARTIAL`) instead of
+    collapsing every non-pass/fail outcome into one ambiguous `SKIP`;
+    existing call sites were reclassified by what they actually mean
+    (an operator-requested skip is `NOT_TESTED`, a missing prerequisite
+    like the server or `AuraShell.exe` is `BLOCKED`, an empty
+    hardware/network pytest tier is `SKIPPED_HARDWARE`). Both PowerShell
+    scripts were re-verified with PowerShell 7's own AST parser after
+    every edit. For Section 7, a static audit (this sandbox has no
+    Python 3.14 interpreter to run against) found no use of any stdlib
+    module removed in Python 3.12+ in this project's own code, and one
+    real forward-compatibility issue: `memory/store.py`'s `_age_seconds`
+    used the deprecated `datetime.utcnow()`; replaced with an explicit
+    naive-UTC construction that preserves its exact existing behavior
+    (SQLite drops tzinfo on round-trip, so the naive branch must stay
+    naive to remain comparable). 7 new Python tests for the transport
+    fix, 2 new regression guards for the tiering/status-vocabulary work;
+    the full suite (515+ tests) passes cleanly on this Linux sandbox with
+    zero failures after every change in this entry. **What remains
+    explicitly not attempted in this entry, named rather than
+    fabricated**: Section 3's Windows-native desktop-automation test
+    suite beyond the two DISPLAY-behavior tests already added; a real
+    `IpcTransport` class hierarchy (Section 4, see the trade-off above);
+    literally running any of this under a Windows machine or a Python
+    3.14 interpreter, neither of which is reachable from this session;
+    and the remaining ~140 sections of the spec this entry did not touch
+    at all (multi-device cryptographic identity, node transport/sync,
+    telephony, code-signing, and the rest), which require real Windows
+    hardware, a physical second device, real external providers, or
+    code-signing infrastructure this sandbox cannot provide.
+
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
 label just because it hasn't been reached yet.
