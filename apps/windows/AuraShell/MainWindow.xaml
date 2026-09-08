@@ -1,80 +1,20 @@
 <Window x:Class="AuraShell.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:AuraShell"
-        Title="AURA" Height="640" Width="900">
-    <Window.Resources>
-        <local:BoolToKillSwitchLabelConverter x:Key="KillSwitchLabelConverter" />
-    </Window.Resources>
-    <Window.InputBindings>
-        <KeyBinding Key="Return" Command="{Binding Chat.SendCommand}" />
-    </Window.InputBindings>
-
-    <DockPanel>
-        <!-- Top bar: kill switch -->
-        <Border DockPanel.Dock="Top" Padding="8" Background="#1E1E1E">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="AURA" Foreground="White" FontSize="16" FontWeight="Bold"
-                           VerticalAlignment="Center" Margin="0,0,16,0" />
-                <Button Content="{Binding KillSwitchEngaged, Converter={StaticResource KillSwitchLabelConverter}}"
-                        Command="{Binding ToggleKillSwitchCommand}"
-                        Padding="8,4" />
-                <TextBlock Text="{Binding KillSwitchEngaged, StringFormat='kill switch engaged: {0}'}"
-                           Foreground="White" VerticalAlignment="Center" Margin="12,0,0,0" />
-            </StackPanel>
-        </Border>
-
-        <TabControl>
-            <!-- Chat tab -->
-            <TabItem Header="AURA">
-                <DockPanel Margin="8">
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBox Width="700" Text="{Binding Chat.InputText, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Content="Send" Margin="8,0,0,0" Command="{Binding Chat.SendCommand}" />
-                    </StackPanel>
-                    <ListBox ItemsSource="{Binding Chat.Transcript}" />
-                </DockPanel>
-            </TabItem>
-
-            <!-- Status tab -->
-            <TabItem Header="Status">
-                <DockPanel Margin="8">
-                    <Button DockPanel.Dock="Top" Content="Refresh" HorizontalAlignment="Left"
-                            Command="{Binding Status.RefreshCommand}" Margin="0,0,0,8" />
-                    <ListView ItemsSource="{Binding Status.Capabilities}">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Capability" DisplayMemberBinding="{Binding Name}" Width="220" />
-                                <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="140" />
-                                <GridViewColumn Header="Detail" DisplayMemberBinding="{Binding Detail}" Width="400" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </DockPanel>
-            </TabItem>
-
-            <!-- Approvals tab -->
-            <TabItem Header="Approvals">
-                <DockPanel Margin="8">
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="Refresh" Command="{Binding Approvals.RefreshCommand}" />
-                        <Button Content="Approve" Margin="8,0,0,0" Command="{Binding Approvals.ApproveCommand}" />
-                        <Button Content="Deny" Margin="8,0,0,0" Command="{Binding Approvals.DenyCommand}" />
-                    </StackPanel>
-                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Approvals.LastMessage}" Margin="0,8,0,0" />
-                    <ListView ItemsSource="{Binding Approvals.Pending}"
-                              SelectedItem="{Binding Approvals.Selected, Mode=TwoWay}">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Risk" DisplayMemberBinding="{Binding RiskTier}" Width="80" />
-                                <GridViewColumn Header="Action" DisplayMemberBinding="{Binding ActionType}" Width="200" />
-                                <GridViewColumn Header="Reason" DisplayMemberBinding="{Binding Reason}" Width="380" />
-                                <GridViewColumn Header="Created" DisplayMemberBinding="{Binding CreatedAt}" Width="180" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </DockPanel>
-            </TabItem>
-        </TabControl>
-    </DockPanel>
+        Title="AURA" Height="720" Width="1100"
+        Background="#0A0A0C"
+        WindowStartupLocation="CenterScreen">
+    <!--
+        The single window this application shows. Its content is never a
+        fixed dashboard — it is entirely driven by
+        InterfaceShellViewModel.Mode (see MainWindow.xaml.cs's
+        ApplyView), starting at Booting on every launch and swapping
+        among AuthenticationView, VoiceModeView, BackendChallengeView,
+        and BackendModeView as the owner authenticates, speaks, and
+        (only through a real re-authenticated hotkey press) opens and
+        leaves Backend Mode.
+    -->
+    <Grid>
+        <ContentControl x:Name="RootContent" />
+    </Grid>
 </Window>

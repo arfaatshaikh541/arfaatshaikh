@@ -29,9 +29,11 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
         });
     }
 
-    public void MapSseBody(string path, string sseBody)
+    public void MapSseBody(string path, string sseBody) => MapSseBody(HttpMethod.Post, path, sseBody);
+
+    public void MapSseBody(HttpMethod method, string path, string sseBody)
     {
-        MapResponse(HttpMethod.Post, path, _ => new HttpResponseMessage(HttpStatusCode.OK)
+        MapResponse(method, path, _ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(sseBody, System.Text.Encoding.UTF8, "text/event-stream"),
         });

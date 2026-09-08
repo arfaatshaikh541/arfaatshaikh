@@ -165,6 +165,86 @@ public sealed class AuraApiClient
     }
 
     /// <summary>
+    /// The startup authentication check (section 3): asks aura_core
+    /// whether the calling device already carries a valid device token
+    /// and, if so, who the owner is. A 401 here (thrown as
+    /// HttpRequestException, matching every other gated call in this
+    /// class) means the device token is missing, wrong, or revoked --
+    /// AuthenticationViewModel treats that identically to "not yet
+    /// authenticated," never distinguishing why, same as the server.
+    /// </summary>
+    public async Task<WhoAmIInfo> GetWhoAmIAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("/identity/whoami", ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<WhoAmIInfo>(JsonOptions, ct);
+        return result ?? new WhoAmIInfo(false, null, null);
+    }
+
+    public async Task<BackendDiagnostics> GetBackendDiagnosticsAsync(string elevationToken, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/backend/diagnostics");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<BackendDiagnostics>(JsonOptions, ct);
+        return result ?? throw new InvalidOperationException("backend diagnostics returned no response body");
+    }
+
+    public async Task<List<AuditEntryInfo>> GetBackendAuditAsync(
+        string elevationToken, long afterSeq = 0, int limit = 100, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/backend/audit?after_seq={afterSeq}&limit={limit}");
+        request.Headers.Add(BackendElevationHeader.Name, elevationToken);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<List<AuditEntryInfo>>(JsonOptions, ct);
+        return result ?? new List<AuditEntryInfo>();
+    }
+
+    /// <summary>
+    /// Consumes /voice/state/stream's genuine server push -- one HTTP
+    /// request stays open for the lifetime of enumeration, and a new
+    /// state string is yielded exactly when aura_core observed a real
+    /// transition, never on a fixed timer the caller has to de-duplicate.
+    /// This is what lets VoiceModeViewModel bind to live voice state
+    /// without ever polling GetVoiceStateAsync in a loop (section 6).
+    /// The enumeration only ends when the caller cancels ct or the
+    /// connection drops -- callers are expected to run this inside a
+    /// background task, the same pattern AuraVoice.Windows.Host already
+    /// uses for its own long-running loop.
+    /// </summary>
+    public async IAsyncEnumerable<string> StreamVoiceStateAsync(
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        using var response = await _http.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "/voice/state/stream"),
+            HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync(ct);
+            if (line is null)
+            {
+                yield break;
+            }
+            if (!line.StartsWith("data: ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            var evt = JsonSerializer.Deserialize<ChatEvent>(line["data: ".Length..], JsonOptions);
+            if (evt is not null)
+            {
+                yield return evt.Data;
+            }
+        }
+    }
+
+    /// <summary>
     /// Streams /chat as it genuinely arrives. Reads the response body line
     /// by line and yields a ChatEvent per "data: {...}" line — no
     /// buffering of the full response before the first event is produced,

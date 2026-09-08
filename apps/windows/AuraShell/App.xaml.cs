@@ -37,16 +37,24 @@ public partial class App : Application
             DeviceTokenHeader.AttachIfConfigured(httpClient, deviceToken);
         }
         var apiClient = new AuraApiClient(httpClient);
-        var viewModel = new MainViewModel(apiClient);
+        var shell = new InterfaceShellViewModel(apiClient);
 
-        var window = new MainWindow(viewModel);
+        // The ONLY window this application ever creates, and MainWindow is
+        // no longer a fixed Chat/Status/Approvals dashboard: its content
+        // is driven entirely by shell.Mode, which always starts at
+        // Booting (see InterfaceModeManager) and can only reach
+        // BackendMode through a real authenticated hotkey challenge. A
+        // crash or restart re-enters at exactly this same line and
+        // replays the full boot sequence -- there is no "resume last
+        // mode" path anywhere in this application, by construction.
+        var window = new MainWindow(shell, apiClient);
         window.Show();
 
         // Fire-and-forget on purpose: the window is already visible and
-        // responsive (per the "immediate acknowledgement, not a blocking
-        // spinner" requirement). If the core server isn't running yet,
-        // this fails quietly and the Status tab shows the honest
-        // NOT_CONNECTED/UNAVAILABLE state instead of crashing startup.
-        _ = viewModel.InitializeAsync();
+        // responsive. If aura_core isn't reachable yet, StartAsync's own
+        // try/catch reports that honestly on the authentication screen
+        // rather than crashing startup or hanging behind a blocking
+        // spinner.
+        _ = window.RunStartupSequenceAsync();
     }
 }

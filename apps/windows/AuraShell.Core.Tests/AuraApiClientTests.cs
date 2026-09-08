@@ -241,6 +241,105 @@ public class AuraApiClientTests
         Assert.Equal(842.5, status.SecondsRemaining);
     }
 
+    [Fact]
+    public async Task GetWhoAmIAsync_reports_that_no_owner_is_enrolled_yet()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/identity/whoami", """
+            {"enrolled": false, "owner_name": null, "device_label": null}
+            """);
+        var client = MakeClient(handler);
+
+        var whoami = await client.GetWhoAmIAsync();
+
+        Assert.False(whoami.Enrolled);
+        Assert.Null(whoami.OwnerName);
+    }
+
+    [Fact]
+    public async Task GetWhoAmIAsync_reports_the_real_owner_and_device_once_enrolled()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/identity/whoami", """
+            {"enrolled": true, "owner_name": "Ada", "device_label": "Ada's laptop"}
+            """);
+        var client = MakeClient(handler);
+
+        var whoami = await client.GetWhoAmIAsync();
+
+        Assert.True(whoami.Enrolled);
+        Assert.Equal("Ada", whoami.OwnerName);
+        Assert.Equal("Ada's laptop", whoami.DeviceLabel);
+    }
+
+    [Fact]
+    public async Task GetWhoAmIAsync_throws_on_an_invalid_device_token()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/identity/whoami", """{"detail": "unauthorized"}""", HttpStatusCode.Unauthorized);
+        var client = MakeClient(handler);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetWhoAmIAsync());
+    }
+
+    [Fact]
+    public async Task GetBackendDiagnosticsAsync_attaches_the_elevation_header_and_parses_real_fields()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/backend/diagnostics", """
+            {"audit_chain_valid": true, "audit_entries_checked": 42,
+             "recent_guardian_events": [], "capability_status": {"memory.store": "LIVE"}}
+            """);
+        var client = MakeClient(handler);
+
+        var diagnostics = await client.GetBackendDiagnosticsAsync("tok-123");
+
+        Assert.True(diagnostics.AuditChainValid);
+        Assert.Equal(42, diagnostics.AuditEntriesChecked);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+    }
+
+    [Fact]
+    public async Task GetBackendAuditAsync_attaches_the_elevation_header_and_paginates()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/backend/audit", """
+            [{"seq": 1, "timestamp": "2026-01-01T00:00:00+00:00", "actor": "owner",
+              "action_type": "security.backend_elevation_attempt", "risk_tier": "RED",
+              "decision": "ALLOW", "result_status": "EXECUTED", "result_message": "ok"}]
+            """);
+        var client = MakeClient(handler);
+
+        var entries = await client.GetBackendAuditAsync("tok-123", afterSeq: 5, limit: 10);
+
+        var entry = Assert.Single(entries);
+        Assert.Equal(1, entry.Seq);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("tok-123", request.Headers.GetValues(BackendElevationHeader.Name).Single());
+        Assert.Contains("after_seq=5", request.RequestUri!.Query);
+        Assert.Contains("limit=10", request.RequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task StreamVoiceStateAsync_yields_each_pushed_state_in_order()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapSseBody(HttpMethod.Get, "/voice/state/stream",
+            "data: {\"event\": \"state\", \"data\": \"Idle\"}\n\n" +
+            "data: {\"event\": \"state\", \"data\": \"Awake\"}\n\n" +
+            "data: {\"event\": \"state\", \"data\": \"Speaking\"}\n\n");
+        var client = MakeClient(handler);
+
+        var states = new List<string>();
+        await foreach (var state in client.StreamVoiceStateAsync())
+        {
+            states.Add(state);
+        }
+
+        Assert.Equal(new[] { "Idle", "Awake", "Speaking" }, states);
+    }
+
     private sealed class ThrowingHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

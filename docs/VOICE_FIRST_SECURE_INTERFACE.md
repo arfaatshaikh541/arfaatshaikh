@@ -1,214 +1,258 @@
-# Voice-First Secure Operating Interface: what's real, what's scoped out
+# Voice-First Secure Operating Interface: what's real, what's still unverified
 
 This document is the honest scope statement for the "voice-first secure
-operating interface" redesign. It follows the same discipline every
-other pass in this project has: distinguish IMPLEMENTED from STATICALLY
-TESTED from UNIT TESTED from WINDOWS TESTED from HARDWARE VERIFIED, and
-never claim more than what's actually true.
+operating interface" redesign, updated after the pass that actually wrote
+the WPF shell itself (bootstrap, Voice Mode / Backend Mode / authentication
+screens, the real Win32 hotkey manager, and the Windows session monitor).
+It follows the same discipline every other pass in this project has:
+distinguish IMPLEMENTED from UNIT TESTED from STATICALLY REVIEWED from
+WINDOWS TESTED from HARDWARE VERIFIED, and never claim more than what's
+actually true.
 
-**The single fact that governs this entire pass**: the visual shell
-(`apps/windows/AuraShell`, the WPF application) requires the Windows
-Desktop SDK to even compile, and this sandbox has confirmed, every time
-it's been tried this session, that it cannot -- `MSB4019:
-Microsoft.NET.Sdk.WindowsDesktop.targets not found`. That means the
-literal 40-point acceptance test in the request this document responds
-to -- watch the backend appear on a keypress, watch it disappear, speak
-to AURA and hear it reply -- cannot be executed end-to-end in this
-environment at all, on any implementation. Nothing built this pass
-changes that; it is a property of the sandbox, not of the code.
+**The single fact that still governs this entire area**: `apps/windows/AuraShell`
+(the WPF application) targets `net8.0-windows` with `UseWPF=true`, which
+requires the Windows Desktop SDK to even compile, and this sandbox has
+confirmed, every time it's been tried across every pass this session, that
+it cannot — `MSB4019: Microsoft.NET.Sdk.WindowsDesktop.targets not found`.
+That has not changed and cannot change without a real Windows build
+environment. What *has* changed this pass: the WPF project's source files
+themselves — the ones that were previously left unwritten specifically
+because they couldn't be compile-checked — now exist, are written against
+the already-tested `AuraShell.Core` contracts, are believed correct after
+careful manual review (XAML well-formedness checked with an XML parser;
+every `.cs` file's braces balanced; every type/namespace/method reference
+cross-checked by hand against the real APIs it calls), but have **never
+been compiled, run, or visually verified**, because nothing in this sandbox
+can do that. Anyone reading this should treat the WPF-only files below as
+"written carefully, not proven" until a real Windows build confirms it.
 
-What *is* real, and what the rest of this document is actually about: the
-security boundary Backend Mode depends on, and the state-machine logic
-that decides which surface is shown, both live in code that builds and
-runs on Linux -- the Python API server and the cross-platform C# core
-library -- and both are fully, automatically tested here today.
+## What actually changed this pass
 
-## Built this pass (real, tested, wired in)
+Previously this document said the WPF screens, `Win32HotkeyManager`, and
+Windows session-lock handling were "not built, and why." That is no longer
+accurate — they are now written. What's true now:
 
-### The actual security boundary (Python, `aura_core`)
+- **`App.xaml.cs`** no longer shows `MainWindow` as a pre-built
+  Chat/Status/Approvals dashboard. It builds the same `AuraApiClient` as
+  before, constructs one `InterfaceShellViewModel` (new — see below), and
+  shows exactly one window whose content is driven entirely by that view
+  model's mode. There is no code path in this file, or anywhere else in
+  the project, that can display Backend Mode content before a real
+  authenticated transition reaches `BackendMode`.
+- **`MainWindow`** is no longer the dashboard itself — it is now the
+  mode-driven shell: a single `ContentControl` whose content is swapped
+  between four views as `InterfaceModeManager.ModeChanged` fires:
+  `AuthenticationView` (Booting / AuthRequired / Authenticating / Locked /
+  ErrorRecovery), `VoiceModeView` (VoiceMode), `BackendChallengeView`
+  (BackendAuthRequired / BackendAuthenticating), and `BackendModeView`
+  (BackendMode). It also owns the `Win32HotkeyManager` and
+  `SystemSessionMonitor` instances (created once a real `HWND` exists, via
+  `SourceInitialized`) and disposes both on close.
+- **`Views/VoiceModeView.xaml`** is the actual minimal voice screen: one
+  central orb (an `Ellipse` with a `DropShadowEffect` glow) whose color and
+  label are driven by `VoiceModeViewModel.State` — which is itself driven
+  by consuming aura_core's real `/voice/state/stream` Server-Sent-Events
+  push (see below), never a timer and never a hardcoded animation. No
+  sidebar, no transcript, no tables. A mute toggle calls
+  `VoiceModeViewModel.SetMuted`, which is explicitly documented as
+  UI-visible-only (see "Not built" below — it does not reach any real
+  audio pipeline, because no real audio pipeline capture-gating exists in
+  this codebase yet).
+- **`Views/BackendChallengeView.xaml`** is the real second-factor PIN
+  screen the hotkey opens: a `PasswordBox` (never a plain `TextBox` — the
+  PIN is never bound as visible text), wired via `PasswordChanged` into
+  `InterfaceShellViewModel.BackendPinInput`, with Submit/Cancel calling
+  the already-tested `SubmitBackendPinCommand`/`CancelBackendAuthCommand`.
+  A failed attempt shows one generic message ("Backend authentication
+  failed.") — this view has no way to know, and does not try to guess,
+  whether the PIN or the device was wrong.
+- **`Views/BackendModeView.xaml`** is where the previous MainWindow
+  dashboard's Chat/Status/Approvals tabs and the kill switch now live —
+  migrated, not deleted, exactly matching the requirement that Backend
+  Mode is where that functionality resurfaces, never the default startup
+  screen. It gained two new tabs, **Diagnostics** and **Audit Trail**,
+  bound to `InterfaceShellViewModel.Diagnostics`/`AuditEntries`, which are
+  populated from the real `/backend/diagnostics` and `/backend/audit`
+  endpoints the moment Backend Mode is entered, and explicitly cleared
+  (not just hidden) the moment Backend Mode is left, by the same
+  `LeaveBackendModeAsync` codepath that revokes the elevation token.
+- **`Views/AuthenticationView.xaml`** is the actual production startup
+  screen: a single centered status line plus, only when there's something
+  to act on, one button (Retry when device verification failed, Recover
+  when `ErrorRecovery` was entered). No credential form exists here
+  because there is no interactive owner credential this build asks for at
+  startup — see "the real substitute for Windows Hello" below.
+- **`Win32HotkeyManager`** (`apps/windows/AuraShell/Win32HotkeyManager.cs`)
+  is now a real, complete implementation of `AuraShell.Core.IHotkeyManager`
+  using `RegisterHotKey`/`UnregisterHotKey` (`user32.dll`) and a
+  `HwndSource.AddHook` message filter for `WM_HOTKEY`, built on top of the
+  already-tested `HotkeyDebouncer`/`HotkeyDefinition`. It fails closed and
+  reports why (`AlreadyInUse` via `Marshal.GetLastWin32Error() ==
+  ERROR_HOTKEY_ALREADY_REGISTERED`, `Unsupported` for an unparseable key
+  name, `Failed` for anything else) rather than silently doing nothing. A
+  re-entrancy gate (`ReleaseProcessingGate`, released once
+  `InterfaceShellViewModel.RequestBackendToggleAsync` finishes) prevents a
+  second WM_HOTKEY arriving mid-transition from starting a concurrent
+  toggle. **Never compiled or exercised against a real Win32 window** —
+  the debounce/parsing logic it's built on is the part that's actually
+  unit tested (`HotkeyManagerTests.cs`, on Linux).
+- **`SystemSessionMonitor`** (`apps/windows/AuraShell/SystemSessionMonitor.cs`)
+  is a real implementation of section 16's lock/unlock/logoff/sleep/resume
+  handling: `WTSRegisterSessionNotification` plus a `WM_WTSSESSION_CHANGE`
+  hook for lock/unlock/logoff/console-disconnect, and a `WM_POWERBROADCAST`
+  hook for suspend/resume — both mapped to the same `Locked`/`Unlocked`
+  events, wired in `MainWindow.xaml.cs` directly to
+  `InterfaceShellViewModel.OnSystemLockedAsync`/`OnSystemUnlockedAsync`.
+  Sleep is deliberately treated identically to a lock: elevation must not
+  survive a suspend/resume cycle any more than a lock/unlock cycle.
+  **Never exercised against a real Windows session** — no lock, sleep, or
+  logoff event has actually been observed triggering this code.
+- **`InterfaceShellViewModel`** (new, in `AuraShell.Core` — plain
+  `net8.0`, builds and tests on Linux) is the composition root that makes
+  all of the above real rather than aspirational: it owns
+  `InterfaceModeManager`, `VoiceModeViewModel`, and the existing
+  `MainViewModel` (Backend Mode's Chat/Status/Approvals), and performs
+  every network side effect a mode transition requires that
+  `InterfaceModeManager` itself deliberately never does (it has no network
+  access at all) — calling `/identity/whoami` for the startup check,
+  `/backend/authenticate`/`/backend/deauthenticate` around the hotkey
+  toggle, starting/stopping the voice-state subscription so Voice Mode and
+  Backend Mode never both hold it at once, and a UX-only elevation-expiry
+  poll (the real enforcement is server-side; see below). **This is fully
+  unit tested** — 20 tests in `InterfaceShellViewModelTests.cs` drive the
+  entire section-3 sequence (boot → real device check → VoiceMode →
+  hotkey → real PIN auth against a fake server → BackendMode → same
+  hotkey → real revocation call → VoiceMode again) against a
+  `FakeHttpMessageHandler`, exactly the same principle every other test in
+  this codebase uses: the real `InterfaceShellViewModel` code runs
+  unmodified, only the network boundary is faked.
+- **A real event-driven voice-state push**, closing the "never polling"
+  requirement between the WPF shell and aura_core: `GET
+  /voice/state/stream` (new, `core/src/aura_core/api/app.py`) is a
+  Server-Sent-Events endpoint that pushes a new event only when the
+  registry's `voice.session_state` actually changes, not on a fixed
+  client-visible interval. `AuraApiClient.StreamVoiceStateAsync` consumes
+  it with the same streaming-reader pattern `ChatStreamAsync` already
+  used, and `VoiceModeViewModel` maps each real state
+  (`Idle`/`ListeningForWake`/`Awake`/`Processing`/`Speaking`, exactly
+  `AuraVoice.Core.VoiceState`'s values) into what the orb shows, reporting
+  `Offline` honestly (with an automatic reconnect loop) if the stream
+  drops rather than freezing on the last-known state. 5 Python tests (the
+  underlying `voice_state_events` async generator, driven directly with
+  `asyncio.wait_for`/`aclose()` rather than through `TestClient`, because
+  this project's synchronous `TestClient` transport runs an ASGI call to
+  full completion before returning anything and cannot exercise an
+  endpoint that streams forever — see that test file's docstring) plus 4
+  new C# tests (`VoiceModeViewModelTests.cs`).
+- **`GET /identity/whoami`** (new) is the real substitute this build has
+  for a production startup authentication screen. No Windows Hello or
+  other hardware-backed factor is wired up anywhere in this codebase, so
+  rather than inventing a separate, weaker check just for the boot screen,
+  `AuthenticateAsync` answers "is the owner present" the same way every
+  other trust decision here already does: a valid `X-Aura-Device-Token`.
+  This is real and tested (5 Python tests, 3 C# client tests), but it is
+  explicitly a lesser bar than the "owner authentication" language in the
+  original request implies — it proves "this is a trusted device," not
+  "a specific person is at the keyboard right now." Closing that gap
+  requires an actual Windows Hello / biometric integration, which remains
+  unbuilt (see below).
 
-This is the part that matters most, and it is genuinely complete and
-tested, independent of any UI:
+## Still not built, and why
 
-- **`identity/elevation.py`'s `BackendElevationService`**: a second,
-  independent authentication factor beyond ordinary device-trust
-  session (`EnrollmentEngine.verify_token`). A trusted device alone is
-  never enough to reach Backend Mode -- the owner's PIN (new:
-  `Owner.pin_hash`/`pin_salt`/`pin_iterations`, PBKDF2-HMAC-SHA256,
-  200,000 iterations, via `EnrollmentEngine.set_owner_pin`/
-  `verify_owner_pin`) must be presented again. Elevation sessions live
-  **only in process memory** -- never written to the database -- which
-  is what makes "a crash, restart, reboot, or update never leaves
-  Backend Mode elevated" true structurally, not by convention. Every
-  attempt, successful or not, is written to the real hash-chained Audit
-  Log (`security.backend_elevation_attempt`) without ever recording the
-  PIN itself. Repeated failures trigger a real, measurable exponential
-  cooldown (configurable; defaults to escalating from the 3rd
-  consecutive failure). 10 tests, all real: a fresh service instance
-  (simulating a restart) never inherits a session; the cooldown blocks
-  even the *correct* PIN while locked out; every attempt round-trips
-  through the real Audit Log.
-- **`api/app.py`'s `require_backend_elevation` dependency**: independent
-  of, and layered on top of, the existing `require_device_token`
-  dependency. `/backend/diagnostics` and `/backend/audit` are gated by
-  both. A request with a valid device token and no (or an expired)
-  elevation token is rejected at **the API layer** -- not by anything a
-  compromised or buggy frontend could route around. New endpoints:
-  `POST /backend/pin` (set/replace the PIN -- ordinary device-session
-  only, since bootstrapping a PIN can't itself require the PIN),
-  `POST /backend/authenticate` (device token + PIN -> elevation token),
-  `POST /backend/deauthenticate` (idempotent revoke), `GET
-  /backend/session` (liveness/expiry check), `GET /interface/config`
-  (ungated -- hotkey and default-mode config, no secrets). 9 tests
-  through the real HTTP surface, including proving `/chat` has no path
-  to elevation at all (section 21's "no backend through voice bypass"),
-  and that repeated wrong PINs really do hit 429.
-- **Voice as a first-class channel into the real planner/execution
-  architecture, not a hardcoded command list**: `/chat` now tries
-  `UniversalPlanner.plan()` (built in the prior "Universal Capability
-  Layer" pass) before falling back to a conversational model response.
-  A fully-resolved plan executes for real through the same Action
-  Broker every other interface uses -- a step that needs approval is
-  voiced naturally ("I've prepared to... Shall I proceed?") and
-  execution stops there rather than cascading past the approval gate; a
-  step the broker denies is reported honestly; a request the planner
-  can't resolve into anything concrete still falls through to the
-  ordinary model response, so normal conversation is unaffected. 4 new
-  tests using a scripted model provider (the same technique
-  `test_email_intent.py` and `test_universal_planner.py` already use),
-  proving a real file gets written for a resolved plan, a real approval
-  gate blocks execution, a mixed plan reports both halves honestly, and
-  the existing conversational path is unaffected.
-
-### The state machine and hotkey logic (C#, `AuraShell.Core` -- plain
-`net8.0`, builds and tests on Linux)
-
-- **`InterfaceModeManager`**: the section-24 state machine (Booting ->
-  AuthRequired -> Authenticating -> VoiceMode -> BackendAuthRequired ->
-  BackendAuthenticating -> BackendMode, plus Locked and ErrorRecovery).
-  Always starts at `Booting` -- there is no constructor path, no
-  persisted field, that could ever start a fresh instance in
-  `BackendMode`, which is what makes "a crash while Backend Mode was
-  open must never reopen it" true by construction. `RequestBackendToggle()`
-  is the single hotkey entry point and resolves the asymmetry the
-  product brief asks for on its own: from `VoiceMode` it requires going
-  through authentication; from `BackendMode` it returns to `VoiceMode`
-  immediately, no re-auth. Elevation expiring *while Backend Mode is
-  open* routes back through `BackendAuthRequired`, never straight to
-  `VoiceMode`, since that wasn't a deliberate exit. Invalid transitions
-  throw rather than silently changing mode. 15 tests.
-- **`HotkeyDefinition`/`HotkeyDebouncer`** (`HotkeyManager.cs`): a
-  platform-independent hotkey representation parsed from the centralized
-  config string (`Ctrl+Alt+Shift+A` by default -- see the collision
-  audit below), plus real, clock-injectable debounce logic proving
-  section 22's "key debounce, repeated presses, key-down/key-up races,
-  duplicate OS hotkey events" requirement without needing a real
-  keyboard: 20 rapid simulated presses inside the debounce window fire
-  the handler exactly once. 13 tests. The actual Win32 registration
-  (`RegisterHotKey`/the WM_HOTKEY message loop) needs a real window
-  handle and the Windows message pump -- REQUIRES_WINDOWS_RUNTIME, not
-  attempted as running code this pass (see "Not built" below).
-- **`AuraApiClient`** gained `GetInterfaceConfigAsync`,
-  `BackendAuthenticateAsync`, `BackendDeauthenticateAsync`,
-  `GetBackendSessionAsync` -- real HTTP calls against the new endpoints
-  above, tested against the existing `FakeHttpMessageHandler` harness
-  (same pattern the rest of this file already used). 6 new tests.
-
-Full C# count: `AuraShell.Core.Tests` went from 20 to 55 tests, all
-passing on a clean `dotnet build`/`dotnet test` on Linux.
-`AuraVoice.Core.Tests` (`VoiceSessionController`, `ConversationOrchestrator`,
-`VoiceCommandPhrases`) is unchanged this pass -- it already implemented
-"stop listening"/"close your ears" (real state transition, not a visual
-mute) and barge-in (`OnBargeIn()`, stops the current response and
-resumes listening) correctly and completely in an earlier pass; nothing
-here needed to duplicate it.
-
-## Not built this pass, and why
-
-- **The actual WPF Voice Mode / Backend Mode screens** (the orb,
-  waveform, cinematic visual identity section 1 and 29 describe). This
-  is real, substantial XAML/animation work that this sandbox cannot
-  compile, render, or visually verify at all -- writing it blind, with
-  no way to confirm it even builds, risks producing exactly the
-  "screens were created" false-completion signal section 35 explicitly
-  warns against. `InterfaceModeManager` and `AuraApiClient`'s new
-  methods are the real, tested contract those screens need to bind to;
-  the screens themselves are `REQUIRES_WINDOWS_RUNTIME` for both
-  building and any visual verification.
-- **`Win32HotkeyManager`** (the concrete `IHotkeyManager` using
-  `RegisterHotKey`/`UnregisterHotKey` and a `HwndSource` message hook).
-  Needs a real Win32 window handle and message loop to mean anything;
-  `REQUIRES_WINDOWS_RUNTIME` for both compiling in its natural home (the
-  WPF project) and for any real verification that it registers a real
-  system-wide hotkey.
-- **Windows Hello / biometric authentication.** `BackendElevationService`
-  is built around a PIN today because that's the one factor this sandbox
-  can actually implement and verify end-to-end without Windows APIs or
-  hardware. The service's `authenticate(device_token, pin)` contract is
-  intentionally narrow enough that a Windows Hello factor could be added
-  as an alternative credential path later without changing the session/
-  elevation model itself -- but that addition is not attempted here.
-- **Real microphone capture, device enumeration, echo cancellation,
-  noise suppression, Bluetooth/default-device-change handling.** All of
-  section 17's audio-pipeline requirements need real Windows audio APis
-  (NAudio) and real hardware; this sandbox has neither. `docs/
-  FINAL_COMPLETION_AUDIT.md`'s existing voice rows already carry this
-  status from earlier passes; nothing here changes it.
-- **The literal 40-step final acceptance test** (section 39 of the
-  request). Steps 1-6 and 11-19 specifically require a running WPF
-  process, a real hotkey registered with real Windows, and real
-  audio hardware -- none of which can exist in this sandbox. What can be
-  and was verified: every *server-side* precondition those steps depend
-  on (the elevation boundary, the audit trail, the state machine's
-  transition rules, the voice-to-execution wiring) really works, proven
-  by real automated tests, not by narration.
+- **Any real interactive owner-presence factor for the startup screen
+  beyond device trust** (Windows Hello, PIN-at-launch, a trusted-device
+  proximity check). `identity/whoami`'s device-token check is what exists
+  and is tested; it is honestly weaker than "the owner personally
+  authenticated just now." `BackendElevationService`'s PIN factor is
+  reserved for backend elevation specifically, and reusing it as the
+  startup factor too was deliberately avoided — this document does not
+  pretend that substitution is equivalent to the biometric factor the
+  original request describes.
+- **Real microphone capture, device enumeration, echo cancellation, noise
+  suppression, Bluetooth/default-device-change handling, and the actual
+  gating of audio hardware by mute state.** `VoiceModeViewModel.SetMuted`
+  only changes what the WPF UI displays; nothing in this codebase gates a
+  real audio capture pipeline based on it, because `AuraVoice.Windows`'s
+  microphone source (`NAudioMicrophoneSource`) has no privacy-gating hook
+  built yet. Calling the current mute toggle a security control would be
+  a false claim — it is a UI affordance only, documented as such directly
+  in `VoiceModeViewModel`'s class comment.
+- **Barge-in reflected in the WPF UI.** `AuraVoice.Core.VoiceSessionController.OnBargeIn()`
+  exists and is tested at the state-machine level, and `VoiceModeView`
+  will show `Speaking` → `Awake` when it fires (since that's a real state
+  transition pushed through the same stream), but there is no distinct
+  visual treatment for "the owner just interrupted AURA" versus an
+  ordinary state change — both render identically as the state simply
+  changing.
+- **Task lifecycle surviving a Voice ⇄ Backend Mode switch as a
+  UI-observable guarantee.** The Action Broker and task queue already run
+  server-side, independent of any UI's lifetime, so a long-running task
+  structurally cannot be affected by which WPF view happens to be visible
+  — but there is no test in this pass that specifically proves a task
+  started in one mode is still visibly progressing after a mode switch,
+  because Backend Mode's Diagnostics/Tasks views don't yet expose
+  in-flight task state at all (only diagnostics and audit history).
+- **The literal Windows acceptance sequence** (start → authenticate →
+  Voice Mode → speak → hotkey → PIN → Backend Mode → hotkey → Voice Mode,
+  run on a real machine with a real microphone, speaker, and keyboard).
+  Every server-side precondition it depends on is real and tested (the
+  elevation boundary, the audit trail, the state machine's transition
+  rules, the voice-to-execution wiring, the event-driven state push); the
+  WPF-only glue that wires those preconditions into an actual running
+  window (everything named in "what changed this pass" above) is now
+  written but has literally never run. See the ACCEPTANCE TEST section of
+  the final report for the honest per-step status.
 - **Regating every existing device-token-gated endpoint behind backend
-  elevation.** Only the two new endpoints that expose data beyond
-  ordinary operational state (`/backend/diagnostics`, `/backend/audit`)
-  require elevation. Endpoints Voice Mode itself legitimately needs
-  during normal operation (mandate reports, task status, `/chat` itself)
-  were deliberately left on the existing device-trust boundary --
-  re-gating them would have broken legitimate voice-session
-  functionality (e.g. "what's happening with Gridkeep?") for no real
-  security benefit, since that data was never backend-exclusive to begin
-  with.
+  elevation.** Unchanged from the previous pass: only `/backend/diagnostics`
+  and `/backend/audit` require elevation. Endpoints Voice Mode legitimately
+  needs during normal operation were deliberately left on the existing
+  device-trust boundary.
+- **Installer/updater integration** (packaging the new WPF assemblies,
+  preserving identity/PIN/trusted-device state across an update). Not
+  attempted this pass — see `install/` for the existing installer, which
+  has not been modified to reference the new views/hotkey/session-monitor
+  files.
 
 ## Hotkey collision audit
 
-Chosen default: **`Ctrl+Alt+Shift+A`**, centralized in
-`aura_core.config.Settings.backend_toggle_hotkey` (env override:
-`AURA_BACKEND_TOGGLE_HOTKEY`) and served to the shell via the ungated
-`GET /interface/config` endpoint -- never hardcoded in UI code.
+Unchanged from the previous pass. Chosen default: **`Ctrl+Alt+Shift+A`**,
+centralized in `aura_core.config.Settings.backend_toggle_hotkey` (env
+override: `AURA_BACKEND_TOGGLE_HOTKEY`) and served to the shell via the
+ungated `GET /interface/config` endpoint — never hardcoded in UI code, and
+now actually consumed by `MainWindow.xaml.cs`'s `RegisterHotkeyAsync` via
+`HotkeyDefinition.Parse` before being handed to `Win32HotkeyManager.Register`.
 
-Audited against, from training-data knowledge of each surface's
-documented default bindings (not verified against a live instance of
-each product in this sandbox -- flagged honestly):
+Audited against, from training-data knowledge of each surface's documented
+default bindings (not verified against a live instance of each product in
+this sandbox — flagged honestly):
 
 | Surface | Relevant defaults | Collision? |
 |---|---|---|
-| Windows shell | `Win+*` (task switching, snap, settings flyouts), `Alt+Tab`, `Ctrl+Alt+Del`/`Ctrl+Shift+Esc`, `Ctrl+Alt+Arrow` (some GPU driver rotate shortcuts) | No -- none use the 3-modifier `Ctrl+Alt+Shift` combination without also involving `Win` |
+| Windows shell | `Win+*` (task switching, snap, settings flyouts), `Alt+Tab`, `Ctrl+Alt+Del`/`Ctrl+Shift+Esc`, `Ctrl+Alt+Arrow` (some GPU driver rotate shortcuts) | No — none use the 3-modifier `Ctrl+Alt+Shift` combination without also involving `Win` |
 | Browsers (Chrome/Firefox/Edge) | `Ctrl+Shift+<letter>` for various panels (e.g. `Ctrl+Shift+J` DevTools console, `Ctrl+Shift+N` incognito); none documented at `Ctrl+Alt+Shift+<letter>` | No |
-| IDEs (VS Code, Visual Studio, JetBrains) | Heavy use of `Ctrl+K <key>` chords and `Ctrl+Shift+<letter>`; `Ctrl+Alt+<letter>` used sparingly (e.g. VS Code's `Ctrl+Alt+Windows` not applicable to `A`); no common default at `Ctrl+Alt+Shift+A` specifically | No known collision, though a specific IDE extension could theoretically rebind it -- flagged as a residual risk, not eliminated |
-| Accessibility (Narrator, Magnifier, high contrast) | Narrator: `Ctrl+Win+Enter`; Magnifier: `Win+=`/`Win+-`; High contrast toggle: `Left Alt+Left Shift+PrtScn`; sticky/toggle/filter keys: repeated modifier presses, not a fixed combo | No -- high contrast's combo uses PrtScn, not `A`, and is left-modifier-specific, not the same chord |
-| AURA's own existing registrations | No pre-existing global hotkey exists in this codebase before this pass (grepped: no prior `RegisterHotKey`/hotkey config) | No collision, nothing to conflict with |
+| IDEs (VS Code, Visual Studio, JetBrains) | Heavy use of `Ctrl+K <key>` chords and `Ctrl+Shift+<letter>`; `Ctrl+Alt+<letter>` used sparingly; no common default at `Ctrl+Alt+Shift+A` specifically | No known collision, though a specific IDE extension could theoretically rebind it — flagged as a residual risk, not eliminated |
+| Accessibility (Narrator, Magnifier, high contrast) | Narrator: `Ctrl+Win+Enter`; Magnifier: `Win+=`/`Win+-`; High contrast toggle: `Left Alt+Left Shift+PrtScn`; sticky/toggle/filter keys: repeated modifier presses, not a fixed combo | No — high contrast's combo uses PrtScn, not `A`, and is left-modifier-specific, not the same chord |
+| AURA's own existing registrations | `Win32HotkeyManager` registers exactly one hotkey, only this one, only once per process | No collision, nothing else to conflict with |
 
-**What this audit is, and isn't**: a documented reasoning pass against
-each surface's commonly-published default bindings, exactly what section
-8 asks for before finalizing a candidate. It is not a live collision
+**What this audit is, and isn't**: a documented reasoning pass against each
+surface's commonly-published default bindings. It is not a live collision
 test against a running Windows machine with every listed application
-installed -- that requires the Windows hardware this sandbox doesn't
-have, and would be `REQUIRES_PHYSICAL_WINDOWS_VALIDATION`. The
-configuration is centralized specifically so a real collision found
+installed — that requires real Windows hardware this sandbox doesn't have.
+The configuration is centralized specifically so a real collision found
 during actual Windows commissioning is a one-line config change
-(`AURA_BACKEND_TOGGLE_HOTKEY`), not a code change.
+(`AURA_BACKEND_TOGGLE_HOTKEY`), not a code change, and `Win32HotkeyManager`
+already surfaces `HotkeyRegistrationStatus.AlreadyInUse` distinctly if
+`RegisterHotKey` reports the combination is taken.
 
 ## Summary
 
-The real security boundary Backend Mode depends on -- the part where a
-bug or bypass would actually matter -- is built, and is enforced at the
-API layer independent of any UI, exactly as the request demanded
-("Do not rely on CSS visibility for security"). The state machine that
-decides which screen is shown is built and exhaustively tested. What
-remains is real, substantial, and named honestly: the actual Windows
-visual shell, the actual OS-level hotkey registration, and everything
-that needs real audio hardware or a real Windows session to verify.
+The real security boundary Backend Mode depends on is built and enforced
+at the API layer independent of any UI. The state machine that decides
+which screen is shown is built and exhaustively tested. The WPF shell that
+wires both of those into an actual running application — the mode-driven
+window, the four real views, the Win32 hotkey registration, and the
+Windows session-lock handling — is now written, believed correct after
+careful manual review, and has never been compiled or run, because this
+sandbox cannot do either for a `UseWPF` project. That gap is named
+explicitly everywhere above and in the final report's ACCEPTANCE TEST
+section, rather than being narrated as done.

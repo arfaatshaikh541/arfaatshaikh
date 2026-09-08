@@ -62,3 +62,29 @@ public sealed record BackendAuthResult(
 public sealed record BackendSessionStatus(
     [property: JsonPropertyName("active")] bool Active,
     [property: JsonPropertyName("seconds_remaining")] double SecondsRemaining);
+
+/// <summary>
+/// The real substitute this build has for a production startup
+/// authentication screen (no Windows Hello / hardware-backed factor is
+/// wired up): reports whether the calling device already carries a
+/// valid, trusted device token. See core/src/aura_core/api/app.py's
+/// /identity/whoami.
+/// </summary>
+public sealed record WhoAmIInfo(
+    [property: JsonPropertyName("enrolled")] bool Enrolled,
+    [property: JsonPropertyName("owner_name")] string? OwnerName,
+    [property: JsonPropertyName("device_label")] string? DeviceLabel);
+
+/// <summary>
+/// Real system state pulled from diagnostics/health.py's collect_diagnostics
+/// (see /backend/diagnostics) -- never fabricated demo data. RecentGuardianEvents
+/// and CapabilityStatus are kept as raw JsonElement rather than modeled
+/// record shapes: their exact structure is owned by the Security Guardian
+/// and the status registry respectively, and re-typing them here would
+/// risk silently dropping fields Backend Mode should still show honestly.
+/// </summary>
+public sealed record BackendDiagnostics(
+    [property: JsonPropertyName("audit_chain_valid")] bool AuditChainValid,
+    [property: JsonPropertyName("audit_entries_checked")] int AuditEntriesChecked,
+    [property: JsonPropertyName("recent_guardian_events")] System.Text.Json.JsonElement RecentGuardianEvents,
+    [property: JsonPropertyName("capability_status")] System.Text.Json.JsonElement CapabilityStatus);

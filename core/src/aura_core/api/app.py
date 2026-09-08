@@ -7,6 +7,7 @@ assembled first and revealed character-by-character.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 from collections.abc import AsyncIterator
@@ -150,6 +151,37 @@ class VoiceStateRequest(BaseModel):
 def _sse(event: str, data: str) -> bytes:
     payload = json.dumps({"event": event, "data": data})
     return f"data: {payload}\n\n".encode()
+
+
+async def voice_state_events(poll_interval: float = 0.1) -> AsyncIterator[bytes]:
+    """Event-driven push for the native shell's Voice Mode view (section
+    6: "reflect real runtime events, never a polling timer with a fixed
+    refresh interval"). The registry itself (status.py's StatusRegistry)
+    is a plain in-memory dict with no subscribe/notify of its own, so
+    this generator is the one place that watches it and turns "a value
+    changed" into a genuine server push -- the client still just reads a
+    stream and never issues a repeated GET. The internal poll_interval is
+    an implementation detail of this generator, not something any client
+    is asked to do.
+
+    A module-level function (not a closure inside the /voice/state/stream
+    route) on purpose: it never terminates on its own by design, which
+    the in-process TestClient used by this test suite cannot stream
+    incrementally -- TestClient runs an ASGI call to full completion
+    before returning anything, so a route that only ever exposed this
+    logic as an inline generator would be untestable without an
+    unbounded hang. Being a standalone function lets tests drive it
+    directly with asyncio.wait_for + aclose() instead, while the real
+    /voice/state/stream endpoint below wraps it completely unchanged.
+    """
+    last_sent: str | None = None
+    while True:
+        record = registry.get("voice.session_state")
+        state = record.detail if record is not None and record.status == CapabilityStatus.LIVE else "UNKNOWN"
+        if state != last_sent:
+            yield _sse("state", state)
+            last_sent = state
+        await asyncio.sleep(poll_interval)
 
 
 def _format_mandate_report(report) -> str:
@@ -510,6 +542,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "backend_elevation_ttl_seconds": settings.backend_elevation_ttl_seconds,
         }
 
+    @app.get("/identity/whoami", dependencies=gated)
+    async def whoami(x_aura_device_token: str | None = Header(default=None)) -> dict:
+        """The one deliberate exception to "GET endpoints are never
+        gated": this endpoint's entire purpose is to answer "is the
+        caller currently a recognized owner device," so it is the real
+        substitute for a production startup authentication screen that
+        this build has (no Windows Hello / hardware-backed factor is
+        wired up here) -- the native shell calls this once at launch,
+        after CompleteBootstrap(), to decide AuthRequired vs going
+        straight to VoiceMode. `gated` already turns a missing/invalid
+        token into a 401 whenever an owner is enrolled, so reaching this
+        line with `runtime.enrollment.is_enrolled()` true means the token
+        was already verified once by require_device_token; verifying it
+        again here (rather than trusting that) costs nothing and means
+        this handler never has to assume what the dependency did."""
+        if not runtime.enrollment.is_enrolled():
+            return {"enrolled": False, "owner_name": None, "device_label": None}
+        device = runtime.enrollment.verify_token(x_aura_device_token) if x_aura_device_token else None
+        return {
+            "enrolled": True,
+            "owner_name": runtime.enrollment.owner_display_name(),
+            "device_label": device.label if device is not None else None,
+        }
+
     @app.post("/backend/pin", dependencies=gated)
     async def set_backend_pin(request: SetBackendPinRequest) -> dict:
         """Setting the PIN only ever requires the ordinary owner/device
@@ -823,5 +879,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=f"unknown voice state '{request.state}'")
         registry.set("voice.session_state", CapabilityStatus.LIVE, request.state)
         return {"state": request.state}
+
+    @app.get("/voice/state/stream")
+    async def voice_state_stream() -> StreamingResponse:
+        return StreamingResponse(voice_state_events(), media_type="text/event-stream")
 
     return app

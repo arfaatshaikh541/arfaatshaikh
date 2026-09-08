@@ -734,6 +734,61 @@ closure lands, in the order it actually happened:
     bindings rather than picked blindly -- see the doc for exactly what
     that audit did and did not verify.
 
+32. **Voice-first secure operating interface -- the WPF shell itself,
+    written (never compiled)** (full scope statement: `docs/
+    VOICE_FIRST_SECURE_INTERFACE.md`): the previous pass built the
+    security boundary and state machine as testable Linux-buildable code
+    and explicitly deferred the actual WPF screens, Win32 hotkey
+    registration, and Windows session-lock handling as
+    `REQUIRES_WINDOWS_RUNTIME`. This pass wrote all three. `App.xaml.cs`
+    no longer shows a prebuilt Chat/Status/Approvals dashboard by
+    default -- it shows one window (`MainWindow`, now a mode-driven
+    shell, not the dashboard itself) whose content swaps among four new
+    views as `InterfaceModeManager.ModeChanged` fires:
+    `AuthenticationView` (the real startup screen), `VoiceModeView` (a
+    single central orb driven by real voice state, no dashboard/sidebar/
+    transcript), `BackendChallengeView` (the PIN second factor, via a
+    real `PasswordBox`, never a plain text field), and `BackendModeView`
+    (where the previous dashboard's Chat/Status/Approvals tabs and the
+    kill switch now live, plus two new tabs -- Diagnostics and Audit
+    Trail -- backed by the real `/backend/diagnostics`/`/backend/audit`
+    endpoints, cleared, not just hidden, the moment Backend Mode is
+    left). `Win32HotkeyManager` is a complete `RegisterHotKey`/
+    `UnregisterHotKey`/`WM_HOTKEY` implementation built on the
+    already-tested `HotkeyDebouncer`, failing closed and reporting why
+    (already-in-use vs. unsupported vs. failed) rather than silently
+    doing nothing. `SystemSessionMonitor` implements
+    `WTSRegisterSessionNotification`/`WM_WTSSESSION_CHANGE` for lock/
+    unlock/logoff/console-disconnect and `WM_POWERBROADCAST` for sleep/
+    resume, both routed to the same real elevation-revocation path a
+    hotkey-triggered exit uses. A new `InterfaceShellViewModel`
+    (`AuraShell.Core`, plain `net8.0`, builds and tests on Linux) is the
+    composition root gluing all of this together -- 20 new tests drive
+    the full boot -> auth -> VoiceMode -> hotkey -> PIN -> BackendMode ->
+    hotkey -> VoiceMode sequence against a `FakeHttpMessageHandler`
+    standing in for aura_core. A new real event-driven push closes the
+    "never polling" requirement between the shell and aura_core: `GET
+    /voice/state/stream` (Server-Sent-Events, pushes only on a genuine
+    state change) plus `AuraApiClient.StreamVoiceStateAsync` and
+    `VoiceModeViewModel` consuming it (9 new tests total, Python + C#).
+    `GET /identity/whoami` (5 Python + 3 C# tests) is the real substitute
+    this build has for a production startup authentication screen --
+    honestly documented as weaker than the Windows Hello / biometric
+    factor the original request describes, since no hardware-backed
+    factor exists in this codebase; it proves "this is a trusted
+    device," not "a specific person is at the keyboard right now."
+    **What did not change**: `apps/windows/AuraShell` still cannot
+    compile in this sandbox (`MSB4019`, same as every pass this
+    session), so none of the WPF-only files above have been compiled,
+    run, or visually verified -- they were written carefully against the
+    tested `AuraShell.Core` contracts, checked for XML well-formedness
+    and brace-balance by hand-rolled scripts since no compiler is
+    available, and are believed correct, not proven. See the doc's
+    "Still not built, and why" section for what remains even once a real
+    Windows build is possible (a real interactive owner-presence factor,
+    real audio-pipeline mute gating, barge-in's visual treatment, and the
+    installer integration).
+
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
 label just because it hasn't been reached yet.

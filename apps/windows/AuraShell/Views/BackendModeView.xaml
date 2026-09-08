@@ -1,0 +1,129 @@
+<UserControl x:Class="AuraShell.Views.BackendModeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AuraShell">
+    <!--
+        Backend Mode: everything the previous MainWindow dashboard used
+        to show by default now lives here instead, reachable only through
+        a real re-authenticated hotkey challenge (see
+        InterfaceShellViewModel.SubmitBackendPinAsync) and never the
+        owner's default startup screen. DataContext is the full
+        InterfaceShellViewModel — Chat/Status/Approvals bind through its
+        Backend (MainViewModel) property exactly as MainWindow.xaml used
+        to bind them directly; Diagnostics and Audit Trail are new,
+        backed by the real /backend/diagnostics and /backend/audit
+        endpoints (never fabricated demo data — see
+        InterfaceShellViewModel.RefreshDiagnosticsAsync/RefreshAuditAsync).
+    -->
+    <UserControl.Resources>
+        <local:BoolToKillSwitchLabelConverter x:Key="KillSwitchLabelConverter" />
+        <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
+    </UserControl.Resources>
+    <UserControl.InputBindings>
+        <KeyBinding Key="Return" Command="{Binding Backend.Chat.SendCommand}" />
+    </UserControl.InputBindings>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="8" Background="#1E1E1E">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <TextBlock Text="AURA — Backend Mode" Foreground="White" FontSize="16" FontWeight="Bold"
+                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Content="{Binding Backend.KillSwitchEngaged, Converter={StaticResource KillSwitchLabelConverter}}"
+                            Command="{Binding Backend.ToggleKillSwitchCommand}"
+                            Padding="8,4" />
+                    <TextBlock Text="{Binding Backend.KillSwitchEngaged, StringFormat='kill switch engaged: {0}'}"
+                               Foreground="White" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Foreground="#9A9AA5" Text="session remaining: " />
+                    <TextBlock Foreground="#9A9AA5" Text="{Binding ElevationRemaining}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TabControl>
+            <TabItem Header="AURA">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBox Width="700" Text="{Binding Backend.Chat.InputText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Send" Margin="8,0,0,0" Command="{Binding Backend.Chat.SendCommand}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding Backend.Chat.Transcript}" />
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Status">
+                <DockPanel Margin="8">
+                    <Button DockPanel.Dock="Top" Content="Refresh" HorizontalAlignment="Left"
+                            Command="{Binding Backend.Status.RefreshCommand}" Margin="0,0,0,8" />
+                    <ListView ItemsSource="{Binding Backend.Status.Capabilities}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Capability" DisplayMemberBinding="{Binding Name}" Width="220" />
+                                <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="140" />
+                                <GridViewColumn Header="Detail" DisplayMemberBinding="{Binding Detail}" Width="400" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Approvals">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Refresh" Command="{Binding Backend.Approvals.RefreshCommand}" />
+                        <Button Content="Approve" Margin="8,0,0,0" Command="{Binding Backend.Approvals.ApproveCommand}" />
+                        <Button Content="Deny" Margin="8,0,0,0" Command="{Binding Backend.Approvals.DenyCommand}" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Backend.Approvals.LastMessage}" Margin="0,8,0,0" />
+                    <ListView ItemsSource="{Binding Backend.Approvals.Pending}"
+                              SelectedItem="{Binding Backend.Approvals.Selected, Mode=TwoWay}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Risk" DisplayMemberBinding="{Binding RiskTier}" Width="80" />
+                                <GridViewColumn Header="Action" DisplayMemberBinding="{Binding ActionType}" Width="200" />
+                                <GridViewColumn Header="Reason" DisplayMemberBinding="{Binding Reason}" Width="380" />
+                                <GridViewColumn Header="Created" DisplayMemberBinding="{Binding CreatedAt}" Width="180" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Diagnostics">
+                <DockPanel Margin="8">
+                    <Button DockPanel.Dock="Top" Content="Refresh" HorizontalAlignment="Left"
+                            Command="{Binding RefreshDiagnosticsCommand}" Margin="0,0,0,8" />
+                    <StackPanel>
+                        <TextBlock Foreground="#9A9AA5" Text="No diagnostics loaded yet -- click Refresh."
+                                   Visibility="{Binding Diagnostics, Converter={StaticResource NullToCollapsedConverter}}" />
+                        <TextBlock Foreground="White"
+                                   Text="{Binding Diagnostics.AuditChainValid, StringFormat='Audit chain valid: {0}'}" />
+                        <TextBlock Foreground="White"
+                                   Text="{Binding Diagnostics.AuditEntriesChecked, StringFormat='Audit entries checked: {0}'}" />
+                    </StackPanel>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Audit Trail">
+                <DockPanel Margin="8">
+                    <Button DockPanel.Dock="Top" Content="Refresh" HorizontalAlignment="Left"
+                            Command="{Binding RefreshAuditCommand}" Margin="0,0,0,8" />
+                    <ListView ItemsSource="{Binding AuditEntries}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Seq" DisplayMemberBinding="{Binding Seq}" Width="60" />
+                                <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp}" Width="200" />
+                                <GridViewColumn Header="Actor" DisplayMemberBinding="{Binding Actor}" Width="100" />
+                                <GridViewColumn Header="Action" DisplayMemberBinding="{Binding ActionType}" Width="240" />
+                                <GridViewColumn Header="Risk" DisplayMemberBinding="{Binding RiskTier}" Width="70" />
+                                <GridViewColumn Header="Result" DisplayMemberBinding="{Binding ResultStatus}" Width="100" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

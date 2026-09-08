@@ -109,6 +109,14 @@ class EnrollmentEngine:
         with self._Session() as session:
             return list(session.execute(select(DeviceTrust)).scalars().all())
 
+    def owner_display_name(self) -> str | None:
+        """Read-only convenience for surfaces that need to greet the
+        owner by name (e.g. /identity/whoami) without exposing anything
+        else about the Owner row. None before enrollment."""
+        with self._Session() as session:
+            owner = session.execute(select(Owner)).scalars().first()
+            return owner.display_name if owner is not None else None
+
     def revoke_device(self, device_id: str) -> None:
         with self._Session() as session:
             device = session.get(DeviceTrust, device_id)
