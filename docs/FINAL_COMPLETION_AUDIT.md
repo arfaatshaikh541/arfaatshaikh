@@ -789,6 +789,41 @@ closure lands, in the order it actually happened:
     real audio-pipeline mute gating, barge-in's visual treatment, and the
     installer integration).
 
+33. **Production-blocker close-out: privacy gating, device resilience,
+    owner presence, installer** (full detail: `docs/
+    VOICE_FIRST_SECURE_INTERFACE.md`'s "Production-blocker close-out
+    pass"): `AuraVoice.Core.VoicePrivacyGate` (new, pure, unit-tested) is
+    the real FULL_MIC_OFF vs. WAKE_WORD_ONLY distinction, wired into
+    `WindowsVoicePipeline`'s real NAudio start/stop and wake-word branch
+    (confirmed with a real `dotnet build` against the real NAudio API),
+    polled and applied by `AuraVoice.Windows.Host` from a new `GET/POST
+    /voice/privacy`, and exposed as two mutually-exclusive toggles in the
+    WPF Voice Mode view. `NAudioMicrophoneSource` gained real device-loss
+    detection (NAudio's `RecordingStopped` event) with capped-backoff
+    automatic reopening, and a cancellation-token fix closing a race
+    where a stale reopen could switch the mic back on after an explicit
+    Stop(). `InterfaceShellViewModel.OwnerPresenceCheck` (new, null by
+    default, 4 tests) runs an optional interactive factor before the
+    device-token check and fails closed on any exception; the WPF host
+    wires it to a real `LogonUser`-based Windows credential prompt
+    (`WindowsOwnerPresenceVerifier` + `OwnerPresenceDialog`) -- explicitly
+    not Windows Hello, documented as such. `install/Install-AURA.ps1` now
+    preserves the device-token directory across updates (previously a
+    silent forced-re-enrollment bug) and runs `dotnet test`, not just
+    `dotnet build`. `WINDOWS-COMMISSIONING.ps1` gained an automated
+    identity/interface/privacy API check and a new interactive
+    walkthrough exercising the full owner-presence/hotkey/PIN/OS-lock
+    sequence against a real launched `AuraShell.exe`. 12 new Python
+    tests, 4 new `AuraVoice.Core.Tests`, 9 new `AuraShell.Core.Tests`, all
+    passing. **What did not change**: no Windows machine is reachable
+    from this session at all (confirmed directly), so none of the
+    WPF-only code and neither PowerShell script has been executed --
+    both scripts were verified with PowerShell 7's own language parser
+    (zero syntax errors, genuine verification available in this sandbox)
+    as the strongest check possible here. Windows Hello itself, acoustic
+    echo cancellation, explicit default-device-change callbacks, and
+    Bluetooth-specific handling remain unbuilt, named honestly in the doc.
+
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
 label just because it hasn't been reached yet.
