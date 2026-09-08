@@ -19,8 +19,12 @@
                 </Ellipse.Effect>
             </Ellipse>
             <TextBlock x:Name="StateText" Foreground="#9A9AA5" FontSize="16" HorizontalAlignment="Center" Margin="0,28,0,0" />
-            <ToggleButton x:Name="MuteToggle" Content="Mute microphone" HorizontalAlignment="Center" Margin="0,28,0,0"
-                          Padding="12,6" Checked="OnMuteChecked" Unchecked="OnMuteUnchecked" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,28,0,0">
+                <ToggleButton x:Name="MuteToggle" Content="Mute microphone" Padding="12,6"
+                              Checked="OnMuteChecked" Unchecked="OnMuteUnchecked" />
+                <ToggleButton x:Name="WakeWordOnlyToggle" Content="Wake-word only" Padding="12,6" Margin="12,0,0,0"
+                              Checked="OnWakeWordOnlyChecked" Unchecked="OnWakeWordOnlyUnchecked" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

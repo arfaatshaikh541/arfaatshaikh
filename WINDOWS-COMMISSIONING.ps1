@@ -43,6 +43,15 @@
     a quick non-interactive re-run of everything else). Those checks are
     recorded as SKIP, not FAIL.
 
+.PARAMETER SkipShellInteractive
+    Skip the interactive WPF shell walkthrough (owner-presence prompt,
+    Voice Mode's no-dashboard appearance, the backend hotkey + PIN
+    challenge, and an OS-lock check) -- this is what actually exercises
+    the voice-first secure interface end to end on real Windows,
+    self-reported by you at each step since there is no way for this
+    script to observe WPF window content from the outside. Recorded as
+    SKIP, not FAIL, when skipped.
+
 .PARAMETER VoiceListenSeconds
     How long to run the real voice pipeline during the interactive
     section, giving you time to say the wake word, a command, and
@@ -67,6 +76,7 @@ param(
     [string]$RepoRoot = $PSScriptRoot,
     [string]$OutputDir = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop),
     [switch]$SkipVoiceInteractive,
+    [switch]$SkipShellInteractive,
     [int]$VoiceListenSeconds = 30,
     [int]$ServerPort = 8756
 )
@@ -181,23 +191,12 @@ if ($LASTEXITCODE -eq 0) {
     Add-Result "windows.aurashell.tests" "FAIL" "see logs\aurashell-test.log"
 }
 
-Write-Section "Launching AuraShell (startup smoke test)"
+Write-Section "AuraShell launch check"
 $shellExe = Get-ChildItem -Path "$RepoRoot\apps\windows\AuraShell\bin\Release" -Recurse -Filter "AuraShell.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -eq $shellExe) {
     Add-Result "windows.aurashell.launch" "SKIP" "AuraShell.exe not found -- see aurashell-build.log"
 } else {
-    try {
-        $shellProc = Start-Process -FilePath $shellExe.FullName -PassThru
-        Start-Sleep -Seconds 4
-        if ($shellProc.HasExited) {
-            Add-Result "windows.aurashell.launch" "FAIL" "AuraShell exited immediately (exit code $($shellProc.ExitCode)) -- likely crashed on startup"
-        } else {
-            Add-Result "windows.aurashell.launch" "PASS" "AuraShell started and stayed running for 4s -- close it manually if it's still open, or it will be stopped now"
-            Stop-Process -Id $shellProc.Id -Force -ErrorAction SilentlyContinue
-        }
-    } catch {
-        Add-Result "windows.aurashell.launch" "FAIL" "could not launch AuraShell.exe: $($_.Exception.Message)"
-    }
+    Add-Result "windows.aurashell.exe_found" "PASS" "$($shellExe.FullName) -- actual launch + the voice-first shell walkthrough happens later, once a real aura_core server is running for it to talk to"
 }
 
 # ---------------------------------------------------------------------
@@ -308,8 +307,126 @@ if ($serverReady) {
     } catch {
         Add-Result "model.generation" "FAIL" "could not reach /chat: $($_.Exception.Message)"
     }
+
+    Write-Section "Voice-first interface backend (identity/whoami, interface/config, voice/privacy)"
+    try {
+        $whoami = Invoke-RestMethod -Uri "$serverBaseUrl/identity/whoami" -TimeoutSec 5
+        Add-Result "identity.whoami" "PASS" "enrolled=$($whoami.enrolled) owner=$($whoami.owner_name)"
+    } catch {
+        Add-Result "identity.whoami" "FAIL" "could not reach /identity/whoami: $($_.Exception.Message)"
+    }
+    try {
+        $ifaceConfig = Invoke-RestMethod -Uri "$serverBaseUrl/interface/config" -TimeoutSec 5
+        Add-Result "interface.config" "PASS" "default_mode=$($ifaceConfig.default_interface_mode) hotkey=$($ifaceConfig.backend_toggle_hotkey)"
+    } catch {
+        Add-Result "interface.config" "FAIL" "could not reach /interface/config: $($_.Exception.Message)"
+    }
+    try {
+        # A full round trip through every real privacy mode
+        # (WindowsVoicePipeline.PrivacyGate's contract) -- this is the
+        # backend half of "FULL MIC OFF vs. WAKE-WORD-ONLY" gating;
+        # actually observing the microphone hardware react is the
+        # manual voice-pipeline section below, since that needs a real
+        # AuraVoice.Windows.Host process and a human ear.
+        foreach ($mode in @("WakeWordOnly", "FullMicOff", "Normal")) {
+            Invoke-RestMethod -Uri "$serverBaseUrl/voice/privacy" -Method Post -Body (@{ mode = $mode } | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 5 | Out-Null
+            $readBack = Invoke-RestMethod -Uri "$serverBaseUrl/voice/privacy" -TimeoutSec 5
+            if ($readBack.mode -ne $mode) {
+                throw "set $mode but read back $($readBack.mode)"
+            }
+        }
+        Add-Result "voice.privacy_api" "PASS" "Normal/WakeWordOnly/FullMicOff all set and read back correctly"
+    } catch {
+        Add-Result "voice.privacy_api" "FAIL" "$($_.Exception.Message)"
+    }
 } else {
     Add-Result "status.checks" "SKIP" "server never came up -- skipping status/connector/model checks"
+}
+
+# ---------------------------------------------------------------------
+# 5b. Voice-first shell walkthrough (interactive): the exact section-3
+#     sequence (boot -> owner-presence prompt -> device check -> Voice
+#     Mode, no dashboard -> hotkey -> PIN challenge -> Backend Mode ->
+#     same hotkey -> Voice Mode again -> OS lock revokes elevation).
+#     Launched against the throwaway server above (via AURA_CORE_URL,
+#     same pattern the voice pipeline section below uses) so it exercises
+#     the real /identity/whoami, /interface/config, and
+#     /backend/authenticate endpoints just checked above. This is the one
+#     part of the whole shell that genuinely cannot be observed from a
+#     script (WPF window content isn't queryable this way) -- each step
+#     is self-reported by you, the same honesty the interactive voice
+#     section below already uses rather than pretending this script
+#     watched it happen.
+# ---------------------------------------------------------------------
+Write-Section "Voice-first shell walkthrough (interactive)"
+if ($SkipShellInteractive) {
+    Add-Result "shell.walkthrough" "SKIP" "skipped via -SkipShellInteractive"
+} elseif (-not $serverReady) {
+    Add-Result "shell.walkthrough" "SKIP" "aura_core server never came up -- AuraShell has nothing to authenticate against"
+} elseif ($null -eq $shellExe) {
+    Add-Result "shell.walkthrough" "SKIP" "AuraShell.exe not found -- see aurashell-build.log"
+} else {
+    function Confirm-Step {
+        param([string]$Name, [string]$Prompt)
+        Write-Host ""
+        Write-Host $Prompt -ForegroundColor Yellow
+        $answer = Read-Host "Confirm (y/n)"
+        if ($answer -match "^[Yy]") {
+            Add-Result $Name "PASS" "confirmed by operator"
+        } else {
+            Add-Result $Name "FAIL" "operator reported this step did not behave as expected"
+        }
+    }
+
+    $env:AURA_CORE_URL = $serverBaseUrl
+    $walkthroughProc = $null
+    try {
+        $walkthroughProc = Start-Process -FilePath $shellExe.FullName -PassThru
+        Start-Sleep -Seconds 4
+        if ($walkthroughProc.HasExited) {
+            Add-Result "shell.walkthrough" "FAIL" "AuraShell exited immediately (exit code $($walkthroughProc.ExitCode)) -- likely crashed on startup; skipping the rest of the walkthrough"
+        } else {
+            Write-Host ""
+            Write-Host "AuraShell is now open, pointed at this script's throwaway aura_core server." -ForegroundColor Yellow
+            Confirm-Step "shell.owner_presence_prompt" `
+                "Did AURA show a Windows-credential prompt (asking for your account password) BEFORE anything else appeared?"
+            Confirm-Step "shell.voice_mode_no_dashboard" `
+                "After authenticating, does the window show ONLY a single central orb (Voice Mode) -- no tabs, no chat transcript, no dashboard?"
+
+            $hotkey = $ifaceConfig.backend_toggle_hotkey
+            if (-not $hotkey) { $hotkey = "Ctrl+Alt+Shift+A (default -- could not confirm the configured value above)" }
+            Write-Host ""
+            Write-Host "Press the backend hotkey now: $hotkey" -ForegroundColor Yellow
+            Read-Host "Press Enter here once you've pressed it" | Out-Null
+            Confirm-Step "shell.hotkey_opens_pin_challenge" `
+                "Did a PIN entry screen appear (and NOT the dashboard directly)?"
+
+            Write-Host ""
+            Write-Host "Enter your backend PIN in the app now (set one first via the app or aura_core's /backend/pin if you haven't)." -ForegroundColor Yellow
+            Read-Host "Press Enter here once you've submitted it" | Out-Null
+            Confirm-Step "shell.pin_opens_backend_mode" `
+                "Did the dashboard (Chat/Status/Approvals/Diagnostics/Audit Trail tabs) appear after a correct PIN?"
+
+            Write-Host ""
+            Write-Host "Press the SAME hotkey again to leave Backend Mode: $hotkey" -ForegroundColor Yellow
+            Read-Host "Press Enter here once you've pressed it" | Out-Null
+            Confirm-Step "shell.hotkey_leaves_backend_mode_without_reauth" `
+                "Did it return immediately to the single-orb Voice Mode screen, with NO PIN prompt this time?"
+
+            Write-Host ""
+            Write-Host "Now re-enter Backend Mode (hotkey + PIN) again, then lock Windows (Win+L) while Backend Mode is showing, then unlock it." -ForegroundColor Yellow
+            Read-Host "Press Enter here once you've locked and unlocked" | Out-Null
+            Confirm-Step "shell.os_lock_revokes_elevation" `
+                "After unlocking, did AURA show the owner-presence/authentication screen again (NOT the dashboard, and NOT straight back into Voice Mode without re-authenticating)?"
+        }
+    } catch {
+        Add-Result "shell.walkthrough" "FAIL" "could not launch AuraShell.exe: $($_.Exception.Message)"
+    } finally {
+        if ($walkthroughProc -and -not $walkthroughProc.HasExited) {
+            Stop-Process -Id $walkthroughProc.Id -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item Env:\AURA_CORE_URL -ErrorAction SilentlyContinue
+    }
 }
 
 # ---------------------------------------------------------------------

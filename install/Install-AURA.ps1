@@ -106,6 +106,16 @@ try {
         throw "AuraVoice.sln build failed"
     }
 
+    Write-Step "Running the C# self-test suites (real Windows build/run proof for the shell and voice pipeline logic, not just that they compiled)"
+    dotnet test "$StagingDir\apps\windows\AuraShell.Core.Tests" --configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "AuraShell.Core.Tests failed"
+    }
+    dotnet test "$StagingDir\apps\voice\AuraVoice.Core.Tests" --configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "AuraVoice.Core.Tests failed"
+    }
+
     Write-Step "Committing: swapping staging into place"
     if (Test-Path $BackupDir) {
         Remove-Item -Recurse -Force $BackupDir
@@ -116,7 +126,7 @@ try {
     Rename-Item $StagingDir $InstallDir
 
     if (Test-Path $BackupDir) {
-        Write-Step "Preserving prior install's persistent data (memory/governance DB, .models) into the new install"
+        Write-Step "Preserving prior install's persistent data (memory/governance DB, .models, device token) into the new install"
         $oldDb = "$BackupDir\core\aura_core.db"
         if (Test-Path $oldDb) {
             Copy-Item $oldDb "$InstallDir\core\aura_core.db" -Force
@@ -124,6 +134,19 @@ try {
         $oldModels = "$BackupDir\core\.models"
         if (Test-Path $oldModels) {
             Copy-Item -Recurse $oldModels "$InstallDir\core\.models" -Force
+        }
+        # The device token issued at `aura enroll` (identity/token_store.py's
+        # default_token_path -- $InstallDir\core\.aura\device_token,
+        # sibling to the sandbox dir) lives inside $InstallDir just like
+        # the DB and models above, and MUST be preserved the same way --
+        # without it, every update would silently force re-enrollment,
+        # which would also invalidate the owner's already-configured
+        # backend PIN's usefulness (verify_owner_pin needs a valid device
+        # token presented alongside it; see identity/elevation.py) even
+        # though the PIN itself lives safely in the preserved DB above.
+        $oldDeviceTokenDir = "$BackupDir\core\.aura"
+        if (Test-Path $oldDeviceTokenDir) {
+            Copy-Item -Recurse $oldDeviceTokenDir "$InstallDir\core\.aura" -Force
         }
     }
 

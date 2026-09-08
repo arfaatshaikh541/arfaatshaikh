@@ -48,6 +48,14 @@ public partial class VoiceModeView : UserControl
         OrbGlow.Color = color;
         StateText.Text = label;
         MuteToggle.IsChecked = vm.IsMuted;
+        WakeWordOnlyToggle.IsChecked = vm.IsWakeWordOnly;
+        // Mutually exclusive at the model level (see
+        // VoiceModeViewModel.SetMuted/SetWakeWordOnly) -- disabling the
+        // other toggle while one is active makes that exclusivity
+        // visible rather than letting the owner check both and wonder
+        // which one actually won.
+        WakeWordOnlyToggle.IsEnabled = !vm.IsMuted;
+        MuteToggle.IsEnabled = !vm.IsWakeWordOnly;
     }
 
     private void OnMuteChecked(object sender, RoutedEventArgs e) =>
@@ -55,4 +63,10 @@ public partial class VoiceModeView : UserControl
 
     private void OnMuteUnchecked(object sender, RoutedEventArgs e) =>
         (DataContext as VoiceModeViewModel)?.SetMuted(false);
+
+    private void OnWakeWordOnlyChecked(object sender, RoutedEventArgs e) =>
+        (DataContext as VoiceModeViewModel)?.SetWakeWordOnly(true);
+
+    private void OnWakeWordOnlyUnchecked(object sender, RoutedEventArgs e) =>
+        (DataContext as VoiceModeViewModel)?.SetWakeWordOnly(false);
 }

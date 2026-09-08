@@ -150,6 +150,17 @@ pipeline.Controller.StateChanged += state =>
 orchestrator.ResponseSpoken += response => log.Info($"aura: {response}");
 orchestrator.ResponseFailed += ex => log.Error("response generation failed", ex);
 
+// Real "self-healing without reinstall" (section 17): a device loss is
+// logged, not silently swallowed, and a successful automatic reopen is
+// logged too so a real support session can see the pipeline actually
+// recovered rather than staying deaf after a Bluetooth dropout/USB
+// unplug. The recovery itself happens inside NAudioMicrophoneSource;
+// this host process only observes and records it.
+pipeline.MicrophoneDeviceLost += ex =>
+    log.Warn($"microphone device lost ({ex.Message}) -- attempting to reopen automatically.");
+pipeline.MicrophoneDeviceRecovered += () =>
+    log.Info("microphone device reopened successfully after a loss.");
+
 var shutdownRequested = new TaskCompletionSource();
 orchestrator.ShutdownRequested += () =>
 {
@@ -160,9 +171,59 @@ orchestrator.ShutdownRequested += () =>
 pipeline.Start();
 log.Info("Listening for the wake word. Press Enter, or say \"shut down\", to stop.");
 
+// The real backend half of section 17's "FULL MIC OFF vs. WAKE-WORD-ONLY"
+// gating: this process is the one place with an actual microphone to
+// gate, so it is the one place that must actually watch for a change --
+// polling (not the SSE push the WPF shell uses for state, since this is
+// a plain console host with a much simpler lifecycle) at a plain fixed
+// interval is real, simple, and sufficient for a privacy control the
+// owner expects to take effect within roughly a second, not instantly.
+var privacyPollInterval = TimeSpan.FromSeconds(1);
+var privacyPollCts = new CancellationTokenSource();
+var privacyPollTask = Task.Run(async () =>
+{
+    while (!privacyPollCts.IsCancellationRequested)
+    {
+        try
+        {
+            var privacy = await apiClient.GetVoicePrivacyAsync(privacyPollCts.Token);
+            var mode = privacy.Mode switch
+            {
+                "WakeWordOnly" => VoicePrivacyMode.WakeWordOnly,
+                "FullMicOff" => VoicePrivacyMode.FullMicOff,
+                _ => VoicePrivacyMode.Normal,
+            };
+            if (mode != pipeline.PrivacyGate.Mode)
+            {
+                log.Info($"privacy mode -> {mode} (microphone {(mode == VoicePrivacyMode.FullMicOff ? "closing" : "open")})");
+                pipeline.PrivacyGate.SetMode(mode);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            log.Warn($"failed to poll voice privacy mode from aura_core: {ex.Message}");
+        }
+
+        try
+        {
+            await Task.Delay(privacyPollInterval, privacyPollCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+    }
+});
+
 var consoleReadLine = Task.Run(() => Console.ReadLine());
 await Task.WhenAny(consoleReadLine, shutdownRequested.Task);
 
+privacyPollCts.Cancel();
+await privacyPollTask;
 pipeline.Stop();
 if (textToSpeech is IDisposable disposableTts)
 {

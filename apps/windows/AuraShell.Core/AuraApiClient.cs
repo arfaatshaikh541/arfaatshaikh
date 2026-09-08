@@ -105,6 +105,26 @@ public sealed class AuraApiClient
     }
 
     /// <summary>
+    /// The real backend half of "FULL MIC OFF vs. WAKE-WORD-ONLY"
+    /// (section 17): this is what AuraVoice.Windows.Host actually polls
+    /// and hands to WindowsVoicePipeline.PrivacyGate, which opens/closes
+    /// the real microphone hardware. VoiceModeViewModel calls this from
+    /// its mute/wake-word-only toggles -- the WPF UI is a client of this
+    /// state, never the thing that gates the microphone itself.
+    /// </summary>
+    public async Task SetVoicePrivacyAsync(string mode, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("/voice/privacy", new { mode }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<VoicePrivacyInfo> GetVoicePrivacyAsync(CancellationToken ct = default)
+    {
+        var result = await _http.GetFromJsonAsync<VoicePrivacyInfo>("/voice/privacy", JsonOptions, ct);
+        return result ?? new VoicePrivacyInfo("Normal");
+    }
+
+    /// <summary>
     /// Ungated on purpose (see api/app.py's /interface/config) -- the
     /// shell reads this before the owner has authenticated at all, to
     /// know which hotkey to register and which mode to boot into.

@@ -93,6 +93,51 @@ public class VoiceModeViewModelTests
         Assert.Equal(VoiceVisualState.Unknown, vm.State);
     }
 
+    [Fact]
+    public async Task SetMuted_pushes_the_real_FullMicOff_mode_to_aura_core()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/voice/privacy", """{"mode": "FullMicOff"}""");
+        var vm = new VoiceModeViewModel(MakeClient(handler));
+
+        vm.SetMuted(true);
+        await WaitUntil(() => handler.Requests.Count >= 1, TimeSpan.FromSeconds(1));
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("/voice/privacy", request.RequestUri!.AbsolutePath);
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("\"mode\":\"FullMicOff\"", body);
+    }
+
+    [Fact]
+    public async Task SetWakeWordOnly_pushes_the_real_WakeWordOnly_mode_and_is_mutually_exclusive_with_mute()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/voice/privacy", """{"mode": "WakeWordOnly"}""");
+        var vm = new VoiceModeViewModel(MakeClient(handler));
+
+        vm.SetMuted(true);
+        vm.SetWakeWordOnly(true);
+        await WaitUntil(() => handler.Requests.Count >= 2, TimeSpan.FromSeconds(1));
+
+        Assert.True(vm.IsWakeWordOnly);
+        Assert.False(vm.IsMuted); // enabling wake-word-only clears mute
+        var lastBody = await handler.Requests[^1].Content!.ReadAsStringAsync();
+        Assert.Contains("\"mode\":\"WakeWordOnly\"", lastBody);
+    }
+
+    [Fact]
+    public void Enabling_mute_while_wake_word_only_is_active_clears_wake_word_only()
+    {
+        var vm = new VoiceModeViewModel(MakeClient(new FakeHttpMessageHandler()));
+
+        vm.SetWakeWordOnly(true);
+        vm.SetMuted(true);
+
+        Assert.True(vm.IsMuted);
+        Assert.False(vm.IsWakeWordOnly);
+    }
+
     [Theory]
     [InlineData("Idle", VoiceVisualState.Idle)]
     [InlineData("ListeningForWake", VoiceVisualState.ListeningForWake)]

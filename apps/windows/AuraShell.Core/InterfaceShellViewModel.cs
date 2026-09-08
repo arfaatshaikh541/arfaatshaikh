@@ -169,19 +169,58 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// The real substitute this build has for a production startup
-    /// authentication screen: no Windows Hello or other hardware-backed
-    /// factor is wired up, so "is the owner present" is answered the
-    /// same way every other trust decision in this codebase already is —
-    /// a valid device token (identity/whoami) — rather than inventing a
-    /// separate, weaker check just for this screen. Retryable: on
-    /// failure, Mode returns to AuthRequired, from which this may be
-    /// called again (e.g. a "Retry" button, or after `aura enroll` was
-    /// run on this machine while the screen was showing).
+    /// An optional, additional interactive owner-presence factor run
+    /// BEFORE the device-token check below -- set by the WPF host
+    /// (App.xaml.cs/MainWindow) to a real Windows credential prompt
+    /// (see AuraShell's WindowsOwnerPresenceVerifier), never set here
+    /// since this class must stay testable without any Windows API.
+    /// Null (the default, used by every existing test) means "no
+    /// additional local factor configured" -- AuthenticateAsync then
+    /// falls back to the device-token check alone, exactly as before.
+    /// A thrown exception from this delegate is treated as "not
+    /// verified," never propagated -- a broken presence check must fail
+    /// closed, the same discipline every credential check in this
+    /// codebase already follows.
+    /// </summary>
+    public Func<Task<bool>>? OwnerPresenceCheck { get; set; }
+
+    /// <summary>
+    /// The real production startup authentication check. Two factors
+    /// when OwnerPresenceCheck is configured: (1) a real interactive
+    /// owner-presence verification the WPF host performs locally (a
+    /// Windows credential prompt, not merely "a window is focused"),
+    /// and (2) the existing device-trust check (identity/whoami) that
+    /// runs regardless. Neither factor is Windows Hello / biometric --
+    /// that hardware-backed factor remains unbuilt, named honestly in
+    /// docs/VOICE_FIRST_SECURE_INTERFACE.md. Retryable: on failure, Mode
+    /// returns to AuthRequired, from which this may be called again
+    /// (e.g. a "Retry" button, or after `aura enroll` was run on this
+    /// machine while the screen was showing).
     /// </summary>
     public async Task AuthenticateAsync()
     {
         Mode.BeginAuthentication();
+
+        if (OwnerPresenceCheck is not null)
+        {
+            bool present;
+            try
+            {
+                present = await OwnerPresenceCheck();
+            }
+            catch (Exception)
+            {
+                present = false;
+            }
+
+            if (!present)
+            {
+                AuthErrorMessage = "Owner presence could not be verified.";
+                Mode.OnAuthenticationFailed();
+                return;
+            }
+        }
+
         try
         {
             var whoami = await _client.GetWhoAmIAsync();

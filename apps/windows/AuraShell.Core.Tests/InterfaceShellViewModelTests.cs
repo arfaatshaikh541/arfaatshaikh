@@ -69,6 +69,62 @@ public class InterfaceShellViewModelTests
         Assert.NotNull(shell.AuthErrorMessage);
     }
 
+    [Fact]
+    public async Task A_configured_owner_presence_check_that_fails_blocks_authentication_before_any_device_check()
+    {
+        var (shell, handler) = MakeShell();
+        MapEnrolledWhoAmI(handler); // would succeed if reached
+        shell.OwnerPresenceCheck = () => Task.FromResult(false);
+
+        await shell.StartAsync();
+
+        Assert.Equal(InterfaceMode.AuthRequired, shell.Mode.Mode);
+        Assert.Equal("Owner presence could not be verified.", shell.AuthErrorMessage);
+        // The device-token check must never even have been attempted --
+        // a failed local presence factor is a hard stop, not a fallback.
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task A_configured_owner_presence_check_that_succeeds_still_requires_the_real_device_check_too()
+    {
+        var (shell, handler) = MakeShell();
+        handler.MapJson(HttpMethod.Get, "/identity/whoami", """{"detail": "unauthorized"}""", HttpStatusCode.Unauthorized);
+        shell.OwnerPresenceCheck = () => Task.FromResult(true);
+
+        await shell.StartAsync();
+
+        // Passing the local factor is necessary but not sufficient --
+        // an untrusted device still fails the second, independent check.
+        Assert.Equal(InterfaceMode.AuthRequired, shell.Mode.Mode);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task A_throwing_owner_presence_check_fails_closed_rather_than_crashing_startup()
+    {
+        var (shell, handler) = MakeShell();
+        MapEnrolledWhoAmI(handler);
+        shell.OwnerPresenceCheck = () => throw new InvalidOperationException("credential prompt UI failed to open");
+
+        await shell.StartAsync();
+
+        Assert.Equal(InterfaceMode.AuthRequired, shell.Mode.Mode);
+        Assert.Equal("Owner presence could not be verified.", shell.AuthErrorMessage);
+    }
+
+    [Fact]
+    public async Task With_no_owner_presence_check_configured_behavior_is_unchanged_device_token_alone_suffices()
+    {
+        var (shell, handler) = MakeShell();
+        MapEnrolledWhoAmI(handler);
+        handler.MapSseBody(HttpMethod.Get, "/voice/state/stream", "data: {\"event\": \"state\", \"data\": \"Idle\"}\n\n");
+
+        await shell.StartAsync(); // OwnerPresenceCheck left null
+
+        Assert.Equal(InterfaceMode.VoiceMode, shell.Mode.Mode);
+    }
+
     private static async Task<InterfaceShellViewModel> StartedInVoiceModeAsync(FakeHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://fake-aura-core.local") };

@@ -14,17 +14,105 @@ actually true.
 requires the Windows Desktop SDK to even compile, and this sandbox has
 confirmed, every time it's been tried across every pass this session, that
 it cannot — `MSB4019: Microsoft.NET.Sdk.WindowsDesktop.targets not found`.
-That has not changed and cannot change without a real Windows build
-environment. What *has* changed this pass: the WPF project's source files
-themselves — the ones that were previously left unwritten specifically
-because they couldn't be compile-checked — now exist, are written against
-the already-tested `AuraShell.Core` contracts, are believed correct after
-careful manual review (XAML well-formedness checked with an XML parser;
-every `.cs` file's braces balanced; every type/namespace/method reference
-cross-checked by hand against the real APIs it calls), but have **never
-been compiled, run, or visually verified**, because nothing in this sandbox
-can do that. Anyone reading this should treat the WPF-only files below as
-"written carefully, not proven" until a real Windows build confirms it.
+There is also no Windows machine reachable from this session at all —
+checked directly (the only environment available is another Linux cloud
+sandbox) — so "build it on Windows," "run the native hotkey/session
+tests," and "run the full acceptance sequence" are not things more effort
+inside this session can produce; they require a person with a real
+Windows machine to run `WINDOWS-COMMISSIONING.ps1` (updated this pass —
+see below) and report back. What *has* changed, across this pass and the
+one before it: every WPF-only source file (bootstrap, the four views, the
+Win32 hotkey manager, the Windows session monitor, the owner-presence
+credential dialog) now exists, is written against the already-tested
+`AuraShell.Core` contracts, and is believed correct after careful manual
+review (XAML well-formedness checked with an XML parser; every `.cs`
+file's braces balanced; every type/namespace/method reference
+cross-checked by hand against the real APIs it calls; the two PowerShell
+scripts this pass touched were parsed with PowerShell 7's own
+`[System.Management.Automation.Language.Parser]` — genuinely available in
+this sandbox — confirming zero syntax errors, real verification rather
+than a guess). None of it has been **compiled, run, or visually
+verified**, because nothing in this sandbox can do that for a `UseWPF`
+project or a real Windows session. Treat every WPF-only file below as
+"written carefully, not proven" until a real Windows build and a real run
+of `WINDOWS-COMMISSIONING.ps1` confirm it.
+
+## Production-blocker close-out pass (this pass)
+
+Four things named as remaining gaps after the previous pass are now
+addressed as far as this sandbox allows -- real code and real tests where
+testable on Linux, honestly flagged as unverified where they aren't:
+
+- **Real microphone privacy gating.** `AuraVoice.Core.VoicePrivacyGate`
+  (new, pure, fully unit-tested -- 4 tests) is the real behavioral
+  distinction between FULL_MIC_OFF and WAKE_WORD_ONLY: FullMicOff must
+  physically close the hardware, WakeWordOnly keeps it open and running
+  the wake-word detector but discards a hit rather than escalating it
+  into a command. `WindowsVoicePipeline` (AuraVoice.Windows, builds on
+  Linux, confirmed with a real `dotnet build` against the real NAudio
+  API) wires this gate to the real `NAudioMicrophoneSource.Start()`/
+  `Stop()` calls and to the wake-word branch of its frame-processing
+  loop. `AuraVoice.Windows.Host/Program.cs` polls aura_core's new
+  `GET /voice/privacy` every second and applies real changes to the
+  gate, logging every transition. The WPF shell's Voice Mode view now
+  has two toggles (Mute -> FullMicOff, Wake-word only -> WakeWordOnly,
+  mutually exclusive), each pushing the real mode via a new
+  `POST /voice/privacy` (6 new Python tests) and
+  `AuraApiClient.SetVoicePrivacyAsync`/`GetVoicePrivacyAsync` (2 new C#
+  client tests, 3 new `VoiceModeViewModel` tests proving the push and the
+  mutual exclusion). **Never run against a real microphone** -- the gate
+  logic and the wiring are real and tested/reviewed; the actual hardware
+  behavior needs Windows.
+- **Audio-device resilience.** `NAudioMicrophoneSource` now makes
+  `Start()`/`Stop()` idempotent and reacts to NAudio's own
+  `RecordingStopped` event: a deliberate stop is distinguished from a
+  real device loss (unplugged, Bluetooth dropout, driver reset,
+  default-device change invalidating the open handle), and a real loss
+  triggers an automatic reopen with capped exponential backoff (500ms up
+  to 30s, never gives up permanently). An explicit `Start()`/`Stop()`
+  call always supersedes an in-flight automatic reopen via a
+  cancellation token, closing a real race where a stale reopen could
+  otherwise switch the microphone back on after the owner (or a privacy
+  mode change) explicitly asked for it to be off. `DeviceLost`/
+  `DeviceRecovered` events are logged by `AuraVoice.Windows.Host`. **Not
+  built**: explicit default-device-change detection via
+  `MMDeviceEnumerator`, sample-rate renegotiation across devices, and
+  Bluetooth-specific quirks -- these need real hardware to get right and
+  are not claimed here.
+- **A real additional owner-presence factor at startup.**
+  `InterfaceShellViewModel.OwnerPresenceCheck` (new: `Func<Task<bool>>?`,
+  null by default so every existing test is unaffected -- 4 new tests
+  prove the gate) runs *before* the device-token check in
+  `AuthenticateAsync`, and fails closed (including on an exception from
+  the check itself, never propagated). The WPF host wires this to a real
+  Windows credential prompt: `WindowsOwnerPresenceVerifier` (new, WPF
+  project) calls the standard `LogonUser` Win32 API against the
+  *current* Windows account's password -- a single long-stable,
+  extensively documented primitive, deliberately chosen over a WinRT/UWP
+  Windows Hello projection this sandbox has no way to verify the exact
+  binding shape of. This is still explicitly **not Windows Hello** (no
+  biometric or hardware-backed factor) -- it is a genuine "does the
+  person at the keyboard know this account's password right now" check,
+  shown via a new modal `OwnerPresenceDialog` window before
+  `AuthenticationView`'s device-token screen ever runs.
+- **Installer integration.** `install/Install-AURA.ps1` now preserves the
+  device-token directory (`core\.aura\`) across an update alongside the
+  existing DB/`.models` preservation -- without this fix, every update
+  would have silently forced re-enrollment, since that file lives inside
+  the directory the installer replaces. It also now runs
+  `dotnet test` for both C# test projects (not just `dotnet build`) as
+  part of its self-test gate. `WINDOWS-COMMISSIONING.ps1` gained an
+  automated `/identity/whoami` + `/interface/config` + `/voice/privacy`
+  round-trip check, and a new interactive "voice-first shell walkthrough"
+  section that launches the real `AuraShell.exe` against the script's
+  own throwaway `aura_core` server and walks the operator through the
+  exact section-3 sequence (owner-presence prompt -> Voice Mode, no
+  dashboard -> hotkey -> PIN challenge -> Backend Mode -> same hotkey ->
+  Voice Mode again -> OS lock revokes elevation), self-reported per step
+  since WPF window content isn't observable from a script. Both scripts
+  were verified with PowerShell's own parser (zero syntax errors) but,
+  like everything else in this section, **never executed** -- there is no
+  Windows machine anywhere in this session to run them on.
 
 ## What actually changed this pass
 
@@ -159,24 +247,29 @@ accurate — they are now written. What's true now:
 
 ## Still not built, and why
 
-- **Any real interactive owner-presence factor for the startup screen
-  beyond device trust** (Windows Hello, PIN-at-launch, a trusted-device
-  proximity check). `identity/whoami`'s device-token check is what exists
-  and is tested; it is honestly weaker than "the owner personally
-  authenticated just now." `BackendElevationService`'s PIN factor is
-  reserved for backend elevation specifically, and reusing it as the
-  startup factor too was deliberately avoided — this document does not
-  pretend that substitution is equivalent to the biometric factor the
-  original request describes.
-- **Real microphone capture, device enumeration, echo cancellation, noise
-  suppression, Bluetooth/default-device-change handling, and the actual
-  gating of audio hardware by mute state.** `VoiceModeViewModel.SetMuted`
-  only changes what the WPF UI displays; nothing in this codebase gates a
-  real audio capture pipeline based on it, because `AuraVoice.Windows`'s
-  microphone source (`NAudioMicrophoneSource`) has no privacy-gating hook
-  built yet. Calling the current mute toggle a security control would be
-  a false claim — it is a UI affordance only, documented as such directly
-  in `VoiceModeViewModel`'s class comment.
+- **Windows Hello / biometric authentication specifically.** This pass
+  added a real interactive owner-presence factor
+  (`WindowsOwnerPresenceVerifier`, a `LogonUser` credential prompt run
+  before the device-token check) that is a genuine step beyond "device
+  trust alone," but it is still not a hardware-backed or biometric
+  factor. `BackendElevationService`'s PIN factor remains reserved for
+  backend elevation specifically, not reused as the startup factor. A
+  true Windows Hello integration (via the WinRT
+  `Windows.Security.Credentials.UI` API) was deliberately not attempted:
+  it requires WinRT/CsWinRT projections this sandbox has no way to
+  compile-check or verify the exact binding shape of, and getting subtle
+  interop details wrong while totally unable to test them was judged a
+  worse outcome than a clearly-labeled, lower-tech-but-verifiable
+  alternative using a single long-stable Win32 API.
+- **Echo cancellation, explicit default-device-change detection, and
+  Bluetooth-specific quirks.** `NAudioMicrophoneSource` now has real
+  device-loss detection and automatic reopen with backoff (see the
+  close-out section above), which covers "the mic disappeared and came
+  back." It does NOT do acoustic echo cancellation, explicit
+  `MMDeviceEnumerator`-based default-device-change callbacks, or
+  Bluetooth-codec-specific handling (e.g. a Bluetooth headset switching
+  profiles mid-call) -- these need real hardware and a real Bluetooth
+  device to get right, and are not claimed here.
 - **Barge-in reflected in the WPF UI.** `AuraVoice.Core.VoiceSessionController.OnBargeIn()`
   exists and is tested at the state-machine level, and `VoiceModeView`
   will show `Speaking` → `Awake` when it fires (since that's a real state
@@ -207,11 +300,16 @@ accurate — they are now written. What's true now:
   and `/backend/audit` require elevation. Endpoints Voice Mode legitimately
   needs during normal operation were deliberately left on the existing
   device-trust boundary.
-- **Installer/updater integration** (packaging the new WPF assemblies,
-  preserving identity/PIN/trusted-device state across an update). Not
-  attempted this pass — see `install/` for the existing installer, which
-  has not been modified to reference the new views/hotkey/session-monitor
-  files.
+- **Installer/updater integration beyond the device-token-preservation
+  fix above.** Packaging itself needed no change -- `Install-AURA.ps1`'s
+  `dotnet build "$StagingDir\apps\windows\AuraShell.sln"` already builds
+  every file in the project, including the new views/hotkey/session-
+  monitor/owner-presence files, since staging is a full directory copy
+  before that build runs. What remains unaddressed: no MSIX/single-file
+  packaging, no auto-update mechanism, no code-signing, and no rollback
+  test that has ever actually executed (the rollback *logic* exists and
+  is reviewed, but only a real failed install on Windows would prove it
+  fires correctly).
 
 ## Hotkey collision audit
 

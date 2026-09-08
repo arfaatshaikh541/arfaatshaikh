@@ -33,12 +33,16 @@ public enum VoiceVisualState
 /// (StreamVoiceStateAsync) so the WPF UI reflects genuine runtime
 /// events with no polling loop of its own (section 6).
 ///
-/// Muting is UI-visible-only here: SetMuted flips what this control
-/// displays, but does not, by itself, gate any actual audio capture —
-/// that boundary lives in the real Windows audio host (see
-/// docs/VOICE_FIRST_SECURE_INTERFACE.md for exactly what is and is not
-/// wired up there). Never conflate "the shell shows Muted" with "the
-/// microphone is closed."
+/// SetMuted/SetWakeWordOnly update this view's own display immediately
+/// (never delayed by a network round trip) and separately push the real
+/// privacy mode to aura_core's /voice/privacy — the value
+/// AuraVoice.Windows.Host actually polls and hands to
+/// WindowsVoicePipeline.PrivacyGate, which is what genuinely opens and
+/// closes the microphone hardware (FullMicOff) or blocks a wake-word hit
+/// from escalating into a command (WakeWordOnly). This view model is a
+/// client of that state, not the thing that gates the microphone --
+/// the real gate lives in AuraVoice.Windows, REQUIRES_WINDOWS_RUNTIME to
+/// verify against real hardware.
 /// </summary>
 public sealed class VoiceModeViewModel : ObservableObject, IDisposable
 {
@@ -48,6 +52,7 @@ public sealed class VoiceModeViewModel : ObservableObject, IDisposable
     private Task? _observeTask;
     private VoiceVisualState _state = VoiceVisualState.Unknown;
     private bool _isMuted;
+    private bool _isWakeWordOnly;
 
     public VoiceVisualState State
     {
@@ -59,6 +64,15 @@ public sealed class VoiceModeViewModel : ObservableObject, IDisposable
     {
         get => _isMuted;
         private set => SetProperty(ref _isMuted, value);
+    }
+
+    /// <summary>Mutually exclusive with IsMuted -- see SetWakeWordOnly.
+    /// True while the real pipeline still runs wake-word detection but
+    /// will not escalate a hit into a command.</summary>
+    public bool IsWakeWordOnly
+    {
+        get => _isWakeWordOnly;
+        private set => SetProperty(ref _isWakeWordOnly, value);
     }
 
     public VoiceModeViewModel(AuraApiClient client, TimeSpan? reconnectDelay = null)
@@ -136,14 +150,57 @@ public sealed class VoiceModeViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// UI-visible mute only (see class docs). WAKE-WORD-ONLY vs FULL MIC
-    /// OFF is a distinction the real audio pipeline must enforce; this
-    /// method has no way to reach into that pipeline from here.
+    /// FULL MIC OFF: updates this view immediately, and pushes the real
+    /// mode to aura_core so the actual voice host closes the hardware
+    /// microphone (see class docs). Clears IsWakeWordOnly -- the two
+    /// restricted modes are mutually exclusive, never both true.
     /// </summary>
     public void SetMuted(bool muted)
     {
         IsMuted = muted;
+        if (muted)
+        {
+            IsWakeWordOnly = false;
+        }
         State = muted ? VoiceVisualState.Muted : VoiceVisualState.Unknown;
+        PushPrivacyMode(muted ? "FullMicOff" : "Normal");
+    }
+
+    /// <summary>
+    /// WAKE-WORD-ONLY: the real pipeline keeps the microphone open and
+    /// wake-word detection running, but a detection is discarded rather
+    /// than escalated into a command (see VoicePrivacyGate). Clears
+    /// IsMuted for the same mutual-exclusion reason as SetMuted.
+    /// </summary>
+    public void SetWakeWordOnly(bool wakeWordOnly)
+    {
+        IsWakeWordOnly = wakeWordOnly;
+        if (wakeWordOnly)
+        {
+            IsMuted = false;
+        }
+        State = wakeWordOnly ? VoiceVisualState.ListeningForWake : VoiceVisualState.Unknown;
+        PushPrivacyMode(wakeWordOnly ? "WakeWordOnly" : "Normal");
+    }
+
+    /// <summary>
+    /// Fire-and-forget on purpose (section: "the UI must never delay
+    /// speech processing," and the caller here is a synchronous toggle
+    /// handler) -- a failed push just means the real pipeline notices on
+    /// its next poll instead of immediately; it never silently pretends
+    /// the local UI-only state change was itself sufficient.
+    /// </summary>
+    private void PushPrivacyMode(string mode) => _ = PushPrivacyModeAsync(mode);
+
+    private async Task PushPrivacyModeAsync(string mode)
+    {
+        try
+        {
+            await _client.SetVoicePrivacyAsync(mode);
+        }
+        catch (HttpRequestException)
+        {
+        }
     }
 
     public static VoiceVisualState ParseState(string raw) => raw switch

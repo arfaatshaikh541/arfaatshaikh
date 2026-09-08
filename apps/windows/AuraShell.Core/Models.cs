@@ -75,6 +75,13 @@ public sealed record WhoAmIInfo(
     [property: JsonPropertyName("owner_name")] string? OwnerName,
     [property: JsonPropertyName("device_label")] string? DeviceLabel);
 
+/// <summary>Mirrors aura_core's VOICE_PRIVACY_MODES exactly ("Normal",
+/// "WakeWordOnly", "FullMicOff") -- see /voice/privacy and
+/// AuraVoice.Core's VoicePrivacyGate, which is what actually gates the
+/// real microphone hardware.</summary>
+public sealed record VoicePrivacyInfo(
+    [property: JsonPropertyName("mode")] string Mode);
+
 /// <summary>
 /// Real system state pulled from diagnostics/health.py's collect_diagnostics
 /// (see /backend/diagnostics) -- never fabricated demo data. RecentGuardianEvents

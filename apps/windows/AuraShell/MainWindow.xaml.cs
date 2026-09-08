@@ -41,6 +41,15 @@ public partial class MainWindow : Window
         _backendChallengeView = new Views.BackendChallengeView { DataContext = shell };
         _backendModeView = new Views.BackendModeView { DataContext = shell };
 
+        // The real additional owner-presence factor for the startup
+        // screen (docs/VOICE_FIRST_SECURE_INTERFACE.md's "the real
+        // substitute for Windows Hello"): a Windows credential prompt,
+        // verified via LogonUser, required before the device-token check
+        // even runs. Configured here (WPF-only, since it's a real Win32
+        // call) rather than inside InterfaceShellViewModel, which must
+        // stay buildable and testable without any Windows API.
+        shell.OwnerPresenceCheck = () => Task.FromResult(Views.OwnerPresenceDialog.ShowAndVerify(this));
+
         shell.Mode.ModeChanged += OnModeChanged;
         SourceInitialized += OnSourceInitialized;
         Closed += OnClosed;

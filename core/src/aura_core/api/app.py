@@ -142,10 +142,15 @@ class SpeakRequest(BaseModel):
 
 
 VOICE_SESSION_STATES = ("Idle", "ListeningForWake", "Awake", "Processing", "Speaking")
+VOICE_PRIVACY_MODES = ("Normal", "WakeWordOnly", "FullMicOff")
 
 
 class VoiceStateRequest(BaseModel):
     state: str
+
+
+class VoicePrivacyRequest(BaseModel):
+    mode: str
 
 
 def _sse(event: str, data: str) -> bytes:
@@ -883,5 +888,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/voice/state/stream")
     async def voice_state_stream() -> StreamingResponse:
         return StreamingResponse(voice_state_events(), media_type="text/event-stream")
+
+    @app.get("/voice/privacy")
+    async def get_voice_privacy() -> dict:
+        # Ungated, same reasoning as GET /voice/state: reading the current
+        # privacy mode exposes no capability an unauthenticated local
+        # caller could cause harm with, and the WPF shell needs to read it
+        # before the owner has authenticated at all (Voice Mode's mute
+        # control must reflect real state immediately on launch).
+        record = registry.get("voice.privacy_mode")
+        mode = record.detail if record is not None and record.status == CapabilityStatus.LIVE else "Normal"
+        return {"mode": mode}
+
+    @app.post("/voice/privacy", dependencies=gated)
+    async def set_voice_privacy(request: VoicePrivacyRequest) -> dict:
+        # The real backend half of section 17's "FULL MIC OFF vs.
+        # WAKE-WORD-ONLY" gating: this is the value AuraVoice.Windows.Host
+        # polls and hands to WindowsVoicePipeline.PrivacyGate, which is
+        # what actually opens/closes the real microphone hardware --
+        # this endpoint itself only records the requested mode, exactly
+        # like /voice/state records the reported session state.
+        if request.mode not in VOICE_PRIVACY_MODES:
+            raise HTTPException(status_code=422, detail=f"unknown voice privacy mode '{request.mode}'")
+        registry.set("voice.privacy_mode", CapabilityStatus.LIVE, request.mode)
+        return {"mode": request.mode}
 
     return app

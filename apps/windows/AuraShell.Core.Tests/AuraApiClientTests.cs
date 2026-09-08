@@ -340,6 +340,33 @@ public class AuraApiClientTests
         Assert.Equal(new[] { "Idle", "Awake", "Speaking" }, states);
     }
 
+    [Fact]
+    public async Task SetVoicePrivacyAsync_posts_the_real_mode_string()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/voice/privacy", """{"mode": "FullMicOff"}""");
+        var client = MakeClient(handler);
+
+        await client.SetVoicePrivacyAsync("FullMicOff");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        var body = await request.Content!.ReadAsStringAsync();
+        Assert.Contains("\"mode\":\"FullMicOff\"", body);
+    }
+
+    [Fact]
+    public async Task GetVoicePrivacyAsync_deserializes_the_current_mode()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Get, "/voice/privacy", """{"mode": "WakeWordOnly"}""");
+        var client = MakeClient(handler);
+
+        var privacy = await client.GetVoicePrivacyAsync();
+
+        Assert.Equal("WakeWordOnly", privacy.Mode);
+    }
+
     private sealed class ThrowingHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
