@@ -8,6 +8,7 @@ Broker: approvals, the kill switch, and audit inspection.
 from __future__ import annotations
 
 import asyncio
+import platform
 import sys
 
 import click
@@ -736,6 +737,51 @@ def plan_objective(objective: str) -> None:
         click.echo("(nothing resolved)")
 
 
+def resolve_serve_transport(
+    socket_path: str | None, host: str | None, sandbox_dir: str, *, system: str | None = None,
+) -> tuple[str, str]:
+    """Decides Unix-domain-socket vs. loopback TCP for `aura serve`. Pure
+    and platform-injectable (the `system` parameter) specifically so this
+    decision is unit-testable without needing to actually be running on
+    Windows -- see test_cli_serve_transport.py.
+
+    Explicit --host or --socket-path always wins, on any platform (an
+    owner or a script that asked for a specific transport gets exactly
+    that, never a silent substitution).
+
+    Otherwise: Unix domain sockets need asyncio's create_unix_server,
+    which CPython's own asyncio.base_events.BaseEventLoop only overrides
+    with a real implementation on the POSIX event loop
+    (asyncio/unix_events.py) -- confirmed directly against the installed
+    interpreter's source, not assumed. Windows' SelectorEventLoop/
+    ProactorEventLoop inherit the base class's `raise NotImplementedError`
+    unchanged, so `uvicorn.run(app, uds=path)` crashes immediately on
+    native Windows Python. Rather than let every Windows launch of `aura
+    serve` fail with that exception, this function has Windows default to
+    loopback TCP instead -- still never a public listener (bound to
+    127.0.0.1 only), still gated by the same device-token/backend
+    -elevation checks as every other endpoint, exactly the same "local
+    -only" contract, just a different socket family. This is a real
+    platform limitation being routed around, not a claim that loopback
+    TCP is equally strong access control as a filesystem-permissioned
+    Unix socket -- see ipc.py's module docstring for the honest tradeoff.
+
+    Returns ("uds", path) or ("tcp", host).
+    """
+    if host:
+        return ("tcp", host)
+    if socket_path:
+        return ("uds", socket_path)
+
+    system = system or platform.system()
+    if system == "Windows":
+        return ("tcp", "127.0.0.1")
+
+    from .ipc import default_socket_path
+
+    return ("uds", default_socket_path(sandbox_dir))
+
+
 @main.command()
 @click.option(
     "--socket-path", default=None,
@@ -750,14 +796,18 @@ def plan_objective(objective: str) -> None:
 @click.option("--port", default=8000, help="TCP port, only used with --host.")
 def serve(socket_path: str | None, host: str | None, port: int) -> None:
     """Starts the AURA core API server. Binds a native local IPC
-    transport (a Unix domain socket) by default rather than a loopback
-    TCP port -- addressed by filesystem path, access-controlled by
-    filesystem permissions, never reachable over the network stack at
-    all. The C# shell and voice host connect to this same socket path
-    via SocketsHttpHandler.ConnectCallback (see apps/windows/AuraShell.Core/
-    IpcHttpClientFactory.cs and apps/voice/AuraVoice.Core/IpcHttpClientFactory.cs)
-    -- the entire existing HTTP/SSE client/server code runs completely
-    unmodified over this transport."""
+    transport by default rather than a loopback TCP port where the
+    platform genuinely supports it (see resolve_serve_transport for
+    exactly which platforms and why) -- addressed by filesystem path,
+    access-controlled by filesystem permissions, never reachable over the
+    network stack at all. The C# shell and voice host connect to this
+    same socket path via SocketsHttpHandler.ConnectCallback (see
+    apps/windows/AuraShell.Core/IpcHttpClientFactory.cs and
+    apps/voice/AuraVoice.Core/IpcHttpClientFactory.cs) -- the entire
+    existing HTTP/SSE client/server code runs completely unmodified over
+    either transport."""
+    import os
+
     import uvicorn
 
     from .api import create_app
@@ -766,22 +816,20 @@ def serve(socket_path: str | None, host: str | None, port: int) -> None:
     settings = load_settings()
     app = create_app(settings)
 
-    if host:
-        click.echo(f"Serving over TCP at {host}:{port} (loopback fallback, not the default transport).")
-        uvicorn.run(app, host=host, port=port)
+    kind, target = resolve_serve_transport(socket_path, host, settings.filesystem_sandbox_dir)
+
+    if kind == "tcp":
+        reason = "explicit --host" if host else "the default local transport on this platform"
+        click.echo(f"Serving over loopback TCP at {target}:{port} ({reason}).")
+        uvicorn.run(app, host=target, port=port)
         return
 
-    from .ipc import default_socket_path
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if os.path.exists(target):
+        os.remove(target)  # a stale socket file left by a prior, uncleanly-stopped run
 
-    resolved_path = socket_path or default_socket_path(settings.filesystem_sandbox_dir)
-    import os
-
-    os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
-    if os.path.exists(resolved_path):
-        os.remove(resolved_path)  # a stale socket file left by a prior, uncleanly-stopped run
-
-    click.echo(f"Serving on Unix domain socket: {resolved_path}")
-    uvicorn.run(app, uds=resolved_path)
+    click.echo(f"Serving on Unix domain socket: {target}")
+    uvicorn.run(app, uds=target)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -27,8 +29,15 @@ def virtual_display():
     """A real, self-contained X server this test session controls (not
     dependent on any display happening to already be running) — this is
     what makes 'real input injection' genuinely testable in a headless
-    Linux container. Skips cleanly if Xvfb isn't installed."""
-    if subprocess.run(["which", "Xvfb"], capture_output=True).returncode != 0:
+    Linux container. Only meaningful on Linux/X11: Windows' pynput backend
+    talks to Win32 directly and has no DISPLAY/Xvfb concept at all, so this
+    fixture skips immediately there rather than ever shelling out to a
+    `which`/`Xvfb` binary that doesn't exist on that platform. Also skips
+    cleanly (via shutil.which, which never raises) if Xvfb simply isn't
+    installed on a Linux runner."""
+    if platform.system() != "Linux":
+        pytest.skip("Xvfb-backed virtual display tests only apply to Linux/X11")
+    if shutil.which("Xvfb") is None:
         pytest.skip("Xvfb is not installed in this environment")
 
     os.environ.setdefault("HOME", "/root")
@@ -61,12 +70,22 @@ def make_broker(tmp_path):
     return broker, policy
 
 
+@pytest.mark.linux
+@pytest.mark.integration
 def test_health_check_is_live_against_a_real_display(virtual_display):
     connector = DesktopControlConnector()
     result = connector.health_check()
     assert result.status == CapabilityStatus.LIVE
 
 
+@pytest.mark.linux
+@pytest.mark.skipif(
+    platform.system() != "Linux",
+    reason="Absence of DISPLAY only implies UNAVAILABLE for pynput's Linux/X11 (Xlib) "
+    "backend. Windows' pynput backend talks to Win32 directly and has no DISPLAY "
+    "concept, so desktop control may remain LIVE there with no DISPLAY set at all -- "
+    "see test_health_check_does_not_depend_on_display_on_windows below.",
+)
 def test_health_check_is_unavailable_without_a_display():
     # Run in a fresh subprocess, deliberately: pynput's underlying Xlib
     # connection has process-global state, and toggling DISPLAY within
@@ -93,6 +112,31 @@ def test_health_check_is_unavailable_without_a_display():
     assert result.stdout.strip() == CapabilityStatus.UNAVAILABLE.value, result.stderr
 
 
+@pytest.mark.windows
+@pytest.mark.hardware
+@pytest.mark.skipif(
+    platform.system() != "Windows",
+    reason="Exercises the Win32 pynput backend's actual behavior; only meaningful "
+    "on real Windows, and REQUIRES_WINDOWS_RUNTIME to genuinely verify -- this "
+    "sandbox has no Windows machine reachable, so this test has never actually run "
+    "and is NOT_TESTED here. It is included so a real Windows CI/commissioning run "
+    "exercises the claim instead of silently skipping the whole file.",
+)
+def test_health_check_does_not_depend_on_display_on_windows():
+    env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
+    result = subprocess.run(
+        [sys.executable, "-c", (
+            "from aura_core.connectors.desktop_connector import DesktopControlConnector;"
+            "r = DesktopControlConnector().health_check();"
+            "print(r.status.value)"
+        )],
+        env=env, capture_output=True, text=True, timeout=15,
+    )
+    assert result.stdout.strip() == CapabilityStatus.LIVE.value, result.stderr
+
+
+@pytest.mark.linux
+@pytest.mark.integration
 def test_move_mouse_executes_a_real_xtest_call_against_the_display(tmp_path, virtual_display):
     # What this proves: the connector makes a genuine XTestFakeMotionEvent
     # call against a real, live X server connection and the call
@@ -119,6 +163,8 @@ def test_move_mouse_executes_a_real_xtest_call_against_the_display(tmp_path, vir
     assert outcome.status == OutcomeStatus.EXECUTED
 
 
+@pytest.mark.linux
+@pytest.mark.integration
 def test_type_text_and_key_press_execute_without_error_against_a_real_display(tmp_path, virtual_display):
     # Same caveat as the mouse test: this proves the connector's
     # XTestFakeKeyEvent calls run cleanly against a live X connection, not
@@ -177,6 +223,8 @@ def test_find_element_reports_no_match_honestly(tmp_path):
     assert "no matching element found" in outcome.message
 
 
+@pytest.mark.linux
+@pytest.mark.integration
 def test_click_element_resolves_through_the_mock_tree_and_clicks_the_real_display(tmp_path, virtual_display):
     provider = MockUiAutomationProvider([UiElement(name="Submit", role="button", x=100, y=200, width=80, height=30)])
     broker, policy = make_broker(tmp_path)

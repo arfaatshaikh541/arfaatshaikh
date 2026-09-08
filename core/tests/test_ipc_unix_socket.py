@@ -10,6 +10,7 @@ Windows.
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
 import sys
 import time
@@ -19,8 +20,22 @@ import pytest
 
 from aura_core.ipc import default_socket_path
 
+_windows_uds_unsupported = pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Real, live Unix-domain-socket server tests. Verified directly against "
+    "the installed interpreter (see resolve_serve_transport's docstring in cli.py) "
+    "that asyncio.base_events.BaseEventLoop.create_unix_server raises "
+    "NotImplementedError by default and is only overridden by POSIX's "
+    "asyncio/unix_events.py -- Windows' event loops do not support it. `aura serve` "
+    "therefore defaults to loopback TCP on Windows (see test_cli_serve_transport.py); "
+    "these tests exercise the Linux/macOS-only UDS path and are SKIPPED_PLATFORM, "
+    "not failed, on Windows.",
+)
+
 
 def test_default_socket_path_is_a_sibling_of_the_sandbox_dir(tmp_path):
+    # Pure path computation -- no socket is opened, so this stays
+    # cross-platform and is never skipped.
     sandbox_dir = str(tmp_path / "aura_sandbox")
 
     path = default_socket_path(sandbox_dir)
@@ -57,6 +72,9 @@ def running_uds_server(tmp_path):
             proc.kill()
 
 
+@pytest.mark.integration
+@pytest.mark.linux
+@_windows_uds_unsupported
 def test_a_real_request_reaches_the_server_over_the_unix_socket_not_tcp(running_uds_server):
     transport = httpx.HTTPTransport(uds=running_uds_server)
     with httpx.Client(transport=transport, base_url="http://ipc") as client:
@@ -66,6 +84,10 @@ def test_a_real_request_reaches_the_server_over_the_unix_socket_not_tcp(running_
     assert response.json() == {"status": "ok"}
 
 
+@pytest.mark.integration
+@pytest.mark.linux
+@pytest.mark.security
+@_windows_uds_unsupported
 def test_no_tcp_port_is_actually_listening_for_this_server(running_uds_server, tmp_path):
     """The whole point: this server must not also be reachable over
     loopback TCP just because it's running on the same machine."""
@@ -80,6 +102,9 @@ def test_no_tcp_port_is_actually_listening_for_this_server(running_uds_server, t
         db_port_probe.close()
 
 
+@pytest.mark.integration
+@pytest.mark.linux
+@_windows_uds_unsupported
 def test_a_real_post_endpoint_works_over_the_socket_too(running_uds_server):
     """/health alone would only prove GET works -- kill-switch engage is
     a real POST with a real state change, verified via a second GET."""

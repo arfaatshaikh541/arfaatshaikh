@@ -28,6 +28,19 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q"
+markers = [
+    "cross_platform: must pass identically on every supported OS; the default for untagged tests",
+    "windows: exercises Windows-only behavior (skipped elsewhere, never counted as a failure off-Windows)",
+    "linux: exercises Linux-only behavior (e.g. X11/Xvfb); skipped elsewhere",
+    "macos: exercises macOS-only behavior; skipped elsewhere",
+    "hardware: requires real physical hardware (mic, second device, TPM, biometrics) this sandbox cannot provide",
+    "network: requires a real external network/provider (telephony, real SMTP, live APIs)",
+    "integration: exercises multiple real components together rather than one unit in isolation",
+    "endurance: long-running/soak test, not part of the fast default loop",
+    "security: a security-boundary or governance-invariant regression fence",
+    "installer: exercises installer/commissioning script behavior (often a static text guard in this sandbox)",
+    "manual_commissioning: only meaningful when run by a human against a real, freshly-installed machine",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
