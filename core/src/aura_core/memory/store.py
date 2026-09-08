@@ -81,8 +81,16 @@ def _tfidf_cosine_scores(query_tokens: list[str], doc_tokens: list[list[str]]) -
 def _age_seconds(created_at: datetime) -> float:
     # SQLite drops timezone info on round-trip even though the column is
     # declared DateTime(timezone=True) -- compare against a `now` of the
-    # same awareness rather than assuming one or the other.
-    now = datetime.now(timezone.utc) if created_at.tzinfo is not None else datetime.utcnow()
+    # same awareness rather than assuming one or the other. The naive
+    # branch needs a naive-but-UTC `now`, which is what datetime.utcnow()
+    # used to provide directly; utcnow() is deprecated since Python 3.12
+    # (and a forward-compat risk for 3.14+), so it's built explicitly here
+    # instead: an aware UTC now with tzinfo stripped back off.
+    now = (
+        datetime.now(timezone.utc)
+        if created_at.tzinfo is not None
+        else datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     return max((now - created_at).total_seconds(), 0.0)
 
 
