@@ -13,11 +13,16 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from ..memory.models import Base
+from ..memory.schema_migration import ensure_schema
 from ..memory.store import MemoryStore
+from .directives import STANDARD_DEPARTMENTS, parse_run_directive
 from .goal_engine import GoalEngine
 from .goal_models import Goal
 from .mandate_models import Mandate
+
+
+class UnrecognizedDirectiveError(RuntimeError):
+    pass
 
 # Maps a workstream's (Goal's) raw status onto the report vocabulary
 # section 22 explicitly requires. "abandoned" has no listed bucket of its
@@ -69,7 +74,7 @@ class MandateEngine:
     def __init__(self, database_url: str) -> None:
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
         self._engine = create_engine(database_url, connect_args=connect_args)
-        Base.metadata.create_all(self._engine)
+        ensure_schema(self._engine)
         self._Session = sessionmaker(bind=self._engine)
 
     def create(
@@ -92,6 +97,27 @@ class MandateEngine:
             session.commit()
             session.refresh(mandate)
             return mandate
+
+    def create_from_directive(self, text: str) -> Mandate:
+        """"Run Gridkeep" -> a draft mandate scaffolded with the standard
+        operating departments, without asking for a generic goal-form
+        first (section 10). Deliberately still leaves kpis/constraints
+        empty: those are real facts about a real business this system
+        knows nothing about, and activate() will honestly keep refusing
+        to activate until the owner supplies them -- this only removes
+        the friction of an intake form for the initial command, it does
+        not fabricate the business content that form would have
+        collected."""
+        company = parse_run_directive(text)
+        if company is None:
+            raise UnrecognizedDirectiveError(
+                f"'{text}' is not a recognized directive (expected \"Run <company>\" or \"Operate <company>\")"
+            )
+        return self.create(
+            title=f"Run {company}",
+            mission=f"Operate and grow {company}",
+            objectives=[f"Stand up the {department} department" for department in STANDARD_DEPARTMENTS],
+        )
 
     def get(self, mandate_id: str) -> Mandate | None:
         with self._Session() as session:

@@ -342,6 +342,28 @@ def mandates_create(title: str, mission: str, objectives: tuple[str, ...], kpis:
     click.echo(f"Created {mandate.id} [{mandate.status}]")
 
 
+@mandates.command("run")
+@click.argument("directive")
+def mandates_run(directive: str) -> None:
+    """"aura mandates run \"Run Gridkeep\"" -- no generic goal-form, per
+    section 10. Creates a draft mandate scaffolded with the standard
+    operating departments; still requires `mandates create`-style KPIs
+    and constraints (or a future update command) before `activate` will
+    allow it to actually run, since those are real facts about the real
+    business that nothing here may invent."""
+    from .executive import UnrecognizedDirectiveError
+
+    runtime = build_runtime()
+    try:
+        mandate = runtime.mandates.create_from_directive(directive)
+    except UnrecognizedDirectiveError as exc:
+        click.echo(str(exc), err=True)
+        raise SystemExit(1)
+    click.echo(f"Created {mandate.id} [{mandate.status}] {mandate.title}")
+    click.echo(f"Mission: {mandate.mission}")
+    click.echo("Departments scaffolded as objectives -- add KPIs and constraints before activating.")
+
+
 @mandates.command("activate")
 @click.argument("mandate_id")
 def mandates_activate(mandate_id: str) -> None:

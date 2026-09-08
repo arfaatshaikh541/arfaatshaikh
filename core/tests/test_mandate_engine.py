@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from aura_core.executive import GoalEngine, MandateEngine, MandateNotReadyError
+from aura_core.executive import (
+    STANDARD_DEPARTMENTS,
+    GoalEngine,
+    MandateEngine,
+    MandateNotReadyError,
+    UnrecognizedDirectiveError,
+    parse_run_directive,
+)
 from aura_core.memory import MemoryStore
 
 
@@ -37,6 +46,61 @@ def test_a_fully_specified_mandate_activates(tmp_path):
 
     assert activated.status == "active"
     assert mandate.id in [m.id for m in mandates.list_active()]
+
+
+def test_parse_run_directive_recognizes_run_and_operate_but_nothing_else():
+    assert parse_run_directive("Run Gridkeep") == "Gridkeep"
+    assert parse_run_directive("run gridkeep") == "gridkeep"
+    assert parse_run_directive("Operate Gridkeep") == "Gridkeep"
+    assert parse_run_directive("Tell me about Gridkeep") is None
+    assert parse_run_directive("") is None
+
+
+def test_create_from_directive_scaffolds_departments_without_a_goal_form(tmp_path):
+    mandates, _goals, _memory = make_stack(tmp_path)
+
+    mandate = mandates.create_from_directive("Run Gridkeep")
+
+    assert mandate.title == "Run Gridkeep"
+    assert mandate.mission == "Operate and grow Gridkeep"
+    assert mandate.status == "draft"
+    objectives = mandates.get(mandate.id)
+    assert len(json.loads(objectives.objectives_json)) == len(STANDARD_DEPARTMENTS)
+    assert any("Sales" in o for o in json.loads(objectives.objectives_json))
+
+
+def test_create_from_directive_still_requires_kpis_and_constraints_to_activate(tmp_path):
+    # Departments are a generic scaffold, not real facts about the real
+    # business -- KPIs/constraints for the actual company are still
+    # required, honestly, before this mandate may ever run autonomously.
+    mandates, _goals, _memory = make_stack(tmp_path)
+    mandate = mandates.create_from_directive("Run Gridkeep")
+
+    with pytest.raises(MandateNotReadyError, match="kpis.*constraints"):
+        mandates.activate(mandate.id)
+
+
+def test_create_from_directive_rejects_an_unrecognized_directive(tmp_path):
+    mandates, _goals, _memory = make_stack(tmp_path)
+
+    with pytest.raises(UnrecognizedDirectiveError):
+        mandates.create_from_directive("What's up with Gridkeep")
+
+
+def test_create_from_directive_survives_a_restart(tmp_path):
+    # "Restart AURA and prove the mandate survives" -- a fresh
+    # MandateEngine against the same database_url is exactly what a
+    # process restart looks like from the caller's side.
+    db_url = f"sqlite:///{tmp_path}/restart.db"
+    mandates = MandateEngine(db_url)
+    created = mandates.create_from_directive("Run Gridkeep")
+
+    reopened = MandateEngine(db_url)
+    reloaded = reopened.get(created.id)
+
+    assert reloaded is not None
+    assert reloaded.title == "Run Gridkeep"
+    assert reloaded.mission == "Operate and grow Gridkeep"
 
 
 def test_due_for_observation_respects_the_interval(tmp_path):

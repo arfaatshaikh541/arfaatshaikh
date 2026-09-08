@@ -133,8 +133,9 @@ module docstring for the full rationale.
 
 | Capability | Status |
 |---|---|
-| "Run Gridkeep" creates a persisted mandate | **No** — no mandate model existed before this pass. Built this pass (generic `Mandate`, not Gridkeep-specific business logic) |
+| "Run Gridkeep" creates a persisted mandate, without a generic goal-form | **Yes** — `mandates.create_from_directive("Run Gridkeep")` (also `aura mandates run` / `POST /mandates/run`) parses the directive, creates a `draft` mandate titled "Run Gridkeep" with mission "Operate and grow Gridkeep", scaffolds the 13 standard operating departments as objectives, and persists through a real restart (fresh `MandateEngine` against the same `database_url`) | `COMPLETE` for the directive-parsing and department-scaffolding mechanism; the mandate deliberately cannot `activate()` until real KPIs/constraints for the actual business are supplied, since those are facts about a real company this system has no way to invent |
 | Sales/marketing/ops/product/finance workstream logic | **No** — this is business-specific orchestration logic that has to be authored, not inferred; it's not a "gap" so much as work that hasn't started because it depends on the mandate model existing first | `IMPLEMENTABLE_NOW` for the workstream *mechanism* (built this pass); the actual Gridkeep business content (what a "sales workstream" concretely does) needs the owner's real Gridkeep business specifics — genuinely `REQUIRES_OWNER_AUTHORIZATION`/input, not an engineering gap |
+| "What's happening with Gridkeep?" answered from real state, not chat memory | Partial — `GET /mandates/{id}/report` already builds its answer entirely from real workstream/decision state (`MandateReport`), never chat memory; **not yet wired**: routing a free-text chat query to that report requires resolving a company name mentioned in chat text to a mandate_id and classifying the query as a status request | `IMPLEMENTABLE_NOW`, not attempted this pass — a distinct piece of work from directive creation, deliberately not bolted hastily into the shared `/chat` path |
 
 ## I. Testing
 
@@ -586,6 +587,58 @@ closure lands, in the order it actually happened:
     Windows-targeted script outside Windows, confirmed by reading the
     surrounding code, not a bug that would reproduce on the real target
     platform.
+27. **Additive schema migration** (section 9's "database migration must
+    preserve data"): every stateful subsystem (memory, world model,
+    audit log, policy/approval/credential engines, task engine, mandate/
+    goal engines, guardian, enrollment) previously called a bare
+    `Base.metadata.create_all(engine)` at startup, which only ever
+    creates *missing tables* -- it silently does nothing to a table that
+    already exists, so an owner upgrading to a version whose models
+    added a column to an existing table would hit a real "no such
+    column" error against their own already-populated database. Added
+    `memory/schema_migration.py`'s `ensure_schema(engine)`, which still
+    calls `create_all()` for brand-new tables but also inspects every
+    already-existing table and adds any column present in the current
+    model but missing on disk via SQLite's own `ALTER TABLE ... ADD
+    COLUMN` -- never a table drop, never a rebuild, never touching an
+    existing row. All 10 call sites switched over. Verified with a real
+    intentionally-old on-disk schema built by hand with raw SQL (a
+    stripped `audit_entries` table missing a column the current model
+    has, with a real row inserted into it): after `ensure_schema()`, the
+    old row survives with its real values intact, the new column exists
+    and is queryable through the ORM, and a fresh row can be written
+    through it normally. Also covers idempotency (safe to call twice)
+    and the create-brand-new-table path. 3 new tests.
+28. **"Run Gridkeep" without a generic goal-form** (section 10): added
+    `parse_run_directive()` (`executive/directives.py`), an explicit
+    regex match for "Run X" / "Operate X" -- never a guess at intent,
+    matching this codebase's rule that anything driving a real decision
+    either matches a known pattern or reports itself unrecognized. Wired
+    into `MandateEngine.create_from_directive()`, `aura mandates run
+    "Run Gridkeep"`, and `POST /mandates/run`: creates a draft mandate
+    titled "Run Gridkeep" with mission "Operate and grow Gridkeep",
+    scaffolded with the 13 standard operating departments (Executive,
+    Sales, Marketing, Social Media, Customer Service, Customer Success,
+    Operations, Production, Software Engineering, Finance, Security,
+    Research, Growth) as its objectives -- a generic organizational
+    scaffold, not a fabricated fact about any real business. The
+    activation gate is deliberately untouched: KPIs and constraints for
+    the *actual* business are still required, honestly, before
+    `activate()` allows the mandate to run, since those are real facts
+    about a real company this system has no way to know on its own. A
+    directive-created mandate persists through a fresh `MandateEngine`
+    against the same database_url, exactly like a process restart. 9 new
+    tests (engine, CLI, API). **Not done in this pass, called out rather
+    than silently left**: routing a free-text chat query like "What's
+    happening with Gridkeep?" to the real `MandateReport` (which already
+    exists and is already built from real workstream/decision state, not
+    chat memory, via `GET /mandates/{id}/report`) requires resolving a
+    company name mentioned in chat text to a specific mandate_id and
+    intent-classifying the query as a status request -- genuinely
+    buildable without credentials or hardware, but a distinct piece of
+    work from directive creation, not attempted here rather than bolted
+    on hastily into the shared `/chat` path where a wrong classification
+    could misfire on unrelated conversation.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

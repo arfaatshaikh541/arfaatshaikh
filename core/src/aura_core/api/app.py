@@ -65,6 +65,10 @@ class CreateMandateRequest(BaseModel):
     observation_interval_seconds: int = 3600
 
 
+class RunDirectiveRequest(BaseModel):
+    directive: str
+
+
 class AskMemoryRequest(BaseModel):
     question: str
 
@@ -319,6 +323,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             observation_interval_seconds=request.observation_interval_seconds,
         )
         return {"id": mandate.id, "status": mandate.status}
+
+    @app.post("/mandates/run", dependencies=gated)
+    async def run_mandate_directive(request: RunDirectiveRequest) -> dict:
+        """"Run Gridkeep" without a generic goal-form, per section 10 --
+        see MandateEngine.create_from_directive() for why KPIs/
+        constraints are still required, honestly, before /activate."""
+        from ..executive import UnrecognizedDirectiveError
+
+        try:
+            mandate = runtime.mandates.create_from_directive(request.directive)
+        except UnrecognizedDirectiveError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"id": mandate.id, "status": mandate.status, "title": mandate.title, "mission": mandate.mission}
 
     @app.post("/mandates/{mandate_id}/activate", dependencies=gated)
     async def activate_mandate(mandate_id: str) -> dict:

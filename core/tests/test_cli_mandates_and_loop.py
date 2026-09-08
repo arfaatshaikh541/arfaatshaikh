@@ -31,6 +31,32 @@ def test_mandates_create_activate_list_and_report():
     assert "Run Gridkeep" in report_result.output
 
 
+def test_mandates_run_scaffolds_a_gridkeep_mandate_without_a_goal_form():
+    runner = CliRunner()
+
+    run_result = runner.invoke(main, ["mandates", "run", "Run Gridkeep"])
+
+    assert run_result.exit_code == 0, run_result.output
+    assert "[draft] Run Gridkeep" in run_result.output
+    assert "Operate and grow Gridkeep" in run_result.output
+    mandate_id = run_result.output.split()[1]
+
+    # Departments are a generic scaffold, not real business facts -- the
+    # activation gate still honestly refuses without real KPIs/constraints.
+    activate_result = runner.invoke(main, ["mandates", "activate", mandate_id])
+    assert activate_result.exit_code == 1
+    assert "kpis" in activate_result.output and "constraints" in activate_result.output
+
+
+def test_mandates_run_rejects_an_unrecognized_directive():
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["mandates", "run", "What's happening with Gridkeep"])
+
+    assert result.exit_code == 1
+    assert "not a recognized directive" in result.output
+
+
 def test_mandates_activate_without_required_fields_exits_nonzero():
     runner = CliRunner()
     create_result = runner.invoke(main, ["mandates", "create", "t", "m", "--objective", "o", "--constraint", "c"])

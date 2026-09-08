@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from ..memory.models import Base
+from ..memory.schema_migration import ensure_schema
 from .models import AuditEntry
 
 GENESIS_HASH = "0" * 64
@@ -55,7 +55,7 @@ class AuditLog:
     def __init__(self, database_url: str) -> None:
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
         self._engine = create_engine(database_url, connect_args=connect_args)
-        Base.metadata.create_all(self._engine)
+        ensure_schema(self._engine)
         self._Session = sessionmaker(bind=self._engine)
 
     def record(

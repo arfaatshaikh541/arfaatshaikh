@@ -33,6 +33,30 @@ def test_create_activate_and_report_a_mandate_through_the_api():
     assert report["workstreams"] == []
 
 
+def test_run_directive_scaffolds_a_gridkeep_mandate_without_a_goal_form():
+    client = TestClient(create_app(load_settings()))
+
+    run_response = client.post("/mandates/run", json={"directive": "Run Gridkeep"})
+    assert run_response.status_code == 200
+    body = run_response.json()
+    assert body["status"] == "draft"
+    assert body["title"] == "Run Gridkeep"
+    assert body["mission"] == "Operate and grow Gridkeep"
+
+    # Departments are a generic scaffold, not real business facts -- the
+    # activation gate still honestly refuses without real KPIs/constraints.
+    activate_response = client.post(f"/mandates/{body['id']}/activate")
+    assert "error" in activate_response.json()
+
+
+def test_run_directive_rejects_an_unrecognized_directive():
+    client = TestClient(create_app(load_settings()))
+
+    response = client.post("/mandates/run", json={"directive": "What's happening with Gridkeep"})
+
+    assert response.status_code == 400
+
+
 def test_activate_without_required_fields_returns_an_error():
     client = TestClient(create_app(load_settings()))
     create_response = client.post("/mandates", json={"title": "Underspecified", "mission": "m"})

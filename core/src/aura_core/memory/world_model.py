@@ -11,14 +11,15 @@ import json
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from .models import Base, Entity, Relationship
+from .models import Entity, Relationship
+from .schema_migration import ensure_schema
 
 
 class WorldModelStore:
     def __init__(self, database_url: str) -> None:
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
         self._engine = create_engine(database_url, connect_args=connect_args)
-        Base.metadata.create_all(self._engine)
+        ensure_schema(self._engine)
         self._Session: sessionmaker[Session] = sessionmaker(bind=self._engine)
 
     def upsert_entity(

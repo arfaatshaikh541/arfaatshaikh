@@ -23,7 +23,7 @@ from sqlalchemy.orm import sessionmaker
 
 from ..governance.audit_log import AuditLog
 from ..governance.policy_engine import PolicyEngine
-from ..memory.models import Base
+from ..memory.schema_migration import ensure_schema
 from .models import GuardianEvent
 from .rules import DEFAULT_RULES, GuardianRule
 
@@ -42,7 +42,7 @@ class SecurityGuardian:
 
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
         self._engine = create_engine(database_url, connect_args=connect_args)
-        Base.metadata.create_all(self._engine)
+        ensure_schema(self._engine)
         self._Session = sessionmaker(bind=self._engine)
 
     def evaluate(self) -> list[GuardianEvent]:
