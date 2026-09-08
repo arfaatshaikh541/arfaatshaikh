@@ -90,10 +90,11 @@ class FinanceConnector(Connector):
         )
 
     def health_check(self) -> HandlerResult:
-        if self._provider.is_available():
-            status = CapabilityStatus.LIVE if isinstance(self._provider, MockPaymentProvider) else CapabilityStatus.READY_TO_CONNECT
-            return HandlerResult(status, "provider reports available")
-        return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if not self._provider.is_available():
+            return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if isinstance(self._provider, MockPaymentProvider):
+            return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "mock provider only -- no real payment backend configured; drafts only, no real funds ever move")
+        return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "provider reports available")
 
     def prepare_transaction(self, request: ActionRequest) -> HandlerResult:
         draft = self._provider.prepare_transaction(

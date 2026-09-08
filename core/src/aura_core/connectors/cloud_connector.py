@@ -8,6 +8,12 @@ back against an in-memory deployment ledger only -- no real
 infrastructure is ever touched -- so the Action Broker/policy/audit
 pipeline can be exercised for real today, the same "interface now, real
 backend later" shape as MockPaymentProvider/MockTelephonyProvider.
+
+health_check() reports the mock as READY_TO_CONNECT, never LIVE -- no
+real infrastructure has ever been touched by this code, so LIVE would be
+exactly the fabricated success this system must never report. Every
+Deployment carries `provider` ("mock" here) so an audit-log/World-Model
+consumer can always tell a simulated deployment apart from a real one.
 """
 from __future__ import annotations
 
@@ -33,13 +39,14 @@ class Deployment:
     version: str
     environment: str
     status: str  # "live" | "rolled_back"
+    provider: str = "mock"  # "mock" until a real cloud provider is wired
     deployed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     previous_deployment_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
             "id": self.id, "service": self.service, "version": self.version,
-            "environment": self.environment, "status": self.status,
+            "environment": self.environment, "status": self.status, "provider": self.provider,
             "deployed_at": self.deployed_at.isoformat(), "previous_deployment_id": self.previous_deployment_id,
         }
 
@@ -120,10 +127,11 @@ class CloudConnector(Connector):
         )
 
     def health_check(self) -> HandlerResult:
-        if self._provider.is_available():
-            status = CapabilityStatus.LIVE if isinstance(self._provider, MockCloudProvider) else CapabilityStatus.READY_TO_CONNECT
-            return HandlerResult(status, "provider reports available")
-        return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if not self._provider.is_available():
+            return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if isinstance(self._provider, MockCloudProvider):
+            return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "mock provider only -- no real cloud backend configured")
+        return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "provider reports available")
 
     def deploy(self, request: ActionRequest) -> HandlerResult:
         deployment = self._provider.deploy(

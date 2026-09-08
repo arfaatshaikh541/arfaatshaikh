@@ -19,9 +19,9 @@ def make_broker(tmp_path):
     return broker, policy, risk
 
 
-def test_mock_provider_health_check_is_live():
+def test_mock_provider_health_check_is_honestly_ready_to_connect_not_live():
     connector = FinanceConnector(MockPaymentProvider())
-    assert connector.health_check().status == CapabilityStatus.LIVE
+    assert connector.health_check().status == CapabilityStatus.READY_TO_CONNECT
 
 
 def test_prepare_transaction_is_amber_and_requires_approval_by_default(tmp_path):

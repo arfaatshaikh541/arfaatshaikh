@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from aura_core.connectors import ConnectorRegistry
 from aura_core.connectors.telephony_connector import CallRecord, MockTelephonyProvider, TelephonyConnector, TelephonyProvider
 from aura_core.governance.action_broker import ActionBroker, OutcomeStatus
@@ -18,9 +20,9 @@ def make_broker(tmp_path):
     return broker, policy
 
 
-def test_mock_provider_health_check_is_live():
+def test_mock_provider_health_check_is_honestly_ready_to_connect_not_live():
     connector = TelephonyConnector(MockTelephonyProvider())
-    assert connector.health_check().status == CapabilityStatus.LIVE
+    assert connector.health_check().status == CapabilityStatus.READY_TO_CONNECT
 
 
 def test_telephony_call_is_amber_and_requires_approval_by_default(tmp_path):
@@ -50,6 +52,8 @@ def test_telephony_call_executes_once_authorized_and_is_recorded(tmp_path):
     assert call.to == "+15551234567"
     assert call.from_ == "+19998887777"
     assert call.message == "Your appointment is confirmed."
+    assert call.provider == "mock"
+    assert json.loads(outcome.message)["provider"] == "mock"
 
 
 def test_manifest_reflects_credential_requirements_for_a_real_backend():

@@ -1,3 +1,10 @@
+> **Superseded.** This document reflects an early pass (169 Python tests
+> passing at the time). `docs/FINAL_COMPLETION_AUDIT.md` is the
+> authoritative, continuously-updated status document from this point
+> forward -- it covers everything below plus every capability and fix
+> added since. Kept here for historical context only; do not read the
+> counts below as current.
+
 # AURA Blocker Classification
 
 This is the exhaustive accounting the owner asked for: every remaining

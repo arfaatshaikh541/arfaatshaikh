@@ -115,7 +115,8 @@ if (-not (Test-Path $venvPython)) {
 # ---------------------------------------------------------------------
 Write-Section "Preflight (install\preflight.py)"
 try {
-    $preflightRaw = & python "$RepoRoot\install\preflight.py" --json 2>&1 | Out-String
+    $preflightScript = Join-Path $RepoRoot "install\preflight.py"
+    $preflightRaw = & $venvPython $preflightScript --json 2>&1 | Out-String
     $preflightRaw | Out-File (Join-Path $LogsDir "preflight.json") -Encoding utf8
     $checks = $preflightRaw | ConvertFrom-Json
     foreach ($c in $checks) {

@@ -118,16 +118,16 @@ module docstring for the full rationale.
 | HTTP (generic egress) | Yes | Yes | Real | Yes | N/A | `COMPLETE` |
 | Desktop control | Yes | Yes | Real | Yes | N/A | See section E above |
 | Browser | Yes | Yes | Real | Yes | N/A | See section E above |
-| Telephony | Yes | Yes | **MOCK, correctly labeled** (`MockTelephonyProvider`) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` (must pick Twilio/SIP first) + `REQUIRES_OWNER_CREDENTIAL` |
+| Telephony | Yes | Yes | **MOCK, correctly labeled** (`MockTelephonyProvider`); `health_check()` reports `READY_TO_CONNECT` (not `LIVE`) for the mock, and every `CallRecord` carries `provider: "mock"` | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` (must pick Twilio/SIP first) + `REQUIRES_OWNER_CREDENTIAL` |
 | Email (SMTP send) | Yes | Yes | Real SMTP client, tested against a real local server | Yes | No (needs owner's real SMTP account) | `REQUIRES_OWNER_CREDENTIAL` |
 | Email (IMAP receive, threading, classify, drafts) | Yes — `ImapConnector` (list/get/search/save_draft) + `build_threads()` + `classify_message_intent()` (`aura email classify`, `POST /email/classify`, both gated) | Yes, registered only when `AURA_IMAP_HOST` is set (honest `NOT_CONNECTED` otherwise); classification always available since it only needs the already-wired Model Router | Real imaplib client, tested against a real local IMAP server (a minimal hand-rolled RFC 3501 server covering LOGIN/SELECT/EXAMINE/UID SEARCH/UID FETCH/LOGOUT/APPEND — no pip-installable IMAP fake exists, unlike aiosmtpd for SMTP); `save_draft` does a real RFC 3501 APPEND with the `\Draft` flag, folder name always quoted (imaplib does not quote mailbox arguments itself); classification is a real Model Router call against a fixed 5-category list, never fabricating a category outside it | Yes (12 IMAP tests, including 4 for save_draft: real append content, default vs custom folder, AMBER tier, default-deny; 9 classify tests: 6 unit against a scripted provider including the fixed-category-list refusal case, 1 CLI, 2 API) | No (no owner mailbox exercised) | `COMPLETE` for receive, threading, classify, and drafts |
 | Generic REST/CRM connector | Yes | Yes | Real HTTP client against a configurable capability map | Yes | No | This is correctly an abstraction, not an integration — the spec is right that "a generic REST connector existing" does not mean a CRM integration exists. No concrete CRM adapter (HubSpot/Salesforce/Zoho schema mapping) exists. | `REQUIRES_EXTERNAL_PROVIDER` for which CRM; `REQUIRES_OWNER_CREDENTIAL` for its API key |
-| Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only) | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
+| Finance | Yes | Not auto-registered (by design) | **MOCK, correctly labeled** (`MockPaymentProvider`, drafts only); `health_check()` reports `READY_TO_CONNECT` (not `LIVE`) for the mock | Yes | No | `REQUIRES_EXTERNAL_PROVIDER` + `REQUIRES_OWNER_CREDENTIAL`, and `INTENTIONALLY_PROHIBITED` for autonomous execution specifically (per section 27) |
 | Meta/Instagram | Yes -- `build_meta_connector()` (Facebook Page: posts, comments, publish, reply) + `InstagramConnector` (real two-step Graph API media publish: create container, then publish it) | Yes, both always registered (`AURA_META_TOKEN`/`AURA_INSTAGRAM_TOKEN`), honest `READY_TO_CONNECT`/`LIVE` per token presence | Real REST calls against real local servers shaped like Meta Graph API v19 and the Instagram Graph API's two-step publish endpoints | Yes (6 Meta tests: health both states, real read through the broker, real write with body verification + AMBER tier, GREEN read tiers, default-deny; 6 Instagram tests: health both states, real two-step publish returning the final media_id, a publish-step failure reported honestly with the already-created container id, AMBER tier, default-deny) | No (no live Meta app/token exercised) | None found for either connector | `COMPLETE` for the Facebook Page connector and Instagram's publish flow; a live account is `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) + `REQUIRES_PLATFORM_APPROVAL` (Meta App Review for most real permissions, including Instagram content publishing) |
 | WhatsApp Business | Yes -- `build_whatsapp_connector()` (Cloud API: text messages, template messages, media messages, phone number status) | Yes, always registered (`AURA_WHATSAPP_TOKEN`) | Real REST calls against a real local server shaped like the WhatsApp Cloud API; `send_template_message`/`send_media_message` build the real Cloud API request body (template name/language/components; media type + id-or-link + caption) from named params rather than a raw passthrough body | Yes (8 tests: health both states, real text send with body verification + AMBER tier, GREEN read tier, default-deny, real template body construction + AMBER tier, real media body construction + AMBER tier, honest denial when neither media_id nor media_link is given) | No | None found | `COMPLETE` for text, template, and media messages; a live account is `REQUIRES_OWNER_CREDENTIAL` (a real WhatsApp Business phone number, and pre-approved template definitions for templates specifically) + `REQUIRES_EXTERNAL_PROVIDER` |
 | LinkedIn | Yes -- `build_linkedin_connector()` (profile read, UGC post share) | Yes, always registered (`AURA_LINKEDIN_TOKEN`) | Real REST calls against a real local server shaped like LinkedIn's REST API | Yes (5 tests: health both states, real profile read + GREEN tier, real share with body verification + AMBER tier, default-deny) | No | RestApiConnector only sets one static header, so LinkedIn's recommended `X-Restli-Protocol-Version`/`LinkedIn-Version` headers aren't sent (same documented limitation as the GitHub connector) | `COMPLETE` for what LinkedIn's public API legitimately allows without partner approval; anything beyond `ugcPosts`/`me` is `REQUIRES_PLATFORM_APPROVAL`; a live account needs `REQUIRES_OWNER_AUTHORIZATION` (OAuth consent) |
 | Git/software workflow (repos, PRs, issues, CI status) | Yes — `build_github_connector()` (a configured `RestApiConnector`) | Yes, always registered (honestly `READY_TO_CONNECT` without `AURA_GITHUB_TOKEN`, `LIVE` once a token is set) | Real REST calls, tested against a real local HTTP server shaped like GitHub's actual API (not a mock of the connector's own methods) | Yes (8 tests: health check with/without token, list/get PRs, get combined status, comment-on-issue, GREEN/AMBER tier classification, default-deny at autonomy 0) | No (no owner token exercised in this pass) | `COMPLETE` for the connector itself; `REQUIRES_OWNER_CREDENTIAL` only for a live authenticated account |
-| Cloud/deployment | Yes -- `CloudConnector`/`CloudProvider` + `MockCloudProvider` | Yes, always registered (mirrors the telephony mock's shape: safe to auto-register since nothing real is ever touched) | **MOCK, correctly labeled** (in-memory deployment ledger; `deploy`/`rollback` genuinely manage which version is "live" per service+environment, not just a label on one record) | Yes (7 tests: deploy/rollback AMBER + status GREEN classification, default-deny at autonomy 0, a real deploy executing through the broker, deploy-chain previous-id tracking, rollback genuinely restoring the prior deployment to live, an unknown deployment id reported honestly) | No | A real cloud provider adapter (AWS/GCP/Azure/Fly.io/etc.) | `COMPLETE` for the provider abstraction and deploy/rollback state machine; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
+| Cloud/deployment | Yes -- `CloudConnector`/`CloudProvider` + `MockCloudProvider` | Yes, always registered (mirrors the telephony mock's shape: safe to auto-register since nothing real is ever touched) | **MOCK, correctly labeled** (in-memory deployment ledger; `deploy`/`rollback` genuinely manage which version is "live" per service+environment, not just a label on one record); `health_check()` reports `READY_TO_CONNECT` (not `LIVE`) for the mock, and every `Deployment` carries `provider: "mock"` | Yes (7 tests: deploy/rollback AMBER + status GREEN classification, default-deny at autonomy 0, a real deploy executing through the broker, deploy-chain previous-id tracking, rollback genuinely restoring the prior deployment to live, an unknown deployment id reported honestly) | No | A real cloud provider adapter (AWS/GCP/Azure/Fly.io/etc.) | `COMPLETE` for the provider abstraction and deploy/rollback state machine; a concrete adapter needs `REQUIRES_EXTERNAL_PROVIDER` (which cloud) + `REQUIRES_OWNER_CREDENTIAL` |
 
 ## H. Gridkeep flagship scenario
 
@@ -547,6 +547,45 @@ closure lands, in the order it actually happened:
     including the no-match case, a real click resolved through the mock
     tree and executed against the live display, GREEN/AMBER tier
     classification, default-deny at autonomy 0).
+26. **Connector-truthfulness fix for the three "mock, correctly labeled"
+    providers**: `TelephonyConnector`, `CloudConnector`, and
+    `FinanceConnector` were each reporting `health_check() == LIVE` for
+    their mock backend (`MockTelephonyProvider`/`MockCloudProvider`/
+    `MockPaymentProvider`), which a real owner querying `/status` or
+    `GET /connectors` could genuinely misread as "a real phone call/cloud
+    deployment/payment backend is connected." Fixed to report
+    `READY_TO_CONNECT` for the mock case in all three, matching this
+    project's own rule that `LIVE` means a real authenticated external
+    operation, never a simulation. `CallRecord` and `Deployment` also
+    gained a `provider` field (`"mock"` today) serialized into every
+    outcome, so an audit-log/World-Model consumer can always tell a
+    simulated call or deployment apart from a real one even though the
+    Action Broker still reports the governed request itself as EXECUTED.
+    6 existing tests updated to assert the corrected status (2 connector
+    unit tests, 1 each for finance/cloud, plus the 2 runtime-level tests
+    that exercise the real `build_runtime()`/`/connectors` path, which
+    had been asserting the wrong thing all along). Also: with PowerShell
+    now installable in this sandbox (a prior network-policy block that
+    had made `install/Install-AURA.ps1` and `WINDOWS-COMMISSIONING.ps1`
+    entirely unparseable here has lifted), both scripts were, for the
+    first time, actually parsed with PowerShell's own AST parser --
+    zero syntax errors in either -- and `WINDOWS-COMMISSIONING.ps1` was
+    actually executed end to end on this Linux sandbox. Doing so
+    surfaced one real, platform-independent bug: its very first check
+    (`install\preflight.py`) was invoked via a bare `python` instead of
+    the `$venvPython` the script computes one line earlier and uses
+    everywhere else -- would have run against whatever `python` happens
+    to resolve to on the owner's PATH (frequently absent or wrong on a
+    real Windows machine, where the launcher is often `py` and the venv
+    interpreter is a separate binary), not the project's own venv. Fixed
+    to use `$venvPython` consistently. Every other failure from that
+    Linux run (pytest showing "No module named pytest" via the `python`
+    fallback since Linux venvs don't have `Scripts\python.exe`;
+    `Start-Process -WindowStyle` refusing to run on a non-Windows pwsh
+    edition) is a genuine Linux-only artifact of running a
+    Windows-targeted script outside Windows, confirmed by reading the
+    surrounding code, not a bug that would reproduce on the real target
+    platform.
 
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker

@@ -17,13 +17,15 @@ _EXECUTABLE = os.environ.get(
 _HAS_BROWSER = os.path.exists(_EXECUTABLE)
 
 
-def test_connectors_endpoint_reports_filesystem_and_telephony_live():
+def test_connectors_endpoint_reports_filesystem_live_and_telephony_honestly_ready_to_connect():
     client = TestClient(create_app(load_settings()))
     response = client.get("/connectors")
     assert response.status_code == 200
     body = {c["name"]: c for c in response.json()}
     assert body["filesystem"]["status"]["status"] == "LIVE"
-    assert body["telephony"]["status"]["status"] == "LIVE"
+    # No real telephony backend is wired -- the mock provider must never
+    # report LIVE, only READY_TO_CONNECT.
+    assert body["telephony"]["status"]["status"] == "READY_TO_CONNECT"
 
 
 def test_connectors_endpoint_does_not_crash_on_a_real_health_check_that_uses_playwrights_sync_api(monkeypatch):

@@ -20,9 +20,9 @@ def make_broker(tmp_path):
     return broker, policy, risk
 
 
-def test_mock_provider_health_check_is_live():
+def test_mock_provider_health_check_is_honestly_ready_to_connect_not_live():
     connector = CloudConnector(MockCloudProvider())
-    assert connector.health_check().status == CapabilityStatus.LIVE
+    assert connector.health_check().status == CapabilityStatus.READY_TO_CONNECT
 
 
 def test_deploy_and_rollback_are_amber_get_status_is_green(tmp_path):
@@ -61,6 +61,7 @@ def test_a_real_deploy_actually_executes_through_the_broker_once_authorized(tmp_
     assert body["status"] == "live"
     assert body["environment"] == "production"  # default
     assert body["previous_deployment_id"] is None
+    assert body["provider"] == "mock"
 
 
 def test_deploying_a_new_version_records_the_previous_deployment_id(tmp_path):

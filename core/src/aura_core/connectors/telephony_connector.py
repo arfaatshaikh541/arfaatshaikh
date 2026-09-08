@@ -4,6 +4,16 @@ behind — genuinely testable without any phone provider or account.
 Wiring a real backend is REQUIRES_EXTERNAL_PROVIDER (needs a telephony
 account and its credentials), tracked in docs/project-status.md, not
 implemented here.
+
+health_check() reports the mock as READY_TO_CONNECT, never LIVE -- no
+real phone call has ever gone through this code, so claiming LIVE would
+be exactly the "simulated success" this system must never fabricate.
+Every CallRecord also carries `provider` ("mock" here) so any consumer
+of a call's outcome -- audit log, World Model, an owner reading
+`/audit` -- can tell a simulated call apart from a real one even though
+the Action Broker still reports the request itself as EXECUTED (the
+governed pipeline genuinely ran the registered handler; that handler
+just isn't backed by real telephony infrastructure yet).
 """
 from __future__ import annotations
 
@@ -25,12 +35,14 @@ class CallRecord:
     from_: str
     status: str  # "queued" | "completed" | "failed"
     message: str
+    provider: str = "mock"  # "mock" until a real backend (twilio/sip/...) is wired
     placed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         return {
             "id": self.id, "to": self.to, "from": self.from_,
-            "status": self.status, "message": self.message, "placed_at": self.placed_at.isoformat(),
+            "status": self.status, "message": self.message, "provider": self.provider,
+            "placed_at": self.placed_at.isoformat(),
         }
 
 
@@ -74,10 +86,11 @@ class TelephonyConnector(Connector):
         )
 
     def health_check(self) -> HandlerResult:
-        if self._provider.is_available():
-            status = CapabilityStatus.LIVE if isinstance(self._provider, MockTelephonyProvider) else CapabilityStatus.READY_TO_CONNECT
-            return HandlerResult(status, "provider reports available")
-        return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if not self._provider.is_available():
+            return HandlerResult(CapabilityStatus.UNAVAILABLE, "provider reports unavailable")
+        if isinstance(self._provider, MockTelephonyProvider):
+            return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "mock provider only -- no real telephony backend configured")
+        return HandlerResult(CapabilityStatus.READY_TO_CONNECT, "provider reports available")
 
     def call(self, request: ActionRequest) -> HandlerResult:
         record = self._provider.place_call(

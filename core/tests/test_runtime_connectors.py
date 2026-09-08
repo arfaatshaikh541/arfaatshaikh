@@ -27,10 +27,15 @@ def test_filesystem_connector_is_live_through_the_real_runtime(tmp_path, monkeyp
     assert snapshot["connector.filesystem"]["status"] == CapabilityStatus.LIVE.value
 
 
-def test_telephony_mock_provider_is_live_through_the_real_runtime():
+def test_telephony_mock_provider_is_honestly_ready_to_connect_through_the_real_runtime():
+    # No real telephony backend is wired -- a mock provider must never
+    # report LIVE, since that would claim a real phone call could
+    # succeed when none can. READY_TO_CONNECT is the honest status:
+    # the interface is complete, a real provider (Twilio/SIP) and its
+    # credentials are what's missing.
     runtime = build_runtime()
     snapshot = status_registry.snapshot()
-    assert snapshot["connector.telephony"]["status"] == CapabilityStatus.LIVE.value
+    assert snapshot["connector.telephony"]["status"] == CapabilityStatus.READY_TO_CONNECT.value
 
 
 def test_email_connector_is_not_registered_without_smtp_configuration(monkeypatch):
