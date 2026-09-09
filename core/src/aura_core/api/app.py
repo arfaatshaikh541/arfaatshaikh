@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -24,6 +24,7 @@ from ..executive import GoalNotReadyError, MandateNotReadyError, parse_status_qu
 from ..governance.action_broker import OutcomeStatus
 from ..governance.risk_engine import ActionRequest
 from ..identity import BackendRateLimitedError, InvalidBackendCredentialError, NotEnrolledError, PairingCodeInvalidError
+from ..identity.qr import build_pairing_qr_payload, render_qr_png
 from ..providers import NoProviderAvailable
 from ..runtime import Runtime, build_runtime
 from ..status import CapabilityStatus, registry
@@ -691,12 +692,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"id": device_id, "label": request.label}
 
     @app.post("/devices/pairing/start", dependencies=backend_gated)
-    async def start_device_pairing() -> dict:
+    async def start_device_pairing(request: Request) -> dict:
         # Requires backend elevation -- only an already-elevated owner,
         # on an already-trusted device, may authorize a brand-new device
         # to join (section 15/16's "Root Device approves enrollment").
         session = runtime.device_pairing.start()
-        return {"code": session.code, "expires_at": session.expires_at.isoformat()}
+
+        # The QR is a convenience encoding of the same two facts a human
+        # would otherwise be told separately (this server's address, and
+        # the code) -- it grants nothing beyond the plain code, and a
+        # scan still ends up calling the exact same claim endpoint below.
+        # request.base_url is this server's own view of its address (host
+        # header/scheme it was actually reached on), never guessed.
+        server_url = str(request.base_url).rstrip("/")
+        qr_payload = build_pairing_qr_payload(session.code, server_url)
+        qr_png_base64 = base64.b64encode(render_qr_png(qr_payload)).decode("ascii")
+
+        return {
+            "code": session.code,
+            "expires_at": session.expires_at.isoformat(),
+            "qr_payload": qr_payload,
+            "qr_png_base64": qr_png_base64,
+        }
 
     @app.post("/devices/pairing/claim")
     async def claim_device_pairing(request: DevicePairingClaimRequest) -> dict:

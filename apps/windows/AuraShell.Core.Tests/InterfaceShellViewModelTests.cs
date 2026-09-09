@@ -244,10 +244,14 @@ public class InterfaceShellViewModelTests
         shell.BackendPinInput = "482913";
         await shell.SubmitBackendPinAsync();
 
-        handler.MapJson(HttpMethod.Post, "/devices/pairing/start",
-            """{"code": "ABCD1234", "expires_at": "2026-01-01T00:10:00+00:00"}""");
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/start", """
+            {"code": "ABCD1234", "expires_at": "2026-01-01T00:10:00+00:00",
+             "qr_payload": "aura-pair://ABCD1234@http://192.168.1.14:8756",
+             "qr_png_base64": "iVBORw0KGgo="}
+            """);
         await shell.StartDevicePairingAsync();
         Assert.Equal("ABCD1234", shell.PairingCode);
+        Assert.Equal("iVBORw0KGgo=", shell.PairingQrPngBase64);
         Assert.NotNull(shell.PairingExpiresAtUtc);
 
         shell.SelectedDevice = shell.Devices[0];

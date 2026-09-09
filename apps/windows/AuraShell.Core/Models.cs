@@ -94,11 +94,16 @@ public sealed record DeviceInfo(
     [property: JsonPropertyName("revoked_at")] string? RevokedAt);
 
 /// <summary>A short-lived, single-use code for enrolling a second
-/// device (see /devices/pairing/start) -- shown to the owner (e.g. as
-/// text or a QR code) to type/scan on the new device.</summary>
+/// device (see /devices/pairing/start) -- shown to the owner as text to
+/// type, or as the QR code (QrPngBase64) to scan, on the new device.
+/// Both encode the exact same code; the QR additionally carries this
+/// server's own address so the joining device doesn't need to be told
+/// it separately.</summary>
 public sealed record PairingSessionInfo(
     [property: JsonPropertyName("code")] string Code,
-    [property: JsonPropertyName("expires_at")] string ExpiresAt);
+    [property: JsonPropertyName("expires_at")] string ExpiresAt,
+    [property: JsonPropertyName("qr_payload")] string? QrPayload = null,
+    [property: JsonPropertyName("qr_png_base64")] string? QrPngBase64 = null);
 
 public sealed record PairingClaimResult(
     [property: JsonPropertyName("device_token")] string DeviceToken);

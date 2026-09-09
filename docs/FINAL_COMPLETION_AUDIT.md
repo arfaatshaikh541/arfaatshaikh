@@ -950,6 +950,62 @@ closure lands, in the order it actually happened:
     hardware, a physical second device, real external providers, or
     code-signing infrastructure this sandbox cannot provide.
 
+36. **Confirmed, with real evidence rather than assumption, that
+    `AuraShell.exe` genuinely cannot be produced from this sandbox by any
+    means — and shipped the one piece of the next mega-request that is
+    real, testable, cross-platform work: QR-code device pairing.** Asked
+    to "build AURA-Setup.exe" and "package private runtimes instead of
+    development SDKs," the obvious question was whether the WPF
+    projects could cross-compile to Windows binaries from Linux — a real
+    .NET SDK capability (`EnableWindowsTargeting`) that hadn't actually
+    been tried in this session before. It was tried: NuGet restore of
+    the Windows reference assemblies succeeded, but the build still
+    failed with the same `Microsoft.NET.Sdk.WindowsDesktop.targets was
+    not found` error as every prior attempt, because that targets file
+    is bundled only with the Windows-hosted SDK installer, never
+    published as a restorable NuGet package. Chased one level further:
+    Microsoft's own official apt repo for this Ubuntu release
+    (`packages.microsoft.com`, added and inspected directly) carries no
+    `dotnet-sdk` package for this distro at all, and Microsoft's
+    `dotnet-install` CDN domain is blocked by this sandbox's egress
+    policy regardless. Conclusion, now backed by direct evidence rather
+    than the same explanation repeated from memory: building
+    `AuraShell.exe` requires a real Windows machine or a Windows-hosted
+    CI runner, full stop — there is no cross-compile path from any
+    Linux environment, sandboxed or not. (The apt-repo addition was
+    removed afterward; the repository itself was untouched by this
+    experiment.) Signing a release is a separate, equally hard blocker
+    with the same root cause: no certificate exists in this session's
+    reach either. Windows Hello and literally running the corrected
+    build were named as later steps in the same request; both were
+    already-documented hard blockers (Windows Hello needs real WinRT
+    biometric APIs this sandbox cannot invoke or verify; there is
+    nowhere to run anything). None of these four items were attempted
+    further, since no amount of additional engineering effort changes a
+    missing SDK component, a missing certificate, or a missing machine.
+    What *was* real and buildable from "automatic QR/network device
+    pairing": `identity/qr.py` (new) encodes a pairing session's code
+    together with the server's own reachable address into one
+    `aura-pair://` URI and renders it as a real PNG via the `qrcode`
+    library — this is a convenience on top of the existing pairing code,
+    never a separate credential; scanning it still calls the exact same
+    already-secured `/devices/pairing/claim`. Wired into
+    `POST /devices/pairing/start`'s response (`qr_payload`,
+    `qr_png_base64`) and end to end into the WPF Devices tab: a new
+    `Base64ToBitmapImageConverter` and an `<Image>` shown alongside the
+    existing text code. 8 new Python tests (payload round-trip,
+    malformed-input rejection, real-PNG-header verification,
+    determinism) plus 2 new C# tests (JSON deserialization, the view
+    model actually carrying the QR field through) — 101/101 C# tests and
+    the full Python suite pass. What remains explicitly not attempted:
+    LAN-broadcast/mDNS automatic discovery (the "network" half of
+    "QR/network... pairing" — a bounded, real, still-buildable follow-up
+    this entry did not reach), and node sync/task routing, self-repair/
+    updater, and "premium" voice UI polish, each substantial enough that
+    building any of them in the same pass as this investigation would
+    have meant doing them shallowly; better to report this scope
+    honestly than pad the entry with thin versions of all four.
+
 Everything else in this audit marked `IMPLEMENTABLE_NOW` and not listed
 above is real, tracked, remaining work — not hidden behind a blocker
 label just because it hasn't been reached yet.

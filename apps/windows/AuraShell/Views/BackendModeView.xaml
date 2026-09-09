@@ -19,6 +19,7 @@
         <local:BoolToKillSwitchLabelConverter x:Key="KillSwitchLabelConverter" />
         <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
         <local:NullToCollapsedInverseConverter x:Key="NullToCollapsedInverseConverter" />
+        <local:Base64ToBitmapImageConverter x:Key="Base64ToBitmapImageConverter" />
     </UserControl.Resources>
     <UserControl.InputBindings>
         <KeyBinding Key="Return" Command="{Binding Backend.Chat.SendCommand}" />
@@ -149,12 +150,25 @@
                             <TextBox Width="220" Text="{Binding RenameInput, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Content="Rename Selected" Margin="8,0,0,0" Command="{Binding RenameSelectedDeviceCommand}" />
                         </StackPanel>
-                        <TextBlock Foreground="#9A9AA5"
-                                   Text="Show this code on the new device -- it expires soon and can only be used once."
-                                   Visibility="{Binding PairingCode, Converter={StaticResource NullToCollapsedInverseConverter}}" />
-                        <TextBlock Foreground="White" FontSize="24" FontWeight="Bold"
-                                   Text="{Binding PairingCode}"
-                                   Visibility="{Binding PairingCode, Converter={StaticResource NullToCollapsedInverseConverter}}" />
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding PairingCode, Converter={StaticResource NullToCollapsedInverseConverter}}">
+                            <StackPanel>
+                                <TextBlock Foreground="#9A9AA5" MaxWidth="260" TextWrapping="Wrap"
+                                           Text="Show this code on the new device -- it expires soon and can only be used once." />
+                                <TextBlock Foreground="White" FontSize="24" FontWeight="Bold"
+                                           Text="{Binding PairingCode}" />
+                            </StackPanel>
+                            <!--
+                                Scanning this still redeems the exact same code shown as
+                                text to the left — it is a convenience encoding (this
+                                server's address + the code), never a separate credential.
+                                See aura_core.identity.qr.
+                            -->
+                            <Image Source="{Binding PairingQrPngBase64, Converter={StaticResource Base64ToBitmapImageConverter}}"
+                                   Width="120" Height="120" Margin="16,0,0,0"
+                                   Visibility="{Binding PairingQrPngBase64, Converter={StaticResource NullToCollapsedInverseConverter}}"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        </StackPanel>
                         <TextBlock Foreground="#E05252" Text="{Binding DeviceOperationError}" />
                     </StackPanel>
                     <ListView ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">

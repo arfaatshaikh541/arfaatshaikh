@@ -102,6 +102,19 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
     }
     private string? _pairingCode;
 
+    /// <summary>Base64-encoded PNG of a QR code encoding the same
+    /// pairing code plus this server's address (see
+    /// aura_core.identity.qr) -- a convenience the owner can scan
+    /// instead of typing PairingCode by hand. Never a separate
+    /// credential: scanning it still redeems the exact same code above.
+    /// Null under the same conditions as PairingCode.</summary>
+    public string? PairingQrPngBase64
+    {
+        get => _pairingQrPngBase64;
+        private set => SetProperty(ref _pairingQrPngBase64, value);
+    }
+    private string? _pairingQrPngBase64;
+
     public DateTime? PairingExpiresAtUtc
     {
         get => _pairingExpiresAtUtc;
@@ -254,6 +267,7 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
         {
             var session = await _client.StartDevicePairingAsync(_elevationToken);
             PairingCode = session.Code;
+            PairingQrPngBase64 = session.QrPngBase64;
             PairingExpiresAtUtc = DateTimeOffset.Parse(session.ExpiresAt).UtcDateTime;
             DeviceOperationError = null;
         }
@@ -467,6 +481,7 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
         SelectedDevice = null;
         RenameInput = string.Empty;
         PairingCode = null;
+        PairingQrPngBase64 = null;
         PairingExpiresAtUtc = null;
         if (token is not null)
         {
@@ -584,6 +599,7 @@ public sealed class InterfaceShellViewModel : ObservableObject, IDisposable
                 SelectedDevice = null;
                 RenameInput = string.Empty;
                 PairingCode = null;
+                PairingQrPngBase64 = null;
                 PairingExpiresAtUtc = null;
                 Mode.OnBackendElevationExpired();
                 Voice.StartObserving();

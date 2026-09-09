@@ -10,6 +10,8 @@ pairing code) join without ever needing a device token of its own.
 """
 from __future__ import annotations
 
+import base64
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -90,6 +92,25 @@ def test_the_full_pairing_flow_enrolls_a_genuinely_separate_second_device():
     # And it shows up in the root's device list too.
     devices = client.get("/devices", headers=_backend_headers(device_token, elevation_token)).json()
     assert {d["label"] for d in devices} == {"primary", "iPhone"}
+
+
+def test_pairing_start_also_returns_a_scannable_qr_encoding_the_same_code():
+    from aura_core.identity.qr import parse_pairing_qr_payload
+
+    client, _app, device_token, elevation_token = _enroll_and_elevate()
+
+    start = client.post("/devices/pairing/start", headers=_backend_headers(device_token, elevation_token))
+    body = start.json()
+
+    assert body["qr_png_base64"], "no QR image returned alongside the plain code"
+    png = base64.b64decode(body["qr_png_base64"])
+    assert png[:8] == b"\x89PNG\r\n\x1a\n", "qr_png_base64 did not decode to a real PNG"
+
+    # The QR is a convenience encoding of the exact same code the plain
+    # text field carries -- never a separate credential.
+    qr_code, server_url = parse_pairing_qr_payload(body["qr_payload"])
+    assert qr_code == body["code"]
+    assert server_url  # this server's own reachable base URL, not blank
 
 
 def test_a_pairing_code_cannot_be_claimed_twice():

@@ -385,6 +385,23 @@ public class AuraApiClientTests
     }
 
     [Fact]
+    public async Task StartDevicePairingAsync_also_deserializes_the_qr_fields_when_present()
+    {
+        var handler = new FakeHttpMessageHandler();
+        handler.MapJson(HttpMethod.Post, "/devices/pairing/start", """
+            {"code": "ABCD1234", "expires_at": "2026-01-01T00:10:00+00:00",
+             "qr_payload": "aura-pair://ABCD1234@http://192.168.1.14:8756",
+             "qr_png_base64": "iVBORw0KGgo="}
+            """);
+        var client = MakeClient(handler);
+
+        var session = await client.StartDevicePairingAsync("tok-123");
+
+        Assert.Equal("aura-pair://ABCD1234@http://192.168.1.14:8756", session.QrPayload);
+        Assert.Equal("iVBORw0KGgo=", session.QrPngBase64);
+    }
+
+    [Fact]
     public async Task ClaimDevicePairingAsync_never_attaches_a_device_token_or_elevation_header()
     {
         var handler = new FakeHttpMessageHandler();
