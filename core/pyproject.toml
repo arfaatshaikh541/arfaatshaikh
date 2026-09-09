@@ -1,0 +1,51 @@
+[project]
+name = "aura-core"
+version = "0.1.0"
+description = "AURA headless core runtime: persistent memory, model routing, deterministic action lane, and a real streaming chat API."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<0.116",
+  "uvicorn>=0.32,<0.33",
+  "pydantic>=2.9,<3",
+  "sqlalchemy>=2.0,<2.1",
+  "httpx>=0.27,<0.28",
+  "click>=8.1,<9",
+  "numpy>=1.26,<3",
+  "qrcode[pil]>=7.4,<9",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<9", "pytest-asyncio>=0.24,<0.25", "playwright>=1.47,<2", "aiosmtpd>=1.4,<2", "pynput>=1.7,<2"]
+browser = ["playwright>=1.47,<2"]
+email = ["aiosmtpd>=1.4,<2"]
+voice = ["openwakeword>=0.6,<1", "sherpa-onnx>=1.10,<2"]
+desktop_control = ["pynput>=1.7,<2"]
+
+[project.scripts]
+aura = "aura_core.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+markers = [
+    "cross_platform: must pass identically on every supported OS; the default for untagged tests",
+    "windows: exercises Windows-only behavior (skipped elsewhere, never counted as a failure off-Windows)",
+    "linux: exercises Linux-only behavior (e.g. X11/Xvfb); skipped elsewhere",
+    "macos: exercises macOS-only behavior; skipped elsewhere",
+    "hardware: requires real physical hardware (mic, second device, TPM, biometrics) this sandbox cannot provide",
+    "network: requires a real external network/provider (telephony, real SMTP, live APIs)",
+    "integration: exercises multiple real components together rather than one unit in isolation",
+    "endurance: long-running/soak test, not part of the fast default loop",
+    "security: a security-boundary or governance-invariant regression fence",
+    "installer: exercises installer/commissioning script behavior (often a static text guard in this sandbox)",
+    "manual_commissioning: only meaningful when run by a human against a real, freshly-installed machine",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

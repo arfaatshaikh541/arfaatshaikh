@@ -1,0 +1,22 @@
+<UserControl x:Class="AuraShell.Views.AuthenticationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        The real production startup screen (section 3/4): shown for
+        Booting, AuthRequired, Authenticating, Locked, and ErrorRecovery.
+        No dashboard, no chat, no tabs — a single centered status line
+        and, only when there is something to retry, a single button. See
+        AuthenticationView.xaml.cs for exactly which InterfaceMode maps to
+        which text/button, driven entirely by InterfaceShellViewModel.
+    -->
+    <Grid Background="#0A0A0C">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+            <TextBlock Text="AURA" Foreground="#E6E6EA" FontSize="32" FontWeight="Light"
+                       HorizontalAlignment="Center" Margin="0,0,0,20" />
+            <TextBlock x:Name="StatusText" Foreground="#9A9AA5" FontSize="14" TextWrapping="Wrap"
+                       TextAlignment="Center" Margin="0,0,0,20" />
+            <Button x:Name="ActionButton" Padding="18,8" HorizontalAlignment="Center"
+                    Visibility="Collapsed" />
+        </StackPanel>
+    </Grid>
+</UserControl>
