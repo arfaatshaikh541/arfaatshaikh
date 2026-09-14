@@ -76,7 +76,11 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .dhikr-count{font-size:3rem;font-weight:800;margin:0;color:var(--gold-strong)}
 .dhikr-actions{display:flex;gap:.75rem;margin-top:.5rem}
 @media(prefers-reduced-motion:reduce){.qiblah-needle{transition:none}}
-@media(max-width:800px){.worlds-nav a{padding:.45rem .7rem;font-size:.82rem}}
+@media(max-width:800px){.worlds-nav a{padding:.45rem .7rem;font-size:.82rem}
+/* Reserve room so the fixed command-palette trigger never sits on top of
+   the last row of cards when a page is shorter than the viewport on
+   narrow screens. */
+.worlds-index,.world-page{padding-bottom:6rem}}
 
 /* Command palette */
 .command-trigger-dock{position:fixed;inset-block-end:1.5rem;inset-inline-end:1.5rem;z-index:150}
