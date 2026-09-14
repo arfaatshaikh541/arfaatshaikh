@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     # before forwarding to this service (the documented default).
     root_path: str = ""
 
+    # --- AI provider (see app/services/ai_provider.py) ---
+    # "local" (default) only ever talks to a self-hosted Ollama instance.
+    # "external" is a hard opt-in: it does nothing unless external_ai_enabled
+    # is ALSO set to true, so a deployment can never silently start billing
+    # a paid AI API just because this field was set carelessly.
+    ai_mode: Literal["local", "external"] = "local"
+    external_ai_enabled: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1"
+    ollama_timeout_seconds: float = 30.0
+
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, value: SecretStr) -> SecretStr:

@@ -4,14 +4,20 @@ An evidence-grounded Islamic knowledge platform: Qur'an/Hadith/Tafsir with
 full source provenance, a claim-grounded assistant that refuses to answer
 without approved evidence, source/scholar governance, learning and research
 tools, and institutional/community/federation infrastructure spanning
-milestones 1 through 20. See `docs/architecture/ARCHITECTURE.md` for the
-full milestone-to-module map and `docs/FINAL_AUDIT.md` for exactly what the
-most recent engineering pass changed and verified.
+milestones 1 through 20, organized into twelve navigable "worlds"
+(`apps/web/src/lib/worlds.ts` - Ibadah, Knowledge, Scholarship,
+Civilization, Family, Life, Ummah, Charity, Journey, Intelligence,
+Education, The World). See `docs/architecture/ARCHITECTURE.md` for the
+milestone-to-module map, `docs/FINAL_AUDIT.md` for the base-path/security
+pass, and `WORLD_OF_ISLAM_FINAL_REPORT.md` for the most recent pass (the
+12-world navigation, the visual redesign, real Ibadah tools, and the
+Ollama-first AI provider layer).
 
 ## Architecture
 
-- **API**: FastAPI + SQLAlchemy (async) + Alembic, Python — 123 source
-  files, 81 migrations, 61 test modules, 544 passing tests.
+- **API**: FastAPI + SQLAlchemy (async) + Alembic, Python — 81 migrations,
+  552 passing tests (`docs/architecture/ARCHITECTURE.md` has the file-count
+  breakdown as of the prior pass).
 - **Worker**: Celery, Python.
 - **Web**: Next.js 15 / React 19, TypeScript.
 - **Database**: PostgreSQL. **Cache/queue**: Redis. **Storage**: S3-compatible
@@ -74,5 +80,9 @@ today.
 - `docs/security/` — authentication, tenant isolation, hardening notes.
 - `docs/<area>/milestone-*.md` — per-milestone architecture and acceptance
   records for milestones 7-20.
-- `docs/FINAL_AUDIT.md` — exactly what the most recent pass changed, tested,
-  and left open.
+- `docs/FINAL_AUDIT.md` — base-path/Docker-optional/security pass: changed,
+  tested, and left open.
+- `docs/ai/provider-architecture.md` — the Ollama-first AI provider layer:
+  how `AI_MODE`/`EXTERNAL_AI_ENABLED` gate it, and what was/wasn't verified.
+- `WORLD_OF_ISLAM_FINAL_REPORT.md` — the 12-world navigation, visual
+  redesign, and AI-provider pass: changed, tested, and left open.

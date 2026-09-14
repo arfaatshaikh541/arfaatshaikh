@@ -15,12 +15,12 @@ dependencies = [
   "structlog==25.4.0",
   "celery[redis]==5.5.3",
   "argon2-cffi==25.1.0",
-  "email-validator==2.2.0"
+  "email-validator==2.2.0",
+  "httpx==0.28.1"
 ]
 
 [dependency-groups]
 dev = [
-  "httpx==0.28.1",
   "pytest==8.4.1",
   "pytest-asyncio==1.1.0",
   "ruff==0.12.11"
