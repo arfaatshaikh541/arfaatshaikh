@@ -19,11 +19,11 @@ export default async function ZakatCheckerPage({ params }: { params: Promise<{ l
       </header>
       <header className="world-page-hero">
         <Link className="text-link" href={`/${locale}/w/charity`}>{ar ? "الصدقة" : "Charity"}</Link>
-        <h1>{ar ? "مدقق حوكمة صندوق الزكاة" : "Zakat fund governance checker"}</h1>
+        <h1>{ar ? "مدقق صندوق الزكاة" : "Zakat fund checker"}</h1>
         <p>
           {ar
-            ? "يستدعي منطق قبول الحوكمة الحقيقي في الخادم (استحقاق ميلستون 16). أدخل إعدادات صندوق افتراضي واعرض نتيجة القبول الحقيقية."
-            : "Calls the real, server-side governance acceptance logic (milestone 16). Enter a hypothetical fund's configuration and see the real acceptance result."}
+            ? "أدخل إعدادات صندوق افتراضي واعرض نتيجة القبول."
+            : "Enter a hypothetical fund's configuration and see whether it meets the acceptance rules."}
         </p>
       </header>
       <ZakatFundChecker locale={locale} />

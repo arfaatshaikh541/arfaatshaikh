@@ -13,8 +13,8 @@ export function generateStaticParams() {
 
 const STATUS_LABEL: Record<FeatureStatus, { en: string; ar: string }> = {
   available: { en: "Available", ar: "متاح" },
-  "backend-only": { en: "Backend built - no UI yet", ar: "مبني في الخلفية - بلا واجهة بعد" },
-  planned: { en: "Architecture slot", ar: "مخطط للبنية فقط" },
+  "backend-only": { en: "In progress", ar: "قيد الإنجاز" },
+  planned: { en: "Coming soon", ar: "قريباً" },
 };
 
 export default async function WorldPage({ params }: { params: Promise<{ locale: Locale; slug: string }> }) {

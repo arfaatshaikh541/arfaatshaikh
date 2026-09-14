@@ -20,8 +20,8 @@ export default async function TopicsPage({ params }: { params: Promise<{ locale:
         <h1>{ar ? "خريطة المعرفة" : "Knowledge topics"}</h1>
         <p>
           {ar
-            ? "روابط حقيقية ومنشورة بين القرآن والحديث والتفسير والمواضيع - وليست رسمًا بيانيًا مُختلقًا."
-            : "Real, published links between Qur'an ayat, Hadith narrations, Tafsir entries, and topics — not a fabricated graph visualization."}
+            ? "روابط بين آيات القرآن والأحاديث والتفسير والمواضيع ذات الصلة."
+            : "Published links between Qur'an ayat, Hadith narrations, Tafsir entries, and related topics."}
         </p>
       </header>
       <TopicsBrowser locale={locale} />

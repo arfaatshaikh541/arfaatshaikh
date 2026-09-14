@@ -193,6 +193,18 @@ async def evaluate_retrieval(
     return {"eligible": result.eligible, "failed_gates": result.failed_gates()}
 
 
+@router.post("/admin/editions/{edition_id}/project-retrieval")
+async def project_retrieval(
+    edition_id: UUID,
+    db: DbSession,
+    actor: Annotated[User, Depends(require_platform_administrator)],
+    _: Annotated[Session, Depends(require_csrf)],
+):
+    run = await SourceRegistryService(db).project_retrieval(edition_id, actor)
+    await db.commit()
+    return {"run_id": run.id, "status": run.status, "projected_count": run.projected_count, "rejected_count": run.rejected_count}
+
+
 @router.get("/editions/{edition_id}/passages", response_model=list[PassageView])
 async def list_public_passages(edition_id: UUID, db: DbSession):
     return await SourceRegistryService(db).list_public_passages(edition_id)

@@ -22,8 +22,8 @@ export default async function IbadahToolsPage({ params }: { params: Promise<{ lo
         <h1>{ar ? "أدوات العبادة" : "Ibadah tools"}</h1>
         <p>
           {ar
-            ? "حسابات فلكية حقيقية تعمل على جهازك مباشرة - لا بيانات وهمية، ولا استدعاء لأي خادم."
-            : "Real astronomical calculations, computed on your device - no fabricated data, no server round trip."}
+            ? "حسابات فلكية دقيقة تعمل على جهازك مباشرة، دون إرسال أي بيانات إلى خادم."
+            : "Accurate astronomical calculations, computed right on your device — nothing is sent to a server."}
         </p>
       </header>
       <IbadahTools locale={locale} />

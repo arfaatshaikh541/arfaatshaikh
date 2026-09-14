@@ -1,16 +1,38 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import TYPE_CHECKING, Iterable, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 POLICY_VERSION = "retrieval-v1"
 ALLOWED_CORPORA = frozenset({"quran", "hadith", "tafsir", "topic", "cross_reference"})
+
+_STOPWORDS = frozenset({
+    "the", "a", "an", "of", "in", "on", "to", "for", "and", "or", "is", "are", "was", "were",
+    "what", "why", "how", "who", "whom", "when", "where", "which", "does", "do", "did",
+    "say", "says", "said", "about", "with", "that", "this", "these", "those", "it", "its",
+    "be", "been", "being", "can", "could", "should", "would", "will", "shall", "teach",
+    "teaching", "teachings", "islam", "islamic", "quran", "hadith",
+})
+
+
+def extract_search_terms(question: str) -> list[str]:
+    """Pull the significant keywords out of a natural-language question.
+
+    search_evidence() matches real source text against these terms rather than the
+    whole question, since a full sentence almost never appears verbatim inside a
+    short ayah or hadith translation. Terms are still matched as exact substrings -
+    this never invents or paraphrases anything, it only finds where to look.
+    """
+    words = re.findall(r"[A-Za-z؀-ۿ]+", question)
+    terms = [w for w in words if len(w) >= 3 and w.lower() not in _STOPWORDS]
+    return terms or [w for w in words if len(w) >= 3]
 
 
 @dataclass(frozen=True)
@@ -110,7 +132,10 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
     allowed = set(corpora) & ALLOWED_CORPORA
     if not allowed:
         return []
-    pattern = f"%{query.strip()}%"
+    terms = extract_search_terms(query)
+    if not terms:
+        return []
+    term_match = or_(*(RetrievalChunk.text.ilike(f"%{term}%") for term in terms))
     stmt = (
         select(RetrievalChunk, RetrievalDocument)
         .join(RetrievalDocument, RetrievalDocument.id == RetrievalChunk.document_id)
@@ -118,7 +143,7 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
         .join(SourcePassage, SourcePassage.id == RetrievalDocument.source_passage_id)
         .where(
             RetrievalChunk.active.is_(True), RetrievalDocument.active.is_(True),
-            RetrievalDocument.corpus_type.in_(allowed), RetrievalChunk.text.ilike(pattern),
+            RetrievalDocument.corpus_type.in_(allowed), term_match,
             SourceEdition.review_status == "approved", SourceEdition.ingestion_status == "ready",
             SourceEdition.approved_for_retrieval.is_(True), SourcePassage.is_current.is_(True),
             SourcePassage.edition_id == RetrievalDocument.source_edition_id,

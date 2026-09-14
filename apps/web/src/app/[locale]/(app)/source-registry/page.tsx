@@ -2,9 +2,9 @@ import { SourceRegistryPanel } from "@/components/source-registry-panel";
 
 export default function SourceRegistryPage() {
   return <>
-    <p className="eyebrow">Milestone 2</p>
+    <p className="eyebrow">Sources</p>
     <h1 className="page-title">Islamic source registry</h1>
-    <p>Registration, licensing, integrity, scholarly review, provenance, and retrieval approval remain separate, auditable decisions.</p>
+    <p>Every source is registered, licensed, reviewed, and approved before it&apos;s used, with a full provenance trail.</p>
     <SourceRegistryPanel />
   </>;
 }

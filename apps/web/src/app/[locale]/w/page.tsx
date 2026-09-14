@@ -24,8 +24,8 @@ export default async function WorldsIndex({ params }: { params: Promise<{ locale
         <h1>{ar ? "عالم الإسلام" : "World of Islam"}</h1>
         <p className="worlds-hero-note">
           {ar
-            ? `${counts.available} ميزة متاحة اليوم، ${counts.backendOnly} مبنية في الخلفية بلا واجهة بعد، و${counts.planned} في مخطط البنية فقط. لا بيانات وهمية في أي مكان.`
-            : `${counts.available} features are live today, ${counts.backendOnly} have real backend logic with no UI yet, and ${counts.planned} are architecture slots only. Nowhere is a number or an answer fabricated to look finished.`}
+            ? `${counts.available} ميزة متاحة اليوم، والمزيد في الطريق.`
+            : `${counts.available} features are live today, with more on the way.`}
         </p>
       </section>
       <section className="world-grid" aria-label={ar ? "العوالم" : "Worlds"}>

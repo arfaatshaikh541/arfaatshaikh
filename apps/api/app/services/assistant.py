@@ -67,8 +67,8 @@ _PATTERNS = (
     (QuestionClass.SEERAH, re.compile(r"\b(seerah|prophet.?s life|hijrah|battle of)\b", re.I), ("hadith", "tafsir")),
     (QuestionClass.ISLAMIC_HISTORY, re.compile(r"\b(caliph|companion|islamic history|umayyad|abbasid)\b", re.I), ("hadith", "tafsir")),
     (QuestionClass.COMPARATIVE_RELIGION, re.compile(r"\b(christian|jew|bible|torah|hindu|atheis|comparative religion)\b", re.I), ("quran", "hadith", "tafsir")),
-    (QuestionClass.FIQH, re.compile(r"\b(halal|haram|ruling|wudu|salah|zakat|fast|hajj|fiqh)\b", re.I), ("quran", "hadith", "tafsir")),
-    (QuestionClass.ETHICS_SPIRITUALITY, re.compile(r"\b(character|patience|gratitude|repent|dua|spiritual|ethic)\b", re.I), ("quran", "hadith", "tafsir")),
+    (QuestionClass.FIQH, re.compile(r"\b(halal|haram|ruling|wudu|salah|prayer|pray|praying|zakat|charity|fast|fasting|hajj|pilgrimage|fiqh)\b", re.I), ("quran", "hadith", "tafsir")),
+    (QuestionClass.ETHICS_SPIRITUALITY, re.compile(r"\b(character|patience|patient|gratitude|grateful|mercy|compassion|kindness|forgive|repent|dua|spiritual|ethic|honesty|humility)\b", re.I), ("quran", "hadith", "tafsir")),
 )
 
 

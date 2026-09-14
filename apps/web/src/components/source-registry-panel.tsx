@@ -53,7 +53,7 @@ export function SourceRegistryPanel() {
       {queue === null ? (
         <p role="status">{queueMessage}</p>
       ) : queue.length === 0 ? (
-        <p className="tool-note">No source-edition reviews are assigned to your account. This reflects real assignment data, not a placeholder — accounts without a reviewer role will always see this.</p>
+        <p className="tool-note">No reviews are currently assigned to your account.</p>
       ) : (
         <ul className="feature-list">
           {queue.map((item) => (

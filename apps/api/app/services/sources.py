@@ -17,6 +17,8 @@ from app.schemas.sources import (
     AcquisitionCreate, AttributionUpsert, EditionCreate, IngestionTransition, LicenceCreate,
     PassageCreate, ReviewAssignmentCreate, ReviewDecisionCreate, SourceCreate,
 )
+from app.models.retrieval import RetrievalChunk, RetrievalDocument, RetrievalProjectionRun
+from app.services.retrieval import POLICY_VERSION, chunk_exact_text
 from app.services.source_lifecycle import RetrievalEligibility, ingestion_transition_allowed
 
 
@@ -130,7 +132,7 @@ class SourceRegistryService:
     async def assign_review(self, edition_id: UUID, payload: ReviewAssignmentCreate, actor: User) -> SourceReviewAssignment:
         await self._edition_or_404(edition_id)
         reviewer = await self.session.get(User, payload.reviewer_user_id)
-        if reviewer is None or not reviewer.is_active or not reviewer.is_email_verified:
+        if reviewer is None or not reviewer.is_active or reviewer.email_verified_at is None:
             raise ApplicationError("reviewer_unavailable", "Reviewer must be an active verified user.", 409)
         existing = await self.session.scalar(select(SourceReviewAssignment.id).where(
             SourceReviewAssignment.edition_id == edition_id,
@@ -247,6 +249,70 @@ class SourceRegistryService:
         ))
         await self.session.flush()
         return eligibility
+
+    async def project_retrieval(self, edition_id: UUID, actor: User) -> RetrievalProjectionRun:
+        """Turn this edition's approved, current passages into the searchable retrieval index.
+
+        This is the projection step search_evidence() reads from: source_passages holds the
+        governed, provenance-linked text, retrieval_documents/retrieval_chunks are the
+        queryable copy. Only editions that have cleared every retrieval-eligibility gate
+        (see evaluate_retrieval) can be projected, and only their current passages are used.
+        """
+        edition = await self._edition_or_404(edition_id)
+        if not edition.approved_for_retrieval:
+            raise ApplicationError("edition_not_retrieval_eligible", "Edition has not passed retrieval eligibility.", 409)
+        source = await self.session.get(Source, edition.source_id)
+        licence = await self.session.get(SourceLicence, edition.licence_id) if edition.licence_id else None
+        attribution = await self.session.scalar(select(SourceAttribution).where(SourceAttribution.edition_id == edition_id))
+        corpus_type = source.source_type if source and source.source_type in {"quran", "hadith", "tafsir", "topic", "cross_reference"} else "topic"
+        licence_snapshot = (
+            (licence.attribution_text or f"{licence.name} ({licence.spdx_identifier or 'unspecified licence'})")
+            if licence else "Licence not recorded"
+        )
+        attribution_snapshot = (
+            attribution.display_text if attribution
+            else f"{source.canonical_title if source else 'Unknown source'} - {edition.edition_statement or edition.edition_key}"
+        )
+
+        run = RetrievalProjectionRun(corpus_type=corpus_type, status="running", policy_version=POLICY_VERSION, initiated_by_user_id=actor.id)
+        self.session.add(run)
+        await self.session.flush()
+
+        passages = list(await self.session.scalars(
+            select(SourcePassage).where(SourcePassage.edition_id == edition_id, SourcePassage.is_current.is_(True))
+        ))
+        projected = 0
+        rejected = 0
+        for passage in passages:
+            existing = await self.session.scalar(select(RetrievalDocument.id).where(
+                RetrievalDocument.corpus_type == corpus_type,
+                RetrievalDocument.entity_id == passage.id,
+                RetrievalDocument.content_sha256 == passage.content_sha256,
+            ))
+            if existing:
+                rejected += 1
+                continue
+            document = RetrievalDocument(
+                corpus_type=corpus_type, entity_id=passage.id, canonical_reference=passage.passage_key,
+                source_edition_id=edition.id, source_passage_id=passage.id, content_language=passage.language,
+                content_kind="verbatim_passage", content_sha256=passage.content_sha256,
+                licence_snapshot=licence_snapshot, attribution_snapshot=attribution_snapshot,
+                projection_run_id=run.id, active=True,
+            )
+            self.session.add(document)
+            await self.session.flush()
+            for chunk in chunk_exact_text(passage.content):
+                self.session.add(RetrievalChunk(
+                    document_id=document.id, chunk_index=chunk.index, text=chunk.text, text_sha256=chunk.text_sha256,
+                    start_offset=chunk.start_offset, end_offset=chunk.end_offset, token_estimate=chunk.token_estimate,
+                    boundary_type=chunk.boundary_type, active=True,
+                ))
+            projected += 1
+        run.projected_count = projected
+        run.rejected_count = rejected
+        run.status = "completed"
+        await self.session.flush()
+        return run
 
     async def list_public_passages(self, edition_id: UUID) -> list[SourcePassage]:
         rows = await self.session.scalars(

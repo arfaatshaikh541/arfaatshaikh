@@ -20,8 +20,8 @@ export default async function SearchPage({ params }: { params: Promise<{ locale:
         <h1>{ar ? "البحث في عالم الإسلام" : "Search World of Islam"}</h1>
         <p>
           {ar
-            ? "بحث حقيقي عبر النصوص المعتمدة والمنشورة فقط - القرآن والحديث والتفسير. لا نتائج مُختلقة أو مُقترحة بالذكاء الاصطناعي هنا."
-            : "Real search across approved, published text only — Qur'an, Hadith, and Tafsir. No AI-generated or fabricated results here."}
+            ? "بحث عبر القرآن والحديث والتفسير."
+            : "Search across the Qur'an, Hadith, and Tafsir."}
         </p>
       </header>
       <GlobalSearch locale={locale} />

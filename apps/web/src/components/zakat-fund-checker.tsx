@@ -60,8 +60,8 @@ export function ZakatFundChecker({ locale }: { locale: "en" | "ar" }) {
     <div className="governance-checker">
       <p className="tool-note">
         {ar
-          ? "هذه أداة حوكمة/امتثال حقيقية تستدعي منطق القبول الفعلي في الخادم - وليست إدارة صندوق زكاة حقيقياً. لا توجد صناديق زكاة حقيقية مخزّنة في هذه المنصة بعد."
-          : "This is a real governance/compliance tool - it calls the actual server-side acceptance logic. It is not a real zakat fund management system; no real zakat funds are stored in this platform yet."}
+          ? "تحقق من سياسة توزيع صندوق الزكاة مقابل قواعد القبول. هذه أداة تحقق، وليست نظام إدارة أموال زكاة."
+          : "Checks a zakat fund's distribution policy against acceptance rules. This is a compliance check, not a fund management system."}
       </p>
       <form onSubmit={submit} className="governance-form">
         <label className="governance-check">

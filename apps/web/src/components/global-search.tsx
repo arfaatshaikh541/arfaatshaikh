@@ -87,8 +87,8 @@ export function GlobalSearch({ locale }: { locale: "en" | "ar" }) {
           {results.length === 0 ? (
             <p className="tool-note">
               {ar
-                ? "لا توجد أدلة معتمدة مطابقة. هذا يعني عدم وجود نص منشور ومعتمد يطابق بحثك - وليس تخمينًا."
-                : "No approved evidence matches. This means no published, approved text matches your search — not a guess."}
+                ? "لا نتائج مطابقة. جرّب كلمات مختلفة."
+                : "No results found. Try different search terms."}
             </p>
           ) : (
             <ul className="global-search-list">
