@@ -1,16 +1,22 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 type Evidence = { label: string; canonical_reference: string; attribution: string; exact_text: string };
 type Answer = { status: string; response_text?: string | null; insufficiency_reason?: string | null; evidence?: Evidence[] };
+type AIStatus = { mode: string; provider: string; available: boolean; external_ai_enabled: boolean };
 
 export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
   const rtl = locale === "ar";
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AIStatus | null>(null);
+
+  useEffect(() => {
+    void apiFetch<AIStatus>("/intelligence/status").then(setAiStatus).catch(() => setAiStatus(null));
+  }, []);
   const copy = rtl ? {
     title: "المساعد الإسلامي الموثّق", intro: "إجابات مبنية على مصادر منشورة ومعتمدة، مع إظهار الأدلة بوضوح.",
     placeholder: "اكتب سؤالك…", submit: "بحث وإجابة", sources: "المصادر", insufficient: "لا توجد أدلة معتمدة كافية للإجابة بثقة.", boundary: "لا تُعد الإجابة فتوى شخصية."
@@ -28,7 +34,22 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
   }
 
   return <main className="assistant-shell" dir={rtl ? "rtl" : "ltr"}>
-    <header><h1>{copy.title}</h1><p>{copy.intro}</p></header>
+    <header><h1>{copy.title}</h1><p>{copy.intro}</p>
+      {aiStatus && (
+        <p className="ai-status-line" role="status">
+          <span className={`status-pill ${aiStatus.available ? "status-available" : "status-planned"}`}>
+            {rtl ? "الذكاء الاصطناعي المحلي" : "Local AI"}: {aiStatus.available ? (rtl ? "متاح" : "available") : (rtl ? "غير متاح" : "unavailable")} ({aiStatus.provider})
+          </span>
+          {!aiStatus.available && (
+            <span className="tool-note">
+              {rtl
+                ? "هذا لا يؤثر على المساعد أعلاه، الذي لا يستخدم توليدًا بالذكاء الاصطناعي على الإطلاق - فقط اقتباسات حرفية من أدلة معتمدة."
+                : "This does not affect the assistant above, which uses no AI generation at all — only verbatim quotes from approved evidence."}
+            </span>
+          )}
+        </p>
+      )}
+    </header>
     <form onSubmit={submit} aria-busy={busy}>
       <label htmlFor="assistant-question" className="sr-only">{copy.placeholder}</label>
       <textarea id="assistant-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={copy.placeholder} required maxLength={4000} />

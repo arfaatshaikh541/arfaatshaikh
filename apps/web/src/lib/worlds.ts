@@ -19,6 +19,11 @@ export interface Feature {
   status: FeatureStatus;
   href?: string;
   note: string;
+  /** True only for a real, verified "available" capability that has no
+   * dedicated page to link to (e.g. background infrastructure like the
+   * offline service worker) - never used to excuse a missing destination
+   * for something that should otherwise be clickable. */
+  pageless?: true;
 }
 
 export interface World {
@@ -52,7 +57,7 @@ export const worlds: World[] = [
       f("dhikr-counter", "Dhikr Counter", "available", "A private, on-device tally counter - no account or server data required.", "/w/ibadah/tools"),
       f("fasting", "Fasting", "planned", "Architecture slot only - no fasting-tracking feature built yet."),
       f("ramadan", "Ramadan", "planned", "Architecture slot only."),
-      f("zakat", "Zakat", "backend-only", "Zakat/waqf governance logic exists in the API (milestone 16) with no frontend yet."),
+      f("zakat", "Zakat", "available", "A real governance acceptance checker for zakat fund configuration - not a real fund management system (no real funds are stored yet).", "/w/charity/zakat-checker"),
       f("sadaqah", "Sadaqah", "backend-only", "Covered by the same milestone-16 backend; no frontend yet."),
       f("hajj", "Hajj", "planned", "Architecture slot only."),
       f("umrah", "Umrah", "planned", "Architecture slot only."),
@@ -63,7 +68,8 @@ export const worlds: World[] = [
       f("hifz", "Hifz", "planned", "Memorization tracking is not built yet."),
       f("tajweed", "Tajweed", "planned", "Architecture slot only."),
       f("worship-tracking", "Worship tracking", "planned", "Architecture slot only."),
-      f("offline-quran", "Offline Qur'an", "planned", "No offline/service-worker distribution has been built."),
+      f("offline-quran", "Offline Qur'an", "planned", "A real, verified offline app-shell (service worker) exists (see docs/deployment/offline.md), but no Qur'an corpus is cached or bundled - there is none in this environment to cache, and doing so needs a licensing review first."),
+      { ...f("offline-app-shell", "Offline app shell", "available", "A real, tested service worker caches visited pages and static assets for offline reload - verified with a real browser context set fully offline, not simulated. No Islamic content is cached (see docs/deployment/offline.md)."), pageless: true },
     ],
   },
   {
@@ -82,7 +88,7 @@ export const worlds: World[] = [
       f("arabic", "Arabic", "planned", "See Education world for the Arabic-learning slot."),
       f("translation", "Translation", "backend-only", "Translation governance (editions, provenance, review) exists in the API; surfaced today only inside the Qur'an/Tafsir readers."),
       f("terminology", "Islamic terminology", "planned", "Architecture slot only."),
-      f("cross-references", "Cross references", "backend-only", "The retrieval/knowledge-graph backend supports this; no dedicated browsing UI yet."),
+      f("cross-references", "Cross references", "available", "Real, published cross-references between Qur'an ayat, Hadith narrations, Tafsir entries, and topics.", "/topics"),
       f("commentary", "Scholarly commentary", "available", "See Tafsir.", "/tafsir/study"),
       f("library", "Islamic Library", "planned", "No licensed book corpus has been imported."),
     ],
@@ -208,7 +214,7 @@ export const worlds: World[] = [
     tagline: "Never a fabricated campaign, never a fabricated number.",
     taglineAr: "لا حملة وهمية، ولا رقم وهمي - أبداً.",
     features: [
-      f("zakat-c", "Zakat", "backend-only", "See Ibadah world."),
+      f("zakat-c", "Zakat", "available", "See Ibadah world - the same real governance checker.", "/w/charity/zakat-checker"),
       f("sadaqah-c", "Sadaqah", "backend-only", "See Ibadah world."),
       f("waqf", "Waqf", "backend-only", "Zakat/waqf-governance API exists (milestone 16); no frontend yet."),
       f("humanitarian-aid", "Humanitarian aid", "planned", "Architecture slot only."),
@@ -248,17 +254,17 @@ export const worlds: World[] = [
     taglineAr: "استرجاع، لا اختلاق - ولا يدّعي أبداً أنه عالم شرعي.",
     features: [
       f("ai-assistant", "Islamic AI Scholar / Assistant", "available", "Evidence-grounded: composes an answer only from approved, cited sources - never a generative fabrication.", "/assistant"),
-      f("islamic-search", "Islamic Search", "backend-only", "The retrieval API backs this; no unified search UI yet (command palette covers navigation search today)."),
-      f("quran-search", "Qur'an Search", "backend-only", "Retrieval API supports it; not yet exposed as a dedicated search UI."),
-      f("hadith-search", "Hadith Search", "backend-only", "Same as above."),
-      f("tafsir-search", "Tafsir Search", "backend-only", "Same as above."),
+      f("islamic-search", "Islamic Search", "available", "Real full-text search over approved Qur'an, Hadith, and Tafsir text via the retrieval API - not AI-generated.", "/search"),
+      f("quran-search", "Qur'an Search", "available", "Filter Islamic Search to the Qur'an corpus.", "/search"),
+      f("hadith-search", "Hadith Search", "available", "Filter Islamic Search to the Hadith corpus.", "/search"),
+      f("tafsir-search", "Tafsir Search", "available", "Filter Islamic Search to the Tafsir corpus.", "/search"),
       f("fiqh-research", "Fiqh Research", "planned", "Depends on the Fiqh knowledge base in Knowledge world."),
       f("fact-checker", "Fact Checker", "planned", "Architecture slot only."),
       f("quran-verification", "Qur'an Verification", "planned", "Architecture slot only."),
       f("hadith-verification", "Hadith Verification", "planned", "Architecture slot only."),
       f("source-explorer-i", "Source Explorer", "available", "See Scholarship world.", "/source-registry"),
       f("personal-assistant", "Personal Assistant", "planned", "Architecture slot only."),
-      f("knowledge-graph", "Knowledge Graph", "backend-only", "Knowledge-graph models exist in the API; no graph-browsing UI yet."),
+      f("knowledge-graph", "Knowledge Graph", "available", "Browse real published topics and their cross-references to Qur'an, Hadith, and Tafsir entities.", "/topics"),
       f("research-engine", "Research Engine", "backend-only", "See Scholarship world."),
       f("translation-i", "Translation", "backend-only", "See Knowledge world."),
       f("arabic-analysis", "Arabic Analysis", "planned", "See Education world."),

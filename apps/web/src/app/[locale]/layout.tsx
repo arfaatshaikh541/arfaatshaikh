@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { AuthProvider } from "@/components/auth-provider";
 import { CommandPalette } from "@/components/command-palette";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { direction, isLocale } from "@/i18n/config";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function LocaleLayout({
       <div className="command-trigger-dock">
         <CommandPalette locale={locale as Locale} />
       </div>
+      <ServiceWorkerRegistration />
     </div>
   );
 }

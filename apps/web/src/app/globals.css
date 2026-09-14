@@ -95,3 +95,42 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .command-hit-name{font-weight:650;flex:1}
 .command-hit-world{color:var(--muted);font-size:.82rem}
 @media(prefers-reduced-motion:reduce){.command-palette{animation:none}}
+
+/* Global search */
+.global-search{margin-top:2rem;display:grid;gap:1.5rem}
+.global-search-form{display:grid;gap:1rem;padding:1.4rem;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.02)}
+.global-search-form input[type=search]{min-height:3rem;border-radius:.7rem;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ivory);padding:.6rem 1rem;font-size:1.05rem}
+.global-search-corpora{display:flex;gap:1rem;flex-wrap:wrap}
+.corpus-toggle{display:inline-flex;align-items:center;gap:.4rem;font-size:.9rem;color:var(--muted)}
+.global-search-form button{justify-self:start;min-height:2.8rem;padding:.6rem 1.4rem;border:none;border-radius:.7rem;background:var(--gold);color:#14120f;font-weight:750;cursor:pointer}
+.global-search-form button:disabled{opacity:.6;cursor:not-allowed}
+.global-search-error{color:var(--danger)}
+.global-search-list{list-style:none;padding:0;margin:0;display:grid;gap:1rem}
+.global-search-item{padding:1.2rem 1.4rem;border:1px solid var(--line);border-radius:1rem;background:rgba(255,255,255,.02)}
+.global-search-reference{color:var(--gold-strong);font-weight:700;margin:.6rem 0 .3rem}
+.global-search-item .arabic-text{font-size:1.3rem;line-height:1.9}
+.global-search-item small{color:var(--muted)}
+
+/* Topics / knowledge graph browser */
+.topics-browser{display:grid;grid-template-columns:16rem 1fr;gap:1.5rem;margin-top:2rem;align-items:start}
+.topics-list-panel h2,.topic-detail-panel h2{font-size:1.2rem;margin:0 0 1rem;color:var(--gold-strong)}
+.topics-list{list-style:none;padding:0;margin:0;display:grid;gap:.3rem}
+.topic-item{display:block;width:100%;text-align:inherit;padding:.6rem .8rem;border-radius:.6rem;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:.92rem}
+.topic-item:hover{background:rgba(255,255,255,.05);color:var(--ivory)}
+.topic-item-active{background:rgba(179,146,90,.15);color:var(--gold-strong);font-weight:650}
+.topic-detail-panel{border:1px solid var(--line);border-radius:var(--radius);padding:1.5rem;background:rgba(255,255,255,.02);min-height:12rem}
+@media(max-width:800px){.topics-browser{grid-template-columns:1fr}}
+
+/* Governance/acceptance checker tools */
+.governance-checker{margin-top:2rem;display:grid;gap:1.5rem;max-width:40rem}
+.governance-form{display:grid;gap:1rem;padding:1.4rem;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.02)}
+.governance-form label{display:grid;gap:.35rem;font-size:.9rem;color:var(--muted)}
+.governance-check{display:flex!important;flex-direction:row;align-items:center;gap:.6rem}
+.governance-form input[type=number]{min-height:2.6rem;border-radius:.6rem;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ivory);padding:.4rem .7rem}
+.governance-form button{justify-self:start;min-height:2.8rem;padding:.6rem 1.4rem;border:none;border-radius:.7rem;background:var(--gold);color:#14120f;font-weight:750;cursor:pointer}
+.governance-result{padding:1.4rem;border-radius:var(--radius);border:1px solid var(--line)}
+.governance-result-pass{border-color:rgba(159,207,168,.5);background:rgba(159,207,168,.08)}
+.governance-result-fail{border-color:rgba(255,176,172,.5);background:rgba(255,176,172,.08)}
+.governance-result-headline{font-weight:750;font-size:1.1rem;margin:0 0 .6rem}
+.governance-result ul{margin:0;padding-inline-start:1.3rem}
+.ai-status-line{display:flex;flex-direction:column;gap:.4rem;margin-top:.75rem}

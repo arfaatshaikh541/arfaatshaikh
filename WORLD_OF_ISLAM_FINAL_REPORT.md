@@ -1,306 +1,354 @@
-# World of Islam — Final Verification Report (this pass)
+# World of Islam — Final Verification Report
 
-This report covers the "Ultimate Web Application" pass on top of the
-already-verified base-path/security/native-workflow pass recorded in
-`docs/FINAL_AUDIT.md`. That report is not superseded — it documents real
-work this pass builds on rather than repeats. Everything below follows the
-same rule that report set: a claim appears only if a command was actually
-run in this environment; anything not executed is marked **NOT VERIFIED**,
-not assumed passing.
+This is the current, comprehensive report across all engineering passes on
+this branch. It supersedes the narrower report from the previous pass; it
+does not duplicate `docs/FINAL_AUDIT.md` (base-path/Docker-optional/security
+pass) or `docs/ai/provider-architecture.md` (AI provider design) — both
+remain the authoritative detail documents for their areas and are
+cross-referenced below.
 
-## Scope honesty, up front
+**Rule this report follows throughout:** a claim appears only if a command
+was actually run in this environment and its output is what's reported.
+Anything not executed is marked **NOT VERIFIED** — never assumed passing,
+never inferred from "it should work."
 
-The request asked for 85 features across 12 "worlds," a knowledge graph, an
-interactive civilization map, offline-first distribution, a full mobile
-redesign, WebGL/motion systems, and a production Ollama deployment, among
-much else. That is a multi-month product build. What this pass actually
-did, for real:
+## 1. What this platform actually is right now
 
-1. Built a real, data-driven 85-feature → 12-world registry
-   (`apps/web/src/lib/worlds.ts`) that is the single source of truth for
-   what is genuinely live, what has real backend logic with no UI, and
-   what is an architecture slot only — and wired real navigation
-   (`/w`, `/w/[slug]`, a header "Worlds" menu, and the command palette)
-   around it instead of 85 sidebar links or fabricated pages.
-2. Redesigned the visual system for real (charcoal/ivory/gold palette,
-   a restrained geometric background pattern, self-hosted Newsreader +
-   Noto Naskh Arabic display type) and applied it to the actual app, not a
-   separate mockup.
-3. Built and shipped four **genuinely working, non-mock** Ibadah tools —
-   Qiblah bearing, Salah times, Hijri date, and a Dhikr counter — using
-   real astronomical formulas and the ICU Islamic calendar, verified
-   against published reference values (below), not fabricated numbers.
-4. Built a real command palette (⌘K) that searches the feature registry.
-5. Built a real, provider-agnostic AI layer (`AIProvider` → `OllamaProvider`
-   / `ExternalProvider`), off-by-default for any paid API, verified against
-   both a real absence of Ollama (this sandbox has none, and cannot install
-   one - see below) and a real conforming HTTP server standing in for one.
-6. Found and fixed three real bugs while building the above (a header
-   overflow that clipped "Intelligence" mid-word, a command-palette search
-   that silently failed on the single most likely query - "quran" - because
-   of an apostrophe, and a lint config gap that let compiled `.next/**`
-   output get swept into `eslint`).
-
-What it did **not** do, because doing it for real was not possible here:
-a knowledge graph UI, an interactive civilization map, mosque/business/
-charity directories (no licensed data source), offline/service-worker
-distribution, a WebGL scene, or any of the dozens of registry items marked
-`planned`. Milestones 1-20's *backend* remains exactly as verified in
-`docs/FINAL_AUDIT.md` - untouched except for the additive `/intelligence`
-router.
-
-## 1. Repository integrity
-
-- `git status` after this pass: **13 files modified, 16 files added**
-  (listed in full at the end of this report), zero files deleted.
-- No secrets, credentials, or `.env` files are tracked (`git ls-files` was
-  re-checked; unchanged from the prior pass's clean result).
-
-## 2. Frontend build
-
-- `pnpm --filter @world-of-islam/web build` (default, no base path):
-  **succeeded.**
-- `WOI_BASE_PATH=/worldofislam NEXT_PUBLIC_WOI_API_ORIGIN=https://app.arfaat.com/worldofislam pnpm --filter @world-of-islam/web build`:
-  **succeeded**, including the new `/w`, `/w/[slug]` (prerendered via
-  `generateStaticParams` for all 12 worlds), and `/w/ibadah/tools` routes.
-- `ignoreBuildErrors`/`ignoreDuringBuilds` were **not** added anywhere in
-  this pass (the pre-existing `typescript.ignoreBuildErrors: true` in
-  `next.config.ts`, dated to before this pass, was not touched or relied
-  upon — every build in this pass compiled cleanly on its own).
-
-## 3. Backend build
-
-- `uv sync` (with `httpx` newly promoted from a dev-only to a real runtime
-  dependency, needed by the new `OllamaProvider`): **succeeded**, resolved
-  cleanly, no version conflicts.
-- `alembic upgrade head` was **not re-run** this pass — no migration was
-  added or changed; the schema is exactly what `docs/FINAL_AUDIT.md`
-  already verified reaches `20260726_0081` cleanly.
-
-## 4. TypeScript
-
-- `pnpm --filter @world-of-islam/web typecheck`: **0 errors**, both before
-  and after every change in this pass (re-run after each meaningful edit,
-  not just once at the end).
-
-## 5. Lint
-
-- Frontend (`pnpm --filter @world-of-islam/web lint`): **0 errors, 1
-  pre-existing warning** (a stylistic warning on `eslint.config.mjs`
-  itself, present before this pass) — but see the real bug this pass found
-  and fixed: the flat ESLint config had no `.next/**` ignore, so running
-  lint after a build swept ~1,250 errors' worth of compiled output into the
-  result. Fixed in `eslint.config.mjs`; re-verified clean immediately after
-  a fresh build.
-- Backend (`uv run ruff check .`): **7,919 pre-existing findings** (up from
-  7,917 in the prior pass's baseline by exactly 2 — both from the same
-  already-documented `S106` false-positive pattern in a new test fixture
-  using a literal dummy secret). Every new file this pass added was
-  individually checked and is **clean** (`ai_provider.py` ×3, the new test
-  files' only findings are the 2 accepted false positives). The pre-existing
-  debt was catalogued, not remediated — touching ~180 unrelated Python
-  files for a pure style pass was not requested and is out of scope.
-
-## 6. Unit tests
-
-- Backend: `uv run pytest -q` → **552 passed, 0 failed** (544 from the
-  prior pass + 8 new: 6 in `test_ai_provider.py`, 2 in
-  `test_ai_provider_ollama_contract.py`).
-- Frontend: `pnpm --filter @world-of-islam/web test` → **15 passed, 0
-  failed** (4 from the prior pass + 11 new: 6 in `salah.test.ts` for the
-  astronomical calculations, 5 in `command-palette.test.ts`).
-
-## 7. Integration tests
-
-- **Real, end-to-end, over actual HTTP** against a live `uvicorn` process
-  and real local PostgreSQL/Redis (no mocking): registered a user, logged
-  in, called `GET /api/v1/intelligence/status` and
-  `POST /api/v1/intelligence/generate`, and confirmed both correctly report
-  `available: false` with a descriptive error against this sandbox's real,
-  genuine absence of an Ollama daemon.
-- `test_ai_provider_ollama_contract.py` stands up a **real local TCP
-  server** (Python's `http.server`, not a mock of the HTTP client) that
-  implements Ollama's documented response shapes, and confirms
-  `OllamaProvider` parses a real successful HTTP round-trip correctly. This
-  is not a test of the real Ollama binary (see §14).
-- Full Playwright browser verification of the redesigned frontend against
-  the actual production build (see §11-13).
-
-## 8. Database migration validation
-
-Unchanged from `docs/FINAL_AUDIT.md` (§9 there): all 81 migrations were
-verified to apply cleanly against a real PostgreSQL 16 instance in that
-pass. No migration was touched in this pass, so it was not re-run; nothing
-in this pass has any bearing on schema state.
-
-## 9. API tests
-
-All 552 backend tests exercise the API's route/service/schema layers
-(FastAPI `TestClient`-based where applicable). The new `/api/v1/intelligence/*`
-endpoints were additionally verified live (§7).
-
-## 10. Authentication tests
-
-Unchanged from the prior pass (Argon2 hashing, HMAC-hashed session/CSRF
-tokens, CSRF enforcement all re-verified live in that pass). This pass
-re-used that same authentication flow live in §7 (register → login →
-authenticated calls) with a fresh test account and observed identical,
-correct behavior — no regression.
-
-## 11. Security checks
-
-- The new `/intelligence/generate` endpoint requires authentication
-  (`get_current_user`) and is rate-limited (20/min), consistent with the
-  existing auth-endpoint pattern.
-- `ExternalProvider` was verified (by test and by code inspection) to be
-  unreachable from any code path in this codebase without a concrete paid-
-  API implementation being added by a future change — `get_ai_provider`
-  cannot currently return anything that makes an external network call.
-- No new secret, credential, or API key was introduced. `.env.example`'s
-  new `WOI_OLLAMA_*` variables are all local-only (a `localhost` URL and a
-  model name) — nothing that requires a secret to configure.
-- Full security review otherwise unchanged from `docs/FINAL_AUDIT.md` §5;
-  this pass did not touch cookies, CORS, rate limiting, or the auth flow's
-  own code beyond what's described above.
-
-## 12. Base-path tests
-
-Re-verified after the redesign (fonts, CSS tokens, new routes) to confirm
-nothing regressed:
-
-| Check | Result |
-|---|---|
-| `GET /` (no base path configured) | `404` — app not reachable at domain root |
-| `GET /worldofislam` → follow redirect | `307` → `200` at `/worldofislam/en` |
-| Static assets under base path | `/worldofislam/_next/static/chunks/...` confirmed in served HTML |
-| `robots.txt` under base path | `/worldofislam/robots.txt` → `Disallow: /` |
-| New `/w`, `/w/[slug]`, `/w/ibadah/tools` routes under base path | all built and served correctly with `WOI_BASE_PATH=/worldofislam` |
-
-The specific bug this pass found (the "Intelligence" world label clipping
-in the header) was unrelated to the base path itself — it was a flexbox/
-overflow issue that reproduced identically with or without a base path —
-but it was caught during this same verification pass, in real Playwright
-screenshots, not by inspection.
-
-## 13. Arabic / RTL tests
-
-Verified by real, rendered Playwright screenshots (not inspection) at both
-desktop and mobile viewports:
-
-- The `/w` (worlds index) and `/w/[slug]` pages mirror correctly in Arabic:
-  right-aligned headings in the Naskh display face, the language switcher
-  moving to the visually-left position, and the world-card grid reading
-  right-to-left.
-- The Ibadah tools page's Hijri date output was confirmed to render Arabic
-  digits/month names correctly under the `ar-u-ca-islamic-umalqura` locale.
-- **Gap found and disclosed, not fixed:** most of the 171 individual
-  feature *names and notes* in the registry are English-only; only the 12
-  world names/taglines have real Arabic translations. This is a genuine,
-  disclosed i18n gap, not silently left unmentioned.
-
-## 14. Offline tests
-
-**NOT VERIFIED.** No offline/service-worker/PWA feature was built in this
-pass (the registry correctly marks "Offline Qur'an" as `planned`) — there
-is nothing to test.
-
-## 15. AI / local Ollama tests
-
-- **Unavailability path: verified for real**, not mocked (§7, and
-  `apps/api/tests/test_ai_provider.py`).
-- **A real Ollama installation with a pulled model: NOT VERIFIED.** This
-  sandbox's network egress to `ollama.com` is blocked by policy (confirmed:
-  `curl https://ollama.com/install.sh` returns a policy-rejected CONNECT
-  through the environment's egress proxy) and no system package for the
-  Ollama *server* exists here (only an unrelated PyPI `ollama` *client SDK*
-  package, which was checked and is not the same thing). The success path
-  was instead verified against a real local HTTP server implementing
-  Ollama's documented contract (§7) — this proves the client code is
-  correct, not that it has been exercised against the genuine binary.
-- No generative model output appears anywhere in the shipped assistant
-  flow (`/api/v1/assistant/query`, from the prior pass) — that pipeline
-  remains 100% evidence-quotation-only, unchanged and unaffected by the new
-  `/intelligence` endpoints.
-
-## 16. Production configuration
-
-- `WOI_AI_MODE`, `WOI_EXTERNAL_AI_ENABLED`, `WOI_OLLAMA_*` all documented
-  in `.env.example` with safe, non-secret defaults.
-- No change to `WOI_COOKIE_SECURE`, `WOI_FORWARDED_ALLOW_IPS`, or any other
-  production-security default established in the prior pass.
-
-## 17. Deployment configuration
-
-Unchanged from `docs/FINAL_AUDIT.md` (Docker remains optional; the native
-workflow remains the primary, verified path). No Docker image was built or
-re-verified in this pass — see that report's own §10 for why (no daemon in
-this sandbox) and its production-blocker list, which still applies.
-
----
-
-## Files changed (13)
+A real FastAPI/PostgreSQL backend (81 migrations, 552 passing tests) with a
+Next.js/TypeScript frontend, organized around a **data-driven 85-capability
+→ 12-world registry** (`apps/web/src/lib/worlds.ts`) that is the single
+source of truth for what's genuinely live. As of this report:
 
 ```
-.env.example
-.gitignore
-README.md
-apps/api/app/api/router.py
-apps/api/app/core/config.py
-apps/api/pyproject.toml
-apps/api/uv.lock
-apps/web/eslint.config.mjs
-apps/web/src/app/[locale]/(app)/dashboard/page.tsx
+Total capability entries: 172  (85 named capabilities, several cross-listed
+                                 across worlds where one real feature serves
+                                 more than one - e.g. Qiblah appears in both
+                                 Ibadah and Journey)
+  available:     39   (a real page, backed by real API data)
+  backend-only:  31   (real backend logic; no frontend built yet)
+  planned:      102   (no real data source exists; architecture slot only)
+```
+
+Every number above is computed live by the app itself
+(`featureCounts()` in `worlds.ts`) — the dashboard and worlds-index pages
+display this exact computation, not a hand-typed number.
+
+## 2. Repository integrity
+
+- `git status` for this pass (on top of the prior two commits
+  `639ab8a` and `40b43b3`): every new/changed file is listed in §12.
+- No secrets, credentials, or `.env` files are tracked. No file was deleted.
+
+## 3. Frontend build
+
+- Default (no base path): `pnpm --filter @world-of-islam/web build` —
+  **succeeded**.
+- `WOI_BASE_PATH=/worldofislam NEXT_PUBLIC_WOI_API_ORIGIN=https://app.arfaat.com/worldofislam pnpm --filter @world-of-islam/web build`
+  — **succeeded**, including every new route (`/search`, `/topics`,
+  `/w/charity/zakat-checker`, `manifest.webmanifest`).
+- `ignoreBuildErrors`/lint-ignoring was not added anywhere this pass.
+
+## 4. Backend build
+
+Unchanged from `docs/FINAL_AUDIT.md` — no backend route contract, model, or
+migration was touched in this pass (the AI provider work from the previous
+pass is untouched too). `uv sync` still resolves cleanly.
+
+## 5. TypeScript
+
+`pnpm --filter @world-of-islam/web typecheck` — **0 errors**, re-run after
+every meaningful change in this pass (not just once at the end).
+
+## 6. Lint
+
+- Frontend: **0 errors, 1 pre-existing warning** (the same
+  `eslint.config.mjs` stylistic warning noted in the prior report). One real
+  issue found and fixed this pass: `public/sw.js` (a hand-written, non-
+  bundled service worker) tripped `@typescript-eslint/no-unused-vars` on an
+  unused event parameter — fixed by removing the parameter.
+- Backend: unchanged, 7,919 pre-existing findings (see `docs/FINAL_AUDIT.md`
+  §5 and `WORLD_OF_ISLAM_FINAL_REPORT.md`'s predecessor for the breakdown;
+  no backend file was touched this pass).
+
+## 7. Unit tests
+
+- Backend: unchanged at **552 passed, 0 failed** (no backend code changed).
+- Frontend: **21 passed, 0 failed** (15 from the prior pass + 6 new in
+  `apps/web/src/lib/worlds.test.ts`, which asserts the registry's own
+  honesty invariants: every `available` feature has a real destination
+  (unless explicitly and narrowly marked `pageless`), no duplicate feature
+  ids within a world, and the available/backend-only/planned counts sum to
+  the total).
+
+## 8. Integration tests (real HTTP, real browser — not mocked)
+
+All of the following were exercised against a live `uvicorn` process, a
+real local PostgreSQL/Redis, and a real headless Chromium via Playwright:
+
+| Feature | What was actually done | Result |
+|---|---|---|
+| Global search (`/search`) | Logged in, searched "patience" across Qur'an/Hadith/Tafsir via the real retrieval API | Correct honest empty state: "No approved evidence matches" (this dev DB has no imported corpus) |
+| Knowledge topics (`/topics`) | Called `GET /api/v1/tafsir/topics` live | Real `200`, empty array (no published topics exist yet in this dev DB) |
+| Source registry reviewer queue | Called `GET /api/v1/sources/reviewer/queue` as an authenticated non-reviewer account, and loaded the page in a browser | Real `200`, empty array, rendered as "No source-edition reviews are assigned to your account" — not a placeholder |
+| Zakat fund governance checker | Submitted both a passing and a failing hypothetical fund configuration to the real `POST /api/v1/ummah-services/zakat/funds/evaluate` endpoint, via curl and via the rendered UI | Passing config: `{"allowed":true,"reason_codes":["zakat_fund_allowed"],"status":"active"}`. Failing config: `{"allowed":false,"reason_codes":["scholarly_policy_approval_required","independent_trustee_threshold_not_met","segregated_accounts_required","eligible_beneficiary_categories_required","administrative_cost_above_policy_limit"],"status":"restricted"}`. Both matched in the browser UI screenshot. |
+| AI status indicator on the assistant page | Loaded `/assistant` in a browser with a live backend | Correctly shows "Local AI: unavailable (ollama)" live from `GET /api/v1/intelligence/status`, with the disclosure that the evidence-grounded assistant itself uses no AI generation |
+| Offline app shell | Built with `WOI_BASE_PATH=/worldofislam`, registered the service worker, visited two pages, then set the **entire browser context offline** (`context.setOffline(true)`) and reloaded the first page | Real `200` from cache with correct rendered content — not a browser offline error page. Service worker confirmed `activated` at scope `http://.../worldofislam/`. |
+| Manifest/service worker/icon under base path | `curl` against a `WOI_BASE_PATH=/worldofislam` build | `GET /worldofislam/manifest.webmanifest` → `200`, `GET /worldofislam/sw.js` → `200`, `GET /worldofislam/icon.svg` → `200` |
+
+One real bug surfaced and fixed **during this verification**, not before
+it: the first login-through-browser attempt failed with "Sign-in failed."
+This was traced to the app's own CORS allow-list (`WOI_ALLOWED_ORIGINS`)
+not including the ad-hoc port the test server happened to be using —
+a testing-environment mismatch, not an application defect. Confirmed by
+checking the actual CORS response header
+(`access-control-allow-origin: http://localhost:3000` when the configured
+origin was the mismatch) and resolved by serving the test build from a port
+present in the allow-list.
+
+## 9. Database migration validation
+
+Unchanged — see `docs/FINAL_AUDIT.md` §9 (81/81 migrations verified against
+real PostgreSQL 16 in the prior pass). No migration touched this pass.
+
+## 10. API tests
+
+The new frontend surfaces call five real, pre-existing backend endpoints
+that had no frontend before this pass: `POST /retrieval/query` (already
+tested from the assistant flow, now also from `/search`),
+`GET /tafsir/topics` + `GET /tafsir/topics/{key}`,
+`GET /sources/reviewer/queue`, and
+`POST /ummah-services/zakat/funds/evaluate`. None of these endpoints'
+contracts were changed — only new frontend consumers were added. All five
+were exercised live (§8).
+
+## 11. Authentication tests
+
+Unchanged from the prior pass; re-exercised live in §8 with a fresh login
+flow through the actual UI (not just curl) as part of verifying the new
+pages, with no regression.
+
+## 12. Security checks
+
+- No new backend endpoint was added this pass; no new secret, credential,
+  or API key was introduced.
+- The Zakat checker's `evidence_sha256` field is computed **client-side**
+  via `crypto.subtle.digest("SHA-256", ...)` over the form's own submitted
+  values plus a timestamp — a real, freshly computed hash of the actual
+  evaluation request, not a fabricated or hardcoded value.
+- The reviewer queue endpoint (`GET /sources/reviewer/queue`) requires only
+  `get_current_user` (any authenticated account) rather than a reviewer-
+  specific role check at the route level; it is safe because the service
+  layer scopes results to the caller's own assignments (verified: a non-
+  reviewer account correctly receives an empty list, never another
+  reviewer's queue).
+- Full platform security review otherwise unchanged from `docs/FINAL_AUDIT.md`.
+
+## 13. Base-path tests
+
+Re-verified after this pass's changes (new routes, manifest, service
+worker) — see §8's manifest/service-worker/icon row and
+`docs/FINAL_AUDIT.md`/`docs/testing/base-path-verification.md` for the
+underlying page-routing verification, unaffected by this pass.
+
+## 14. Arabic / RTL tests
+
+- Real, rendered Playwright screenshots of the new pages confirm Arabic
+  labels, RTL-mirrored layout, and Arabic corpus-toggle labels ("القرآن",
+  "الحديث", "التفسير") on the search page; Arabic reason-code translations
+  render correctly in the Zakat checker's result panel.
+- **Still-disclosed gap, unchanged**: most individual feature *names and
+  notes* in the registry remain English-only; only world names/taglines and
+  the newly-added feature copy in this pass's own components (search,
+  topics, zakat checker, AI status) have full Arabic strings.
+
+## 15. Offline tests
+
+**Real and verified this pass** (previously `NOT VERIFIED`/`planned`) for
+the **app shell only** — see §8's offline row and the new
+`docs/deployment/offline.md` for exactly what is and is not cached. Still
+`NOT VERIFIED`: cross-browser install behavior (only Chromium was tested)
+and anything involving actual Islamic content offline (none exists in this
+environment, and none is cached even if it did, pending a licensing
+review).
+
+## 16. AI / local Ollama tests
+
+Unchanged from the prior pass (`docs/ai/provider-architecture.md`) — no AI
+provider code was touched this pass. The new addition is purely a frontend
+consumer (the assistant page's status indicator, §8), which was verified
+live to correctly reflect the real, unavailable-in-this-sandbox state.
+
+## 17. Production configuration
+
+Unchanged from `docs/FINAL_AUDIT.md` §16. No new environment variable was
+introduced this pass (the AI provider's env vars were introduced in the
+previous pass).
+
+## 18. Deployment configuration
+
+Unchanged from `docs/FINAL_AUDIT.md` §17. Docker remains optional and
+unbuilt (no daemon in this sandbox); the native workflow remains the
+verified path.
+
+## 19. Feature-by-feature status: all 85 requested capabilities
+
+Classification key: **IMPLEMENTED** (real, working, tested) ·
+**PARTIALLY IMPLEMENTED** (a real piece exists and works, but doesn't cover
+the full named capability) · **ARCHITECTURE READY** (real backend logic
+exists and is tested; no frontend yet) · **DATA SOURCE REQUIRED** (needs a
+licensed/verified external dataset this project doesn't have) ·
+**NOT IMPLEMENTED** (no real backend or frontend exists) ·
+**NOT VERIFIED** (built but not actually exercised in this environment).
+
+| # | Capability | Status | Basis |
+|---|---|---|---|
+| 1 | Home / Islamic Dashboard | IMPLEMENTED | Real dashboard, live registry-derived counts |
+| 2 | Qur'an | IMPLEMENTED | Real reader, bookmarks, progress; no corpus imported in this dev DB |
+| 3 | Qur'an Recitation | IMPLEMENTED | Reciter selection + audio playback in the reader |
+| 4 | Tafsir | IMPLEMENTED | Real reader + study tools + cross-references |
+| 5 | Hadith | IMPLEMENTED | Real reader with isnad chains |
+| 6 | Islamic AI Scholar / Assistant | IMPLEMENTED | Evidence-only, verified end-to-end (prior pass) |
+| 7 | Fiqh | NOT IMPLEMENTED | No fiqh knowledge base exists at any layer |
+| 8 | Salah | IMPLEMENTED | Real solar-position calculation, verified |
+| 9 | Dua & Dhikr | NOT IMPLEMENTED (Dua) / see #10 (Dhikr) | No dua collection exists |
+| 10 | Dhikr Counter | IMPLEMENTED | Real, local, private, tested |
+| 11 | Qiblah | IMPLEMENTED | Real great-circle bearing, verified against published references |
+| 12 | Hajj & Umrah | NOT IMPLEMENTED | Architecture slot only |
+| 13 | Ramadan | NOT IMPLEMENTED | (Hijri date itself is implemented, see #38) |
+| 14 | Zakat | PARTIALLY IMPLEMENTED | Real governance checker; not a real fund/donation system |
+| 15 | Sadaqah / Charity | ARCHITECTURE READY | `ummah_services` evaluate endpoints exist; no UI |
+| 16 | Islamic Finance | ARCHITECTURE READY | `islamic_life` finance evaluate endpoint exists; no UI |
+| 17 | Halal Investment Screening | NOT IMPLEMENTED | No screening methodology exists |
+| 18 | Halal World | ARCHITECTURE READY | `islamic_life` halal/commerce evaluate endpoints exist; no UI |
+| 19 | Mosque Directory | DATA SOURCE REQUIRED | No licensed/verified geodata available |
+| 20 | Muslim Travel | NOT IMPLEMENTED | — |
+| 21 | History of Islam | NOT IMPLEMENTED | `civilizational_infrastructure` is governance logic, not historical content |
+| 22 | Prophets | NOT IMPLEMENTED | — |
+| 23 | Sahabah | NOT IMPLEMENTED | — |
+| 24 | Muslim Women | NOT IMPLEMENTED | Requires reviewed sourcing before publishing |
+| 25 | Muslim Men | NOT IMPLEMENTED | — |
+| 26 | Family | ARCHITECTURE READY | `islamic_life` family-services evaluate endpoint exists; no UI |
+| 27 | Marriage | NOT IMPLEMENTED | — |
+| 28 | Children | NOT IMPLEMENTED | — |
+| 29 | Islamic Education | IMPLEMENTED | Real learning dashboard with real per-account progress |
+| 30 | Scholars | ARCHITECTURE READY | Scholarly-collaboration/lineage models exist; no public directory (deliberately, pending verified biographical sourcing) |
+| 31 | Lectures | NOT IMPLEMENTED | — |
+| 32 | Islamic Media | NOT IMPLEMENTED | — |
+| 33 | Islamic News | NOT IMPLEMENTED | Needs a real ingestion pipeline + licensing |
+| 34 | Islam & Science | PARTIALLY IMPLEMENTED | Real solar-position astronomy powers Salah/Qiblah; no general "science" content |
+| 35 | Islamic Library | DATA SOURCE REQUIRED | No licensed book corpus |
+| 36 | Arabic (learning) | NOT IMPLEMENTED | Distinct from Arabic-as-UI-language, which is implemented (§14) |
+| 37 | Translation | PARTIALLY IMPLEMENTED | Translation governance/provenance real in backend and surfaced inside readers; no dedicated browsing UI |
+| 38 | Islamic Calendar | IMPLEMENTED | Real Hijri date via ICU calendar, tested |
+| 39 | Moon & Islamic Astronomy | PARTIALLY IMPLEMENTED | Same real astronomy as #34; no moon-phase-specific feature |
+| 40 | Death & Janazah | NOT IMPLEMENTED | — |
+| 41 | Islamic Will | NOT IMPLEMENTED | — |
+| 42 | Personal Spiritual Development | NOT IMPLEMENTED | — |
+| 43 | Character / Akhlaq | NOT IMPLEMENTED | — |
+| 44 | Mental & Spiritual Wellbeing | NOT IMPLEMENTED | — |
+| 45 | Islamic Digital Safety | NOT IMPLEMENTED | (Platform-level security is real, but that's not this user-facing feature) |
+| 46 | Islamic Fact Checker | NOT IMPLEMENTED | — |
+| 47 | Hadith / Qur'an Verification | NOT IMPLEMENTED | The source-registry's evidence discipline is related infrastructure, not this specific tool |
+| 48 | Social Community | ARCHITECTURE READY | `community` validate endpoints are real; no persisted posts/discussions exist to browse |
+| 49 | Ummah | ARCHITECTURE READY | `global_ummah_network` backend exists; no UI |
+| 50 | New Muslims | NOT IMPLEMENTED | — |
+| 51 | Convert Support | NOT IMPLEMENTED | — |
+| 52 | Islamic Marketplace | NOT IMPLEMENTED | — |
+| 53 | Muslim Business Directory | NOT IMPLEMENTED | — |
+| 54 | Muslim Professional Network | NOT IMPLEMENTED | — |
+| 55 | Muslim Jobs | NOT IMPLEMENTED | — |
+| 56 | Waqf | ARCHITECTURE READY | `waqf/assets/evaluate` exists, same real pattern as the Zakat checker; no UI built for it specifically |
+| 57 | Muslim Health Directory | NOT IMPLEMENTED | — |
+| 58 | Halal Certification | ARCHITECTURE READY | `islamic_life` halal-certification evaluate endpoint exists; no UI |
+| 59 | Ingredient Checker | NOT IMPLEMENTED | Correctly not built: would require image-recognition-implies-halal claims this project's own rules prohibit |
+| 60 | Camera AI | NOT IMPLEMENTED | — |
+| 61 | Islamic Games | NOT IMPLEMENTED | — |
+| 62 | Islamic World Map | DATA SOURCE REQUIRED | Needs licensed geodata |
+| 63 | Mosque Architecture | NOT IMPLEMENTED | — |
+| 64 | Islamic Civilization | ARCHITECTURE READY | `civilizational_infrastructure` + `living_civilization` backends exist; no timeline/content UI |
+| 65 | Manuscripts | ARCHITECTURE READY | Preservation-archive evaluate endpoints exist; no viewer |
+| 66 | Islamic Art | NOT IMPLEMENTED | — |
+| 67 | Islamic Events | ARCHITECTURE READY | `civilization_os` events backend exists; no UI |
+| 68 | Volunteering | ARCHITECTURE READY | Volunteer-assignment evaluate endpoint exists; no UI |
+| 69 | Muslim Emergency Network | NOT IMPLEMENTED | Correctly not faked: a real safety feature needs real operational backing first |
+| 70 | Palestine / Al-Aqsa | NOT IMPLEMENTED | — |
+| 71 | Islamic Legal Knowledge | NOT IMPLEMENTED | Same gap as Fiqh (#7) |
+| 72 | Contemporary Questions | NOT IMPLEMENTED | — |
+| 73 | Privacy | PARTIALLY IMPLEMENTED | Session/device management and tenant isolation are real; no self-service "privacy center" (data export/deletion) UI |
+| 74 | AI Layer | IMPLEMENTED | Real `AIProvider`/`OllamaProvider`/`ExternalProvider`, verified both directions |
+| 75 | Source & Scholarship Engine | IMPLEMENTED | Real registry, dashboard, reviewer queue, all live-verified |
+| 76 | Knowledge Graph | PARTIALLY IMPLEMENTED | Real topics + cross-reference browser; only 4 entity types modeled, none populated in this dev DB, no visual graph |
+| 77 | Personal Learning Path | PARTIALLY IMPLEMENTED | Real per-account progress; curriculum-sequencing backend exists but no dedicated "path" UI |
+| 78 | Certifications | NOT IMPLEMENTED | — |
+| 79 | Personal Dashboard | IMPLEMENTED | Same as #1 |
+| 80 | Smart Notifications | NOT IMPLEMENTED | — |
+| 81 | Offline Islam | PARTIALLY IMPLEMENTED | Real, tested offline app shell; zero content cached (none exists, and licensing review needed regardless) |
+| 82 | Global Muslim Network | ARCHITECTURE READY | Same backend as #49 |
+| 83 | Admin / Trust System | PARTIALLY IMPLEMENTED | Platform-admin RBAC and the source-registry admin/reviewer workflow are real; no unified admin UI beyond that one subsystem |
+| 84 | Governance | PARTIALLY IMPLEMENTED | ~15 real, tested governance/acceptance rule engines exist across milestones 8-20; only the Zakat one (#14) has a UI - the rest are ARCHITECTURE READY individually |
+| 85 | The Ultimate Experience / World of Islam | PARTIALLY IMPLEMENTED | The 12-world IA, redesign, command palette, and everything above are real; full breadth across all 85 items plainly is not complete |
+
+## 20. Remaining work (honest, prioritized)
+
+1. **Highest-value next step**: build the same "real governance-evaluator
+   UI" pattern used for Zakat (§8) against the other ~14 `evaluate`-style
+   routers (Waqf, Halal, Family, Islamic Finance, Institutional Network,
+   Civilizational Infrastructure, Community, Research, Scholarly, Global
+   Ummah Network, Civilization OS) — each would move from ARCHITECTURE READY
+   to at least PARTIALLY IMPLEMENTED with a few hours of focused, repetitive
+   but low-risk frontend work per router.
+2. Real content ingestion (Qur'an/Hadith/Tafsir text) through the existing,
+   real source-registry admin pipeline — nothing in this report fabricates
+   that content, and nothing should; it requires an actual licensed source
+   and a human reviewer, both outside this pass's scope.
+3. Data-source-required items (#19 Mosque Directory, #35 Islamic Library,
+   #62 World Map) need a licensing/partnership decision before any code is
+   worth writing for them.
+4. Sensitive-content items (#24 Muslim Women, #27 Marriage, #41 Islamic
+   Will, #71 Islamic Legal Knowledge) need scholarly review processes this
+   project doesn't have yet — building UI ahead of that would risk exactly
+   the "AI pretending to have religious authority" failure mode the whole
+   platform is designed to avoid.
+5. Per-feature Arabic translation coverage (§14).
+6. `ruff` debt (7,919 pre-existing findings, unchanged).
+
+## 21. Production blockers
+
+Everything in `docs/FINAL_AUDIT.md` §12 still applies (no live deployment
+target, Docker images unbuilt, secrets are placeholders only) plus:
+
+- A real Ollama installation has never been exercised against this code
+  (network egress to install it is blocked in this sandbox).
+- No load, penetration, or professional accessibility audit has been
+  performed on any of this pass's new pages.
+- The ~15 unconnected governance routers (§20.1) mean roughly a third of
+  milestones 8-20's real backend logic is currently invisible to end users.
+
+## 22. Files changed and added this pass
+
+### Changed
+```
+apps/web/next.config.ts
 apps/web/src/app/[locale]/layout.tsx
 apps/web/src/app/globals.css
-apps/web/src/app/layout.tsx
-apps/web/src/components/protected-shell.tsx
-```
-
-## Files added (16)
-
-```
-apps/api/app/api/routes/ai_provider.py
-apps/api/app/schemas/ai_provider.py
-apps/api/app/services/ai_provider.py
-apps/api/tests/test_ai_provider.py
-apps/api/tests/test_ai_provider_ollama_contract.py
-apps/web/src/app/[locale]/w/page.tsx
-apps/web/src/app/[locale]/w/[slug]/page.tsx
-apps/web/src/app/[locale]/w/ibadah/tools/page.tsx
-apps/web/src/components/command-palette.tsx
-apps/web/src/components/command-palette.test.ts
-apps/web/src/components/ibadah-tools.tsx
-apps/web/src/components/worlds-nav.tsx
-apps/web/src/lib/salah.ts
-apps/web/src/lib/salah.test.ts
+apps/web/src/components/islamic-assistant.tsx
+apps/web/src/components/source-registry-panel.tsx
 apps/web/src/lib/worlds.ts
-docs/ai/provider-architecture.md
+WORLD_OF_ISLAM_FINAL_REPORT.md
 ```
 
-## Remaining known issues (this pass)
-
-1. Per-feature Arabic translation is incomplete (world-level only) — see §13.
-2. The 12-world "Worlds" menu is not yet added to the existing public pages
-   that predate this pass (Qur'an/Hadith/Tafsir/Learning/Assistant each
-   keep their own bespoke header) — it is live on the dashboard, the worlds
-   hub, and the Ibadah tools page. Wiring it everywhere is straightforward
-   but wasn't done to avoid touching five already-tested, working pages
-   under time pressure.
-3. Salah/Qiblah manual-coordinate entry displays results in the *viewer's
-   device timezone*, not the entered location's timezone — correct and
-   automatic for a real user looking up their own location (their device's
-   timezone matches), but misleading if someone manually enters coordinates
-   for a different timezone than their own device. Disclosed in the UI copy
-   itself (§ "Manual coordinates" note), not hidden.
-4. `ruff` debt (7,919 pre-existing findings, §5) remains unaddressed, as in
-   the prior pass.
-5. Everything listed as `NOT VERIFIED` above.
-
-## Production blockers (in addition to the prior pass's list)
-
-- A real Ollama deployment with a pulled model has never been exercised
-  against this code (§15) — validate this before advertising any "local AI"
-  feature as available in production.
-- The 12-world navigation and the Ibadah tools are new, real, but young:
-  they have automated test coverage (§6) and manual verification (§11-13)
-  but no production traffic history.
+### Added
+```
+apps/web/public/icon.svg
+apps/web/public/sw.js
+apps/web/src/app/[locale]/search/page.tsx
+apps/web/src/app/[locale]/topics/page.tsx
+apps/web/src/app/[locale]/w/charity/zakat-checker/page.tsx
+apps/web/src/app/manifest.ts
+apps/web/src/components/global-search.tsx
+apps/web/src/components/service-worker-registration.tsx
+apps/web/src/components/topics-browser.tsx
+apps/web/src/components/zakat-fund-checker.tsx
+apps/web/src/lib/worlds.test.ts
+docs/deployment/offline.md
+```

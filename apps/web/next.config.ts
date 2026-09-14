@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@world-of-islam/ui", "@world-of-islam/shared-types"],
   ...(basePath ? { basePath, assetPrefix: basePath } : {}),
+  // The service worker (public/sw.js) is registered from client JS and must
+  // know the deployment base path to register/fetch itself at the correct
+  // scope - basePath alone only affects page routing, not arbitrary client
+  // code, so it is mirrored here as a build-time-inlined public constant.
+  env: { NEXT_PUBLIC_WOI_BASE_PATH: basePath },
 
   // Keep Docker production builds from being blocked by generated Next.js
   // route-type diagnostics. Runtime-invalid imports and syntax still fail.
