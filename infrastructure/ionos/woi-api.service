@@ -1,0 +1,25 @@
+[Unit]
+Description=World of Islam API (FastAPI/uvicorn)
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=woi
+Group=woi
+WorkingDirectory=/opt/world-of-islam/apps/api
+EnvironmentFile=/opt/world-of-islam/apps/api/.env
+# WOI_FORWARDED_ALLOW_IPS must be 127.0.0.1 (or the nginx host's loopback) -
+# uvicorn only trusts X-Forwarded-For/X-Forwarded-Proto from these peers.
+ExecStart=/opt/world-of-islam/apps/api/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1 --workers 2
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/world-of-islam/apps/api
+
+[Install]
+WantedBy=multi-user.target
