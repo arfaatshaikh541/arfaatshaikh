@@ -1,0 +1,1 @@
+import type { Locale } from "@world-of-islam/shared-types";import { ProtectedShell } from "@/components/protected-shell";export default async function Layout({children,params}:{children:React.ReactNode;params:Promise<{locale:Locale}>}){const {locale}=await params;return <ProtectedShell locale={locale}>{children}</ProtectedShell>}

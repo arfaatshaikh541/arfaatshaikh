@@ -1,0 +1,13 @@
+{
+  "name": "world-of-islam",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "dev:web": "pnpm --filter @world-of-islam/web dev",
+    "build:web": "pnpm --filter @world-of-islam/web build",
+    "lint:web": "pnpm --filter @world-of-islam/web lint",
+    "typecheck:web": "pnpm --filter @world-of-islam/web typecheck",
+    "test:web": "pnpm --filter @world-of-islam/web test"
+  },
+  "engines": {"node": ">=20.9.0"}
+}

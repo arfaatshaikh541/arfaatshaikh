@@ -1,0 +1,16 @@
+"""Milestone 16 humanitarian safeguarding
+Revision ID: 20260726_0063
+Revises: 20260726_0062
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260726_0063'; down_revision='20260726_0062'; branch_labels=None; depends_on=None
+def _ts():return [sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now())]
+def upgrade():
+ op.create_table('beneficiary_cases',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('case_reference',sa.String(160),nullable=False),sa.Column('case_fingerprint',sa.String(64),nullable=False),sa.Column('region_code',sa.String(2),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='review'),sa.Column('need_json',sa.JSON(),nullable=False,server_default='{}'),*_ts(),sa.UniqueConstraint('organisation_id','case_reference',name='uq_beneficiary_case_reference'))
+ op.create_table('humanitarian_programmes',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('programme_slug',sa.String(100),nullable=False),sa.Column('title',sa.String(240),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='draft'),*_ts(),sa.UniqueConstraint('organisation_id','programme_slug',name='uq_humanitarian_programme_slug'))
+ op.create_table('aid_delivery_partners',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('programme_id',sa.Uuid(),sa.ForeignKey('humanitarian_programmes.id',ondelete='CASCADE'),nullable=False),sa.Column('institution_id',sa.Uuid(),sa.ForeignKey('institutions.id',ondelete='CASCADE'),nullable=False),sa.Column('role',sa.String(60),nullable=False),sa.Column('verified',sa.Boolean(),nullable=False,server_default=sa.false()),*_ts(),sa.UniqueConstraint('programme_id','institution_id',name='uq_aid_delivery_partner'))
+ op.create_table('aid_safeguarding_reviews',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('programme_id',sa.Uuid(),sa.ForeignKey('humanitarian_programmes.id',ondelete='CASCADE'),nullable=False),sa.Column('reviewer_id',sa.Uuid(),sa.ForeignKey('users.id',ondelete='SET NULL')),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('open_critical_findings',sa.Integer(),nullable=False,server_default='0'),sa.Column('outcome',sa.String(20),nullable=False),*_ts())
+ op.create_table('zakat_distributions',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('fund_id',sa.Uuid(),sa.ForeignKey('zakat_funds.id',ondelete='CASCADE'),nullable=False),sa.Column('distribution_key',sa.String(160),nullable=False),sa.Column('beneficiary_case_id',sa.Uuid(),sa.ForeignKey('beneficiary_cases.id',ondelete='SET NULL')),sa.Column('amount_minor',sa.Integer(),nullable=False),sa.Column('currency',sa.String(3),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='planned'),*_ts(),sa.UniqueConstraint('fund_id','distribution_key',name='uq_zakat_distribution_key'))
+def downgrade():
+ for t in ['zakat_distributions','aid_safeguarding_reviews','aid_delivery_partners','humanitarian_programmes','beneficiary_cases']:op.drop_table(t)

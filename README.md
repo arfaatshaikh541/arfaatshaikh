@@ -1,9 +1,78 @@
-- 👋 Hi, I’m @arfaatshaikh
-- 👀 I’m interested in Python Programming 
-- 🌱 I’m currently learning Machine Learning 
-- 💞️ I’m looking to collaborate on Machine Learning 
+# World of Islam
 
-<!---
-arfaatshaikh/arfaatshaikh is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
+An evidence-grounded Islamic knowledge platform: Qur'an/Hadith/Tafsir with
+full source provenance, a claim-grounded assistant that refuses to answer
+without approved evidence, source/scholar governance, learning and research
+tools, and institutional/community/federation infrastructure spanning
+milestones 1 through 20. See `docs/architecture/ARCHITECTURE.md` for the
+full milestone-to-module map and `docs/FINAL_AUDIT.md` for exactly what the
+most recent engineering pass changed and verified.
+
+## Architecture
+
+- **API**: FastAPI + SQLAlchemy (async) + Alembic, Python — 123 source
+  files, 81 migrations, 61 test modules, 544 passing tests.
+- **Worker**: Celery, Python.
+- **Web**: Next.js 15 / React 19, TypeScript.
+- **Database**: PostgreSQL. **Cache/queue**: Redis. **Storage**: S3-compatible
+  (MinIO locally).
+
+Full rationale for keeping the backend on Python (not a Node rewrite) is in
+`docs/architecture/ARCHITECTURE.md`.
+
+## Run it — no Docker required
+
+```bash
+# API
+cd apps/api
+uv sync
+cp ../../.env.example .env   # fill in real values
+uv run alembic -c alembic.ini upgrade head
+uv run uvicorn app.main:app --reload --port 8000
+
+# Web (separate shell)
+corepack enable
+pnpm install
+pnpm --filter @world-of-islam/web dev
+```
+
+Full instructions, including the optional Docker path, are in
+`docs/deployment/local-development.md`.
+
+Endpoints (local dev):
+
+- Web: http://localhost:3000
+- API liveness: http://localhost:8000/health/live
+- API readiness: http://localhost:8000/health/ready
+- API docs (non-production only): http://localhost:8000/docs
+
+## Deploying under a subpath (`app.arfaat.com/worldofislam`)
+
+`WOI_BASE_PATH` and `NEXT_PUBLIC_WOI_API_ORIGIN` configure the web app for a
+subpath deployment; see `docs/deployment/base-path.md` for the full audit,
+the required reverse-proxy configuration, and
+`docs/testing/base-path-verification.md` for what was actually tested.
+
+## Verify
+
+```bash
+cd apps/api && uv run pytest -q && uv run ruff check .
+pnpm typecheck:web && pnpm lint:web && pnpm test:web && pnpm build:web
+```
+
+(`make verify` runs the equivalent from the repo root.) `ruff check .` has a
+large pre-existing count of style-only findings predating this pass — see
+`docs/FINAL_AUDIT.md` §10 for the breakdown; it is not a regression gate
+today.
+
+## Documentation map
+
+- `docs/architecture/ARCHITECTURE.md` — architecture decisions and the
+  milestone → module inventory.
+- `docs/deployment/base-path.md` — subpath deployment, reverse proxy config.
+- `docs/deployment/local-development.md` — native and Docker dev workflows.
+- `docs/security/` — authentication, tenant isolation, hardening notes.
+- `docs/<area>/milestone-*.md` — per-milestone architecture and acceptance
+  records for milestones 7-20.
+- `docs/FINAL_AUDIT.md` — exactly what the most recent pass changed, tested,
+  and left open.

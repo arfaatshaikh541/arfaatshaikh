@@ -1,0 +1,29 @@
+"""ai evaluation, red-team and release hardening
+
+Revision ID: 20260725_0037
+Revises: 20260725_0036
+"""
+from alembic import op
+import sqlalchemy as sa
+revision = "20260725_0037"
+down_revision = "20260725_0036"
+branch_labels = None
+depends_on = None
+
+def upgrade():
+    op.create_table("ai_evaluation_datasets",
+        sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("dataset_key", sa.String(120), nullable=False), sa.Column("version", sa.String(40), nullable=False), sa.Column("language", sa.String(16), nullable=False), sa.Column("status", sa.String(16), nullable=False, server_default="draft"), sa.Column("evidence_policy_version", sa.String(64), nullable=False), sa.Column("approved_by_user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True), sa.Column("contains_private_data", sa.Boolean(), nullable=False, server_default=sa.false()), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False), sa.CheckConstraint("status IN ('draft','approved','retired')", name="ck_ai_eval_dataset_status"), sa.UniqueConstraint("dataset_key", "version", name="uq_ai_eval_dataset_key_version"))
+    op.create_table("ai_evaluation_cases",
+        sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("dataset_id", sa.Uuid(), sa.ForeignKey("ai_evaluation_datasets.id", ondelete="CASCADE"), nullable=False), sa.Column("case_key", sa.String(160), nullable=False), sa.Column("prompt_text", sa.Text(), nullable=False), sa.Column("language", sa.String(16), nullable=False), sa.Column("risk_level", sa.String(16), nullable=False), sa.Column("expected_action", sa.String(16), nullable=False), sa.Column("required_source_passage_ids", sa.JSON(), nullable=False, server_default="[]"), sa.Column("forbidden_claim_patterns", sa.JSON(), nullable=False, server_default="[]"), sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False), sa.CheckConstraint("risk_level IN ('low','medium','high','critical')", name="ck_ai_eval_case_risk"), sa.CheckConstraint("expected_action IN ('answer','refuse','escalate')", name="ck_ai_eval_case_action"))
+    op.create_index("ix_ai_eval_case_dataset_risk", "ai_evaluation_cases", ["dataset_id", "risk_level"])
+    op.create_table("ai_evaluation_runs",
+        sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("dataset_id", sa.Uuid(), sa.ForeignKey("ai_evaluation_datasets.id", ondelete="RESTRICT"), nullable=False), sa.Column("model_identifier", sa.String(160), nullable=False), sa.Column("policy_version", sa.String(64), nullable=False), sa.Column("status", sa.String(16), nullable=False, server_default="queued"), sa.Column("pass_rate", sa.Integer(), nullable=False, server_default="0"), sa.Column("total_cases", sa.Integer(), nullable=False, server_default="0"), sa.Column("failed_cases", sa.Integer(), nullable=False, server_default="0"), sa.Column("summary", sa.JSON(), nullable=False, server_default="{}"), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False), sa.CheckConstraint("status IN ('queued','running','passed','failed','blocked')", name="ck_ai_eval_run_status"), sa.CheckConstraint("pass_rate >= 0 AND pass_rate <= 100", name="ck_ai_eval_run_pass_rate"))
+    op.create_index("ix_ai_eval_run_dataset_created", "ai_evaluation_runs", ["dataset_id", "created_at"])
+    op.create_table("ai_evaluation_results",
+        sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("run_id", sa.Uuid(), sa.ForeignKey("ai_evaluation_runs.id", ondelete="CASCADE"), nullable=False), sa.Column("case_id", sa.Uuid(), sa.ForeignKey("ai_evaluation_cases.id", ondelete="CASCADE"), nullable=False), sa.Column("observed_action", sa.String(16), nullable=False), sa.Column("passed", sa.Boolean(), nullable=False), sa.Column("score", sa.Integer(), nullable=False), sa.Column("reason_codes", sa.JSON(), nullable=False, server_default="[]"), sa.Column("evidence_fingerprints", sa.JSON(), nullable=False, server_default="[]"), sa.Column("response_fingerprint", sa.String(64), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False), sa.CheckConstraint("observed_action IN ('answer','refuse','escalate','error')", name="ck_ai_eval_result_action"), sa.CheckConstraint("score >= 0 AND score <= 100", name="ck_ai_eval_result_score"), sa.UniqueConstraint("run_id", "case_id", name="uq_ai_eval_result_run_case"))
+    op.create_table("ai_red_team_findings",
+        sa.Column("id", sa.Uuid(), primary_key=True), sa.Column("evaluation_result_id", sa.Uuid(), sa.ForeignKey("ai_evaluation_results.id", ondelete="SET NULL"), nullable=True), sa.Column("attack_class", sa.String(80), nullable=False), sa.Column("severity", sa.String(16), nullable=False), sa.Column("status", sa.String(20), nullable=False, server_default="open"), sa.Column("description", sa.Text(), nullable=False), sa.Column("mitigation", sa.Text(), nullable=True), sa.Column("blocks_release", sa.Boolean(), nullable=False, server_default=sa.true()), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False), sa.CheckConstraint("severity IN ('low','medium','high','critical')", name="ck_ai_red_team_severity"), sa.CheckConstraint("status IN ('open','mitigated','accepted','false_positive')", name="ck_ai_red_team_status"))
+    op.create_index("ix_ai_red_team_status_severity", "ai_red_team_findings", ["status", "severity"])
+
+def downgrade():
+    op.drop_table("ai_red_team_findings"); op.drop_table("ai_evaluation_results"); op.drop_table("ai_evaluation_runs"); op.drop_table("ai_evaluation_cases"); op.drop_table("ai_evaluation_datasets")

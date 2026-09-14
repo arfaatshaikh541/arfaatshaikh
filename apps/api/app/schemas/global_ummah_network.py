@@ -1,0 +1,13 @@
+from pydantic import BaseModel,Field
+class FederationManifestRequest(BaseModel):network_slug:str;member_ids:list[str]=Field(min_length=1);trust_policy_sha256:str;capabilities:list[str]=[]
+class InstitutionFederationRequest(BaseModel):verified_institutions:int=Field(ge=0);independent_jurisdictions:int=Field(ge=0);trust_policy_published:bool;governance_council_active:bool;member_exit_process:bool;manifest_sha256:str
+class TrustedIdentityRequest(BaseModel):institution_verified:bool;identity_assurance_level:int=Field(ge=0);mfa_enforced:bool;credential_rotation_days:int=Field(ge=0);revocation_supported:bool;proof_sha256:str
+class InteroperabilityProfileRequest(BaseModel):open_standard_used:bool;schema_versioned:bool;backward_compatible:bool;conformance_tests_passed:bool;security_review_passed:bool;data_minimization:bool
+class FederatedSearchRequest(BaseModel):participating_nodes:int=Field(ge=0);evidence_grounding_percent:int=Field(ge=0,le=100);source_attribution_percent:int=Field(ge=0,le=100);query_privacy_protected:bool;harmful_result_rate_basis_points:int=Field(ge=0);timeout_ms:int=Field(ge=0)
+class DataSharingAgreementRequest(BaseModel):purpose_limited:bool;consent_or_lawful_basis:bool;minimum_fields_only:bool;retention_days:int=Field(ge=0);cross_border_assessment:bool;deletion_supported:bool;audit_logging:bool
+class CrossBorderScholarshipRequest(BaseModel):institutions:int=Field(ge=0);qualified_scholars:int=Field(ge=0);methodology_published:bool;conflicts_disclosed:bool;minority_views_preserved:bool;translation_reviewed:bool;evidence_sha256:str
+class ConsentReceiptRequest(BaseModel):subject_controlled:bool;granular_purposes:bool;withdrawal_supported:bool;receipt_sha256:str;expires_days:int=Field(ge=0)
+class NetworkResilienceRequest(BaseModel):healthy_regions:int=Field(ge=0);healthy_federation_nodes:int=Field(ge=0);replication_lag_seconds:int=Field(ge=0);rpo_seconds:int=Field(ge=0);rto_minutes:int=Field(ge=0);exercise_within_days:int=Field(ge=0);partition_recovery_verified:bool
+class PublicTrustReportRequest(BaseModel):metrics_defined:bool;correction_channel:bool;incident_disclosure:bool;independent_review:bool;publication_sha256:str;reporting_delay_days:int=Field(ge=0)
+class FederationAuditRequest(BaseModel):member_coverage_percent:int=Field(ge=0,le=100);critical_findings:int=Field(ge=0);evidence_integrity:bool;remediation_owners_assigned:bool;follow_up_days:int=Field(ge=0)
+class GlobalUmmahAcceptanceRequest(BaseModel):federation_passed:bool;identity_passed:bool;interoperability_passed:bool;search_passed:bool;privacy_passed:bool;resilience_passed:bool;transparency_passed:bool;live_partner_interop_validated:bool;external_security_audit:bool;live_partition_exercise:bool

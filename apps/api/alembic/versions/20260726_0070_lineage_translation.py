@@ -1,0 +1,15 @@
+"""Milestone 18 lineage and translation
+Revision ID: 20260726_0070
+Revises: 20260726_0069
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260726_0070';down_revision='20260726_0069';branch_labels=None;depends_on=None
+def _ts():return [sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now())]
+def upgrade():
+ op.create_table('scholarly_lineages',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('slug',sa.String(120),nullable=False),sa.Column('version',sa.String(40),nullable=False),sa.Column('manifest_sha256',sa.String(64),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='draft'),*_ts(),sa.UniqueConstraint('organisation_id','slug','version',name='uq_scholarly_lineage_version'))
+ op.create_table('scholarly_lineage_links',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('lineage_id',sa.Uuid(),sa.ForeignKey('scholarly_lineages.id',ondelete='CASCADE'),nullable=False),sa.Column('teacher_profile_id',sa.Uuid(),sa.ForeignKey('scholar_profiles.id',ondelete='CASCADE'),nullable=False),sa.Column('student_profile_id',sa.Uuid(),sa.ForeignKey('scholar_profiles.id',ondelete='CASCADE'),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('verified',sa.Boolean(),nullable=False,server_default=sa.false()),*_ts(),sa.UniqueConstraint('lineage_id','teacher_profile_id','student_profile_id',name='uq_scholarly_lineage_link'))
+ op.create_table('translation_governance_releases',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('release_slug',sa.String(120),nullable=False),sa.Column('version',sa.String(40),nullable=False),sa.Column('source_language',sa.String(16),nullable=False),sa.Column('target_language',sa.String(16),nullable=False),sa.Column('semantic_alignment_percent',sa.Integer(),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='draft'),*_ts(),sa.UniqueConstraint('organisation_id','release_slug','version',name='uq_translation_governance_release'))
+ op.create_table('translation_term_decisions',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('release_id',sa.Uuid(),sa.ForeignKey('translation_governance_releases.id',ondelete='CASCADE'),nullable=False),sa.Column('source_term',sa.String(180),nullable=False),sa.Column('target_term',sa.String(180),nullable=False),sa.Column('rationale',sa.Text(),nullable=False),sa.Column('disputed',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('evidence_sha256',sa.String(64),nullable=False),*_ts(),sa.UniqueConstraint('release_id','source_term','target_term',name='uq_translation_term_decision'))
+def downgrade():
+ op.drop_table('translation_term_decisions');op.drop_table('translation_governance_releases');op.drop_table('scholarly_lineage_links');op.drop_table('scholarly_lineages')

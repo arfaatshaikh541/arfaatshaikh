@@ -1,0 +1,8 @@
+"use client";
+import type { Locale, User } from "@world-of-islam/shared-types";
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { Button, Field, Notice, Surface } from "@world-of-islam/ui";
+import { apiFetch, ApiError } from "@/lib/api";
+import { getMessages } from "@/i18n/messages";
+export function RegisterForm({locale}:{locale:Locale}){const t=getMessages(locale);const [error,setError]=useState("");const [done,setDone]=useState(false);const [busy,setBusy]=useState(false);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");setBusy(true);const fd=new FormData(e.currentTarget);try{await apiFetch<User>("/auth/register",{method:"POST",body:JSON.stringify({email:fd.get("email"),password:fd.get("password"),display_name:fd.get("display_name")})});setDone(true);}catch(err){setError(err instanceof ApiError?err.message:"Registration failed.");}finally{setBusy(false)}}if(done)return <Surface><Notice tone="success">Account created. Verification instructions have been queued for delivery.</Notice><Link className="button-link" href={`/${locale}/login`}>{t.signIn}</Link></Surface>;return <Surface><form className="form-stack" onSubmit={submit}><Field name="display_name" required autoComplete="name" label={t.displayName}/><Field name="email" type="email" required autoComplete="email" label={t.email}/><Field name="password" type="password" required minLength={12} autoComplete="new-password" label={t.password} hint="At least 12 characters and two of: lowercase, uppercase, digits."/>{error?<Notice tone="danger">{error}</Notice>:null}<Button type="submit" disabled={busy}>{busy?t.loading:t.register}</Button><Link href={`/${locale}/login`}>{t.signIn}</Link></form></Surface>}

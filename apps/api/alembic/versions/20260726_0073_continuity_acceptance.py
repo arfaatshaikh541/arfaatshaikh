@@ -1,0 +1,15 @@
+"""Milestone 18 continuity and acceptance
+Revision ID: 20260726_0073
+Revises: 20260726_0072
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260726_0073';down_revision='20260726_0072';branch_labels=None;depends_on=None
+def _ts():return [sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now())]
+def upgrade():
+ op.create_table('continuity_succession_plans',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('plan_slug',sa.String(120),nullable=False),sa.Column('version',sa.String(40),nullable=False),sa.Column('rpo_minutes',sa.Integer(),nullable=False),sa.Column('rto_hours',sa.Integer(),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('status',sa.String(20),nullable=False,server_default='draft'),*_ts(),sa.UniqueConstraint('organisation_id','plan_slug','version',name='uq_continuity_succession_plan'))
+ op.create_table('continuity_successor_stewards',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('plan_id',sa.Uuid(),sa.ForeignKey('continuity_succession_plans.id',ondelete='CASCADE'),nullable=False),sa.Column('institution_id',sa.Uuid(),sa.ForeignKey('institutions.id',ondelete='CASCADE'),nullable=False),sa.Column('priority',sa.Integer(),nullable=False),sa.Column('accepted',sa.Boolean(),nullable=False,server_default=sa.false()),*_ts(),sa.UniqueConstraint('plan_id','institution_id',name='uq_continuity_successor_steward'))
+ op.create_table('continuity_exercises',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('plan_id',sa.Uuid(),sa.ForeignKey('continuity_succession_plans.id',ondelete='CASCADE'),nullable=False),sa.Column('scenario',sa.String(180),nullable=False),sa.Column('restore_minutes',sa.Integer(),nullable=False),sa.Column('data_loss_detected',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('outcome',sa.String(20),nullable=False),*_ts())
+ op.create_table('islamic_civilization_os_acceptance',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('milestone_version',sa.String(40),nullable=False),sa.Column('outcome',sa.String(20),nullable=False),sa.Column('portable_ready',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('production_ready',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('notes',sa.Text()),*_ts(),sa.UniqueConstraint('organisation_id','milestone_version',name='uq_icos_acceptance_version'))
+def downgrade():
+ op.drop_table('islamic_civilization_os_acceptance');op.drop_table('continuity_exercises');op.drop_table('continuity_successor_stewards');op.drop_table('continuity_succession_plans')

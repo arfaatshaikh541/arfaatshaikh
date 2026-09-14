@@ -1,0 +1,22 @@
+"""Milestone 14
+Revision ID: 20260726_0057
+Revises: 20260726_0056
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260726_0057'
+down_revision='20260726_0056'
+branch_labels=None
+depends_on=None
+def upgrade():
+    op.create_table('resilience_regions',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('region',sa.String(40),nullable=False),sa.Column('role',sa.String(20),nullable=False),sa.Column('health_status',sa.String(20),nullable=False),sa.Column('replication_lag_seconds',sa.Integer(),nullable=False,server_default='0'),sa.Column('endpoint_url',sa.String(500),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.UniqueConstraint('organisation_id','region',name='uq_resilience_region'))
+    op.create_table('failover_exercises',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('exercise_version',sa.String(40),nullable=False),sa.Column('rpo_seconds',sa.Integer(),nullable=False),sa.Column('rto_seconds',sa.Integer(),nullable=False),sa.Column('data_loss_detected',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('outcome',sa.String(16),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()))
+    op.create_table('observability_coverages',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('coverage_version',sa.String(40),nullable=False),sa.Column('metrics_percent',sa.Integer(),nullable=False),sa.Column('traces_percent',sa.Integer(),nullable=False),sa.Column('logs_integrity_verified',sa.Boolean(),nullable=False),sa.Column('redaction_verified',sa.Boolean(),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.UniqueConstraint('organisation_id','coverage_version',name='uq_observability_coverage_version'))
+    op.create_table('capacity_benchmarks',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('benchmark_version',sa.String(40),nullable=False),sa.Column('tested_rps',sa.Integer(),nullable=False),sa.Column('p95_latency_ms',sa.Integer(),nullable=False),sa.Column('error_rate_basis_points',sa.Integer(),nullable=False),sa.Column('corpus_millions',sa.Integer(),nullable=False),sa.Column('headroom_percent',sa.Integer(),nullable=False),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()))
+    op.create_table('civilizational_infrastructure_acceptances',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('milestone_version',sa.String(40),nullable=False),sa.Column('outcome',sa.String(16),nullable=False),sa.Column('portable_ready',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('production_ready',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('evidence_sha256',sa.String(64),nullable=False),sa.Column('notes',sa.Text()),sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.UniqueConstraint('organisation_id','milestone_version',name='uq_civilizational_acceptance_version'))
+def downgrade():
+    op.drop_table('civilizational_infrastructure_acceptances')
+    op.drop_table('capacity_benchmarks')
+    op.drop_table('observability_coverages')
+    op.drop_table('failover_exercises')
+    op.drop_table('resilience_regions')

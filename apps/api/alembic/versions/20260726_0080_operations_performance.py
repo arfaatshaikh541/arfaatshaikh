@@ -1,0 +1,16 @@
+"""Milestone 20 operations and performance
+Revision ID: 20260726_0080
+Revises: 20260726_0079
+"""
+from alembic import op
+import sqlalchemy as sa
+revision='20260726_0080';down_revision='20260726_0079';branch_labels=None;depends_on=None
+def _ts():return [sa.Column('created_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now()),sa.Column('updated_at',sa.DateTime(timezone=True),nullable=False,server_default=sa.func.now())]
+def upgrade():
+ op.create_table('observability_readiness',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('service_coverage_percent',sa.Integer(),nullable=False),sa.Column('metrics_coverage_percent',sa.Integer(),nullable=False),sa.Column('trace_coverage_percent',sa.Integer(),nullable=False),sa.Column('runbook_coverage_percent',sa.Integer(),nullable=False),sa.Column('outcome',sa.String(20),nullable=False),*_ts())
+ op.create_table('service_level_objectives',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('observability_id',sa.Uuid(),sa.ForeignKey('observability_readiness.id',ondelete='CASCADE'),nullable=False),sa.Column('service_name',sa.String(140),nullable=False),sa.Column('availability_basis_points',sa.Integer(),nullable=False),sa.Column('latency_ms',sa.Integer(),nullable=False),sa.Column('error_budget_policy',sa.JSON(),nullable=False,server_default='{}'),*_ts())
+ op.create_table('disaster_recovery_reviews',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('rpo_minutes',sa.Integer(),nullable=False),sa.Column('rto_minutes',sa.Integer(),nullable=False),sa.Column('last_exercise_days',sa.Integer(),nullable=False),sa.Column('data_loss_detected',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('outcome',sa.String(20),nullable=False),*_ts())
+ op.create_table('recovery_exercises',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('review_id',sa.Uuid(),sa.ForeignKey('disaster_recovery_reviews.id',ondelete='CASCADE'),nullable=False),sa.Column('scenario',sa.String(180),nullable=False),sa.Column('restore_minutes',sa.Integer(),nullable=False),sa.Column('failover_passed',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('failback_passed',sa.Boolean(),nullable=False,server_default=sa.false()),sa.Column('evidence_sha256',sa.String(64),nullable=False),*_ts())
+ op.create_table('performance_benchmarks',sa.Column('id',sa.Uuid(),primary_key=True),sa.Column('organisation_id',sa.Uuid(),sa.ForeignKey('organisations.id',ondelete='CASCADE'),nullable=False),sa.Column('peak_rps',sa.Integer(),nullable=False),sa.Column('tested_rps',sa.Integer(),nullable=False),sa.Column('p95_latency_ms',sa.Integer(),nullable=False),sa.Column('error_rate_basis_points',sa.Integer(),nullable=False),sa.Column('headroom_percent',sa.Integer(),nullable=False),sa.Column('outcome',sa.String(20),nullable=False),*_ts())
+def downgrade():
+ op.drop_table('performance_benchmarks');op.drop_table('recovery_exercises');op.drop_table('disaster_recovery_reviews');op.drop_table('service_level_objectives');op.drop_table('observability_readiness')
