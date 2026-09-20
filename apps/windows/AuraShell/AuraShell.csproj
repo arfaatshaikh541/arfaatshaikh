@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This project targets net8.0-windows with UseWPF, which requires the
+    Windows Desktop SDK — only available when building on Windows (or with
+    the Windows workload installed). It could NOT be built or run in the
+    cloud Linux environment this codebase was authored in; see README.md
+    in this folder for exactly what was and wasn't verified.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AuraShell</RootNamespace>
+    <ApplicationIcon />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuraShell.Core\AuraShell.Core.csproj" />
+  </ItemGroup>
+
+</Project>

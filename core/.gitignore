@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+.smoke_test.db
+.server_smoke.db
+aura_core.egg-info/
+.models/
+.aura/

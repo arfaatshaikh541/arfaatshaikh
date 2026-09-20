@@ -1,0 +1,26 @@
+<UserControl x:Class="AuraShell.Views.BackendChallengeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        The real second-factor challenge the backend hotkey opens (never
+        skippable, never satisfied by the ordinary device-trust session
+        alone — see InterfaceShellViewModel.SubmitBackendPinAsync and
+        aura_core's require_backend_elevation). A wrong PIN and an
+        untrusted device both surface as the same generic failure text;
+        this view never has enough information to say which, because the
+        server itself never says which.
+    -->
+    <Grid Background="#0A0A0C">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360">
+            <TextBlock Text="Backend access requires your PIN" Foreground="#E6E6EA" FontSize="18"
+                       HorizontalAlignment="Center" Margin="0,0,0,20" TextWrapping="Wrap" TextAlignment="Center" />
+            <PasswordBox x:Name="PinBox" PasswordChanged="OnPinChanged" MaxLength="32" Padding="10" FontSize="22" />
+            <TextBlock x:Name="ErrorText" Foreground="#E05252" FontSize="13" Margin="0,14,0,0"
+                       TextWrapping="Wrap" TextAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                <Button x:Name="SubmitButton" Content="Unlock" Padding="18,8" Click="OnSubmitClick" IsDefault="True" />
+                <Button Content="Cancel" Padding="18,8" Margin="12,0,0,0" Click="OnCancelClick" IsCancel="True" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

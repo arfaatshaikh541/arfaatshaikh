@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    net8.0-windows without UseWPF/UseWindowsForms builds fine on Linux
+    (confirmed in this session) since it doesn't pull in the Windows
+    Desktop SDK targets — only UseWPF/UseWindowsForms do. That's what
+    makes it possible to compile-check this project's C# against the real
+    NAudio and System.Speech APIs here, even though actually running it
+    (opening a real microphone, producing real speech) requires Windows
+    and has not been done. See apps/voice/README.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Deliberately NAudio.Core + NAudio.WinMM (both netstandard2.0, no
+      Windows Desktop dependency) rather than the umbrella "NAudio"
+      package: that metapackage pulls in NAudio.WinForms, which requires
+      a Microsoft.WindowsDesktop.App.WindowsForms FrameworkReference and
+      fails to resolve on Linux (confirmed by trying it). WaveInEvent —
+      the mic-capture type this project actually uses — lives in
+      NAudio.WinMM, so nothing is lost by being specific here. See
+      apps/voice/README.md.
+    -->
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuraVoice.Core\AuraVoice.Core.csproj" />
+  </ItemGroup>
+
+</Project>
