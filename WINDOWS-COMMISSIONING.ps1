@@ -134,9 +134,29 @@ Write-Host "AURA Windows Commissioning -- $Timestamp" -ForegroundColor Cyan
 Write-Host "Repo: $RepoRoot"
 Write-Host "Diagnostic bundle will be written under: $BundleDir"
 
-$venvPython = Join-Path $RepoRoot "core\.venv\Scripts\python.exe"
+$venvDir = Join-Path $RepoRoot "core\.venv"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
-    $venvPython = "python"
+    # Install-AURA.ps1 only ever creates a venv inside its own staging/
+    # install target (%LOCALAPPDATA%\AURA) -- a separate location from
+    # this repo checkout, which this script builds the C# projects
+    # directly from. Silently falling back to a bare `python` here was
+    # confirmed, on a real Windows run, to fail every aura_core-importing
+    # test at collection (28 errors) and the server-startup step
+    # identically, since bare Python has none of this project's
+    # dependencies installed. Make this script self-sufficient instead
+    # of degrading to a python that can't do anything real.
+    Write-Section "Setting up a Python virtual environment (none found at core\.venv)"
+    $venvSetupLog = Join-Path $LogsDir "venv-setup.log"
+    python -m venv $venvDir *> $venvSetupLog
+    & $venvPython -m pip install --upgrade pip *>> $venvSetupLog
+    & $venvPython -m pip install -e "$RepoRoot\core[test,browser,email,voice,desktop_control]" *>> $venvSetupLog
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $venvPython)) {
+        Add-Result "python.venv_setup" "FAIL" "could not create/populate core\.venv -- see logs\venv-setup.log"
+        $venvPython = "python"
+    } else {
+        Add-Result "python.venv_setup" "PASS" "created core\.venv and installed aura-core with test extras"
+    }
 }
 
 # ---------------------------------------------------------------------

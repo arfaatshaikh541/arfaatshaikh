@@ -200,6 +200,28 @@ def test_installer_never_lets_hardware_or_network_tests_block_installation():
     "Copy-Item lines) -- only meaningful when run from a full source checkout, not the installer's "
     "own install-gate suite run against staged core/",
 )
+def test_commissioning_script_creates_its_own_venv_rather_than_silently_using_bare_python():
+    """Confirmed on a real Windows run: Install-AURA.ps1 only ever creates
+    a venv inside its own staging/install target (%LOCALAPPDATA%\\AURA),
+    never inside the repo checkout WINDOWS-COMMISSIONING.ps1 builds the C#
+    projects directly from. The script used to silently fall back to a
+    bare `python` when core\\.venv was missing there, which has none of
+    this project's dependencies -- that produced 28 collection errors
+    across every aura_core-importing test file and made the aura_core
+    server fail to start, cascading into three more BLOCKED results.
+    This asserts the self-sufficient fix (create + pip install -e a real
+    venv) is still present, not silently reverted back to the fallback."""
+    commissioning_text = (REPO_ROOT / "WINDOWS-COMMISSIONING.ps1").read_text()
+    assert "python -m venv $venvDir" in commissioning_text
+    assert 'pip install -e "$RepoRoot\\core[test,browser,email,voice,desktop_control]"' in commissioning_text
+
+
+@pytest.mark.skipif(
+    not _IS_FULL_SOURCE_CHECKOUT,
+    reason="WINDOWS-COMMISSIONING.ps1 is not part of the staged install (see Install-AURA.ps1's "
+    "Copy-Item lines) -- only meaningful when run from a full source checkout, not the installer's "
+    "own install-gate suite run against staged core/",
+)
 def test_commissioning_script_actually_emits_the_distinct_honest_statuses():
     """Section 81/82: a check that was never run (NOT_TESTED), one blocked
     on an external dependency (BLOCKED), and one that needs hardware not
