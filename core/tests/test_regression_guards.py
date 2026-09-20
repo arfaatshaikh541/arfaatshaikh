@@ -22,6 +22,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from aura_core.api import create_app
@@ -30,6 +31,20 @@ from aura_core.identity import BackendElevationService, EnrollmentEngine
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Install-AURA.ps1 deliberately stages only core/, apps/, and install/ (see
+# its own Copy-Item lines) -- WINDOWS-COMMISSIONING.ps1 lives at the repo
+# root and is meant to be run against a build from the original checkout,
+# not shipped inside the ephemeral staging directory. That means this
+# test file itself runs from two genuinely different locations depending
+# on who invokes it: a real repo checkout (this file lives under
+# core/tests/, so REPO_ROOT correctly points at the checkout root) versus
+# the installer's own staged copy of core/ (where REPO_ROOT would instead
+# point at the staging directory, which never contains this top-level
+# script at all). Confirmed by a real Windows install-gate run failing
+# with FileNotFoundError here. Anything that reads a path outside
+# core/apps/install must check this first.
+_IS_FULL_SOURCE_CHECKOUT = (REPO_ROOT / "WINDOWS-COMMISSIONING.ps1").exists()
 
 
 def _dependency_names(route) -> set[str]:
@@ -179,6 +194,12 @@ def test_installer_never_lets_hardware_or_network_tests_block_installation():
     assert "not hardware and not network and not endurance and not manual_commissioning" in installer_text
 
 
+@pytest.mark.skipif(
+    not _IS_FULL_SOURCE_CHECKOUT,
+    reason="WINDOWS-COMMISSIONING.ps1 is not part of the staged install (see Install-AURA.ps1's "
+    "Copy-Item lines) -- only meaningful when run from a full source checkout, not the installer's "
+    "own install-gate suite run against staged core/",
+)
 def test_commissioning_script_actually_emits_the_distinct_honest_statuses():
     """Section 81/82: a check that was never run (NOT_TESTED), one blocked
     on an external dependency (BLOCKED), and one that needs hardware not

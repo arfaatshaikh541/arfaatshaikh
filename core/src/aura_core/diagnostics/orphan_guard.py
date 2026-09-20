@@ -13,14 +13,25 @@ pidfile, and only after confirming the live process's command line still
 looks like the one AURA started (a bare PID can be reused by an unrelated
 process by the time this check runs) -- it never scans the whole process
 table.
+
+Process liveness, command-line inspection, and termination all go
+through `psutil` rather than `os.kill`/`/proc` directly: `/proc/<pid>/
+cmdline` does not exist on Windows at all (silently always returned "",
+which broke the "does the live PID still look like ours" check there),
+`os.kill(pid, 0)` on Windows is not a liveness probe -- CPython maps
+signal 0 to `GenerateConsoleCtrlEvent`, which can send a real Ctrl+C to
+an unrelated process group -- and `signal.SIGKILL` does not exist on
+Windows at all. psutil gives one real, tested implementation of all
+three that behaves correctly on Linux, macOS, and Windows alike.
 """
 from __future__ import annotations
 
 import json
 import os
-import signal
 import time
 from dataclasses import dataclass
+
+import psutil
 
 
 @dataclass
@@ -30,18 +41,13 @@ class OrphanCheckResult:
 
 
 def _is_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except (OSError, ProcessLookupError):
-        return False
-    return True
+    return psutil.pid_exists(pid)
 
 
 def _cmdline(pid: int) -> str:
     try:
-        with open(f"/proc/{pid}/cmdline", "rb") as handle:
-            return handle.read().decode(errors="replace").replace("\x00", " ").strip()
-    except OSError:
+        return " ".join(psutil.Process(pid).cmdline())
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         return ""
 
 
@@ -87,12 +93,20 @@ class OrphanProcessGuard:
                 f"'{fragment}' -- the PID was reused by an unrelated process, not reaping it",
             )
 
-        os.kill(pid, signal.SIGTERM)
+        try:
+            process = psutil.Process(pid)
+            process.terminate()  # SIGTERM on POSIX, TerminateProcess on Windows
+        except psutil.NoSuchProcess:
+            return OrphanCheckResult(True, f"orphaned process {pid} ('{fragment}') was already gone")
+
         deadline = time.monotonic() + terminate_timeout_seconds
         while time.monotonic() < deadline:
             if not _is_alive(pid):
-                return OrphanCheckResult(True, f"orphaned process {pid} ('{fragment}') terminated with SIGTERM")
+                return OrphanCheckResult(True, f"orphaned process {pid} ('{fragment}') terminated")
             time.sleep(0.1)
 
-        os.kill(pid, signal.SIGKILL)
-        return OrphanCheckResult(True, f"orphaned process {pid} ('{fragment}') did not exit; killed with SIGKILL")
+        try:
+            process.kill()  # SIGKILL on POSIX; Windows has no distinct force-kill, so this is TerminateProcess again
+        except psutil.NoSuchProcess:
+            pass
+        return OrphanCheckResult(True, f"orphaned process {pid} ('{fragment}') did not exit in time; force-killed")
