@@ -18,6 +18,8 @@ from behavior.
 """
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -192,6 +194,46 @@ def test_commissioning_script_actually_emits_the_distinct_honest_statuses():
     assert 'Add-Result "voice.pipeline" "NOT_TESTED"' in commissioning_text
     assert 'Add-Result "status.checks" "BLOCKED"' in commissioning_text
     assert 'SKIPPED_HARDWARE' in commissioning_text and 'extended_hardware_network' in commissioning_text
+
+
+# ---------------------------------------------------------------------
+# Install-gate test tiering: a marker registered in pyproject.toml but
+# never actually applied to a test is a silent no-op -- pytest's -m
+# filters by markers really attached to a test, not by directory name or
+# intent. This is exactly how a real install-gate run stalled on a real
+# Windows machine: tests/endurance/ was never decorated with
+# @pytest.mark.endurance, and the connectors test that launches a real
+# (possibly not-yet-downloaded) Playwright browser was never marked
+# network, so Install-AURA.ps1's "-m not hardware and not network and
+# not endurance and not manual_commissioning" silently included both.
+# ---------------------------------------------------------------------
+
+def _install_gate_selection() -> str:
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "pytest", "--collect-only",
+            "-m", "not hardware and not network and not endurance and not manual_commissioning",
+        ],
+        cwd=REPO_ROOT / "core", capture_output=True, text=True, timeout=60,
+    )
+    return result.stdout
+
+
+def test_every_endurance_test_is_actually_excluded_from_the_install_gate():
+    selection = _install_gate_selection()
+    assert "tests/endurance/" not in selection, (
+        "a test under tests/endurance/ is missing @pytest.mark.endurance (or the module-level "
+        "pytestmark) and would run during a real Windows install, exactly like it did before this fix"
+    )
+
+
+def test_the_real_browser_launching_connectors_test_is_excluded_from_the_install_gate():
+    selection = _install_gate_selection()
+    assert "test_connectors_endpoint_reports_real_manifests_and_status" not in selection, (
+        "this test launches a real Playwright browser during health-check refresh -- without a "
+        "network/hardware marker it can stall a fresh install indefinitely waiting on a browser "
+        "binary nobody installed yet (confirmed reproducible on a real Windows machine)"
+    )
 
 
 def test_interface_mode_manager_still_always_boots_fresh_never_resuming_backend_mode():

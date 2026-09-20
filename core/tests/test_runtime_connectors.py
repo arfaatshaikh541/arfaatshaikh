@@ -5,6 +5,7 @@ the system, so if a connector doesn't show up here, it doesn't exist for
 any real caller."""
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from aura_core.api.app import create_app
@@ -54,7 +55,20 @@ def test_email_connector_registers_once_smtp_host_is_configured(monkeypatch):
     assert "email" in names
 
 
+@pytest.mark.network
 def test_connectors_endpoint_reports_real_manifests_and_status():
+    # This endpoint health-checks every registered connector, including
+    # BrowserConnector, which launches a REAL Chromium via Playwright's
+    # sync API. `pip install playwright` only installs the Python
+    # package -- the browser binary needs a separate `playwright install
+    # chromium` step the installer never runs. Without it, this call can
+    # sit for a long time (or indefinitely, depending on network
+    # reachability) trying to auto-fetch a matching browser build on
+    # first launch, rather than failing fast -- confirmed as a real,
+    # reproducible stall, not a hypothetical. Marked network/excluded
+    # from the install gate (see Install-AURA.ps1) for exactly this
+    # reason: a fresh install must never hang or fail on a browser binary
+    # nobody has installed yet.
     with TestClient(create_app()) as client:
         response = client.get("/connectors")
         assert response.status_code == 200

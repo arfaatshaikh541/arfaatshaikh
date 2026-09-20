@@ -21,6 +21,14 @@ import pytest
 
 from aura_core.runtime import build_runtime
 
+# Real, but slower than the normal fast loop (full Runtime rebuilds, a
+# real `time.sleep`) -- excluded from the install-gate suite
+# (Install-AURA.ps1's `-m "not ... endurance ..."`) so a fresh install
+# never waits on or is blocked by these. Registering the marker in
+# pyproject.toml alone does nothing without this: pytest's -m filters by
+# marker actually applied to a test, not by directory name.
+pytestmark = pytest.mark.endurance
+
 
 @pytest.mark.asyncio
 async def test_mandate_and_workstream_state_survives_a_full_runtime_rebuild(tmp_path):

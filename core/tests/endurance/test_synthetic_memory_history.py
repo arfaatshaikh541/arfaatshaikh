@@ -21,6 +21,14 @@ import pytest
 from aura_core.memory import MemoryStore, answer_question
 from aura_core.providers import ModelRouter
 
+# Real, but slower than the normal fast loop (generates and searches
+# ~1,000 synthetic records) -- excluded from the install-gate suite
+# (Install-AURA.ps1's `-m "not ... endurance ..."`) so a fresh install
+# never waits on or is blocked by these. Registering the marker in
+# pyproject.toml alone does nothing without this: pytest's -m filters by
+# marker actually applied to a test, not by directory name.
+pytestmark = pytest.mark.endurance
+
 _NOISE_TOPICS = [
     ("marketing", "Reviewed the {q} campaign performance for {company}"),
     ("support", "Resolved a support ticket from {company} about login issues"),
