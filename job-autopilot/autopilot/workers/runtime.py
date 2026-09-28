@@ -38,6 +38,11 @@ def heartbeat(worker_id: str, kind: str, current_task: int | None = None, info: 
         hb.last_seen = utcnow()
         hb.current_task_id = current_task
         hb.info = {**(info or {}), "status": "ALIVE"}
+    try:  # liveness file for the container HEALTHCHECK (touched only after a successful DB heartbeat)
+        open(os.environ.get("JOBAP_HEARTBEAT_FILE", "/tmp/jobap-heartbeat"), "a").close()
+        os.utime(os.environ.get("JOBAP_HEARTBEAT_FILE", "/tmp/jobap-heartbeat"))
+    except OSError:
+        pass
 
 
 class _Stop:
@@ -47,6 +52,26 @@ class _Stop:
 
 
 _Stop = _Stop()
+
+
+IDLE_STALL_S = 300
+
+
+def _start_watchdog(name: str, busy_limit_s: float, is_busy=lambda: False) -> None:
+    """Exit the process (so the container restart policy replaces it) if its main loop stops making
+    progress: e.g. blocked on a dead network socket. Docker's HEALTHCHECK alone never restarts a container."""
+    lifecycle.touch()
+
+    def run():
+        while not STOP.wait(15):
+            limit = busy_limit_s if is_busy() else IDLE_STALL_S
+            stalled = time.monotonic() - lifecycle.last_progress()
+            if stalled > limit:
+                log.critical(f"{name} main loop stalled for {int(stalled)} s; exiting for restart",
+                             extra={"event": "watchdog_exit", "duration_ms": int(stalled * 1000)})
+                os._exit(3)
+
+    threading.Thread(target=run, daemon=True, name=f"{name}-watchdog").start()
 
 
 def _install_signals() -> None:
@@ -81,6 +106,8 @@ def watchdog(s, worker_id: str) -> dict:
             notify(s, "worker_dead", "Worker stopped responding",
                    f"{hb.worker_id} has not sent a heartbeat for {int(age)} s. Its tasks are being reconciled; "
                    "the container restart policy restarts crashed workers.", severity="warning")
+    for old in s.scalars(select(WorkerHeartbeat).where(WorkerHeartbeat.last_seen < now - dt.timedelta(hours=24))):
+        s.delete(old)  # prune identities of long-gone processes (each process start has a new id)
     alive = s.scalar(select(func.count(WorkerHeartbeat.worker_id)).where(
         WorkerHeartbeat.kind == "worker", WorkerHeartbeat.last_seen > now - dt.timedelta(seconds=WORKER_DEAD_AFTER_S))) or 0
     oldest = s.scalar(select(func.min(Task.run_after)).where(Task.status == TaskStatus.PENDING.value))
@@ -109,7 +136,11 @@ def scheduler_tick(worker_id: str) -> dict:
         if auto.state == "RUNNING":
             interval = dt.timedelta(minutes=auto.search_interval_minutes)
             bucket = int(now.timestamp() // interval.total_seconds())
+            open_discover = {t.payload.get("source_id") for t in s.scalars(select(Task).where(
+                Task.type == "discover", Task.status.in_([TaskStatus.PENDING.value, TaskStatus.RUNNING.value])))}
             for src in s.scalars(select(JobSource).where(JobSource.enabled.is_(True))):
+                if src.id in open_discover:
+                    continue  # one outstanding search per source (e.g. while its host is backing off)
                 if src.last_run_at is None or now - src.last_run_at >= interval:
                     if queue.enqueue(s, "discover", {"source_id": src.id}, dedupe_key=f"discover:{src.id}:{bucket}",
                                      priority=80, max_attempts=4):
@@ -177,8 +208,10 @@ def run_scheduler(poll_s: float = 20.0) -> None:
         STOP.wait(poll_s)
     with session_scope() as s:
         system_event(s, "scheduler", "started", wid)
+    _start_watchdog("scheduler", IDLE_STALL_S)
     try:
         while not _Stop.flag:
+            lifecycle.touch()
             t0 = time.monotonic()
             try:
                 res = scheduler_tick(wid)
@@ -366,6 +399,7 @@ class Worker:
     def run_forever(self, idle_s: float = 5.0) -> None:
         _install_signals()
         self.session_server()  # start the internal remote-session endpoint up front
+        _start_watchdog("worker", self.cfg.watchdog_stall_seconds, lambda: self._current is not None)
         with session_scope() as s:
             system_event(s, "worker", "started", self.worker_id)
         try:
@@ -376,6 +410,7 @@ class Worker:
                     log.exception("worker loop error", extra={"worker_id": self.worker_id})
                     worked = False
                     STOP.wait(10)
+                lifecycle.touch()
                 if not worked:
                     lifecycle.touch()
                     heartbeat(self.worker_id, "worker", None, {**self.browser_health(), "activity": "Idle"})

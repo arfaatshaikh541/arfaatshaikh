@@ -124,7 +124,7 @@ def store_cv(
     kind = detect_kind(filename, data)
     vault = vault or get_vault()
     sha = hashlib.sha256(data).hexdigest()
-    safe_name = os.path.basename(filename).replace("\x00", "")[:200] or f"cv.{kind}"
+    safe_name = os.path.basename(filename).replace("\x00", "").lstrip(".")[:200] or f"cv.{kind}"
     version = (s.scalar(select(func.max(CVVersion.version)).where(CVVersion.profile_id == p.id)) or 0) + 1
     path = _cv_path(p.id, sha)
     path.write_bytes(vault.encrypt(data, f"cv:{p.id}:{sha}".encode()))

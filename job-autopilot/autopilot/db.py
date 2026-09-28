@@ -18,7 +18,14 @@ def get_engine() -> Engine:
     global _engine, _SessionLocal
     if _engine is None:
         url = get_config().database_url
-        _engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True)
+        # Bounded network behaviour: without these, a connection that died during a network partition
+        # can block for the kernel's TCP retransmission timeout (~15 min) - seen in the partition drill.
+        connect_args = {}
+        if url.startswith("postgresql"):
+            connect_args = {"connect_timeout": 10, "keepalives": 1, "keepalives_idle": 20, "keepalives_interval": 5,
+                            "keepalives_count": 3, "tcp_user_timeout": 30000}
+        _engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5, pool_recycle=1800,
+                                pool_timeout=30, connect_args=connect_args, future=True)
         _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     return _engine
 
@@ -65,6 +72,8 @@ def init_db() -> None:
     from .connectors.registry import sync_platform_registry
 
     with session_scope() as s:
+        # web, scheduler and workers start together: serialise the registry upsert (race seen on cold start)
+        s.execute(text("SELECT pg_advisory_xact_lock(4242002)"))
         sync_platform_registry(s)
 
 

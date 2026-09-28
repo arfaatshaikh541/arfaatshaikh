@@ -175,7 +175,10 @@ class ApplicationRunner:
             except DestinationRefused as e:
                 transition(s, app, S.FAILED, worker_id=wid, reason=f"Destination refused: {e}")
                 return RunResult(S.FAILED.value, str(e))
-            cv_path = os.path.join(tmpdir, re.sub(r"[^\w.-]", "_", cv.filename))
+            safe = re.sub(r"[^\w.-]", "_", os.path.basename(cv.filename)).lstrip(".") or "cv"
+            cv_path = os.path.join(tmpdir, safe)
+            if os.path.dirname(os.path.abspath(cv_path)) != os.path.abspath(tmpdir):
+                raise ValueError("unsafe CV filename")
             with open(cv_path, "wb") as fh:
                 fh.write(read_cv(cv))
             os.chmod(cv_path, 0o600)

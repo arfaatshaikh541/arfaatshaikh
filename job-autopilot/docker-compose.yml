@@ -1,58 +1,101 @@
-# JOB AUTOPILOT — local / single-server deployment.
-#   1. cp .env.example .env   and set POSTGRES_PASSWORD
+# JOB AUTOPILOT — single-server cloud deployment (runs 24/7 without your laptop).
+#   1. cp .env.example .env   and set POSTGRES_PASSWORD, JOBAP_PUBLIC_BASE_URL, JOBAP_DOMAIN
 #   2. docker compose build && mkdir -p secrets
 #      docker run --rm job-autopilot:latest gen-master-key > secrets/master.key
 #      sudo chown 1001:1001 secrets/master.key && sudo chmod 600 secrets/master.key
-#   3. docker compose up -d
+#   3. docker compose --profile tls up -d        (or without --profile tls if you run your own TLS proxy)
 #   4. docker compose exec web autopilot create-admin --email you@example.com
-# The web UI listens on 127.0.0.1:8000 only; put a TLS reverse proxy in front (see docs/DEPLOYMENT.md).
+# Nothing but 80/443 (Caddy) and 127.0.0.1:8000 (web) is published. Worker session ports (9310) and
+# PostgreSQL stay on the internal network. Chromium has no remote-debugging port (Playwright uses a pipe).
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "20m", max-file: "5"}
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  read_only: true
+  tmpfs: ["/tmp:size=512m,mode=1777"]
+
 x-app: &app
   build: .
   image: job-autopilot:latest
   restart: unless-stopped
   init: true
+  logging: *logging
   env_file: .env
   environment:
     JOBAP_DATABASE_URL: postgresql+psycopg://autopilot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/autopilot
     JOBAP_MASTER_KEY_FILE: /run/secrets/master_key
     JOBAP_DATA_DIR: /data
+    JOBAP_ENVIRONMENT: ${JOBAP_ENVIRONMENT:-production}
+    JOBAP_PUBLIC_BASE_URL: ${JOBAP_PUBLIC_BASE_URL:-}
   secrets: [master_key]
   volumes: [appdata:/data]
   depends_on:
     postgres: {condition: service_healthy}
 
+x-heartbeat-check: &heartbeat_check
+  test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/tmp/jobap-heartbeat')<120 else 1)"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 60s
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine   # official image (mirror; avoids Docker Hub limits)
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: autopilot
       POSTGRES_DB: autopilot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes: [pgdata:/var/lib/postgresql/data]
+    security_opt: ["no-new-privileges:true"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U autopilot -d autopilot"]
       interval: 5s
       retries: 20
 
   web:
-    <<: *app
+    <<: [*app, *hardening]
     command: ["web", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["127.0.0.1:8000:8000"]
 
   scheduler:
-    <<: *app
+    <<: [*app, *hardening]
     command: ["scheduler"]
-    healthcheck: {disable: true}
+    healthcheck: *heartbeat_check
     stop_grace_period: 30s
 
   worker:
-    <<: *app
+    <<: [*app, *hardening]
     command: ["worker"]
-    healthcheck: {disable: true}
+    environment:
+      JOBAP_DATABASE_URL: postgresql+psycopg://autopilot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/autopilot
+      JOBAP_MASTER_KEY_FILE: /run/secrets/master_key
+      JOBAP_DATA_DIR: /data
+      JOBAP_ENVIRONMENT: ${JOBAP_ENVIRONMENT:-production}
+      JOBAP_PUBLIC_BASE_URL: ${JOBAP_PUBLIC_BASE_URL:-}
+      JOBAP_SESSION_SERVER_PORT: "9310"      # internal network only - deliberately NOT published
+    expose: ["9310"]
+    healthcheck: *heartbeat_check
     shm_size: "1gb"          # Chromium needs more than Docker's 64 MB default
+    tmpfs: ["/tmp:size=1g,mode=1777"]
     stop_grace_period: 2m    # let an in-flight application finish its state transition
     # scale with: docker compose up -d --scale worker=2
+
+  caddy:                     # optional TLS reverse proxy: docker compose --profile tls up -d
+    profiles: ["tls"]
+    image: public.ecr.aws/docker/library/caddy:2
+    restart: unless-stopped
+    logging: *logging
+    ports: ["80:80", "443:443"]
+    environment:
+      JOBAP_DOMAIN: ${JOBAP_DOMAIN:-localhost}
+    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    depends_on: [web]
 
 secrets:
   master_key:
@@ -61,3 +104,5 @@ secrets:
 volumes:
   pgdata:
   appdata:
+  caddy_data:
+  caddy_config:

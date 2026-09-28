@@ -31,7 +31,8 @@ class Config(BaseSettings):
     headless: bool = True
     secure_cookies: bool = True
     session_hours: int = 12
-    worker_id: str = Field(default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}")
+    # Unique per process start (in containers the PID is always the same, so add randomness).
+    worker_id: str = Field(default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}-{os.urandom(2).hex()}")
     max_upload_mb: int = 10
     log_level: str = "INFO"
     # Seconds a claimed task is leased before another worker may reclaim it. Workers renew the

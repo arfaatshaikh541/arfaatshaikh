@@ -110,9 +110,12 @@ def _send_telegram(s: Session, n: Notification) -> None:
     if owner is None:
         raise ChannelNotConfigured("no admin user")
     with use_credential(s, owner.id, "notify:telegram") as (_, token):
-        r = httpx.post(f"{ns.telegram_api_base.rstrip('/')}/bot{token}/sendMessage",
-                       json={"chat_id": ns.telegram_chat_id, "text": _text(n)[:4000],
-                             "disable_web_page_preview": True}, timeout=20)
+        try:
+            r = httpx.post(f"{ns.telegram_api_base.rstrip('/')}/bot{token}/sendMessage",
+                           json={"chat_id": ns.telegram_chat_id, "text": _text(n)[:4000],
+                                 "disable_web_page_preview": True}, timeout=20)
+        except Exception as e:  # the token is part of the URL: sanitise while it is still registered
+            raise RuntimeError(redact(f"{type(e).__name__}: {e}")) from None
     if r.status_code != 200 or not r.json().get("ok"):
         raise RuntimeError(f"Telegram API HTTP {r.status_code}: {r.text[:200]}")
 

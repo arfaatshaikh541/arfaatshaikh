@@ -24,7 +24,9 @@ def system_health(s: Session) -> dict[str, Any]:
     auto = load(s, AutomationSettings)
     h["automation_state"] = auto.state
     h["mode"] = "LIVE MODE" if auto.mode == "LIVE" else "DRY RUN"
-    beats = s.scalars(select(WorkerHeartbeat)).all()
+    # Only processes seen in the last hour; older identities are previous (restarted) processes.
+    beats = s.scalars(select(WorkerHeartbeat).where(
+        WorkerHeartbeat.last_seen > utcnow() - dt.timedelta(hours=1))).all()
     sched = [b for b in beats if b.kind == "scheduler" and _age(b.last_seen) is not None and _age(b.last_seen) < 90]
     h["scheduler"] = "RUNNING" if sched else "NOT RUNNING"
     workers = [b for b in beats if b.kind == "worker"]

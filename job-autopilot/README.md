@@ -14,7 +14,7 @@ laptop is off. You manage it from a browser or phone through the dashboard.
 |---|---|
 | Discovery from Greenhouse, Lever and Ashby employer boards (official public APIs) | Implemented. Unit-tested against the documented API shapes. **Live fetch not yet validated from the build environment (egress blocked).** |
 | Applying via Greenhouse/Lever/Ashby hosted application forms (Playwright/Chromium) | Implemented generic form engine. Tested end-to-end against local fixture forms. **Live submission on a real employer board not yet validated.** |
-| CAPTCHA / OTP / MFA | Detected and recorded as `VERIFICATION_REQUIRED`. **Never bypassed.** |
+| CAPTCHA / OTP / MFA | Detected → `VERIFICATION_REQUIRED`; the browser is held and you complete it yourself from your phone, then automation resumes. **Never bypassed.** |
 | Employer portal login test (you supply login URL + selectors + success indicator) | Implemented; CONNECTED only when the indicator is observed. |
 | LinkedIn, Indeed, Bayt, GulfTalent, Naukrigulf | **NOT AUTOMATABLE**: their terms prohibit automated use. No connector exists. |
 | AI provider (Anthropic / OpenAI / Ollama) | Optional, for narrative answers only. Every output passes the grounding validator. Default: NOT CONFIGURED. |
@@ -29,6 +29,8 @@ items have been verified and which still need live validation on your server.
 * [`docs/PLATFORMS.md`](docs/PLATFORMS.md): per-platform assessment
 * [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): production deployment
 * [`docs/OPERATIONS.md`](docs/OPERATIONS.md): first-time setup and daily use
+* [`docs/CLOUD_RUNTIME.md`](docs/CLOUD_RUNTIME.md): 24/7 runtime, remote browser, human verification from your phone, recovery
+* [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md): security review of the cloud runtime
 
 ## Quick start (server)
 
@@ -38,7 +40,7 @@ docker compose build
 mkdir -p secrets
 docker run --rm job-autopilot:latest gen-master-key > secrets/master.key
 sudo chown 1001:1001 secrets/master.key && sudo chmod 600 secrets/master.key  # back this file up!
-docker compose up -d
+docker compose --profile tls up -d     # Caddy obtains HTTPS for JOBAP_DOMAIN
 docker compose exec web autopilot create-admin --email you@example.com
 ```
 
