@@ -1,0 +1,10 @@
+<!doctype html><html><body style="margin:0;font:14px sans-serif;background:#f9f9f9">
+<!-- Test fixture standing in for a human-verification widget. Only a click by the human (relayed through the
+     remote session) completes it; the automation code never touches it. -->
+<button id="b" style="position:absolute;left:10px;top:10px;width:200px;height:50px">I'm not a robot</button>
+<script>
+document.getElementById('b').addEventListener('click', function () {
+  parent.document.querySelector('textarea[name="g-recaptcha-response"]').value = 'fixture-token-' + Date.now();
+  this.textContent = 'Verified';
+});
+</script></body></html>

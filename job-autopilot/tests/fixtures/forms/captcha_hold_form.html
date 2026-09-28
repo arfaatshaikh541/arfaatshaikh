@@ -1,0 +1,19 @@
+<!doctype html><html><head><title>Fixture Role - challenge fixture</title>
+<style>body{margin:0;font:16px sans-serif} #cap{position:absolute;left:20px;top:300px;width:304px;height:78px;border:0}</style></head><body>
+<h1>Fixture Role</h1><p>Fixture Co</p>
+<form id="f" novalidate>
+  <div><label for="fn">First Name *</label><input id="fn" name="first_name" required></div>
+  <div><label for="em">Email *</label><input id="em" type="email" name="email" required></div>
+  <textarea name="g-recaptcha-response" style="display:none"></textarea>
+  <iframe id="cap" src="/recaptcha/api2/anchor-hold" title="reCAPTCHA"></iframe>
+  <div style="height:420px"></div>
+  <button type="submit">Submit application</button>
+</form>
+<script>
+document.getElementById('f').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!document.querySelector('textarea[name="g-recaptcha-response"]').value) return;
+  fetch('/submit-log?' + new URLSearchParams({form: 'hold', fn: e.target.first_name.value}))
+    .then(() => { location.href = '/confirmation.html'; });
+});
+</script></body></html>

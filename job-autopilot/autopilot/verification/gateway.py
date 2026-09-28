@@ -118,6 +118,7 @@ def hold(server: SessionServer, vid: int, page_provider: Callable[[], Page], dea
                     vr = s.get(VerificationRequest, vid, with_for_update=True)
                     if vr.status == VS.CANCELLED.value:
                         return HoldResult("CANCELLED", "Cancelled from the dashboard")
+                    deadline = min(deadline, vr.expires_at)  # expiry may be shortened from the DB
                     if ch.ever_connected and not connected_recorded:
                         connected_recorded = True
                         vr.status, vr.human_connected_at = VS.HUMAN_CONNECTED.value, utcnow()

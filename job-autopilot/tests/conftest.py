@@ -25,6 +25,9 @@ def _env(tmp_path_factory):
     # 'test': LIVE code paths run, but every browser destination must be a local fixture.
     os.environ["JOBAP_ENVIRONMENT"] = "test"
     os.environ["JOBAP_SESSION_SERVER_PORT"] = "0"
+    chrome = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"  # this build image's Chromium
+    if os.path.exists(chrome) and not os.environ.get("JOBAP_BROWSER_EXECUTABLE"):
+        os.environ["JOBAP_BROWSER_EXECUTABLE"] = chrome
     from autopilot.config import reset_config_cache
     from autopilot.db import reset_engine
 
@@ -48,7 +51,7 @@ def clean_db():
     from autopilot.models import Base
     from autopilot.connectors.registry import sync_platform_registry
 
-    names = ", ".join(t.name for t in Base.metadata.sorted_tables)
+    names = ", ".join(t.name for t in Base.metadata.sorted_tables if t.name != "schema_migrations")
     with get_engine().begin() as c:
         c.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
     with session_scope() as s:

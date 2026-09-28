@@ -6,6 +6,8 @@ inside a transaction, and is recorded in ``schema_migrations``.
 """
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
@@ -32,10 +34,15 @@ def run_migrations(engine: Engine) -> list[str]:
         # Serialise concurrent starters (web + scheduler + workers boot together).
         c.execute(text("SELECT pg_advisory_xact_lock(4242001)"))
         done = {r[0] for r in c.execute(text("SELECT id FROM schema_migrations"))}
-        for mid, stmts in MIGRATIONS:
-            if mid in done:
-                continue
+        pending = [m for m in MIGRATIONS if m[0] not in done]
+        if not pending:  # common case: take no table locks at all
+            return applied
+        for mid, stmts in pending:
             for sql in stmts:
+                m = re.match(r"ALTER TABLE (\w+) ADD COLUMN IF NOT EXISTS (\w+)", sql)
+                if m and c.execute(text("SELECT 1 FROM information_schema.columns WHERE table_name=:t "
+                                        "AND column_name=:c"), {"t": m.group(1), "c": m.group(2)}).first():
+                    continue  # column already there: skip the ACCESS EXCLUSIVE lock an ALTER would take
                 c.execute(text(sql))
             c.execute(text("INSERT INTO schema_migrations (id) VALUES (:i)"), {"i": mid})
             applied.append(mid)
