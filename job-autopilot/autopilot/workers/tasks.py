@@ -18,6 +18,7 @@ from ..models import (
     Application, ApplicationStatus as S, CandidateProfile, Job, JobMatch, JobSource, Platform, utcnow,
 )
 from ..profile.service import active_cv, knowledge, preferences, rules
+from ..ratelimit import RateLimited
 from ..settings_store import AutomationSettings, load
 from ..state import log_event, transition
 from .queue import enqueue
@@ -64,6 +65,8 @@ def handle_discover(payload: dict, worker_id: str) -> dict:
     http = PoliteClient(min_interval_s=auto.request_min_interval_seconds)
     try:
         jobs = connector_cls(http).fetch(identifier, options)
+    except RateLimited as e:
+        raise Defer(e.wait_s + 1, str(e)) from e
     except (TransientError, PermanentError) as e:
         with session_scope() as s:
             src = s.get(JobSource, sid)

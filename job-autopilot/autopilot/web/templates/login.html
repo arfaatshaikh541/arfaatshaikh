@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<div class="card" style="max-width:380px;margin:40px auto"><h1>JOB AUTOPILOT</h1>
+{% if error %}<p class="bad">{{ error }}</p>{% endif %}
+<form method="post" action="/login"><label>Email</label><input name="email" type="email" required autocomplete="username" style="width:100%">
+<label>Password</label><input name="password" type="password" required autocomplete="current-password" style="width:100%"><p><button class="primary">Log in</button></p></form>
+<p class="muted">Admin accounts are created on the server with <code>autopilot create-admin</code>.</p></div>{% endblock %}

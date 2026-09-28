@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Reports</h1><div class="card">{% if not reports %}<p>No reports generated yet.</p>{% else %}<table><tr><th>Date</th><th>Generated</th><th>Trigger</th><th>LIVE submitted</th><th>Discovered</th></tr>
+{% for r in reports %}<tr><td><a href="/reports/{{ r.id }}">{{ r.report_date }}</a></td><td>{{ ts(r.generated_at) }}</td><td>{{ r.trigger }}</td><td>{{ r.data.live.submitted }}</td><td>{{ r.data.jobs_discovered }}</td></tr>{% endfor %}</table>{% endif %}</div>{% endblock %}

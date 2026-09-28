@@ -1,0 +1,8 @@
+{% macro badge(s) -%}
+{%- set good = ['SUBMITTED','VERIFIED','CONNECTED','HEALTHY','RUNNING','MATCH','VERIFIED FACT','APPLY','DONE','NO_LOGIN_REQUIRED','ANSWERED'] -%}
+{%- set bad = ['FAILED','LOGIN_FAILED','DOES NOT MATCH','DISQUALIFIED','NOT_AUTOMATABLE','NOT RUNNING','REJECTED','SKIP','CONFLICT','STOPPED'] -%}
+{%- set warn = ['UNKNOWN','VERIFICATION_REQUIRED','NEEDS_REVIEW','NOT VERIFIED','PARTIAL','REVIEW','EXTRACTED','INFERRED','PAUSED','NOT_CONFIGURED','NOT CONFIGURED','PENDING'] -%}
+<span class="b {{ 'ok' if s in good else 'bad' if s in bad else 'warn' if s in warn else 'info' }}">{{ s if s is not none else 'UNKNOWN' }}</span>
+{%- endmacro %}
+{% macro u(v) %}{{ v if v not in (none, '') else 'UNKNOWN' }}{% endmacro %}
+{% macro ts(v) %}{{ v.strftime('%Y-%m-%d %H:%M UTC') if v else '—' }}{% endmacro %}

@@ -240,3 +240,50 @@ def test_report_counts_come_from_db_and_separate_modes(s):
     assert r.data["dry_run"]["submitted"] == 0 and r.data["dry_run"]["dry_run_complete"] == 1
     assert "Applications submitted:   1" in r.text
     assert s.scalar(select(func.count(Report.id))) == 2
+
+
+def test_long_rate_limit_defers_instead_of_blocking(monkeypatch):
+    from autopilot.ratelimit import RateLimited, penalize, reserve_slot
+    from autopilot.workers.runtime import Worker
+
+    reserve_slot("host:slow.example", 1)
+    penalize("host:slow.example", retry_after_s=600)
+    with pytest.raises(RateLimited):
+        reserve_slot("host:slow.example", 1, max_wait_s=30)
+    from autopilot.connectors import discovery
+    from autopilot.connectors.base import DiscoveryConnector
+
+    class Slow(DiscoveryConnector):
+        def fetch(self, identifier, options):
+            return self.http.get_json("https://slow.example/jobs")
+
+    monkeypatch.setitem(discovery.DISCOVERY_CONNECTORS, "greenhouse", Slow)
+    with session_scope() as ss:
+        src = JobSource(connector="greenhouse", identifier="slow")
+        ss.add(src)
+        ss.flush()
+        queue.enqueue(ss, "discover", {"source_id": src.id}, dedupe_key="d:slow")
+    import time
+
+    t0 = time.monotonic()
+    assert Worker().run_once()
+    assert time.monotonic() - t0 < 10  # did not sit in a 10-minute sleep
+    with session_scope() as ss:
+        t = ss.scalar(select(Task).where(Task.dedupe_key == "d:slow"))
+        assert t.status == "PENDING" and t.attempts == 0 and "deferred" in t.last_error
+        assert t.run_after > utcnow() + dt.timedelta(minutes=5)
+
+
+def test_shutdown_interrupts_waits():
+    import time
+
+    from autopilot.lifecycle import STOP, ShuttingDown, sleep
+
+    STOP.set()
+    try:
+        t0 = time.monotonic()
+        with pytest.raises(ShuttingDown):
+            sleep(600)
+        assert time.monotonic() - t0 < 1
+    finally:
+        STOP.clear()

@@ -3,16 +3,28 @@ from __future__ import annotations
 
 import datetime as dt
 import random
-import time
 
 from sqlalchemy import select
 
 from .db import session_scope
+from .lifecycle import sleep
 from .models import RateLimitBucket, utcnow
 
 
-def reserve_slot(key: str, min_interval_s: float) -> float:
-    """Reserve the next request slot for ``key``; returns seconds the caller must wait."""
+class RateLimited(Exception):
+    """The next permitted request is too far away to wait for inline; reschedule the work."""
+
+    def __init__(self, key: str, wait_s: float):
+        super().__init__(f"rate limit for {key}: next slot in {wait_s:.0f}s")
+        self.wait_s = wait_s
+
+
+def reserve_slot(key: str, min_interval_s: float, max_wait_s: float | None = None) -> float:
+    """Reserve the next request slot for ``key``; returns seconds the caller must wait.
+
+    If ``max_wait_s`` is given and the slot is further away, nothing is reserved and
+    RateLimited is raised so the caller can defer instead of holding a worker.
+    """
     with session_scope() as s:
         b = s.scalar(select(RateLimitBucket).where(RateLimitBucket.key == key).with_for_update())
         now = utcnow()
@@ -21,16 +33,15 @@ def reserve_slot(key: str, min_interval_s: float) -> float:
             s.add(b)
             s.flush()
         start = max(now, b.next_allowed_at)
+        wait = max(0.0, (start - now).total_seconds())
+        if max_wait_s is not None and wait > max_wait_s:
+            raise RateLimited(key, wait)
         b.next_allowed_at = start + dt.timedelta(seconds=min_interval_s + b.backoff_seconds)
-        return max(0.0, (start - now).total_seconds())
+        return wait
 
 
-def wait_for_slot(key: str, min_interval_s: float, max_wait_s: float = 600) -> None:
-    wait = reserve_slot(key, min_interval_s)
-    if wait > max_wait_s:
-        raise TimeoutError(f"Rate limit wait for {key} exceeds {max_wait_s}s")
-    if wait:
-        time.sleep(wait)
+def wait_for_slot(key: str, min_interval_s: float, max_inline_wait_s: float = 30) -> None:
+    sleep(reserve_slot(key, min_interval_s, max_inline_wait_s))
 
 
 def penalize(key: str, retry_after_s: float | None = None) -> None:

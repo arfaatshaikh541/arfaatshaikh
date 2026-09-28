@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Overview</h1>
+{% if not setup.active_cv or not setup.target_roles or not setup.sources or setup.verified_facts == 0 %}
+<div class="card"><h2>Setup incomplete</h2><ul>
+{% if setup.verified_facts == 0 %}<li>No VERIFIED candidate facts. <a href="/profile">Add or confirm your profile facts</a>.</li>{% endif %}
+{% if setup.unconfirmed_facts %}<li>{{ setup.unconfirmed_facts }} facts extracted from your CV await confirmation (<a href="/profile">review</a>). They are not used until confirmed.</li>{% endif %}
+{% if not setup.active_cv %}<li>No CV uploaded. <a href="/cv">Upload your CV</a>.</li>{% endif %}
+{% if not setup.target_roles %}<li>No target roles configured; nothing will be auto-applied. <a href="/profile">Edit preferences</a>.</li>{% endif %}
+{% if not setup.sources %}<li>No job sources. <a href="/sources">Add employer boards</a>.</li>{% endif %}</ul></div>{% endif %}
+<div class="grid">
+<div class="card"><div class="muted">Jobs discovered today</div><div class="num">{{ counts.jobs_discovered }}</div></div>
+<div class="card"><div class="muted">Jobs evaluated today</div><div class="num">{{ counts.jobs_evaluated }}</div></div>
+<div class="card"><div class="muted">Applications submitted today (LIVE)</div><div class="num">{{ counts.live.submitted }}</div></div>
+<div class="card"><div class="muted">Applications submitted, all time (LIVE)</div><div class="num">{{ totals.live_submitted }}</div></div>
+<div class="card"><div class="muted">Dry-run forms completed today</div><div class="num">{{ counts.dry_run.dry_run_complete }}</div></div>
+<div class="card"><div class="muted">Pending review / unknown / verification</div><div class="num">{{ counts.pending.NEEDS_REVIEW }} / {{ counts.pending.UNKNOWN }} / {{ counts.pending.VERIFICATION_REQUIRED }}</div></div>
+</div>
+<div class="card"><h2>Live system status</h2><dl class="kv">
+<dt>Database</dt><dd>{{ badge(health.database) }}</dd><dt>Automation</dt><dd>{{ badge(health.automation_state) }} {{ health.mode }}</dd>
+<dt>Scheduler</dt><dd>{{ badge(health.scheduler) }}</dd><dt>Workers</dt><dd>{{ health.workers }}</dd><dt>Browser</dt><dd>{{ health.browser_workers }}</dd>
+<dt>Credential vault</dt><dd>{{ health.credential_vault }}</dd><dt>AI provider</dt><dd>{{ health.ai_provider }}</dd>
+<dt>Last successful discovery</dt><dd>{{ ts(health.last_successful_discovery) }}</dd><dt>Last successful application</dt><dd>{{ ts(health.last_successful_application) }}</dd>
+<dt>Last report</dt><dd>{{ ts(health.last_report) }}</dd></dl></div>
+<div class="grid"><div class="card"><h2>Platforms</h2><table>{% for p in health.platforms %}<tr><td>{{ p.name }}</td><td>{{ badge(p.status) }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Job sources</h2>{% if not health.job_sources %}<p class="muted">None configured.</p>{% endif %}<table>
+{% for j in health.job_sources %}<tr><td>{{ j.connector }}:{{ j.identifier }}</td><td>{{ 'enabled' if j.enabled else 'disabled' }}</td><td>{{ ts(j.last_success_at) }}</td><td class="bad">{{ j.last_error or '' }}</td></tr>{% endfor %}</table></div></div>
+<div class="card"><h2>Applications by status ({{ auto.mode }})</h2>{% if not totals.by_status %}<p>0 applications.</p>{% endif %}
+{% for k, v in totals.by_status.items() %}<a href="/applications?status={{ k }}&mode={{ auto.mode }}">{{ badge(k) }} {{ v }}</a> {% endfor %}</div>
+{% endblock %}

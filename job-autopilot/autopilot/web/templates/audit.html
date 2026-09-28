@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Audit log</h1><div class="card scroll">{% if not rows %}<p>No entries.</p>{% else %}<table><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>IP</th><th>Detail</th></tr>
+{% for r in rows %}<tr><td>{{ ts(r.ts) }}</td><td>{{ r.actor }}</td><td>{{ r.action }}</td><td>{{ r.target or '' }}</td><td>{{ r.ip or '' }}</td><td class="muted">{{ r.detail | tojson }}</td></tr>{% endfor %}</table>{% endif %}</div>{% endblock %}

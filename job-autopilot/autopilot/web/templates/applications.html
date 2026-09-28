@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Applications</h1>
+<form class="row card" method="get"><div><label>Status</label><select name="status"><option value="">all</option>{% for s in statuses %}<option {{ 'selected' if s == status }}>{{ s }}</option>{% endfor %}</select></div>
+<div><label>Mode</label><select name="mode"><option value="">all</option><option {{ 'selected' if mode=='LIVE' }}>LIVE</option><option {{ 'selected' if mode=='DRY_RUN' }}>DRY_RUN</option></select></div><button>Filter</button></form>
+<div class="card scroll">{% if not apps %}<p>0 applications.</p>{% else %}<table><tr><th>ID</th><th>Mode</th><th>Status</th><th>Company</th><th>Position</th><th>Platform</th><th>Updated</th><th>Reason</th></tr>
+{% for a in apps %}<tr><td><a href="/applications/{{ a.id }}">#{{ a.id }}</a></td><td>{{ a.mode }}</td><td>{{ badge(a.status) }}</td><td>{{ u(a.job.company) }}</td><td>{{ a.job.title }}</td><td>{{ a.job.platform }}</td><td>{{ ts(a.updated_at) }}</td><td class="muted">{{ (a.status_reason or '')[:160] }}</td></tr>{% endfor %}</table>{% endif %}</div>{% endblock %}

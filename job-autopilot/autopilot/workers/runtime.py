@@ -12,6 +12,7 @@ from sqlalchemy import func, select, text
 from ..audit import record_error, system_event
 from ..config import get_config
 from ..db import get_engine, session_scope
+from ..lifecycle import STOP, ShuttingDown
 from ..models import (
     Application, ApplicationStatus as S, Job, JobSource, Report, Task, TaskStatus, WorkerHeartbeat, utcnow,
 )
@@ -36,12 +37,17 @@ def heartbeat(worker_id: str, kind: str, current_task: int | None = None, info: 
 
 
 class _Stop:
-    flag = False
+    @property
+    def flag(self) -> bool:
+        return STOP.is_set()
+
+
+_Stop = _Stop()
 
 
 def _install_signals() -> None:
     def h(*_):
-        _Stop.flag = True
+        STOP.set()
 
     signal.signal(signal.SIGTERM, h)
     signal.signal(signal.SIGINT, h)
@@ -106,7 +112,7 @@ def run_scheduler(poll_s: float = 20.0) -> None:
         if got:
             break
         log.info("another scheduler is leader; standing by", extra={"worker_id": wid, "event": "standby"})
-        time.sleep(poll_s)
+        STOP.wait(poll_s)
     with session_scope() as s:
         system_event(s, "scheduler", "started", wid)
     try:
@@ -124,7 +130,7 @@ def run_scheduler(poll_s: float = 20.0) -> None:
                         record_error(s, "scheduler", e, worker_id=wid)
                 except Exception:
                     pass
-            time.sleep(max(1.0, poll_s - (time.monotonic() - t0)))
+            STOP.wait(max(1.0, poll_s - (time.monotonic() - t0)))
     finally:
         with session_scope() as s:
             system_event(s, "scheduler", "stopped", wid)
@@ -169,6 +175,19 @@ class Worker:
             with session_scope() as s:
                 r = generate(s, dt.date.fromisoformat(t.payload["date"]), trigger=t.payload.get("trigger", "scheduled"))
                 return {"report_id": r.id}
+        if t.type == "login_test":
+            from ..browser.login import run_login_test
+
+            self.runner()  # ensures the browser manager exists
+            with session_scope() as s:
+                r = run_login_test(s, t.payload["user_id"], t.payload["platform_key"], self._browsers)
+                return {"status": r.status, "reason": r.reason}
+        if t.type == "ai_health":
+            from ..ai.providers import ProviderHandle
+
+            with session_scope() as s:
+                ok, msg = ProviderHandle(s, t.payload["user_id"]).health_check()
+                return {"ok": ok, "message": msg}
         if t.type == "apply":
             app_id = t.payload["application_id"]
             with session_scope() as s:
@@ -204,6 +223,10 @@ class Worker:
         except Defer as d:
             with session_scope() as s:
                 queue.defer(s, s.get(Task, tid), d.seconds, d.why)
+        except ShuttingDown:
+            # Only reachable from interruptible waits (discovery/backoff), never mid-submission.
+            with session_scope() as s:
+                queue.defer(s, s.get(Task, tid), 5, "worker shutting down")
         except Exception as e:
             retry = backoff_delay(attempts, 60) if isinstance(e, Retryable) else None
             with session_scope() as s:
@@ -227,10 +250,10 @@ class Worker:
                 except Exception:
                     log.exception("worker loop error", extra={"worker_id": self.worker_id})
                     worked = False
-                    time.sleep(10)
+                    STOP.wait(10)
                 if not worked:
                     heartbeat(self.worker_id, "worker", None, self.browser_health())
-                    time.sleep(idle_s)
+                    STOP.wait(idle_s)
         finally:
             if self._browsers is not None:
                 self._browsers.close()

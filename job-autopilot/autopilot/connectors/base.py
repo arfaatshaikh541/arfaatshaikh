@@ -4,13 +4,13 @@ from __future__ import annotations
 import datetime as dt
 import html
 import re
-import time
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from ..lifecycle import sleep
 from ..ratelimit import penalize, relax, wait_for_slot
 
 USER_AGENT = "JobAutopilot/0.1 (candidate-operated job search; respects rate limits)"
@@ -95,7 +95,7 @@ class PoliteClient:
             except (httpx.TimeoutException, httpx.TransportError) as e:
                 last = TransientError(f"{type(e).__name__} fetching {url}")
                 penalize(f"host:{host}")
-                time.sleep(min(60, 2**attempt))
+                sleep(min(30, 2**attempt))
                 continue
             if r.status_code == 200:
                 relax(f"host:{host}")
@@ -107,7 +107,7 @@ class PoliteClient:
                 ra = r.headers.get("retry-after")
                 penalize(f"host:{host}", float(ra) if ra and ra.isdigit() else None)
                 last = TransientError(f"HTTP {r.status_code} from {url}")
-                time.sleep(min(120, 2**attempt))
+                sleep(min(30, 2**attempt))
                 continue
             if r.status_code in (401, 403):
                 raise PermanentError(f"HTTP {r.status_code} (access denied) from {url}")

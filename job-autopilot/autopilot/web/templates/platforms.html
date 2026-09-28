@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Platforms</h1><p class="muted">Statuses come from real checks. CONNECTED is shown only after a real login succeeded.</p>
+{% for p in platforms %}<div class="card"><h2>{{ p.name }} {{ badge(p.status) }}</h2><p>{{ p.notes }}</p>
+{% if p.status_reason and p.automatable %}<p class="muted">Last result: {{ p.status_reason }} ({{ ts(p.last_tested_at) }})</p>{% endif %}
+{% if p.automatable and p.requires_login %}<p>Credential: {{ ('stored for ' ~ (creds[p.key].username or '(no username)')) if p.key in creds else 'NOT CONFIGURED' }} — <a href="/credentials">manage</a></p>
+<form method="post" action="/platforms/{{ p.key }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="config"><div class="grid">
+<div><label>Login URL</label><input name="login_url" value="{{ p.config.login_url or '' }}" required style="width:100%"></div><div><label>Username field selector</label><input name="username_selector" value="{{ p.config.username_selector or '' }}" required></div>
+<div><label>Password field selector</label><input name="password_selector" value="{{ p.config.password_selector or '' }}" required></div><div><label>Submit button selector</label><input name="submit_selector" value="{{ p.config.submit_selector or '' }}" required></div>
+<div><label>Success element selector</label><input name="success_selector" value="{{ p.config.success_selector or '' }}"></div><div><label>Success URL regex</label><input name="success_url_regex" value="{{ p.config.success_url_regex or '' }}"></div></div><p><button>Save configuration</button></p></form>
+<form method="post" action="/platforms/{{ p.key }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="test_login" class="primary">TEST LOGIN</button></form>{% endif %}</div>{% endfor %}{% endblock %}

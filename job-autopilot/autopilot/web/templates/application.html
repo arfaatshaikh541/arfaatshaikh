@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Application #{{ a.id }} {{ badge(a.status) }} <span class="b info">{{ a.mode }}</span></h1>
+<div class="grid"><div class="card"><h2>Job</h2><dl class="kv"><dt>Company</dt><dd>{{ u(job.company) }}</dd><dt>Position</dt><dd><a href="/jobs/{{ job.id }}">{{ job.title }}</a></dd>
+<dt>Platform</dt><dd>{{ job.platform }}</dd><dt>Job ID</dt><dd>{{ job.external_id }}</dd><dt>Job URL</dt><dd><a href="{{ job.url }}" rel="noreferrer noopener">{{ job.url }}</a></dd>
+<dt>Location</dt><dd>{{ u(job.location) }}</dd><dt>Discovered</dt><dd>{{ ts(job.discovered_at) }}</dd><dt>Evaluated</dt><dd>{{ ts(match.evaluated_at) if match else '—' }}</dd></dl></div>
+<div class="card"><h2>Record</h2><dl class="kv"><dt>Status reason</dt><dd>{{ a.status_reason or '—' }}</dd><dt>Queued</dt><dd>{{ ts(a.queued_at) }}</dd><dt>Started</dt><dd>{{ ts(a.started_at) }}</dd>
+<dt>Submitted</dt><dd>{{ ts(a.submitted_at) }}</dd><dt>External application ID</dt><dd>{{ a.external_application_id or 'none detected' }}</dd>
+<dt>CV version</dt><dd>{{ ('v%d (%s, sha256 %s…)' % (cv.version, cv.filename, cv.sha256[:12])) if cv else 'none' }}</dd><dt>Retry count</dt><dd>{{ a.retry_count }}</dd>
+<dt>Browser session</dt><dd>{{ a.browser_session_id or '—' }}</dd><dt>Worker</dt><dd>{{ a.worker_id or '—' }}</dd><dt>Last error</dt><dd class="bad">{{ a.last_error or '' }}</dd></dl></div></div>
+<div class="card"><h2>Actions</h2><div class="row">
+{% if a.status in ['FAILED','VERIFICATION_REQUIRED','NEEDS_REVIEW','SKIPPED'] %}<form method="post" action="/applications/{{ a.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="retry" class="primary">Retry / approve</button></form>{% endif %}
+{% if a.status in ['QUEUED','NEEDS_REVIEW','EVALUATED'] %}<form method="post" action="/applications/{{ a.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="skip">Skip</button></form>{% endif %}
+{% if a.status == 'UNKNOWN' %}<form method="post" action="/applications/{{ a.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><label>Paste the confirmation you received (e.g. confirmation email text)</label><textarea name="evidence" required minlength="10"></textarea><button name="action" value="resolve_submitted">Confirm submitted</button></form>
+<form method="post" action="/applications/{{ a.id }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="resolve_failed" class="danger">Mark NOT submitted</button></form>{% endif %}</div>
+{% if a.status == 'UNKNOWN' %}<p class="warn">Status is uncertain. Check your email / the employer site before retrying, to avoid a duplicate application.</p>{% endif %}</div>
+{% if match %}<div class="card"><h2>Match analysis (score {{ match.score }} — requirement overlap, not a hiring probability)</h2><table>{% for c in match.criteria %}<tr><td>{{ c.name }}</td><td>{{ badge(c.status) }}</td><td class="muted">{{ c.detail }}</td></tr>{% endfor %}</table>
+<p>Decision: {{ badge(match.decision) }} — {{ match.decision_reasons | join('; ') }}</p></div>{% endif %}
+<div class="card scroll"><h2>Questions &amp; answers (with provenance)</h2>{% if not a.questions %}<p>No form has been read yet.</p>{% else %}<table><tr><th>Question</th><th>Type</th><th>Req.</th><th>Answer</th><th>Status</th><th>Sources / basis</th><th>Filled</th></tr>
+{% for q in a.questions %}{% set an = q.answer %}<tr><td>{{ q.label }}</td><td>{{ q.field_type }}</td><td>{{ 'yes' if q.required else '' }}</td><td>{{ an.answer_text if an and an.answer_text else '—' }}</td>
+<td>{{ badge(an.status if an else 'UNKNOWN') }}{% if an and an.fabricated_information_detected %} <span class="b bad">FABRICATION BLOCKED</span>{% endif %}</td>
+<td class="muted">{{ (an.provenance.sources | join(', ')) if an else '' }} {{ ('facts ' ~ (an.provenance.fact_ids | join(','))) if an and an.provenance.fact_ids else '' }}<br>{{ an.provenance.basis if an else '' }}
+{% if an and an.provenance.validation and an.provenance.validation.issues %}<br><span class="bad">{{ an.provenance.validation.issues | join('; ') }}</span>{% endif %}</td><td>{{ 'yes' if an and an.filled else '' }}</td></tr>{% endfor %}</table>{% endif %}</div>
+<div class="card"><h2>Evidence</h2>{% if not a.evidence %}<p>No evidence recorded.</p>{% endif %}{% for e in a.evidence %}<div class="card"><strong>{{ e.kind }}</strong> · event #{{ e.event_id }} · {{ ts(e.captured_at) }}
+{% if e.url %}<br>URL: <a href="{{ e.url }}" rel="noreferrer noopener">{{ e.url }}</a>{% endif %}{% if e.value %}<pre>{{ e.value }}</pre>{% endif %}
+{% if e.file_path %}<br><a href="/evidence/{{ e.id }}.png">View screenshot</a> (sha256 {{ e.sha256[:16] }}…){% endif %}</div>{% endfor %}</div>
+<div class="card scroll"><h2>Timeline</h2><table><tr><th>Time</th><th>Event</th><th>Transition</th><th>URL</th><th>ms</th><th>Detail</th></tr>
+{% for e in a.events %}<tr><td>{{ ts(e.ts) }}</td><td>{{ e.event }}</td><td>{{ (e.from_status or '') ~ (' → ' ~ e.to_status if e.to_status else '') }}</td><td class="muted">{{ (e.url or '')[:80] }}</td><td>{{ e.duration_ms or '' }}</td><td class="muted">{{ e.detail | tojson }}</td></tr>{% endfor %}</table></div>
+{% if errors %}<div class="card"><h2>Errors</h2>{% for e in errors %}<p><strong>{{ e.error_type }}</strong> {{ ts(e.ts) }}: {{ e.message }}</p>{% endfor %}</div>{% endif %}{% endblock %}

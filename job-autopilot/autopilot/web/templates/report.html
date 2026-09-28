@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Report {{ r.report_date }} <span class="muted">({{ r.trigger }}, generated {{ ts(r.generated_at) }})</span></h1>
+<div class="card"><pre>{{ r.text }}</pre></div><div class="card"><h2>Raw data (from database queries)</h2><pre>{{ r.data | tojson(indent=2) }}</pre></div>{% endblock %}
