@@ -1,0 +1,58 @@
+# JOB AUTOPILOT
+
+A self-hosted system that discovers real job postings, matches them against your
+**verified** candidate profile, completes employer application forms in a real
+Chromium browser with answers grounded in your own facts, and records a submission
+**only when the employer's site confirms it**.
+
+It is designed to run on a server (Docker Compose) so it keeps working while your
+laptop is off. You manage it from a browser or phone through the dashboard.
+
+## What is real, and what is not supported
+
+| Capability | Status |
+|---|---|
+| Discovery from Greenhouse, Lever and Ashby employer boards (official public APIs) | Implemented. Unit-tested against the documented API shapes. **Live fetch not yet validated from the build environment (egress blocked).** |
+| Applying via Greenhouse/Lever/Ashby hosted application forms (Playwright/Chromium) | Implemented generic form engine. Tested end-to-end against local fixture forms. **Live submission on a real employer board not yet validated.** |
+| CAPTCHA / OTP / MFA | Detected and recorded as `VERIFICATION_REQUIRED`. **Never bypassed.** |
+| Employer portal login test (you supply login URL + selectors + success indicator) | Implemented; CONNECTED only when the indicator is observed. |
+| LinkedIn, Indeed, Bayt, GulfTalent, Naukrigulf | **NOT AUTOMATABLE**: their terms prohibit automated use. No connector exists. |
+| AI provider (Anthropic / OpenAI / Ollama) | Optional, for narrative answers only. Every output passes the grounding validator. Default: NOT CONFIGURED. |
+| OCR of scanned (image-only) PDFs | NOT SUPPORTED. |
+
+See [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) for the acceptance checklist, including which
+items have been verified and which still need live validation on your server.
+
+## Documents
+
+* [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): architecture, schema, security model, workers, state machine
+* [`docs/PLATFORMS.md`](docs/PLATFORMS.md): per-platform assessment
+* [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): production deployment
+* [`docs/OPERATIONS.md`](docs/OPERATIONS.md): first-time setup and daily use
+
+## Quick start (server)
+
+```bash
+cp .env.example .env                   # set POSTGRES_PASSWORD
+docker compose build
+mkdir -p secrets
+docker run --rm job-autopilot:latest gen-master-key > secrets/master.key
+sudo chown 1001:1001 secrets/master.key && sudo chmod 600 secrets/master.key  # back this file up!
+docker compose up -d
+docker compose exec web autopilot create-admin --email you@example.com
+```
+
+Then put a TLS reverse proxy in front of `127.0.0.1:8000` (see `docs/DEPLOYMENT.md`) and
+follow `docs/OPERATIONS.md`.
+
+## Development
+
+```bash
+pip install -e '.[test]'
+export JOBAP_TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/autopilot_test
+pytest
+```
+
+Tests run against a real PostgreSQL database and a real Chromium. Browser tests use local
+HTML fixtures (`tests/fixtures/forms`). These exercise this code but are **not** a
+validation of any real platform.

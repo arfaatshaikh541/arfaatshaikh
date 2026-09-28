@@ -100,8 +100,19 @@ def find_duplicate(s: Session, job: Job) -> Job | None:
     return cand
 
 
+class InvalidJobData(ValueError):
+    pass
+
+
+def _check_url(u: str | None) -> None:
+    if u is not None and urlsplit(u).scheme not in ("http", "https"):
+        raise InvalidJobData(f"Refusing non-http(s) URL from job source: {u[:80]!r}")
+
+
 def ingest(s: Session, source_id: int | None, nj: NormalizedJob, skill_terms: list[str]) -> tuple[Job, bool]:
     """Insert or refresh a job. Returns (job, created)."""
+    _check_url(nj.url)
+    _check_url(nj.apply_url)
     job = s.scalar(
         select(Job).where(Job.platform == nj.platform, Job.board == nj.board, Job.external_id == nj.external_id)
     )

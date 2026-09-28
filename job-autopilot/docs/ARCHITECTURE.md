@@ -167,13 +167,13 @@ provided as a Docker secret file.
 | 3 Vault | `security/vault.py`, `security/redact.py` |
 | 4 CV & knowledge | `profile/cv_parser.py`, `profile/knowledge.py` |
 | 5 Q&A & grounding | `questions/`, `ai/` |
-| 6 Discovery | `connectors/greenhouse.py`, `lever.py`, `ashby.py` |
-| 7 Matching & dedup | `jobs/` |
-| 8 Browser framework | `browser/` |
-| 9–10 First connector + submission | `connectors/*_apply.py`, `browser/submit.py` |
+| 6 Discovery | `connectors/discovery.py`, `connectors/base.py` |
+| 7 Matching & dedup | `jobs/pipeline.py`, `jobs/matching.py` |
+| 8 Browser framework | `browser/engine.py`, `browser/forms.py`, `browser/detect.py`, `browser/login.py` |
+| 9–10 Hosted-form connector + submission | `workers/apply.py` |
 | 11 Evidence & audit | `evidence.py`, `audit.py` |
-| 12 Scheduler & workers | `workers/` |
+| 12 Scheduler & workers | `workers/queue.py`, `workers/tasks.py`, `workers/runtime.py`, `lifecycle.py`, `ratelimit.py` |
 | 13 Reports | `reports.py` |
-| 14 Dashboard | `web/` |
-| 15 More connectors | registry entries (+ NOT AUTOMATABLE records) |
-| 16 Deployment | `docker-compose.yml`, `docs/DEPLOYMENT.md` |
+| 14 Dashboard | `web/app.py`, `web/auth.py`, `web/templates/`, `health.py` |
+| 15 More connectors | `connectors/registry.py` (+ NOT AUTOMATABLE records, see PLATFORMS.md) |
+| 16 Deployment | `Dockerfile`, `docker-compose.yml`, `docs/DEPLOYMENT.md` |

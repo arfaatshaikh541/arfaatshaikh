@@ -10,7 +10,10 @@ import os
 
 import pytest
 
-TEST_DB = os.environ.get("JOBAP_TEST_DATABASE_URL", "postgresql+psycopg://autopilot:devlocal-only@localhost/autopilot_test")
+TEST_DB = os.environ.get("JOBAP_TEST_DATABASE_URL", "")
+if not TEST_DB:
+    raise RuntimeError("Set JOBAP_TEST_DATABASE_URL to a dedicated, empty PostgreSQL test database "
+                       "(it is truncated between tests)")
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -127,3 +127,13 @@ def test_connector_parsers_against_documented_shapes():
         {"id": "a2", "title": "Hidden", "isListed": False}]}}))
     jobs = ab.fetch("acme", {})
     assert len(jobs) == 1 and jobs[0].employment_type == "full-time" and jobs[0].workplace_type == "hybrid"
+
+
+def test_non_http_urls_rejected(s):
+    import pytest
+    from autopilot.jobs.pipeline import InvalidJobData
+
+    with pytest.raises(InvalidJobData):
+        ingest(s, None, _nj(url="javascript:alert(1)"), [])
+    with pytest.raises(InvalidJobData):
+        ingest(s, None, _nj(apply_url="file:///etc/passwd"), [])

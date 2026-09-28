@@ -1,0 +1,63 @@
+# JOB AUTOPILOT — local / single-server deployment.
+#   1. cp .env.example .env   and set POSTGRES_PASSWORD
+#   2. docker compose build && mkdir -p secrets
+#      docker run --rm job-autopilot:latest gen-master-key > secrets/master.key
+#      sudo chown 1001:1001 secrets/master.key && sudo chmod 600 secrets/master.key
+#   3. docker compose up -d
+#   4. docker compose exec web autopilot create-admin --email you@example.com
+# The web UI listens on 127.0.0.1:8000 only; put a TLS reverse proxy in front (see docs/DEPLOYMENT.md).
+x-app: &app
+  build: .
+  image: job-autopilot:latest
+  restart: unless-stopped
+  init: true
+  env_file: .env
+  environment:
+    JOBAP_DATABASE_URL: postgresql+psycopg://autopilot:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/autopilot
+    JOBAP_MASTER_KEY_FILE: /run/secrets/master_key
+    JOBAP_DATA_DIR: /data
+  secrets: [master_key]
+  volumes: [appdata:/data]
+  depends_on:
+    postgres: {condition: service_healthy}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autopilot
+      POSTGRES_DB: autopilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autopilot -d autopilot"]
+      interval: 5s
+      retries: 20
+
+  web:
+    <<: *app
+    command: ["web", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+
+  scheduler:
+    <<: *app
+    command: ["scheduler"]
+    healthcheck: {disable: true}
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    healthcheck: {disable: true}
+    shm_size: "1gb"          # Chromium needs more than Docker's 64 MB default
+    stop_grace_period: 2m    # let an in-flight application finish its state transition
+    # scale with: docker compose up -d --scale worker=2
+
+secrets:
+  master_key:
+    file: ./secrets/master.key
+
+volumes:
+  pgdata:
+  appdata:

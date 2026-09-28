@@ -13,7 +13,7 @@ from ..connectors.base import PermanentError, PoliteClient, TransientError
 from ..connectors.discovery import DISCOVERY_CONNECTORS
 from ..db import session_scope
 from ..jobs.matching import criteria_json, decide, evaluate, score
-from ..jobs.pipeline import ingest
+from ..jobs.pipeline import InvalidJobData, ingest
 from ..models import (
     Application, ApplicationStatus as S, CandidateProfile, Job, JobMatch, JobSource, Platform, utcnow,
 )
@@ -79,8 +79,15 @@ def handle_discover(payload: dict, worker_id: str) -> dict:
         http.close()
     new = dups = 0
     with session_scope() as s:
+        rejected = 0
         for nj in jobs:
-            job, created = ingest(s, sid, nj, terms)
+            try:
+                with s.begin_nested():
+                    job, created = ingest(s, sid, nj, terms)
+            except InvalidJobData as e:
+                rejected += 1
+                record_error(s, "discovery", e, worker_id=worker_id, platform=nj.platform)
+                continue
             if created:
                 new += 1
                 if job.duplicate_of_id:
@@ -91,8 +98,8 @@ def handle_discover(payload: dict, worker_id: str) -> dict:
         src.last_error = None
         src.last_job_count = len(jobs)
         system_event(s, "discovery", "source_fetched", worker_id, source_id=sid, connector=src.connector,
-                     listed=len(jobs), new=new, duplicates=dups)
-    return {"listed": len(jobs), "new": new, "duplicates": dups}
+                     listed=len(jobs), new=new, duplicates=dups, rejected=rejected)
+    return {"listed": len(jobs), "new": new, "duplicates": dups, "rejected": rejected}
 
 
 # ------------------------------------------------------------------ evaluate
