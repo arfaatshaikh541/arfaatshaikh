@@ -60,6 +60,57 @@ REGISTRY = [
 ]
 
 
+# Capability states:
+#   SUPPORTED     implemented and tested against the documented interface
+#   PENDING_LIVE  implemented; not yet exercised against the live service
+#   NOT_IMPLEMENTED  legitimately possible but not built (would need employer-specific work)
+#   NOT_AVAILABLE    no such interface exists for applicants
+#   NOT_PERMITTED    the platform's terms prohibit automated use
+CAPS = ("DISCOVERY", "JOB_DETAILS", "APPLICATION_REDIRECT", "DIRECT_APPLICATION", "AUTOMATED_SUBMISSION",
+        "OFFICIAL_API")
+
+
+def _caps(**kw: str) -> dict:
+    return {c: kw.get(c, "NOT_IMPLEMENTED") for c in CAPS}
+
+
+_ATS_OK = _caps(DISCOVERY="PENDING_LIVE", JOB_DETAILS="PENDING_LIVE", APPLICATION_REDIRECT="PENDING_LIVE",
+                DIRECT_APPLICATION="PENDING_LIVE", AUTOMATED_SUBMISSION="PENDING_LIVE",
+                OFFICIAL_API="SUPPORTED (public read API)")
+_FORBIDDEN = {c: "NOT_PERMITTED" for c in CAPS}
+CAPABILITIES = {
+    "greenhouse": _ATS_OK, "lever": _ATS_OK, "ashby": _ATS_OK,
+    "smartrecruiters": _caps(DISCOVERY="PENDING_LIVE", APPLICATION_REDIRECT="PENDING_LIVE",
+                             OFFICIAL_API="SUPPORTED (public Posting API)"),
+    "workable": _caps(),
+    "icims": _caps(OFFICIAL_API="NOT_AVAILABLE"),
+    "workday": _caps(OFFICIAL_API="NOT_AVAILABLE"),
+    "oracle_recruiting": _caps(OFFICIAL_API="NOT_AVAILABLE"),
+    "sap_successfactors": _caps(OFFICIAL_API="NOT_AVAILABLE"),
+    "generic_portal": _caps(),
+    "linkedin": _FORBIDDEN, "indeed": _FORBIDDEN, "bayt": _FORBIDDEN, "gulftalent": _FORBIDDEN,
+    "naukrigulf": _FORBIDDEN,
+}
+
+REGISTRY += [
+    {"key": "smartrecruiters", "name": "SmartRecruiters (employer job boards)", "automatable": True,
+     "requires_login": False,
+     "notes": "Discovery via the public Posting API (api.smartrecruiters.com/v1/companies/{id}/postings). "
+              "Applying is NOT IMPLEMENTED: jobs are listed with their application link for you to apply manually."},
+    {"key": "workable", "name": "Workable", "automatable": False, "requires_login": False,
+     "notes": "NOT IMPLEMENTED. No connector has been built or validated for Workable job boards yet."},
+    {"key": "icims", "name": "iCIMS", "automatable": False, "requires_login": True,
+     "notes": "NOT IMPLEMENTED. No public applicant API; every employer tenant has its own portal and account."},
+    {"key": "workday", "name": "Workday", "automatable": False, "requires_login": True,
+     "notes": "NOT IMPLEMENTED. No official public applicant API (the JSON used by career sites is undocumented "
+              "and not used). Per-tenant accounts, multi-page flows. Apply manually."},
+    {"key": "oracle_recruiting", "name": "Oracle Recruiting Cloud", "automatable": False, "requires_login": True,
+     "notes": "NOT IMPLEMENTED. No official public applicant API; per-tenant candidate accounts."},
+    {"key": "sap_successfactors", "name": "SAP SuccessFactors", "automatable": False, "requires_login": True,
+     "notes": "NOT IMPLEMENTED. No official public applicant API; per-tenant candidate accounts."},
+]
+
+
 def sync_platform_registry(s: Session) -> None:
     for spec in REGISTRY:
         p = s.get(Platform, spec["key"])
@@ -76,6 +127,10 @@ def sync_platform_registry(s: Session) -> None:
         p.automatable = spec["automatable"]
         p.requires_login = spec["requires_login"]
         p.notes = spec["notes"]
+        p.capabilities = CAPABILITIES.get(spec["key"], _caps())
         if not spec["automatable"]:
-            p.status = PlatformStatus.NOT_AUTOMATABLE.value
+            p.status = (PlatformStatus.NOT_IMPLEMENTED if spec["notes"].startswith("NOT IMPLEMENTED")
+                        else PlatformStatus.NOT_AUTOMATABLE).value
             p.status_reason = spec["notes"]
+        elif not spec["requires_login"]:
+            p.status = PlatformStatus.NO_LOGIN_REQUIRED.value

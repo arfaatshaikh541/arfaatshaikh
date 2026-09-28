@@ -16,3 +16,17 @@ def sleep(seconds: float) -> None:
         raise ShuttingDown()
     if STOP.is_set():
         raise ShuttingDown()
+
+
+# Main-loop progress marker for the worker self-watchdog.
+_progress = [0.0]
+
+
+def touch() -> None:
+    import time
+
+    _progress[0] = time.monotonic()
+
+
+def last_progress() -> float:
+    return _progress[0]

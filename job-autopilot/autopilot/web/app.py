@@ -68,9 +68,17 @@ async def security_headers(request: Request, call_next):
         # Safety net: a request that raised (403, 404, errors) never leaks its DB session / transaction.
         for ctx in getattr(request.state, "ctxs", []):
             ctx.close(commit=False)
-    resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; "
-        "frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
+    if request.url.path.startswith("/verify/") and request.method == "GET":
+        # The remote-verification page is the only page that runs script: our own static file, and a
+        # WebSocket back to this same host. No inline script, no third-party origins.
+        host = request.headers.get("host", "")
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; "
+            f"connect-src 'self' wss://{host} ws://{host}; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
+    else:
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; "
+            "frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
@@ -279,27 +287,39 @@ async def application_action(request: Request, app_id: int):
     action = form.get("action")
     try:
         if action in ("retry", "approve"):
-            if S(a.status) not in {S.FAILED, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW, S.SKIPPED}:
+            if S(a.status) not in {S.FAILED, S.VERIFICATION_REQUIRED, S.VERIFICATION_TIMEOUT, S.NEEDS_REVIEW,
+                                   S.SKIPPED}:
                 raise IllegalTransition(f"Cannot retry from {a.status}")
+            reconciled = a.submit_clicked_at is not None and any(
+                e.event == "reconciled_not_submitted" and e.ts >= a.submit_clicked_at for e in a.events)
             if a.cv_version_id is None:
                 cv = prof.active_cv(c.s, prof.get_or_create_profile(c.s, c.user.id))
                 if cv is None:
                     raise IllegalTransition("Upload a CV first")
                 a.cv_version_id = cv.id
-            transition(c.s, a, S.QUEUED, event=f"admin_{action}", reason=f"{action} by {c.user.email}")
+            transition(c.s, a, S.QUEUED, event=f"admin_{action}", reason=f"{action} by {c.user.email}",
+                       reconciled_not_submitted=reconciled)
         elif action == "skip":
             transition(c.s, a, S.SKIPPED, event="admin_skip", reason=f"Skipped by {c.user.email}")
         elif action == "resolve_submitted":
             note = str(form.get("evidence", "")).strip()
-            if S(a.status) != S.UNKNOWN or len(note) < 10:
-                raise IllegalTransition("Provide the confirmation you received (min 10 chars) for an UNKNOWN application")
+            if S(a.status) not in {S.UNKNOWN, S.VERIFICATION_TIMEOUT} or len(note) < 10:
+                raise IllegalTransition("Provide the confirmation you received (min 10 chars) for an UNKNOWN "
+                                        "or VERIFICATION_TIMEOUT application")
+            if S(a.status) == S.VERIFICATION_TIMEOUT:
+                transition(c.s, a, S.UNKNOWN, event="admin_resolve", reason="Reconciling after verification timeout")
             ev = log_event(c.s, a, "admin_confirmed_submission", detail={"by": c.user.email})
             add_evidence(c.s, a, ev, "MANUAL_CONFIRMATION", value=f"Confirmed by {c.user.email}: {note}")
             transition(c.s, a, S.SUBMITTED, event="admin_resolve", reason="Manually confirmed by candidate")
         elif action == "resolve_failed":
-            if S(a.status) != S.UNKNOWN:
-                raise IllegalTransition("Only UNKNOWN applications can be resolved as failed")
-            transition(c.s, a, S.FAILED, event="admin_resolve", reason=f"Marked not submitted by {c.user.email}")
+            if S(a.status) not in {S.UNKNOWN, S.VERIFICATION_TIMEOUT, S.FAILED}:
+                raise IllegalTransition("Only UNKNOWN / VERIFICATION_TIMEOUT / FAILED applications can be reconciled")
+            if a.submit_clicked_at is not None and form.get("confirm") != "NOT SUBMITTED":
+                raise IllegalTransition("Submit was clicked for this application. Check your email and the employer "
+                                        "site, then type NOT SUBMITTED to confirm no application was received")
+            if S(a.status) != S.FAILED:
+                transition(c.s, a, S.FAILED, event="admin_resolve", reason=f"Marked not submitted by {c.user.email}")
+            log_event(c.s, a, "reconciled_not_submitted", detail={"by": c.user.email})
         else:
             raise IllegalTransition("Unknown action")
         c.audit(f"application_{action}", f"application:{a.id}")
@@ -463,7 +483,8 @@ def credentials(request: Request):
         return _login_redirect()
     plats = [p.key for p in c.s.scalars(select(Platform).where(Platform.automatable.is_(True), Platform.requires_login.is_(True)))]
     return render(c, "credentials.html", creds=list_credentials(c.s, c.user.id),
-                  platform_keys=plats + ["ai:anthropic", "ai:openai"])
+                  platform_keys=plats + ["ai:anthropic", "ai:openai", "notify:smtp", "notify:telegram",
+                                         "reconcile:imap"])
 
 
 @app.post("/credentials")
@@ -473,7 +494,7 @@ async def credentials_post(request: Request):
     if action == "store":
         key = str(form.get("platform_key", ""))
         p = c.s.get(Platform, key)
-        if not key.startswith("ai:") and (p is None or not p.automatable):
+        if not key.startswith(("ai:", "notify:", "reconcile:")) and (p is None or not p.automatable):
             return back(c, "/credentials", "Refused: credentials are only stored for automatable platforms")
         secret = str(form.get("secret", ""))
         if not secret:
@@ -704,6 +725,11 @@ async def automation_post(request: Request):
             return back(c, "/automation", "Type LIVE to confirm real submissions")
         if target not in ("LIVE", "DRY_RUN"):
             return back(c, "/automation", "Invalid mode")
+        from ..security.destinations import live_submissions_allowed
+
+        if target == "LIVE" and not live_submissions_allowed():
+            return back(c, "/automation", f"Refused: LIVE mode requires JOBAP_ENVIRONMENT=production "
+                                          f"(this deployment is '{get_config().environment}')")
         auto.mode = target
     elif action == "settings":
         try:
@@ -780,13 +806,55 @@ def audit_page(request: Request):
 def settings_page(request: Request):
     if not (c := authed_get(request)):
         return _login_redirect()
-    return render(c, "settings.html", ai=load(c.s, AISettings))
+    from ..settings_store import NotificationSettings, ReconcileSettings
+
+    return render(c, "settings.html", ai=load(c.s, AISettings), ns=load(c.s, NotificationSettings),
+                  rs=load(c.s, ReconcileSettings), env=get_config().environment,
+                  public_base_url=get_config().public_base_url)
 
 
 @app.post("/settings")
 async def settings_post(request: Request):
     c, form = await authed_post(request)
     ai = load(c.s, AISettings)
+    from ..settings_store import NotificationSettings, ReconcileSettings
+
+    if form.get("action") == "notifications":
+        try:
+            ns = NotificationSettings(
+                email_enabled=form.get("email_enabled") == "on", smtp_host=str(form.get("smtp_host") or "").strip(),
+                smtp_port=int(form.get("smtp_port") or 587), smtp_security=str(form.get("smtp_security") or "starttls"),
+                smtp_username=str(form.get("smtp_username") or "").strip(),
+                email_from=str(form.get("email_from") or "").strip(), email_to=str(form.get("email_to") or "").strip(),
+                telegram_enabled=form.get("telegram_enabled") == "on",
+                telegram_chat_id=str(form.get("telegram_chat_id") or "").strip(),
+                telegram_api_base=str(form.get("telegram_api_base") or "https://api.telegram.org").strip())
+        except Exception as e:
+            return back(c, "/settings", f"Invalid notification settings: {e}")
+        save(c.s, ns)
+        c.audit("notification_settings", None, email=ns.email_enabled, telegram=ns.telegram_enabled)
+        return back(c, "/settings", "Notification settings saved")
+    if form.get("action") == "test_notify":
+        from ..notifications import enabled_channels, notify
+
+        n = notify(c.s, "test", "Test notification", "If you can read this, this channel works.",
+                   link_path="/notifications")
+        queue.enqueue(c.s, "deliver_notifications", {}, dedupe_key=f"notify:test:{n.id}", priority=3, max_attempts=1)
+        c.audit("test_notification", None, channels=",".join(enabled_channels(c.s)))
+        return back(c, "/notifications", "Test notification created; external channels are sent by a worker")
+    if form.get("action") == "reconcile":
+        try:
+            rs = ReconcileSettings(imap_enabled=form.get("imap_enabled") == "on",
+                                   imap_host=str(form.get("imap_host") or "").strip(),
+                                   imap_port=int(form.get("imap_port") or 993),
+                                   imap_username=str(form.get("imap_username") or "").strip(),
+                                   imap_folder=str(form.get("imap_folder") or "INBOX").strip(),
+                                   lookback_days=int(form.get("lookback_days") or 3))
+        except Exception as e:
+            return back(c, "/settings", f"Invalid reconciliation settings: {e}")
+        save(c.s, rs)
+        c.audit("reconcile_settings", None, enabled=rs.imap_enabled)
+        return back(c, "/settings", "Reconciliation settings saved")
     if form.get("action") == "test_ai":
         tid = queue.enqueue(c.s, "ai_health", {"user_id": c.user.id},
                             dedupe_key=f"ai_health:{int(utcnow().timestamp())}", priority=15, max_attempts=1)
@@ -803,3 +871,6 @@ async def settings_post(request: Request):
     save(c.s, ai)
     c.audit("ai_settings", None, provider=ai.provider, model=ai.model, allow_candidate_data=ai.allow_candidate_data)
     return back(c, "/settings", "AI settings saved (not yet tested)")
+
+
+from . import ops  # noqa: E402,F401  (registers operations / verification routes)

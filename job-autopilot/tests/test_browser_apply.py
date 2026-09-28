@@ -150,7 +150,8 @@ def test_no_confirmation_means_unknown(s, profile, server, runner, monkeypatch):
     real = ap.wait_for_outcome
     monkeypatch.setattr(ap, "wait_for_outcome", lambda p, u, c: real(p, u, c, timeout_s=4))
     app_id = _setup(s, profile, f"{server}/silent_form.html")
-    assert runner.run(app_id).status == "UNKNOWN"
+    res = runner.run(app_id)
+    assert res.status == "UNKNOWN", _reload(s, app_id).status_reason
     app = _reload(s, app_id)
     assert not [e for e in app.evidence if e.kind in ("CONFIRMATION_TEXT", "APPLICATION_ID")]
 

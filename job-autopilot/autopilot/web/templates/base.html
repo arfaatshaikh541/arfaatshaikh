@@ -2,7 +2,7 @@
 <title>{% block title %}Job Autopilot{% endblock %}</title><link rel="stylesheet" href="/static/style.css"></head><body>
 {% if user %}<div class="banner {{ auto.mode }}">{{ 'LIVE MODE — REAL SUBMISSIONS' if auto.mode == 'LIVE' else 'DRY RUN — NOTHING IS SUBMITTED' }} · AUTOMATION {{ auto.state }}</div>
 <header><strong>JOB AUTOPILOT</strong><nav>
-<a href="/">Overview</a><a href="/applications">Applications</a><a href="/jobs">Jobs</a><a href="/sources">Job sources</a><a href="/platforms">Platforms</a>
+<a href="/">Overview</a><a href="/verifications">Verifications</a><a href="/notifications">Notifications</a><a href="/applications">Applications</a><a href="/jobs">Jobs</a><a href="/sources">Job sources</a><a href="/platforms">Platforms</a>
 <a href="/profile">Candidate profile</a><a href="/cv">CV</a><a href="/credentials">Credentials</a><a href="/automation">Automation</a>
 <a href="/reports">Reports</a><a href="/errors">Errors</a><a href="/audit">Audit log</a><a href="/settings">Settings</a></nav>
 <form class="inline" method="post" action="/logout" style="margin-left:auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Log out</button></form></header>{% endif %}

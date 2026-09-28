@@ -29,6 +29,16 @@ class AutomationSettings(BaseModel):
     apply_to_duplicates: bool = False
     # Minimum seconds between HTTP requests to the same host.
     request_min_interval_seconds: float = Field(3.0, ge=1.0, le=600)
+    # Human verification gateway
+    hold_for_verification: bool = True
+    verification_timeout_minutes: int = Field(15, ge=1, le=240)
+    # Hard cap on how long any held browser session may stay alive.
+    browser_session_timeout_minutes: int = Field(30, ge=2, le=480)
+    max_open_verification_sessions: int = Field(2, ge=0, le=10)
+    notification_retry_minutes: int = Field(5, ge=1, le=240)
+    max_notification_attempts: int = Field(6, ge=1, le=50)
+    # Whole-application wall-clock limit (excluding time spent waiting for a human).
+    application_timeout_minutes: int = Field(20, ge=2, le=240)
 
     @field_validator("daily_report_time")
     @classmethod
@@ -58,8 +68,37 @@ class AISettings(BaseModel):
     last_check_at: str | None = None
 
 
-_KEYS = {AutomationSettings: "automation", AISettings: "ai"}
-T = TypeVar("T", AutomationSettings, AISettings)
+class NotificationSettings(BaseModel):
+    """Channels are used only when enabled here AND their secret is stored in the vault
+    (notify:smtp password, notify:telegram bot token). Dashboard notifications always work."""
+
+    email_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = Field(587, ge=1, le=65535)
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_username: str = ""
+    email_from: str = ""
+    email_to: str = ""
+    telegram_enabled: bool = False
+    telegram_chat_id: str = ""
+    telegram_api_base: str = "https://api.telegram.org"
+
+
+class ReconcileSettings(BaseModel):
+    """Read-only IMAP access used to find employer confirmation emails for UNKNOWN applications.
+    The IMAP password (app password) is stored in the vault as reconcile:imap."""
+
+    imap_enabled: bool = False
+    imap_host: str = ""
+    imap_port: int = Field(993, ge=1, le=65535)
+    imap_username: str = ""
+    imap_folder: str = "INBOX"
+    lookback_days: int = Field(3, ge=1, le=30)
+
+
+_KEYS = {AutomationSettings: "automation", AISettings: "ai", NotificationSettings: "notifications",
+         ReconcileSettings: "reconcile"}
+T = TypeVar("T", AutomationSettings, AISettings, NotificationSettings, ReconcileSettings)
 
 
 def load(s: Session, cls: type[T]) -> T:

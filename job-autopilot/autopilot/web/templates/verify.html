@@ -1,0 +1,20 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}
+<h1>Verification #{{ vr.id }} {{ badge(vr.status) }}</h1>
+<div class="card"><dl class="kv"><dt>Application</dt><dd>{% if a %}<a href="/applications/{{ a.id }}">#{{ a.id }}</a> {{ job.title }}{% endif %}</dd>
+<dt>Employer</dt><dd>{{ u(job.company) if job else 'UNKNOWN' }}</dd><dt>Platform</dt><dd>{{ vr.platform_key or '' }}</dd>
+<dt>Reason</dt><dd>{{ vr.kind }} — {{ vr.detail }}</dd><dt>Step</dt><dd>{{ vr.stage }}</dd><dt>Page</dt><dd class="muted">{{ vr.page_url }}</dd>
+<dt>Worker</dt><dd>{{ vr.worker_id }}</dd><dt>Expires</dt><dd>{{ ts(vr.expires_at) }}</dd></dl></div>
+{% if live %}
+<div class="card" id="rv" data-vid="{{ vr.id }}">
+<p id="rv-status" class="warn">Connecting to the held browser…</p>
+<div class="rv-screen"><img id="rv-img" alt="Live view of the held browser page"></div>
+<p class="muted">Tap the page to click. Use the controls below to scroll and type. Your input goes only to this page.</p>
+<div class="row"><button type="button" id="rv-up">▲ Scroll up</button><button type="button" id="rv-down">▼ Scroll down</button></div>
+<div class="row"><input id="rv-text" autocomplete="one-time-code" inputmode="text" placeholder="Text / code to type" maxlength="256">
+<button type="button" id="rv-send">Type</button><button type="button" data-key="Backspace">⌫</button><button type="button" data-key="Tab">Tab</button><button type="button" data-key="Enter">Enter</button></div>
+<p><button type="button" id="rv-done" class="primary">DONE — return control to automation</button></p>
+<p class="muted">Automation resumes only after it confirms the challenge is gone. If it is still present you will be told.</p></div>
+<form method="post" action="/verify/{{ vr.id }}/cancel"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Cancel verification (application is paused)</button></form>
+<script src="/static/verify.js"></script>
+{% else %}<div class="card"><p>This session is no longer live ({{ vr.status }}). {{ vr.outcome or '' }}</p></div>{% endif %}
+{% endblock %}

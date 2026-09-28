@@ -148,6 +148,13 @@ class Vault:
         finally:
             unregister_secret(value)
 
+    def derive_key(self, label: str) -> bytes:
+        """Purpose-specific subkey (HMAC-SHA256 of the master key). Used e.g. to sign short-lived
+        remote-session tokens so that no token has to be stored anywhere."""
+        import hmac
+
+        return hmac.new(self._current.key, b"jobap-derive:" + label.encode(), hashlib.sha256).digest()
+
     def self_test(self) -> bool:
         probe = os.urandom(16)
         return self.decrypt(self.encrypt(probe, b"self-test"), b"self-test") == probe

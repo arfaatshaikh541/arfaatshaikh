@@ -33,9 +33,25 @@ class Challenge:
     detail: str
 
 
+_SOLVED_JS = """() => [...document.querySelectorAll(
+  'textarea[name="g-recaptcha-response"], textarea[name="h-captcha-response"], input[name="cf-turnstile-response"]')]
+  .some(el => (el.value || '').length > 0)"""
+
+
+def captcha_solved(page: Page) -> bool:
+    """True when the page's own CAPTCHA response field has been filled (by the human solving it).
+
+    Read-only inspection of the page's state; nothing is written or solved here."""
+    try:
+        return bool(page.evaluate(_SOLVED_JS))
+    except Exception:
+        return False
+
+
 def detect_challenge(page: Page) -> Challenge | None:
-    """A *visible, interactive* challenge that a human must complete."""
-    for fr in page.frames:
+    """A *visible, interactive* challenge that a human must complete (and has not completed yet)."""
+    solved = captcha_solved(page)
+    for fr in ([] if solved else page.frames):
         if fr.url and CHALLENGE_FRAME_RE.search(fr.url):
             try:
                 el = fr.frame_element()
@@ -45,7 +61,8 @@ def detect_challenge(page: Page) -> Challenge | None:
                 visible = False
             if visible:
                 return Challenge("captcha", f"Visible challenge frame: {fr.url.split('?')[0]}")
-    for sel in ("iframe[title*='challenge' i]", ".h-captcha iframe", ".cf-turnstile iframe", "#px-captcha"):
+    for sel in ([] if solved else ("iframe[title*='challenge' i]", ".h-captcha iframe", ".cf-turnstile iframe",
+                                   "#px-captcha")):
         loc = page.locator(sel)
         if loc.count() and loc.first.is_visible():
             return Challenge("captcha", f"Visible challenge element {sel}")

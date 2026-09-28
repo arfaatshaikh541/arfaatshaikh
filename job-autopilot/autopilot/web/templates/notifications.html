@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Notifications</h1>
+<form method="post" action="/notifications/read"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Mark all read</button></form>
+<div class="card scroll">{% if not rows %}<p>No notifications.</p>{% else %}<table><tr><th>Time</th><th>Severity</th><th>Title</th><th>Message</th><th>Delivery</th></tr>
+{% for n in rows %}<tr class="{{ '' if n.read_at else 'unread' }}"><td>{{ ts(n.created_at) }}</td><td>{{ badge(n.severity|upper) }}</td><td>{% if n.link_path %}<a href="{{ n.link_path }}">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</td>
+<td><pre>{{ n.body }}</pre></td><td>dashboard {{ badge('SENT') }}{% for d in deliveries.get(n.id, []) %}<br>{{ d.channel }} {{ badge(d.status) }} <span class="muted">{{ d.attempts }} attempt(s) {{ (d.last_error or '')[:120] }}</span>{% endfor %}</td></tr>{% endfor %}</table>{% endif %}</div>{% endblock %}

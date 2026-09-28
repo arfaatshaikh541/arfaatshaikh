@@ -54,7 +54,14 @@ def session_scope() -> Iterator[Session]:
 def init_db() -> None:
     """Create tables (idempotent) and register the static connector registry."""
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    from sqlalchemy import text
+
+    with engine.begin() as c:  # serialise schema creation across processes starting together
+        c.execute(text("SELECT pg_advisory_xact_lock(4242000)"))
+        Base.metadata.create_all(c)
+    from .migrations import run_migrations
+
+    run_migrations(engine)
     from .connectors.registry import sync_platform_registry
 
     with session_scope() as s:

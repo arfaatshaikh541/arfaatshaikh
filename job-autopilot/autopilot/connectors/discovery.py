@@ -147,7 +147,43 @@ class AshbyConnector(DiscoveryConnector):
         return out
 
 
+class SmartRecruitersConnector(DiscoveryConnector):
+    """Public Posting API. Listing only: descriptions need one extra request per job and applying is not
+    automated, so jobs are recorded with apply_method 'smartrecruiters_redirect' (manual application)."""
+
+    key = "smartrecruiters"
+
+    def fetch(self, identifier: str, options: dict[str, Any]) -> list[NormalizedJob]:
+        company = _check_identifier(identifier)
+        out: list[NormalizedJob] = []
+        offset = 0
+        while offset < 1000:
+            data = self.http.get_json(f"https://api.smartrecruiters.com/v1/companies/{company}/postings",
+                                      params={"limit": 100, "offset": offset})
+            rows = data.get("content") or []
+            for p in rows:
+                loc = p.get("location") or {}
+                place = ", ".join(x for x in [loc.get("city"), loc.get("region"), loc.get("country")] if x) or None
+                url = f"https://jobs.smartrecruiters.com/{company}/{p['id']}"
+                out.append(NormalizedJob(
+                    platform="smartrecruiters", board=company, external_id=str(p["id"]), url=url, apply_url=url,
+                    apply_method="smartrecruiters_redirect", title=p.get("name") or "",
+                    company=(p.get("company") or {}).get("name") or options.get("company_name"),
+                    location=place, workplace_type="remote" if loc.get("remote") else None,
+                    employment_type=(p.get("typeOfEmployment") or {}).get("label"),
+                    published_at=parse_iso(p.get("releasedDate")),
+                    raw={k: p.get(k) for k in ("id", "uuid", "refNumber", "releasedDate", "location", "department",
+                                               "function", "experienceLevel", "typeOfEmployment")},
+                ))
+            total = data.get("totalFound") or 0
+            offset += len(rows)
+            if not rows or offset >= total:
+                break
+        return out
+
+
 DISCOVERY_CONNECTORS: dict[str, type[DiscoveryConnector]] = {
+    "smartrecruiters": SmartRecruitersConnector,
     "greenhouse": GreenhouseConnector,
     "lever": LeverConnector,
     "ashby": AshbyConnector,

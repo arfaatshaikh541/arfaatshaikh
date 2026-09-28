@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% from '_macros.html' import badge, u, ts %}{% block body %}<h1>Human verification</h1>
+<p class="muted">Created when a site shows a CAPTCHA / OTP / MFA / identity check. The worker holds the browser, you complete the check on the live page, and automation resumes only after it verifies the challenge is gone. Nothing is ever bypassed.</p>
+<div class="card scroll">{% if not rows %}<p>No verification requests.</p>{% else %}<table><tr><th>ID</th><th>Status</th><th>Application</th><th>Employer / job</th><th>Reason</th><th>Stage</th><th>Worker</th><th>Created</th><th>Expires</th><th></th></tr>
+{% for v in rows %}{% set a = apps.get(v.application_id) %}<tr><td>#{{ v.id }}</td><td>{{ badge(v.status) }}</td><td>{% if a %}<a href="/applications/{{ a.id }}">#{{ a.id }}</a>{% endif %}</td>
+<td>{{ u(a.job.company) if a else '' }} / {{ a.job.title if a else '' }}</td><td>{{ v.kind }}: {{ (v.detail or '')[:80] }}</td><td>{{ v.stage }}</td><td class="muted">{{ v.worker_id }}</td><td>{{ ts(v.created_at) }}</td><td>{{ ts(v.expires_at) }}</td>
+<td>{% if v.status in open_states and v.expires_at > now %}<a class="b bad" href="/verify/{{ v.id }}">Open session</a>{% else %}<span class="muted">{{ v.outcome or '' }}</span>{% endif %}</td></tr>{% endfor %}</table>{% endif %}</div>{% endblock %}

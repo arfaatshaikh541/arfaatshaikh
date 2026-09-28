@@ -23,13 +23,19 @@ ALLOWED: dict[S, set[S]] = {
                        S.FAILED, S.QUEUED},
     # Once SUBMITTING, the only exits are evidence-backed or explicitly uncertain.
     S.SUBMITTING: {S.SUBMITTED, S.UNKNOWN, S.FAILED, S.VERIFICATION_REQUIRED},
+    # (SUBMITTING -> VERIFICATION_REQUIRED: a challenge appeared after the submit click.)
     S.SUBMITTED: {S.VERIFIED},
     S.VERIFIED: set(),
     S.DRY_RUN_COMPLETE: set(),
     S.SKIPPED: {S.QUEUED},  # manual override only
     # Retrying is always a deliberate action (admin "retry" or scheduler for pre-submit failures).
     S.FAILED: {S.QUEUED},
-    S.VERIFICATION_REQUIRED: {S.QUEUED},
+    # Held for a human. Resume returns to the step that was interrupted, only after the agent has
+    # verified that the challenge is cleared. A post-submit challenge resumes into SUBMITTING
+    # (outcome detection) and never re-clicks submit.
+    S.VERIFICATION_REQUIRED: {S.STARTED, S.FORM_COMPLETED, S.SUBMITTING, S.VERIFICATION_TIMEOUT, S.UNKNOWN,
+                              S.FAILED, S.QUEUED},
+    S.VERIFICATION_TIMEOUT: {S.QUEUED, S.UNKNOWN, S.FAILED},
     # UNKNOWN is resolved by a human: confirm submitted (with evidence) or mark failed.
     S.UNKNOWN: {S.SUBMITTED, S.FAILED},
 }
@@ -43,6 +49,7 @@ def transition(
     app: Application,
     to: S,
     *,
+    reconciled_not_submitted: bool = False,
     event: str | None = None,
     worker_id: str | None = None,
     reason: str | None = None,
@@ -54,6 +61,10 @@ def transition(
     frm = S(app.status)
     if to not in ALLOWED[frm]:
         raise IllegalTransition(f"{frm.value} -> {to.value} is not allowed")
+    if to == S.QUEUED and app.submit_clicked_at is not None and not reconciled_not_submitted:
+        raise IllegalTransition(
+            "Submit was already clicked for this application; it can only be re-queued after a human "
+            "reconciles it as NOT submitted (duplicate-submission protection)")
     if to in EVIDENCE_REQUIRED:
         s.flush()
         from .evidence import SUBMISSION_PROOF_KINDS
@@ -76,9 +87,13 @@ def transition(
         app.queued_at = now
     elif to == S.STARTED:
         app.started_at = now
+    elif to == S.SUBMITTING and app.submit_clicked_at is None:
+        # Committed together with SUBMITTING, i.e. BEFORE the click, so a crash can never lose it.
+        app.submit_clicked_at = now
     elif to == S.SUBMITTED:
         app.submitted_at = app.submitted_at or now
-    if to in {S.SUBMITTED, S.VERIFIED, S.DRY_RUN_COMPLETE, S.FAILED, S.UNKNOWN, S.SKIPPED, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW}:
+    if to in {S.SUBMITTED, S.VERIFIED, S.DRY_RUN_COMPLETE, S.FAILED, S.UNKNOWN, S.SKIPPED, S.VERIFICATION_REQUIRED, S.VERIFICATION_TIMEOUT,
+              S.NEEDS_REVIEW}:
         app.finished_at = now
     ev = ApplicationEvent(
         application_id=app.id,

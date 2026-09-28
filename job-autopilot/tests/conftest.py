@@ -22,6 +22,9 @@ def _env(tmp_path_factory):
     os.environ["JOBAP_MASTER_KEY"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
     os.environ["JOBAP_DATA_DIR"] = str(tmp_path_factory.mktemp("data"))
     os.environ["JOBAP_SECURE_COOKIES"] = "false"
+    # 'test': LIVE code paths run, but every browser destination must be a local fixture.
+    os.environ["JOBAP_ENVIRONMENT"] = "test"
+    os.environ["JOBAP_SESSION_SERVER_PORT"] = "0"
     from autopilot.config import reset_config_cache
     from autopilot.db import reset_engine
 

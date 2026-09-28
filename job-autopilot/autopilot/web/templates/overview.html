@@ -6,6 +6,19 @@
 {% if not setup.active_cv %}<li>No CV uploaded. <a href="/cv">Upload your CV</a>.</li>{% endif %}
 {% if not setup.target_roles %}<li>No target roles configured; nothing will be auto-applied. <a href="/profile">Edit preferences</a>.</li>{% endif %}
 {% if not setup.sources %}<li>No job sources. <a href="/sources">Add employer boards</a>.</li>{% endif %}</ul></div>{% endif %}
+<div class="card"><h2>Operations — system {{ badge(health.system) }}</h2><div class="grid">
+<div><div class="muted">Scheduler</div>{{ badge(health.scheduler) }}</div>
+<div><div class="muted">Workers</div><b>{{ health.workers }}</b></div>
+<div><div class="muted">Browser sessions (running applications)</div><div class="num">{{ health.browser_sessions }}</div></div>
+<div><div class="muted">Applications queued</div><div class="num">{{ health.applications_queued }}</div></div>
+<div><div class="muted">Verification required</div><div class="num">{{ health.open_verifications|length }}</div></div>
+<div><div class="muted">Failures today (LIVE)</div><div class="num">{{ counts.live.failed }}</div></div>
+<div><div class="muted">Task queue depth</div><div class="num">{{ health.queue_depth }}</div></div></div></div>
+{% if health.open_verifications %}<div class="card"><h2>🚨 Human verification required</h2><div class="scroll"><table><tr><th>ID</th><th>Reason</th><th>Stage</th><th>Worker</th><th>Created</th><th>Expires</th><th></th></tr>
+{% for v in health.open_verifications %}<tr><td>#{{ v.id }}</td><td>{{ v.kind }}: {{ (v.detail or '')[:80] }}</td><td>{{ v.stage }}</td><td>{{ v.worker_id }}</td><td>{{ ts(v.created_at) }}</td><td>{{ ts(v.expires_at) }}</td>
+<td><a class="b bad" href="/verify/{{ v.id }}">Open verification session</a></td></tr>{% endfor %}</table></div></div>{% endif %}
+<div class="card"><h2>Browser workers</h2>{% if not health.worker_rows %}<p>No worker has ever registered. Start the worker service.</p>{% else %}<div class="scroll"><table><tr><th>Worker</th><th>Health</th><th>Activity</th><th>Browser</th><th>Task</th><th>Last heartbeat</th></tr>
+{% for w in health.worker_rows %}<tr><td>{{ w.id }}</td><td>{{ badge(w.health) }}</td><td>{{ w.activity }}</td><td>{{ w.browser or '—' }}</td><td>{{ w.task or '—' }}</td><td>{{ ts(w.last_seen) }}</td></tr>{% endfor %}</table></div>{% endif %}</div>
 <div class="grid">
 <div class="card"><div class="muted">Jobs discovered today</div><div class="num">{{ counts.jobs_discovered }}</div></div>
 <div class="card"><div class="muted">Jobs evaluated today</div><div class="num">{{ counts.jobs_evaluated }}</div></div>

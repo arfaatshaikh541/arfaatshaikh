@@ -53,4 +53,23 @@ def system_health(s: Session) -> dict[str, Any]:
     h["last_successful_application"] = s.scalar(select(func.max(Application.submitted_at)).where(
         Application.mode == "LIVE", Application.status.in_(["SUBMITTED", "VERIFIED"])))
     h["last_report"] = s.scalar(select(func.max(Report.generated_at)))
+    from .models import Task, VerificationRequest
+    from .verification.gateway import OPEN_STATES
+
+    h["worker_rows"] = [
+        {"id": b.worker_id, "health": "HEALTHY" if _age(b.last_seen) < 60 else ("STALE" if _age(b.last_seen) < 120 else "DEAD"),
+         "activity": (b.info or {}).get("activity", "Idle"), "browser": (b.info or {}).get("browser"),
+         "task": b.current_task_id, "last_seen": b.last_seen, "started_at": b.started_at}
+        for b in sorted(workers, key=lambda b: b.worker_id)
+    ]
+    open_vr = s.scalars(select(VerificationRequest).where(VerificationRequest.status.in_(OPEN_STATES))
+                        .order_by(VerificationRequest.id)).all()
+    h["open_verifications"] = open_vr
+    running_apply = s.scalar(select(func.count(Task.id)).where(Task.type == "apply", Task.status == "RUNNING")) or 0
+    h["browser_sessions"] = running_apply
+    h["queue_depth"] = s.scalar(select(func.count(Task.id)).where(Task.status == "PENDING")) or 0
+    h["applications_queued"] = s.scalar(select(func.count(Application.id)).where(
+        Application.status == "QUEUED", Application.mode == auto.mode)) or 0
+    ok_core = ok and h["scheduler"] == "RUNNING" and bool(alive)
+    h["system"] = "ONLINE" if ok_core else ("DEGRADED" if ok else "OFFLINE")
     return h

@@ -34,8 +34,23 @@ class Config(BaseSettings):
     worker_id: str = Field(default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}")
     max_upload_mb: int = 10
     log_level: str = "INFO"
-    # Seconds a claimed task is leased before another worker may reclaim it.
-    task_lease_seconds: int = 900
+    # Seconds a claimed task is leased before another worker may reclaim it. Workers renew the
+    # lease while they are alive (heartbeat), so this is the crash-detection delay.
+    task_lease_seconds: int = 300
+    # production | development | test. LIVE submissions are refused unless production, and in
+    # production job/application URLs must resolve to public hosts (no localhost/private ranges).
+    environment: str = "development"
+    # Internal remote-browser session server inside each worker. Bound to the container network
+    # only; never publish this port. The web process proxies authenticated users to it.
+    session_server_port: int = 9310
+    session_bind_host: str = "0.0.0.0"
+    session_advertise_host: str = ""
+    # Public https URL of the dashboard, used in notification links (e.g. https://autopilot.example.com).
+    public_base_url: str = ""
+    # File containing a bearer token for GET /metrics (Prometheus). Unset = /metrics needs a login session.
+    metrics_token_file: str = ""
+    # Worker self-watchdog: exit (container restarts) if the main loop makes no progress for this long.
+    watchdog_stall_seconds: int = 1800
 
     @property
     def files_dir(self) -> Path:

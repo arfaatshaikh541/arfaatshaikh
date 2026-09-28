@@ -5,5 +5,23 @@
 <div><label>Model ID</label><input name="model" value="{{ ai.model }}" placeholder="e.g. claude-opus-5"></div><div><label>Base URL (optional)</label><input name="base_url" value="{{ ai.base_url }}"></div></div>
 <label><input type="checkbox" name="allow_candidate_data" {{ 'checked' if ai.allow_candidate_data }}> I allow my candidate profile and CV facts to be sent to this third-party provider (required for narrative answers with Anthropic/OpenAI; Ollama keeps data on your server)</label>
 <p><button class="primary">Save</button></p></form><form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="test_ai">TEST AI CONNECTION</button></form></div>
+<div class="card"><h2>Environment</h2><p>JOBAP_ENVIRONMENT = <b>{{ env }}</b>. {{ 'LIVE submissions allowed (public destinations only).' if env == 'production' else 'LIVE submissions are refused, and the browser may only reach local test fixtures.' }}</p>
+<p>Public dashboard URL for notification links: {{ public_base_url or 'NOT CONFIGURED (set JOBAP_PUBLIC_BASE_URL)' }}</p></div>
+<div class="card"><h2>Notifications</h2><p class="muted">Dashboard notifications always work. Email and Telegram are used only when enabled here <b>and</b> their secret is stored on the Credentials page (<code>notify:smtp</code> = SMTP password, <code>notify:telegram</code> = bot token). Push and WhatsApp are NOT IMPLEMENTED.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="notifications"><div class="grid">
+<label><input type="checkbox" name="email_enabled" {{ 'checked' if ns.email_enabled }}> Email (SMTP)</label>
+<div><label>SMTP host</label><input name="smtp_host" value="{{ ns.smtp_host }}"></div><div><label>Port</label><input name="smtp_port" type="number" value="{{ ns.smtp_port }}"></div>
+<div><label>Security</label><select name="smtp_security">{% for o in ['starttls','ssl','none'] %}<option {{ 'selected' if ns.smtp_security == o }}>{{ o }}</option>{% endfor %}</select></div>
+<div><label>SMTP username</label><input name="smtp_username" value="{{ ns.smtp_username }}"></div><div><label>From</label><input name="email_from" value="{{ ns.email_from }}"></div><div><label>To</label><input name="email_to" value="{{ ns.email_to }}"></div>
+<label><input type="checkbox" name="telegram_enabled" {{ 'checked' if ns.telegram_enabled }}> Telegram</label>
+<div><label>Telegram chat id</label><input name="telegram_chat_id" value="{{ ns.telegram_chat_id }}"></div><div><label>Telegram API base</label><input name="telegram_api_base" value="{{ ns.telegram_api_base }}"></div></div>
+<p><button class="primary">Save notification settings</button></p></form>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><button name="action" value="test_notify">SEND TEST NOTIFICATION</button></form></div>
+<div class="card"><h2>Submission reconciliation (read-only IMAP)</h2><p class="muted">For applications whose outcome is UNKNOWN after the submit click, a worker searches your mailbox (read-only, messages are not marked read) for the employer's confirmation email. Store the IMAP app password on the Credentials page as <code>reconcile:imap</code>.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="reconcile"><div class="grid">
+<label><input type="checkbox" name="imap_enabled" {{ 'checked' if rs.imap_enabled }}> Enabled</label><div><label>IMAP host</label><input name="imap_host" value="{{ rs.imap_host }}"></div>
+<div><label>Port (IMAPS)</label><input name="imap_port" type="number" value="{{ rs.imap_port }}"></div><div><label>Username</label><input name="imap_username" value="{{ rs.imap_username }}"></div>
+<div><label>Folder</label><input name="imap_folder" value="{{ rs.imap_folder }}"></div><div><label>Look back (days)</label><input name="lookback_days" type="number" value="{{ rs.lookback_days }}"></div></div>
+<p><button class="primary">Save reconciliation settings</button></p></form></div>
 <div class="card"><h2>Where candidate data is processed</h2><ul><li>PostgreSQL database (facts, answers, application history)</li><li>Encrypted file store <code>JOBAP_DATA_DIR</code> (CV versions, evidence screenshots)</li>
 <li>The employer's application form, only for the job being applied to</li><li>The AI provider above, only if you enabled it and allowed candidate data</li></ul></div>{% endblock %}

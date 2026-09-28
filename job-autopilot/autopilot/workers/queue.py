@@ -77,6 +77,22 @@ def reclaim_expired(s: Session) -> int:
             app = s.get(Application, t.payload.get("application_id"), with_for_update=True)
             if app is not None:
                 st = S(app.status)
+                if st == S.VERIFICATION_REQUIRED:
+                    from ..models import VerificationRequest, VerificationStatus as VS
+
+                    for vr in s.scalars(select(VerificationRequest).where(
+                            VerificationRequest.application_id == app.id,
+                            VerificationRequest.status.in_([VS.OPEN.value, VS.HUMAN_CONNECTED.value, VS.CHECKING.value]))):
+                        vr.status, vr.completed_at = VS.SESSION_LOST.value, utcnow()
+                        vr.outcome = f"Worker {t.locked_by} lost while holding the browser"
+                    if app.submit_clicked_at is not None:
+                        transition(s, app, S.UNKNOWN, worker_id="watchdog",
+                                   reason=f"Worker {t.locked_by} lost during post-submit verification; reconcile")
+                    else:
+                        transition(s, app, S.VERIFICATION_TIMEOUT, worker_id="watchdog",
+                                   reason=f"Worker {t.locked_by} lost while waiting for verification; paused")
+                    fail(s, t, "worker lost during verification hold", None)
+                    continue
                 if st == S.SUBMITTING:
                     transition(s, app, S.UNKNOWN, worker_id="scheduler",
                                reason=f"Worker {t.locked_by} lost during submission; status uncertain")
@@ -103,3 +119,18 @@ def active_count(s: Session, type_: str) -> int:
     return s.scalar(select(func.count(Task.id)).where(
         Task.type == type_, or_(Task.status == TaskStatus.RUNNING.value,
                                 and_(Task.status == TaskStatus.PENDING.value)))) or 0
+
+
+def extend_lease(s: Session, task_id: int, worker_id: str, lease_s: int) -> bool:
+    """Renew a RUNNING task's lease; only the worker that holds it may do so."""
+    r = s.execute(update(Task).where(Task.id == task_id, Task.status == TaskStatus.RUNNING.value,
+                                     Task.locked_by == worker_id)
+                  .values(locked_until=utcnow() + dt.timedelta(seconds=lease_s)))
+    return bool(r.rowcount)
+
+
+def expire_leases_of(s: Session, worker_id: str) -> int:
+    """Watchdog: a worker is known dead -> make its leases reclaimable now."""
+    r = s.execute(update(Task).where(Task.status == TaskStatus.RUNNING.value, Task.locked_by == worker_id)
+                  .values(locked_until=utcnow() - dt.timedelta(seconds=1)))
+    return r.rowcount or 0
