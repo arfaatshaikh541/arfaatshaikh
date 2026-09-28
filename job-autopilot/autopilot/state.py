@@ -18,8 +18,9 @@ ALLOWED: dict[S, set[S]] = {
     S.EVALUATED: {S.QUEUED, S.SKIPPED, S.NEEDS_REVIEW},
     S.NEEDS_REVIEW: {S.QUEUED, S.SKIPPED},
     S.QUEUED: {S.STARTED, S.SKIPPED},
-    S.STARTED: {S.FORM_COMPLETED, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW, S.FAILED, S.QUEUED},
-    S.FORM_COMPLETED: {S.SUBMITTING, S.DRY_RUN_COMPLETE, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW, S.FAILED, S.QUEUED},
+    S.STARTED: {S.FORM_COMPLETED, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW, S.SKIPPED, S.FAILED, S.QUEUED},
+    S.FORM_COMPLETED: {S.SUBMITTING, S.DRY_RUN_COMPLETE, S.VERIFICATION_REQUIRED, S.NEEDS_REVIEW, S.SKIPPED,
+                       S.FAILED, S.QUEUED},
     # Once SUBMITTING, the only exits are evidence-backed or explicitly uncertain.
     S.SUBMITTING: {S.SUBMITTED, S.UNKNOWN, S.FAILED, S.VERIFICATION_REQUIRED},
     S.SUBMITTED: {S.VERIFIED},
@@ -55,8 +56,12 @@ def transition(
         raise IllegalTransition(f"{frm.value} -> {to.value} is not allowed")
     if to in EVIDENCE_REQUIRED:
         s.flush()
+        from .evidence import SUBMISSION_PROOF_KINDS
+
         has_evidence = s.scalar(
-            select(ApplicationEvidence.id).where(ApplicationEvidence.application_id == app.id).limit(1)
+            select(ApplicationEvidence.id)
+            .where(ApplicationEvidence.application_id == app.id, ApplicationEvidence.kind.in_(SUBMISSION_PROOF_KINDS))
+            .limit(1)
         )
         if not has_evidence:
             raise IllegalTransition(f"{to.value} requires stored submission evidence")
