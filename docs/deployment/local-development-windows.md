@@ -131,3 +131,27 @@ server or app.arfaat.com.
   `docker start woi-postgres woi-redis`.
 - To wipe the local database and start over:
   `docker rm -f woi-postgres woi-redis` and repeat Phase 3.
+
+## Phase 7 - Load the Qur'an and Hadith text (so Search and the Assistant have content)
+
+With the database running and migrated (Phase 4), open a Git Bash window in
+`apps/api` and run:
+
+```bash
+uv run python scripts/import_real_evidence.py
+```
+
+It downloads the two source packages from PyPI, checks their checksums, and
+loads about 6,200 ayat and 7,400 hadith through the platform's normal review
+and approval steps. It takes a few minutes and is safe to re-run (it skips
+sources that are already loaded).
+
+## Troubleshooting
+
+- **Port 8000 already used** (`WinError 10013`): start the API on another
+  port, e.g. `--port 8010`, and create `apps/web/.env.local` containing
+  `NEXT_PUBLIC_WOI_API_ORIGIN=http://localhost:8010`. Delete `apps/web/.next`
+  and restart the web app afterwards.
+- **"Could not reach the server" on the register or login page**: the address
+  in your browser must be listed in `WOI_ALLOWED_ORIGINS` in `apps/api/.env`
+  (for example `http://localhost:3000,http://localhost:3001`).

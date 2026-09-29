@@ -15,8 +15,8 @@ Sources:
     English. Verified: hadith #1 (the Hadith of Jibril) matches the well-known Abdul
     Hamid Siddiqui English translation verbatim.
 
-Run from apps/api with the venv active:
-    python scripts/import_real_evidence.py
+Downloads the two source packages from PyPI itself. Run from apps/api:
+    uv run python scripts/import_real_evidence.py
 """
 from __future__ import annotations
 
@@ -47,22 +47,40 @@ from app.services.retrieval import POLICY_VERSION, chunk_exact_text
 from app.services.source_provenance import SourceProvenanceService
 from app.services.sources import SourceRegistryService
 
-QURAN_JSON = Path(
-    "/tmp/claude-0/-home-user-arfaatshaikh/325dda2d-1989-5397-8e8a-8cdbffbaed43/scratchpad/"
-    "quran-import/extracted/quran_text_data/hafs.json"
-)
-QURAN_WHEEL = Path(
-    "/tmp/claude-0/-home-user-arfaatshaikh/325dda2d-1989-5397-8e8a-8cdbffbaed43/scratchpad/"
-    "quran-import/quran_text-0.1.0-py3-none-any.whl"
-)
-MUSLIM_JSON_GZ = Path(
-    "/tmp/claude-0/-home-user-arfaatshaikh/325dda2d-1989-5397-8e8a-8cdbffbaed43/scratchpad/"
-    "quran-import/sm-test/extracted/sahih_muslim/data/muslim.json.gz"
-)
-MUSLIM_WHEEL = Path(
-    "/tmp/claude-0/-home-user-arfaatshaikh/325dda2d-1989-5397-8e8a-8cdbffbaed43/scratchpad/"
-    "quran-import/sm-test/sahih_muslim-1.1.2-py3-none-any.whl"
-)
+import subprocess
+import tempfile
+import zipfile
+
+WORK = Path(tempfile.gettempdir()) / "woi-evidence-sources"
+
+
+def fetch_wheel(package: str, version: str) -> Path:
+    """Download an exact PyPI wheel, verify its sha256 against PyPI's metadata, and unpack it."""
+    import json as _json
+    import urllib.request
+
+    WORK.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(f"https://pypi.org/pypi/{package}/{version}/json", timeout=60) as resp:
+        meta = _json.load(resp)
+    entry = next(u for u in meta["urls"] if u["filename"].endswith(".whl"))
+    wheel = WORK / entry["filename"]
+    if not wheel.exists():
+        with urllib.request.urlopen(entry["url"], timeout=120) as resp:
+            wheel.write_bytes(resp.read())
+    if hashlib.sha256(wheel.read_bytes()).hexdigest() != entry["digests"]["sha256"]:
+        wheel.unlink()
+        raise RuntimeError(f"{package} {version}: checksum mismatch, refusing to import")
+    out = WORK / f"{package}-{version}"
+    if not out.exists():
+        with zipfile.ZipFile(wheel) as zf:
+            zf.extractall(out)
+    return wheel
+
+
+QURAN_WHEEL = fetch_wheel("quran-text", "0.1.0")
+QURAN_JSON = WORK / "quran-text-0.1.0" / "quran_text_data" / "hafs.json"
+MUSLIM_WHEEL = fetch_wheel("sahih-muslim", "1.1.2")
+MUSLIM_JSON_GZ = WORK / "sahih-muslim-1.1.2" / "sahih_muslim" / "data" / "muslim.json.gz"
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
