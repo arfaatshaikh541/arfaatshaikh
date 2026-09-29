@@ -16,7 +16,9 @@ export function HadithReader({ locale, collection, book, chapter }: { locale: st
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    apiFetch<Chapter>(`/hadith/collections/${encodeURIComponent(collection)}/books/${book}/chapters/${chapter}`)
+    const url = `/hadith/collections/${encodeURIComponent(collection)}/books/${book}/chapters/${chapter}`;
+    apiFetch<Chapter>(`${url}?translation=${encodeURIComponent(collection)}-en`)
+      .catch(() => apiFetch<Chapter>(url))
       .then(setData).catch((e: Error) => setError(e.message));
   }, [collection, book, chapter]);
 

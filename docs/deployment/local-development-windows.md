@@ -146,6 +146,19 @@ loads about 6,200 ayat and 7,400 hadith through the platform's normal review
 and approval steps. It takes a few minutes and is safe to re-run (it skips
 sources that are already loaded).
 
+### Then publish the readers
+
+The Qur'an and Hadith reader pages use their own tables. After the step above, run:
+
+```bash
+uv run python scripts/import_quran_reader.py
+uv run python scripts/import_hadith_reader.py
+```
+
+This publishes 114 surahs / 6,236 ayahs and Sahih Muslim (57 books, 7,459
+narrations, with the English translation). Re-run `uv run alembic -c alembic.ini upgrade head`
+first if you set up the database before 2026-09-29 (a migration adds missing timestamp defaults).
+
 ## Troubleshooting
 
 - **Port 8000 already used** (`WinError 10013`): start the API on another

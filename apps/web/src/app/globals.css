@@ -138,3 +138,11 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .governance-result-headline{font-weight:750;font-size:1.1rem;margin:0 0 .6rem}
 .governance-result ul{margin:0;padding-inline-start:1.3rem}
 .ai-status-line{display:flex;flex-direction:column;gap:.4rem;margin-top:.75rem}
+
+.surah-list{list-style:none;margin:1.5rem 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:.75rem}
+.surah-list a{display:grid;grid-template-columns:2.5rem 1fr;gap:.15rem .75rem;align-items:baseline;padding:.9rem 1rem;border:1px solid rgba(255,255,255,.12);border-radius:.75rem;text-decoration:none;color:inherit}
+.surah-list a:hover,.surah-list a:focus-visible{border-color:var(--gold,#c9a45c)}
+.surah-list span{grid-row:span 3;color:var(--gold,#c9a45c);font-variant-numeric:tabular-nums}
+.surah-list strong{font-size:1.35rem}
+.surah-list small{opacity:.7}
+#surah-filter{width:100%;max-width:26rem}
