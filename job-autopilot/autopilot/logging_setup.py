@@ -42,7 +42,7 @@ def setup_logging(level: str = "INFO") -> None:
     root.handlers[:] = [handler]
     root.setLevel(level)
     # Never let HTTP client debug logs print headers (Authorization / cookies).
-    for noisy in ("httpx", "httpcore", "urllib3"):
+    for noisy in ("httpx", "httpcore", "urllib3", "pgserver"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     _configured = True
 

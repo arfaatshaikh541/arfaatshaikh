@@ -32,7 +32,18 @@ items have been verified and which still need live validation on your server.
 * [`docs/CLOUD_RUNTIME.md`](docs/CLOUD_RUNTIME.md): 24/7 runtime, remote browser, human verification from your phone, recovery
 * [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md): security review of the cloud runtime
 
-## Quick start (server)
+## Quick start without Docker (plain Python)
+
+```bash
+python3.12 -m venv venv && source venv/bin/activate      # Python 3.11 or 3.12
+pip install -e ".[embedded]"
+autopilot setup                                          # config, master key, Chromium, built-in database
+autopilot create-admin --email you@example.com
+autopilot run                                            # open http://127.0.0.1:8000 (Ctrl+C stops)
+```
+Details, 24/7 on a server with systemd: [`docs/RUN_WITHOUT_DOCKER.md`](docs/RUN_WITHOUT_DOCKER.md).
+
+## Quick start with Docker (server)
 
 ```bash
 cp .env.example .env                   # set POSTGRES_PASSWORD
@@ -44,8 +55,8 @@ docker compose --profile tls up -d     # Caddy obtains HTTPS for JOBAP_DOMAIN
 docker compose exec web autopilot create-admin --email you@example.com
 ```
 
-Then put a TLS reverse proxy in front of `127.0.0.1:8000` (see `docs/DEPLOYMENT.md`) and
-follow `docs/OPERATIONS.md`.
+With `--profile tls`, Caddy serves the dashboard over HTTPS at `JOBAP_DOMAIN`; otherwise put your own TLS
+proxy in front of `127.0.0.1:8000` (see `docs/DEPLOYMENT.md`). Then follow `docs/OPERATIONS.md`.
 
 ## Development
 

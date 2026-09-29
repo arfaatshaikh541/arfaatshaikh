@@ -5,6 +5,7 @@ import datetime as dt
 import logging
 import os
 import signal
+import tempfile
 import threading
 import time
 import traceback
@@ -39,8 +40,8 @@ def heartbeat(worker_id: str, kind: str, current_task: int | None = None, info: 
         hb.current_task_id = current_task
         hb.info = {**(info or {}), "status": "ALIVE"}
     try:  # liveness file for the container HEALTHCHECK (touched only after a successful DB heartbeat)
-        open(os.environ.get("JOBAP_HEARTBEAT_FILE", "/tmp/jobap-heartbeat"), "a").close()
-        os.utime(os.environ.get("JOBAP_HEARTBEAT_FILE", "/tmp/jobap-heartbeat"))
+        open(os.environ.get("JOBAP_HEARTBEAT_FILE", os.path.join(tempfile.gettempdir(), "jobap-heartbeat")), "a").close()
+        os.utime(os.environ.get("JOBAP_HEARTBEAT_FILE", os.path.join(tempfile.gettempdir(), "jobap-heartbeat")))
     except OSError:
         pass
 
@@ -80,6 +81,8 @@ def _install_signals() -> None:
 
     signal.signal(signal.SIGTERM, h)
     signal.signal(signal.SIGINT, h)
+    if hasattr(signal, "SIGBREAK"):  # Windows: graceful stop from the `autopilot run` supervisor
+        signal.signal(signal.SIGBREAK, h)
 
 
 # ------------------------------------------------------------------ scheduler

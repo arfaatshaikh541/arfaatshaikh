@@ -15,8 +15,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="JOBAP_", env_file=None, extra="ignore")
+    # Settings come from environment variables, or from a .env file in the working directory
+    # (written by `autopilot setup`). Real environment variables win over the file.
+    model_config = SettingsConfigDict(env_prefix="JOBAP_", env_file=os.environ.get("JOBAP_ENV_FILE", ".env"),
+                                      env_file_encoding="utf-8", extra="ignore")
 
+    # Run a private PostgreSQL inside JOBAP_DATA_DIR (pip package `pgserver`) when no URL is given.
+    embedded_db: bool = False
     database_url: str = Field(
         default="",
         description="SQLAlchemy URL, e.g. postgresql+psycopg://user:pass@host/db",
@@ -65,6 +70,10 @@ class Config(BaseSettings):
 @lru_cache
 def get_config() -> Config:
     cfg = Config()
+    if not cfg.database_url and cfg.embedded_db:
+        from .embedded_db import ensure_embedded_database
+
+        cfg = ensure_embedded_database(cfg)
     if not cfg.database_url:
         raise RuntimeError(
             "JOBAP_DATABASE_URL is NOT CONFIGURED. Set it to a PostgreSQL URL, e.g. "
