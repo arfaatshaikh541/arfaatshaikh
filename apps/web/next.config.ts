@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 
 const apiOrigin = process.env.WOI_API_ORIGIN ?? "http://api:8000";
 const publicApiOrigin = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? "http://localhost:8000";
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSources = isDev ? "'self' 'unsafe-inline' 'unsafe-eval'" : "'self' 'unsafe-inline'";
 const connectSources = ["'self'", apiOrigin, publicApiOrigin].join(" ");
 
 // Deployment base path, e.g. "/worldofislam" when served at
@@ -44,7 +46,7 @@ const nextConfig: NextConfig = {
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src ${connectSources}`,
+            value: `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src ${scriptSources}; connect-src ${connectSources}`,
           },
         ],
       },
