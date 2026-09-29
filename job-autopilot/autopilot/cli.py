@@ -149,10 +149,17 @@ def _setup(a) -> int:
     if key.exists():
         print(f"- keeping existing master key {key}")
     else:
-        key.write_text(generate_master_key())
+        key.write_text(generate_master_key(), encoding="utf-8")
         os.chmod(key, 0o600)
         print(f"- created master key {key}   <-- BACK THIS FILE UP (without it your secrets cannot be decrypted)")
     env = Path(".env")
+    if env.exists():
+        existing = env.read_text(encoding="utf-8", errors="replace")
+        if "JOBAP_EMBEDDED_DB" not in existing and "JOBAP_DATABASE_URL" not in existing:
+            # e.g. the .env copied from .env.example for Docker: it has no database settings for plain Python
+            backup = Path(".env.docker.bak")
+            env.replace(backup)
+            print(f"- existing .env has no database settings (Docker-style); moved it to {backup} and writing a new one")
     if env.exists():
         print(f"- keeping existing {env.resolve()} (delete it to regenerate)")
     else:
@@ -178,7 +185,7 @@ def _setup(a) -> int:
             "JOBAP_SESSION_BIND_HOST=127.0.0.1",
             "JOBAP_SESSION_ADVERTISE_HOST=127.0.0.1",
         ]
-        env.write_text("\n".join(lines) + "\n")
+        env.write_text("\n".join(lines) + "\n", encoding="utf-8")
         try:
             os.chmod(env, 0o600)
         except OSError:
