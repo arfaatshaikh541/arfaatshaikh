@@ -19,6 +19,7 @@ import hashlib
 import json
 import re
 import sys
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +60,11 @@ def fetch_all(slug: str) -> tuple[list[list[dict]], bytes]:
         for attempt in range(4):
             try:
                 return urllib.request.urlopen(f"{RAW}{slug}/{n}.json", timeout=60).read()
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:  # the source has no file for this surah: treated as no commentary
+                    return b"[]"
+                if attempt == 3:
+                    raise
             except Exception:
                 if attempt == 3:
                     raise

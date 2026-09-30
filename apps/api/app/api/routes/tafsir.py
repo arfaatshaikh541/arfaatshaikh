@@ -159,7 +159,7 @@ async def tafsir_reader_payload(surah_number:int, ayah_number:int, db:DbSession,
     rows=await TafsirReaderService(db).reading_payload(surah_number,ayah_number,edition,translation)
     return [{
         'entry': {'id':x['entry'].id,'reference':x['entry'].canonical_reference,'arabic_text':x['entry'].arabic_text},
-        'edition': {'id':x['edition'].id,'key':x['edition'].edition_key,'attribution':x['edition'].attribution_text},
+        'edition': {'id':x['edition'].id,'key':x['edition'].edition_key,'attribution':x['edition'].attribution_text,'language':x['edition'].language},
         'collection': {'key':x['collection'].collection_key,'title':x['collection'].display_title},
         'author': {'id':x['author'].id,'name':x['author'].canonical_name,'arabic_name':x['author'].arabic_name},
         'translation': ({'text':x['translation'].translated_text,'key':x['translation_edition'].translation_key,'translator':x['translation_edition'].translator_name,'attribution':x['translation_edition'].attribution_text} if x['translation'] else None),

@@ -166,6 +166,17 @@ uv run python scripts/import_tajweed.py
 uv run python scripts/import_tafsir.py
 ```
 
+Then the larger catalogues (need internet; they take a long time, so start them and leave them running):
+
+```bash
+uv run python scripts/import_translations.py --languages English Urdu   # or omit --languages for all 97
+uv run python scripts/import_tafsir_catalogue.py
+```
+
+Works whose copyright is not confirmed are stored but hidden ("staged"). Only public-domain works
+appear right away. See `docs/data-sources.md` for what is published and how to publish a staged work
+(`scripts/publish_staged.py --list`).
+
 Every source, its licence and what was verified is listed in `docs/data-sources.md`.
 
 ## Troubleshooting
