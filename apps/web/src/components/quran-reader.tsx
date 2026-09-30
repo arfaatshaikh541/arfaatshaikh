@@ -10,6 +10,18 @@ type Recitation = { id:string; recitation_key:string; reciter_name:string; riway
 type AudioAyah = { id:string; ayah_id:string; canonical_reference:string; audio_url:string; duration_ms:number };
 type Reading = { surah:{surah_number:number; arabic_name:string; transliterated_name:string; english_name:string; ayah_count:number; revelation_classification:string}; translation:Translation|null; ayahs:Ayah[]; next_surah_number:number|null; previous_surah_number:number|null };
 
+type Tajweed = { corpus_version:string|null; attribution:string; rules:Record<string,{topic_id:string;topic_label_ar:string;label_ar:string}>; ayahs:{ayah_number:number;text:string;spans:[number,number,string][]}[] };
+const TOPIC_PRIORITY=["qalqalah","madd","noon-tanween","meem-sakinah","mushaddadatan","letter-relations","tafkheem-tarqeeq"];
+const TOPIC_EN:Record<string,string>={"qalqalah":"Qalqalah","madd":"Elongation (madd)","noon-tanween":"Noon sākinah & tanwīn","meem-sakinah":"Meem sākinah","mushaddadatan":"Shaddah on noon & meem","letter-relations":"Letter relationships","tafkheem-tarqeeq":"Heavy & light letters"};
+
+function tajweedSegments(text:string,spans:[number,number,string][],rules:Tajweed["rules"]){
+  const cps=Array.from(text); const topic:(string|null)[]=cps.map(()=>null);
+  for(const [st,en,rid] of spans){const t=rules[rid]?.topic_id; if(!t)continue; for(let i=st;i<en&&i<cps.length;i++){ if(topic[i]===null||TOPIC_PRIORITY.indexOf(t)<TOPIC_PRIORITY.indexOf(topic[i] as string)) topic[i]=t; }}
+  const out:{text:string;topic:string|null}[]=[];
+  cps.forEach((c,i)=>{const last=out[out.length-1]; if(last&&last.topic===topic[i]) last.text+=c; else out.push({text:c,topic:topic[i]});});
+  return out;
+}
+
 export function QuranReader({ locale, surahNumber }:{locale:"en"|"ar";surahNumber:number}) {
   const arabic = locale === "ar";
   const [translations,setTranslations]=useState<Translation[]>([]);
@@ -20,6 +32,9 @@ export function QuranReader({ locale, surahNumber }:{locale:"en"|"ar";surahNumbe
   const [recitations,setRecitations]=useState<Recitation[]>([]);
   const [recitation,setRecitation]=useState("");
   const [audio,setAudio]=useState<Record<string,AudioAyah>>({});
+  const [tajweedOn,setTajweedOn]=useState(false);
+  const [tajweed,setTajweed]=useState<Tajweed|null>(null);
+  useEffect(()=>{ if(tajweedOn&&!tajweed) apiFetch<Tajweed>(`/quran/surahs/${surahNumber}/tajweed`).then(setTajweed).catch(()=>setTajweedOn(false)); },[tajweedOn,tajweed,surahNumber]);
   const [repeatMode,setRepeatMode]=useState<"off"|"ayah"|"surah">("off");
 
   useEffect(()=>{
@@ -81,14 +96,16 @@ export function QuranReader({ locale, surahNumber }:{locale:"en"|"ar";surahNumbe
       <Link href={`/${locale}/quran`}>{arabic?"فهرس السور":"Surah index"}</Link>
       <label>{arabic?"الترجمة":"Translation"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">{arabic?"بدون ترجمة":"Arabic only"}</option>{translations.map(t=><option key={t.id} value={t.translation_key}>{t.display_name}</option>)}</select></label><label>{arabic?"حجم الخط":"Arabic size"}<input aria-label={arabic?"حجم الخط العربي":"Arabic font size"} type="range" min="80" max="200" value={fontScale} onChange={e=>setFontScale(Number(e.target.value))}/></label><label>{arabic?"القارئ":"Reciter"}<select value={recitation} onChange={e=>setRecitation(e.target.value)}><option value="">{arabic?"بدون صوت":"No audio"}</option>{recitations.map(r=><option key={r.id} value={r.recitation_key}>{r.display_name}</option>)}</select></label><label>{arabic?"التكرار":"Repeat"}<select value={repeatMode} onChange={e=>setRepeatMode(e.target.value as "off"|"ayah"|"surah")}><option value="off">{arabic?"إيقاف":"Off"}</option><option value="ayah">{arabic?"الآية":"Ayah"}</option><option value="surah">{arabic?"السورة":"Surah"}</option></select></label><button onClick={savePreferences}>{arabic?"حفظ التفضيلات":"Save preferences"}</button><Link href={`/${locale}/quran/bookmarks`}>{arabic?"علاماتي":"My bookmarks"}</Link>
     </header>
+    <div className="tajweed-bar"><label><input type="checkbox" checked={tajweedOn} onChange={e=>setTajweedOn(e.target.checked)}/> {arabic?"ألوان التجويد":"Tajweed colours"}</label>
+      {tajweedOn&&tajweed&&<><ul className="tj-legend">{TOPIC_PRIORITY.map(t=>{const ar=Object.values(tajweed.rules).find(r=>r.topic_id===t)?.topic_label_ar; return <li key={t}><span className={`tj tj-${t}`}>●</span> {arabic?ar:TOPIC_EN[t]}</li>;})}</ul><p className="tool-note">{tajweed.attribution}</p></>}</div>
     {message && <div className="trust-banner" role="status">{message}</div>}
     {reading && <>
       <section className="surah-heading"><p>{reading.surah.revelation_classification}</p><h1>{reading.surah.arabic_name}</h1><h2>{reading.surah.transliterated_name}</h2><span>{reading.surah.ayah_count} {arabic?"آية":"ayahs"}</span></section>
       <ol className="ayah-list">{reading.ayahs.map(ayah=><li id={`ayah-${ayah.ayah_number}`} key={ayah.id} className="ayah-card">
         <div className="ayah-meta"><a href={`#ayah-${ayah.ayah_number}`}>{ayah.canonical_reference}</a><span>{ayah.page_number?`${arabic?"صفحة":"Page"} ${ayah.page_number}`:""}</span></div>
-        <p className="ayah-arabic" dir="rtl" lang="ar" style={{fontSize:`${fontScale}%`}}>{ayah.arabic_text}</p>
+        <p className="ayah-arabic" dir="rtl" lang="ar" style={{fontSize:`${fontScale}%`}}>{tajweedOn&&tajweed?.ayahs.find(x=>x.ayah_number===ayah.ayah_number)?tajweedSegments(tajweed.ayahs.find(x=>x.ayah_number===ayah.ayah_number)!.text,tajweed.ayahs.find(x=>x.ayah_number===ayah.ayah_number)!.spans,tajweed.rules).map((seg,i)=>seg.topic?<span key={i} className={`tj tj-${seg.topic}`}>{seg.text}</span>:<span key={i}>{seg.text}</span>):ayah.arabic_text}</p>
         {ayah.translation && <p className="ayah-translation">{ayah.translation}</p>}{audio[ayah.id]&&<audio data-quran-audio controls preload="none" src={audio[ayah.id].audio_url} onPause={e=>void persistPlayback(audio[ayah.id],e.currentTarget)} onEnded={e=>handleAudioEnded(e.currentTarget)} aria-label={`${arabic?"تلاوة":"Recitation"} ${ayah.canonical_reference}`}/>}
-        <div className="ayah-actions"><button onClick={()=>bookmark(ayah)}>{arabic?"حفظ":"Bookmark"}</button><button onClick={()=>saveProgress(ayah)}>{arabic?"حفظ موضع القراءة":"Save position"}</button><button onClick={()=>copyCitation(ayah)}>{arabic?"نسخ مع المرجع":"Copy citation"}</button></div>
+        <div className="ayah-actions"><Link href={`/${locale}/tafsir/${surahNumber}/${ayah.ayah_number}`}>{arabic?"التفسير":"Tafsir"}</Link><button onClick={()=>bookmark(ayah)}>{arabic?"حفظ":"Bookmark"}</button><button onClick={()=>saveProgress(ayah)}>{arabic?"حفظ موضع القراءة":"Save position"}</button><button onClick={()=>copyCitation(ayah)}>{arabic?"نسخ مع المرجع":"Copy citation"}</button></div>
       </li>)}</ol>
       <nav className="surah-pagination">{reading.previous_surah_number&&<Link href={`/${locale}/quran/${reading.previous_surah_number}`}>{arabic?"السورة السابقة":"Previous surah"}</Link>}{reading.next_surah_number&&<Link href={`/${locale}/quran/${reading.next_surah_number}`}>{arabic?"السورة التالية":"Next surah"}</Link>}</nav>
     </>}

@@ -106,6 +106,11 @@ def clean(text: str) -> str:
     return " ".join(text.split())
 
 
+def all_collections() -> dict[str, dict]:
+    import devotional_sources
+    return {**HADITH_COLLECTIONS, **devotional_sources.build_collections(sys.modules[__name__])}
+
+
 def sha256_file(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
@@ -318,7 +323,7 @@ async def import_quran(session, actor: User) -> None:
 
 
 async def import_hadith(session, actor: User, cfg: dict) -> None:
-    print(f"Importing {cfg['title']} ({cfg['package']}, AGPL-3.0, bilingual)...")
+    print(f"Importing {cfg['title']} ({cfg['package']}, {cfg.get('spdx', 'AGPL-3.0')})...")
     with gzip.open(cfg["data"], "rt", encoding="utf-8") as fh:
         data = json.load(fh)
     wheel_digest, _ = sha256_file(cfg["wheel"])
@@ -327,12 +332,12 @@ async def import_hadith(session, actor: User, cfg: dict) -> None:
     source, edition = await govern_edition(
         session, actor,
         licence_payload=LicenceCreate(
-            name=f"GNU Affero General Public License v3.0 (package); {cfg['title']} text is traditional Islamic reference material",
-            spdx_identifier="AGPL-3.0", licence_url="https://www.gnu.org/licenses/agpl-3.0.html",
+            name=cfg.get("licence_name") or f"GNU Affero General Public License v3.0 (package); {cfg['title']} text is traditional Islamic reference material",
+            spdx_identifier=cfg.get("spdx", "AGPL-3.0"), licence_url=cfg.get("licence_url", "https://www.gnu.org/licenses/agpl-3.0.html"),
             copyright_holder=cfg["licence_holder"],
-            redistribution_allowed=True, modification_allowed=True, commercial_use_allowed=False,
+            redistribution_allowed=True, modification_allowed=True, commercial_use_allowed=cfg.get("commercial", False),
             attribution_text=cfg["attribution"],
-            restrictions="Package is AGPL-3.0; treat as non-commercial reference use pending direct rights confirmation "
+            restrictions=cfg.get("restrictions") or "Package is AGPL-3.0; treat as non-commercial reference use pending direct rights confirmation "
                          "from the translation's original publisher.",
         ),
         source_payload=SourceCreate(
@@ -341,11 +346,12 @@ async def import_hadith(session, actor: User, cfg: dict) -> None:
             description=f"Complete {cfg['title']} hadith collection, Arabic text with the classical English translation.",
         ),
         edition_payload=EditionCreate(
-            edition_key=f"{'sahih-muslim' if k == 'muslim' else 'sahih-bukhari'}-en", language="en", translator_name=cfg["translator"],
+            edition_key=f"{cfg.get('edition_stem') or ('sahih-muslim' if k == 'muslim' else 'sahih-bukhari')}-{'ar' if cfg.get('arabic_only') else 'en'}",
+            language="ar" if cfg.get("arabic_only") else "en", translator_name=cfg["translator"] or None,
             publisher=f"{cfg['package'].split()[0]} PyPI package", citation_format=f"{cfg['title']}, Hadith {{id}}",
         ),
         acquisition=AcquisitionCreate(
-            method="manual_upload", acquired_from=f"PyPI: {cfg['package']} ({cfg['pypi']})",
+            method="manual_upload", acquired_from=f"Package: {cfg['package']} ({cfg['pypi']})",
             acquired_at=datetime.now(UTC), evidence_reference=f"sha256:{wheel_digest}",
         ),
         integrity_path=cfg["wheel"],
@@ -359,11 +365,12 @@ async def import_hadith(session, actor: User, cfg: dict) -> None:
     rows = []
     for h in data["hadiths"]:
         english = h.get("english") or {}
-        text = clean(" ".join(part for part in (english.get("narrator"), english.get("text")) if part))
+        text = clean(h["arabic"]) if cfg.get("arabic_only") else clean(" ".join(part for part in (english.get("narrator"), english.get("text")) if part))
         if not text:
             continue
+        suffix = f" ({h['label_suffix']})" if h.get("label_suffix") else ""
         rows.append((f"{k}:{h['id']}", f"{cfg['package'].split()[0]} package hadith id {h['id']}",
-                     f"{cfg['title']}, Hadith {h['id']}", text))
+                     f"{cfg['title']}, Hadith {h['id']}{suffix}", text))
     print(f"  built {len(rows)} hadith passages")
     passages = bulk_add_passages(session, edition, actor, rows)
     await session.flush()
@@ -388,7 +395,7 @@ async def main() -> None:
         else:
             print("Qur'an already imported, skipping.")
 
-        for cfg in HADITH_COLLECTIONS.values():
+        for cfg in all_collections().values():
             if await session.scalar(select(Source.id).where(Source.canonical_title == cfg["title"])):
                 print(f"{cfg['title']} already imported, skipping.")
             else:

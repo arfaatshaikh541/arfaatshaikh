@@ -159,6 +159,15 @@ This publishes 114 surahs / 6,236 ayahs, Sahih Muslim (57 books, 7,459
 narrations) and Sahih al-Bukhari (97 books, 7,277 narrations), each with its English translation. Re-run `uv run alembic -c alembic.ini upgrade head`
 first if you set up the database before 2026-09-29 (a migration adds missing timestamp defaults).
 
+Then load Tajweed and Tafsir (needs internet; Tafsir takes a few minutes):
+
+```bash
+uv run python scripts/import_tajweed.py
+uv run python scripts/import_tafsir.py
+```
+
+Every source, its licence and what was verified is listed in `docs/data-sources.md`.
+
 ## Troubleshooting
 
 - **Port 8000 already used** (`WinError 10013`): start the API on another

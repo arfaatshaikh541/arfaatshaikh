@@ -149,3 +149,8 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 
 .fast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:.35rem .75rem;margin:.75rem 0}
 .plain-list{list-style:none;padding:0;display:grid;gap:.5rem}
+
+.tajweed-bar{margin:.75rem 0}
+.tj-legend{list-style:none;display:flex;flex-wrap:wrap;gap:.25rem 1rem;padding:0;margin:.5rem 0}
+.tj-qalqalah{color:#5fb3ff}.tj-madd{color:#ff8a65}.tj-noon-tanween{color:#7bd88f}.tj-meem-sakinah{color:#c792ea}
+.tj-mushaddadatan{color:#ffd166}.tj-letter-relations{color:#4dd0e1}.tj-tafkheem-tarqeeq{color:#ef7b9b}

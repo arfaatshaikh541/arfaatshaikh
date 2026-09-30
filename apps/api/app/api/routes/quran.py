@@ -197,3 +197,28 @@ async def publish_recitation(recitation_id: UUID, db: DbSession, _: Annotated[Us
     recitation = await QuranService(db).publish_recitation(recitation_id)
     await db.commit()
     return {"id": recitation.id, "published": recitation.published}
+
+
+@router.get("/surahs/{surah_number}/tajweed")
+async def get_surah_tajweed(surah_number: int, db: DbSession):
+    """Per-ayah Arabic text (with waqf marks) plus tajweed rule spans [start, end, rule_id] in code points."""
+    import json
+    from sqlalchemy import select
+    from app.models.quran import QuranAyah, QuranSurah
+    from app.models.tajweed import QuranAyahTajweed, QuranTajweedRule
+
+    rows = (await db.execute(
+        select(QuranAyah.ayah_number, QuranAyahTajweed.marked_text, QuranAyahTajweed.spans_json, QuranAyahTajweed.corpus_version)
+        .join(QuranAyahTajweed, QuranAyahTajweed.ayah_id == QuranAyah.id)
+        .join(QuranSurah, QuranSurah.id == QuranAyah.surah_id)
+        .where(QuranSurah.surah_number == surah_number, QuranAyah.published.is_(True)).order_by(QuranAyah.ayah_number)
+    )).all()
+    used = {rule for _, _, spans, _ in rows for _, _, rule in json.loads(spans)}
+    rules = {r.rule_id: {"topic_id": r.topic_id, "topic_label_ar": r.topic_label_ar, "label_ar": r.label_ar}
+             for r in await db.scalars(select(QuranTajweedRule).where(QuranTajweedRule.rule_id.in_(used)))} if used else {}
+    return {
+        "corpus_version": rows[0][3] if rows else None,
+        "attribution": "Tajweed rules and annotations: quran.ws (rules from Quranpedia Tajweed), CC BY 4.0",
+        "rules": rules,
+        "ayahs": [{"ayah_number": n, "text": t, "spans": json.loads(sp)} for n, t, sp, _ in rows],
+    }

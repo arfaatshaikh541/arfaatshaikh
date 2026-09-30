@@ -14,9 +14,11 @@ from app.api.routes.research import router as research_router
 from app.api.routes.community import router as community_router
 from app.api.routes.scholarly import router as scholarly_router
 from app.api.routes.ai_provider import router as ai_provider_router
+from app.api.routes.verification import router as verification_router
 
 router = APIRouter()
 router.include_router(ai_provider_router)
+router.include_router(verification_router)
 router.include_router(auth_router)
 router.include_router(organisations_router)
 router.include_router(sources_router)
