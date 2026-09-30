@@ -81,6 +81,29 @@ QURAN_WHEEL = fetch_wheel("quran-text", "0.1.0")
 QURAN_JSON = WORK / "quran-text-0.1.0" / "quran_text_data" / "hafs.json"
 MUSLIM_WHEEL = fetch_wheel("sahih-muslim", "1.1.2")
 MUSLIM_JSON_GZ = WORK / "sahih-muslim-1.1.2" / "sahih_muslim" / "data" / "muslim.json.gz"
+BUKHARI_WHEEL = fetch_wheel("sahih-al-bukhari", "3.1.7")
+BUKHARI_JSON_GZ = WORK / "sahih-al-bukhari-3.1.7" / "sahih_al_bukhari" / "data" / "bukhari.json.gz"
+
+HADITH_COLLECTIONS = {
+    "muslim": dict(
+        key="muslim", title="Sahih Muslim", title_ar="صحيح مسلم", compiler="Imam Muslim ibn al-Hajjaj al-Naysaburi",
+        package="sahih-muslim 1.1.2", pypi="https://pypi.org/project/sahih-muslim/", wheel=MUSLIM_WHEEL, data=MUSLIM_JSON_GZ,
+        licence_holder="sahih-muslim package (muhammadsaadamin/SENODROOM)", translator="Abdul Hamid Siddiqui (traditional attribution)",
+        attribution="Sahih Muslim, Imam Muslim ibn al-Hajjaj al-Naysaburi. English translation in the classical Abdul Hamid Siddiqui lineage.",
+        review="Spot-checked hadith #1 (the long Hadith of Jibril, Kitab al-Iman) against the well-known Abdul Hamid Siddiqui English translation of Sahih Muslim and confirmed verbatim wording.",
+    ),
+    "bukhari": dict(
+        key="bukhari", title="Sahih al-Bukhari", title_ar="صحيح البخاري", compiler="Imam Muhammad ibn Ismail al-Bukhari",
+        package="sahih-al-bukhari 3.1.7", pypi="https://pypi.org/project/sahih-al-bukhari/", wheel=BUKHARI_WHEEL, data=BUKHARI_JSON_GZ,
+        licence_holder="sahih-al-bukhari package (muhammadsaadamin/SENODROOM)", translator="Muhammad Muhsin Khan (traditional attribution)",
+        attribution="Sahih al-Bukhari, Imam Muhammad ibn Ismail al-Bukhari. English translation in the Muhammad Muhsin Khan lineage.",
+        review="Spot-checked hadith #1 (the hadith of intentions) against the well-known Muhsin Khan English translation of Sahih al-Bukhari and confirmed the wording.",
+    ),
+}
+
+
+def clean(text: str) -> str:
+    return " ".join(text.split())
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
@@ -294,63 +317,53 @@ async def import_quran(session, actor: User) -> None:
     print(f"  done: {len(passages)} ayahs projected into the retrieval index")
 
 
-async def import_hadith(session, actor: User) -> None:
-    print("Importing Sahih Muslim (sahih-muslim 1.1.2, AGPL-3.0, bilingual)...")
-    with gzip.open(MUSLIM_JSON_GZ, "rt", encoding="utf-8") as fh:
+async def import_hadith(session, actor: User, cfg: dict) -> None:
+    print(f"Importing {cfg['title']} ({cfg['package']}, AGPL-3.0, bilingual)...")
+    with gzip.open(cfg["data"], "rt", encoding="utf-8") as fh:
         data = json.load(fh)
-    wheel_digest, _ = sha256_file(MUSLIM_WHEEL)
+    wheel_digest, _ = sha256_file(cfg["wheel"])
+    k = cfg["key"]
 
     source, edition = await govern_edition(
         session, actor,
         licence_payload=LicenceCreate(
-            name="GNU Affero General Public License v3.0 (package); hadith text is traditional Islamic reference material",
+            name=f"GNU Affero General Public License v3.0 (package); {cfg['title']} text is traditional Islamic reference material",
             spdx_identifier="AGPL-3.0", licence_url="https://www.gnu.org/licenses/agpl-3.0.html",
-            copyright_holder="sahih-muslim package (muhammadsaadamin/SENODROOM)",
+            copyright_holder=cfg["licence_holder"],
             redistribution_allowed=True, modification_allowed=True, commercial_use_allowed=False,
-            attribution_text="Sahih Muslim, Imam Muslim ibn al-Hajjaj al-Naysaburi. English rendering in the "
-                              "classical Abdul Hamid Siddiqui translation lineage.",
+            attribution_text=cfg["attribution"],
             restrictions="Package is AGPL-3.0; treat as non-commercial reference use pending direct rights confirmation "
                          "from the translation's original publisher.",
         ),
         source_payload=SourceCreate(
-            canonical_title="Sahih Muslim", original_title="صحيح مسلم", source_type="hadith", primary_language="ar",
-            compiler_name="Imam Muslim ibn al-Hajjaj al-Naysaburi",
-            description="Complete Sahih Muslim hadith collection (7563 hadiths), Arabic text with the classical "
-                        "English translation. Hadith #1 (the Hadith of Jibril) verified verbatim against the "
-                        "well-known Abdul Hamid Siddiqui rendering.",
+            canonical_title=cfg["title"], original_title=cfg["title_ar"], source_type="hadith", primary_language="ar",
+            compiler_name=cfg["compiler"],
+            description=f"Complete {cfg['title']} hadith collection, Arabic text with the classical English translation.",
         ),
         edition_payload=EditionCreate(
-            edition_key="sahih-muslim-en", language="en", translator_name="Abdul Hamid Siddiqui (traditional attribution)",
-            publisher="sahih-muslim PyPI package", citation_format="Sahih Muslim, Hadith {id}",
+            edition_key=f"{'sahih-muslim' if k == 'muslim' else 'sahih-bukhari'}-en", language="en", translator_name=cfg["translator"],
+            publisher=f"{cfg['package'].split()[0]} PyPI package", citation_format=f"{cfg['title']}, Hadith {{id}}",
         ),
         acquisition=AcquisitionCreate(
-            method="manual_upload", acquired_from="PyPI: sahih-muslim 1.1.2 (https://pypi.org/project/sahih-muslim/)",
+            method="manual_upload", acquired_from=f"PyPI: {cfg['package']} ({cfg['pypi']})",
             acquired_at=datetime.now(UTC), evidence_reference=f"sha256:{wheel_digest}",
         ),
-        integrity_path=MUSLIM_WHEEL,
-        review_rationale=(
-            "Spot-checked hadith #1 (the long Hadith of Jibril, Kitab al-Iman) against the well-known "
-            "Abdul Hamid Siddiqui English translation of Sahih Muslim and confirmed verbatim wording. "
-            "114-chapter structure and hadith numbering are consistent with the standard Sahih Muslim edition."
-        ),
+        integrity_path=cfg["wheel"],
+        review_rationale=cfg["review"] + " Chapter structure and hadith numbering follow the source package.",
     )
     await SourceRegistryService(session).upsert_attribution(edition.id, AttributionUpsert(
-        language="en", display_text="Sahih Muslim, Imam Muslim ibn al-Hajjaj al-Naysaburi. English translation in the "
-                                     "classical Abdul Hamid Siddiqui lineage.",
-        source_url="https://pypi.org/project/sahih-muslim/",
+        language="en", display_text=cfg["attribution"], source_url=cfg["pypi"],
     ))
     await session.flush()
 
     rows = []
     for h in data["hadiths"]:
         english = h.get("english") or {}
-        text = " ".join(part for part in (english.get("narrator"), english.get("text")) if part).strip()
+        text = clean(" ".join(part for part in (english.get("narrator"), english.get("text")) if part))
         if not text:
             continue
-        rows.append((
-            f"muslim:{h['id']}", f"sahih-muslim package hadith id {h['id']}",
-            f"Sahih Muslim, Hadith {h['id']}", text,
-        ))
+        rows.append((f"{k}:{h['id']}", f"{cfg['package'].split()[0]} package hadith id {h['id']}",
+                     f"{cfg['title']}, Hadith {h['id']}", text))
     print(f"  built {len(rows)} hadith passages")
     passages = bulk_add_passages(session, edition, actor, rows)
     await session.flush()
@@ -375,11 +388,11 @@ async def main() -> None:
         else:
             print("Qur'an already imported, skipping.")
 
-        existing_muslim = await session.scalar(select(Source.id).where(Source.canonical_title == "Sahih Muslim"))
-        if not existing_muslim:
-            await import_hadith(session, actor)
-        else:
-            print("Sahih Muslim already imported, skipping.")
+        for cfg in HADITH_COLLECTIONS.values():
+            if await session.scalar(select(Source.id).where(Source.canonical_title == cfg["title"])):
+                print(f"{cfg['title']} already imported, skipping.")
+            else:
+                await import_hadith(session, actor, cfg)
     await db.dispose()
     print("Import complete.")
 

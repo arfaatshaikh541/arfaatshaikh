@@ -37,20 +37,25 @@ from app.schemas.sources import (  # noqa: E402
 )
 from app.services.sources import SourceRegistryService  # noqa: E402
 
-COLLECTION_KEY = "muslim"
-AR_EDITION_KEY = "sahih-muslim-ar"
+
+
+def clean(text: str) -> str:
+    return " ".join(text.split())
 
 
 def sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-async def main() -> None:
-    data = json.load(gzip.open(base.MUSLIM_JSON_GZ, "rt", encoding="utf-8"))
+async def publish(cfg: dict) -> None:
+    COLLECTION_KEY = cfg["key"]
+    stem = "sahih-muslim" if COLLECTION_KEY == "muslim" else "sahih-bukhari"
+    AR_EDITION_KEY = f"{stem}-ar"
+    data = json.load(gzip.open(cfg["data"], "rt", encoding="utf-8"))
     db = Database(get_settings())
     async with db.session_factory() as session:
-        source = await session.scalar(select(Source).where(Source.canonical_title == "Sahih Muslim"))
-        en_edition = await session.scalar(select(SourceEdition).where(SourceEdition.edition_key == "sahih-muslim-en"))
+        source = await session.scalar(select(Source).where(Source.canonical_title == cfg["title"]))
+        en_edition = await session.scalar(select(SourceEdition).where(SourceEdition.edition_key == f"{stem}-en"))
         if source is None or en_edition is None:
             raise SystemExit("Run scripts/import_real_evidence.py first.")
         if await session.scalar(select(HadithCollection.id).where(HadithCollection.collection_key == COLLECTION_KEY)):
@@ -62,12 +67,12 @@ async def main() -> None:
         # Arabic edition, governed like the English one.
         ar_edition = await registry.create_edition(source.id, EditionCreate(
             licence_id=en_edition.licence_id, edition_key=AR_EDITION_KEY, language="ar",
-            publisher="sahih-muslim PyPI package", citation_format="Sahih Muslim, Hadith {id} (Arabic)"))
-        wheel_digest, size = base.sha256_file(base.MUSLIM_WHEEL)
+            publisher=f"{cfg['package'].split()[0]} PyPI package", citation_format=f"{cfg['title']}, Hadith {{id}} (Arabic)"))
+        wheel_digest, size = base.sha256_file(cfg["wheel"])
         await registry.record_acquisition(ar_edition.id, AcquisitionCreate(
-            method="manual_upload", acquired_from="PyPI: sahih-muslim 1.1.2 (https://pypi.org/project/sahih-muslim/)",
+            method="manual_upload", acquired_from=f"PyPI: {cfg['package']} ({cfg['pypi']})",
             acquired_at=datetime.now(UTC), evidence_reference=f"sha256:{wheel_digest}"), actor)
-        await registry.verify_integrity(ar_edition.id, base.MUSLIM_WHEEL.name, "sha256", actor, wheel_digest, size)
+        await registry.verify_integrity(ar_edition.id, cfg["wheel"].name, "sha256", actor, wheel_digest, size)
         await registry.transition_ingestion(ar_edition.id, IngestionTransition(
             status="validating", rationale="Arabic passages are being loaded from the verified package."), actor)
         assignment = await registry.assign_review(ar_edition.id, ReviewAssignmentCreate(
@@ -76,18 +81,18 @@ async def main() -> None:
             decision="approved",
             rationale="Arabic text comes from the same checksum-verified package and hadith ids as the reviewed English edition."), actor)
         await registry.upsert_attribution(ar_edition.id, AttributionUpsert(
-            language="ar", display_text="صحيح مسلم، الإمام مسلم بن الحجاج النيسابوري. النص العربي من حزمة sahih-muslim.",
-            source_url="https://pypi.org/project/sahih-muslim/"))
+            language="ar", display_text=f"{cfg['title_ar']}. النص العربي من حزمة {cfg['package'].split()[0]}.",
+            source_url=cfg["pypi"]))
 
         books = [c for c in data["chapters"]]
         book_number = {c["id"]: (c["id"] if c["id"] > 0 else max(x["id"] for x in books) + 1) for c in books}
         rows = []  # (key, locator, label, content)
         for c in books:
             n = book_number[c["id"]]
-            rows.append((f"muslim-ar:book:{n}", f"book {n}", f"Sahih Muslim, {c['english']}", c["arabic"]))
+            rows.append((f"{COLLECTION_KEY}-ar:book:{n}", f"book {n}", f"{cfg['title']}, {c['english']}", c["arabic"]))
         for h in data["hadiths"]:
             if h["arabic"].strip():
-                rows.append((f"muslim-ar:{h['id']}", f"hadith id {h['id']}", f"Sahih Muslim, Hadith {h['id']} (Arabic)", h["arabic"]))
+                rows.append((f"{COLLECTION_KEY}-ar:{h['id']}", f"hadith id {h['id']}", f"{cfg['title']}, Hadith {h['id']} (Arabic)", clean(h["arabic"])))
         passages = base.bulk_add_passages(session, ar_edition, actor, rows)
         await session.flush()
         await registry.transition_ingestion(ar_edition.id, IngestionTransition(
@@ -101,15 +106,15 @@ async def main() -> None:
             select(SourcePassage).where(SourcePassage.edition_id == en_edition.id, SourcePassage.is_current.is_(True)))}
 
         collection = HadithCollection(
-            source_edition_id=ar_edition.id, collection_key=COLLECTION_KEY, arabic_title="صحيح مسلم",
-            display_title="Sahih Muslim", compiler_name="Imam Muslim ibn al-Hajjaj al-Naysaburi", language="ar", published=True)
+            source_edition_id=ar_edition.id, collection_key=COLLECTION_KEY, arabic_title=cfg["title_ar"],
+            display_title=cfg["title"], compiler_name=cfg["compiler"], language="ar", published=True)
         session.add(collection)
         await session.flush()
 
         book_rows, chapter_rows = {}, {}
         for c in books:
             n = book_number[c["id"]]
-            passage = by_key[f"muslim-ar:book:{n}"]
+            passage = by_key[f"{COLLECTION_KEY}-ar:book:{n}"]
             book = HadithBook(collection_id=collection.id, book_number=n, arabic_title=c["arabic"],
                               display_title=c["english"], source_passage_id=passage.id, published=True)
             session.add(book)
@@ -123,16 +128,16 @@ async def main() -> None:
         await session.flush()
 
         translation = HadithTranslationEdition(
-            source_edition_id=en_edition.id, translation_key="muslim-en", language="en",
-            translator_name="Abdul Hamid Siddiqui (traditional attribution)", publisher_name="sahih-muslim PyPI package",
-            attribution_text="Sahih Muslim, English translation in the classical Abdul Hamid Siddiqui lineage.", published=True)
+            source_edition_id=en_edition.id, translation_key=f"{COLLECTION_KEY}-en", language="en",
+            translator_name=cfg["translator"], publisher_name=f"{cfg['package'].split()[0]} PyPI package",
+            attribution_text=cfg["attribution"], published=True)
         session.add(translation)
         await session.flush()
 
         count = 0
         narrations = []
         for h in data["hadiths"]:
-            ar = by_key.get(f"muslim-ar:{h['id']}")
+            ar = by_key.get(f"{COLLECTION_KEY}-ar:{h['id']}")
             if ar is None or h["chapterId"] not in book_rows:
                 continue
             book, _, _ = book_rows[h["chapterId"]]
@@ -146,15 +151,20 @@ async def main() -> None:
         await session.flush()
         translated = 0
         for narration, hid in narrations:
-            en = en_by_key.get(f"muslim:{hid}")
+            en = en_by_key.get(f"{COLLECTION_KEY}:{hid}")
             if en is not None:
                 session.add(HadithTranslation(
                     translation_edition_id=translation.id, narration_id=narration.id, translated_text=en.content,
                     text_sha256=en.content_sha256, source_passage_id=en.id, published=True))
                 translated += 1
         await session.commit()
-        print(f"Published {len(books)} books and {count} narrations ({translated} with English translation).")
+        print(f"Published {cfg['title']}: {len(books)} books and {count} narrations ({translated} with English translation).")
     await db.dispose()
+
+
+async def main() -> None:
+    for cfg in base.HADITH_COLLECTIONS.values():
+        await publish(cfg)
 
 
 if __name__ == "__main__":

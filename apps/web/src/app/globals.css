@@ -146,3 +146,6 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .surah-list strong{font-size:1.35rem}
 .surah-list small{opacity:.7}
 #surah-filter{width:100%;max-width:26rem}
+
+.fast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:.35rem .75rem;margin:.75rem 0}
+.plain-list{list-style:none;padding:0;display:grid;gap:.5rem}

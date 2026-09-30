@@ -155,8 +155,8 @@ uv run python scripts/import_quran_reader.py
 uv run python scripts/import_hadith_reader.py
 ```
 
-This publishes 114 surahs / 6,236 ayahs and Sahih Muslim (57 books, 7,459
-narrations, with the English translation). Re-run `uv run alembic -c alembic.ini upgrade head`
+This publishes 114 surahs / 6,236 ayahs, Sahih Muslim (57 books, 7,459
+narrations) and Sahih al-Bukhari (97 books, 7,277 narrations), each with its English translation. Re-run `uv run alembic -c alembic.ini upgrade head`
 first if you set up the database before 2026-09-29 (a migration adds missing timestamp defaults).
 
 ## Troubleshooting
