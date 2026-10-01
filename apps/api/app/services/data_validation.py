@@ -271,6 +271,21 @@ async def manifest_record_counts(db: AsyncSession, manifest: dict) -> list[str]:
             for e in manifest["datasets"] if "records" in e and stored.get(e["id"], 0) != e["records"]]
 
 
+async def domain_registry_matches_database(db: AsyncSession, manifest: dict) -> list[str]:
+    """The readiness registry must be internally consistent, agree with the manifest, and agree with the live data it describes."""
+    from app.services.readiness import evaluate_domain, live_state, load_registry, validate_registry
+    registry = load_registry()
+    problems = validate_registry(registry, manifest)
+    live = await live_state(db)
+    for domain in registry["domains"]:
+        result = evaluate_domain(domain, live)
+        if result["registry_out_of_date"]:
+            problems.append(f"domain {domain['domain']}: registry counts {domain['records']['total']}/{domain['records']['published']} differ from the database {result['counts']['total']}/{result['counts']['published']}")
+        if result["status"] != domain["status"]:
+            problems.append(f"domain {domain['domain']}: declared {domain['status']} but the live data supports only {result['status']} ({'; '.join(result['downgrade_reasons'])})")
+    return problems
+
+
 async def validate_database(db: AsyncSession, manifest: dict) -> dict[str, list[str]]:
     return {
         "manifest": manifest_problems(manifest),
@@ -283,6 +298,7 @@ async def validate_database(db: AsyncSession, manifest: dict) -> dict[str, list[
         "no_duplicate_identifiers": await duplicate_identifiers(db),
         "graph_relationships_have_provenance": await graph_provenance(db),
         "manifest_record_counts_match": await manifest_record_counts(db, manifest),
+        "domain_registry_matches_database": await domain_registry_matches_database(db, manifest),
         "knowledge_references_resolve": await knowledge_reference_checks(db),
         "no_duplicate_scholars_or_books": await duplicate_scholars_books(db),
         "directory_fields_and_duplicates": await directory_integrity(db),

@@ -144,7 +144,9 @@ def build_sections(ranked: Sequence[Ranked]) -> dict[str, list[dict]]:
     for index, r in enumerate(ranked):
         sections[r.layer].append({
             "label": f"[{index + 1}]", "reference": display_reference(r.evidence), "attribution": r.evidence.attribution, "text": r.evidence.exact_text,
-            "source_edition_id": r.evidence.source_edition_id, "source_passage_id": r.evidence.source_passage_id, "text_sha256": r.evidence.text_sha256,
+            # Qur'an and hadith text are primary sources, tafsir and the rest are secondary; the source edition was approved and ingested before retrieval
+            "authority_class": "primary_source" if r.layer == "primary_source" else "secondary_source", "verification_state": "source edition approved for retrieval",
+            "corpus": r.evidence.corpus_type, "source_edition_id": r.evidence.source_edition_id, "source_passage_id": r.evidence.source_passage_id, "text_sha256": r.evidence.text_sha256,
             "license": r.evidence.licence, "relevance": round(r.coverage, 2)})
     return sections
 

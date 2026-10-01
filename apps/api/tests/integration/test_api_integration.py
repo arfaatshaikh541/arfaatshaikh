@@ -192,7 +192,7 @@ async def test_assistant_abstains_when_there_is_no_evidence(app_client):
     r = await client.post("/api/v1/assistant/query", headers=headers, json={"question": "What does the Qur'an say about patience?"})
     assert r.status_code == 200
     body = r.json()
-    assert body["status"] == "insufficient" and body["message"] == "Insufficient verified sources."
+    assert body["status"] == "insufficient" and body["message"] == "Insufficient verified sources." and body["authority_summary"] == {"unavailable": 1}
     assert body["evidence"] == [] and body["claims"] == [] and body["ai_synthesis"]["text"] is None
     assert body["confidence"]["abstained"] is True
 
@@ -231,6 +231,7 @@ async def test_assistant_sections_and_validated_synthesis(app_client, monkeypatc
     body = await _ask(app_client, monkeypatch, _StubProvider("Patience is described as a means of help [1]. Hardship is described as accompanied by ease [2]."))
     assert body["status"] == "assembled" and body["confidence"]["abstained"] is False
     assert len(body["sections"]["primary_source"]) == 2 and body["sections"]["scholarly_explanation"] == []
+    assert all(i["authority_class"] == "primary_source" and i["verification_state"] for i in body["sections"]["primary_source"]) and body["authority_summary"] == {"primary_source": 2}
     assert body["ai_synthesis"]["status"] == "validated" and body["ai_synthesis"]["label"] == "AI SYNTHESIS"
 
 
@@ -310,6 +311,9 @@ async def test_unpublish_withdraws_a_published_dataset_and_assistant_lists_sourc
     assert len(labels) == 2 and all(k["source_work"] == "Fixture work" and "p. 12" in k["locator"] for k in labels.values())
     assert {k["position"] for k in labels.values()} == {"Fixture school", "Another fixture school"}
     assert all(any("not the only one" in n for n in k["uncertainty"]) for k in labels.values())
+    # an unreviewed record is labelled unverified, never as a source of authority; every item says where it is from and how verified it is
+    assert all(k["authority_class"] == "unverified" and k["source_title"] == "Fixture work" and k["edition"] == "Fixture edition" and k["record"]["dataset"] == "aqeedah" and "unreviewed" in k["verification_state"] for k in labels.values())
+    assert body["authority_summary"] == {"unverified": 2}
 
     assert (await admin.post("/api/v1/admin/datasets/aqeedah/action", headers=headers, json={"action": "unpublish"})).json()["publication_status"] == "staged"
     assert (await app_client.get("/api/v1/knowledge/records?type=aqeedah")).json()["total"] == 0
@@ -346,3 +350,78 @@ async def test_expired_jobs_and_finished_events_disappear_and_job_fields_are_enf
     assert [i["name"] for i in found["items"]] == [f"Analyst {unique}"]  # the closed job is not listed
     assert found["items"][0]["attributes"]["application_url"] == "https://example.org/apply" and found["items"][0]["expires_at"]
     await _drop_datasets("directory-jobs")
+
+
+async def test_domain_dashboard_is_honest_and_downgrades_without_live_data(app_client):
+    admin, headers, _ = await make_user(app_client, admin=True)
+    assert (await admin.post("/api/v1/admin/datasets/manifest/sync", headers=headers)).status_code == 200
+    body = (await app_client.get("/api/v1/knowledge/domains")).json()
+    by = {d["domain"]: d for d in body["domains"]}
+    assert len(by) == 22 and set(body["statuses"]) >= {"READY", "EMPTY", "SOURCE_BLOCKED", "RIGHTS_UNVERIFIED"}
+    # this scratch database holds no Qur'an: the declared READY must not be shown
+    assert by["quran"]["declared_status"] == "READY" and by["quran"]["status"] != "READY" and by["quran"]["why_not_ready"]
+    assert by["hadith_gradings"]["status"] == "RIGHTS_UNVERIFIED" and by["fiqh"]["status"] == "EMPTY"
+    assert all(d["why_not_ready"] for d in body["domains"] if d["status"] != "READY")
+    full = (await admin.get("/api/v1/admin/datasets/readiness")).json()
+    assert {g for g in full["domains"][0]["gates"]} and (await app_client.get("/api/v1/admin/datasets/readiness")).status_code == 401
+
+
+async def test_importer_lifecycle_preview_run_idempotent_failsafe_and_rollback(app_client, monkeypatch):
+    """A registered adapter runs all-or-nothing, records its source version and checksum, and is safe to re-run."""
+    from app.importers import ADAPTERS
+    from app.importers.base import AdapterResult, FetchResult, SourceAdapter
+    unique = uuid.uuid4().hex[:8]
+
+    class Stub(SourceAdapter):
+        id, dataset_key, kind, title = "stub-mosques", "directory-mosques", "listings", "Stub (test fixture, not real data)"
+        probe_urls, licence_summary = ("https://example.invalid/",), "test fixture"
+        bad = False
+
+        def fetch(self, params):
+            return FetchResult(version="stub-1", checksum="a" * 64, payload=None, source_url="https://example.org/stub")
+
+        def build(self, fetched, params):
+            rows = [{"external_key": f"stub:{unique}:{i}", "listing_type": "mosque", "name": f"Fixture Masjid {unique} {i}", "country": "ZZ", "latitude": 1.0 + i / 1000, "longitude": 2.0,
+                     "source": "Stub", "license": "test fixture", "provenance": "Generated by the test suite; not a real place.", "source_updated_at": "2026-10-01"} for i in range(3)]
+            if self.bad:
+                rows.append({"listing_type": "mosque", "name": "x", "latitude": 999, "longitude": 0, "source": "s", "license": "l", "provenance": "p"})
+            return AdapterResult(rows=rows, skipped={}, stats={"rows": len(rows)})
+
+    stub = Stub()
+    monkeypatch.setitem(ADAPTERS, stub.id, stub)
+    admin, headers, _ = await make_user(app_client, admin=True)
+    assert (await admin.post("/api/v1/admin/datasets/manifest/sync", headers=headers)).status_code == 200
+    listing = (await admin.get("/api/v1/admin/datasets/importers/list")).json()["importers"]
+    assert {"geoalgeria-mosquees", "hadith-api-grades", "osm-overpass-mosques", "stub-mosques"} <= {i["id"] for i in listing}
+    assert (await app_client.post("/api/v1/admin/datasets/importers/stub-mosques/preview", json={"params": {}})).status_code in {401, 403}
+
+    preview = (await admin.post("/api/v1/admin/datasets/importers/stub-mosques/preview", headers=headers, json={"params": {}})).json()
+    assert preview["applied"] is False and preview["preview"]["would_create"] == 3 and preview["source_version"] == "stub-1"
+    before = (await admin.get("/api/v1/admin/datasets")).json()["datasets"]
+    assert next(d for d in before if d["id"] == "directory-mosques")["record_count"] == 0       # preview wrote nothing
+
+    stub.bad = True
+    failed = (await admin.post("/api/v1/admin/datasets/importers/stub-mosques/run", headers=headers, json={"params": {}})).json()
+    assert failed["status"] == "failed" and failed["created"] == 0 and failed["failed"] == 1     # one invalid row: nothing imported
+    stub.bad = False
+    run = (await admin.post("/api/v1/admin/datasets/importers/stub-mosques/run", headers=headers, json={"params": {}})).json()
+    assert run["status"] == "applied" and run["created"] == 3
+    again = (await admin.post("/api/v1/admin/datasets/importers/stub-mosques/run", headers=headers, json={"params": {}})).json()
+    assert again["import_id"] == run["import_id"]                                                 # re-running an unchanged source changes nothing
+
+    history = (await admin.get("/api/v1/admin/datasets/directory-mosques/provenance")).json()["imports"]
+    applied = next(i for i in history if i["id"] == run["import_id"])
+    assert applied["adapter_id"] == "stub-mosques" and applied["source_version"] == "stub-1" and applied["source_checksum"] == "a" * 64
+    conflicts = (await admin.get("/api/v1/admin/datasets/directory-mosques/conflicts")).json()
+    assert conflicts["kind"] == "listings" and "totals" in conflicts
+    quality = (await admin.get("/api/v1/admin/datasets/quality-report")).json()
+    assert quality["directory_listings"]["total"] >= 3 and quality["directory_listings"]["unverified"] >= 3
+
+    assert (await admin.post(f"/api/v1/admin/datasets/imports/{run['import_id']}/rollback", headers=headers)).json()["status"] == "rolled_back"
+    assert next(d for d in (await admin.get("/api/v1/admin/datasets")).json()["datasets"] if d["id"] == "directory-mosques")["record_count"] == 0
+    await _drop_datasets("directory-mosques")
+
+
+async def test_directory_coverage_states_only_the_countries_that_have_data(app_client):
+    body = (await app_client.get("/api/v1/directory/coverage")).json()
+    assert "items" in body and "countries_by_type" in body and "absence" in body["statement"]

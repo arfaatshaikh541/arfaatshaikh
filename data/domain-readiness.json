@@ -1,0 +1,2177 @@
+{
+ "version": 1,
+ "as_of": "2026-10-01",
+ "statuses": [
+  "EMPTY",
+  "SOURCE_BLOCKED",
+  "SOURCE_UNVERIFIED",
+  "RIGHTS_UNVERIFIED",
+  "IMPORT_READY",
+  "IMPORTED",
+  "VALIDATED",
+  "PUBLISHED",
+  "READY"
+ ],
+ "status_meaning": {
+  "EMPTY": "No data and no usable source found.",
+  "SOURCE_BLOCKED": "A legitimate source exists but cannot be reached or accessed from here.",
+  "SOURCE_UNVERIFIED": "A candidate source exists but its provenance is unclear.",
+  "RIGHTS_UNVERIFIED": "Data is imported (hidden) or published on declared terms, but publication rights are not established.",
+  "IMPORT_READY": "Source verified and rights established; importer ready; nothing imported yet.",
+  "IMPORTED": "Imported and hidden; validation or review incomplete.",
+  "VALIDATED": "Imported and validated; not yet published.",
+  "PUBLISHED": "Published with verified rights, but one or more readiness gates are not satisfied (see the gates).",
+  "READY": "All twelve gates are satisfied for the stated scope."
+ },
+ "coverage_values": [
+  "NONE",
+  "PARTIAL",
+  "FULL"
+ ],
+ "confidence_values": [
+  "none",
+  "low",
+  "medium",
+  "high"
+ ],
+ "gates": [
+  {
+   "id": "real_source",
+   "text": "A real source exists."
+  },
+  {
+   "id": "provenance_documented",
+   "text": "The source provenance is documented."
+  },
+  {
+   "id": "rights_established",
+   "text": "Publication rights are established for the intended use."
+  },
+  {
+   "id": "retrievable_or_present",
+   "text": "The source can be retrieved/imported, or is already legitimately present."
+  },
+  {
+   "id": "schema_maps_without_invention",
+   "text": "The schema maps the source without inventing missing values."
+  },
+  {
+   "id": "validation_passes",
+   "text": "Validation passes."
+  },
+  {
+   "id": "duplicates_conflicts_deterministic",
+   "text": "Duplicates and conflicts are handled deterministically."
+  },
+  {
+   "id": "record_level_provenance",
+   "text": "Provenance is retained at record level."
+  },
+  {
+   "id": "ui_shows_verification_status",
+   "text": "The public UI shows verification status accurately."
+  },
+  {
+   "id": "assistant_can_cite",
+   "text": "The assistant can cite the published information."
+  },
+  {
+   "id": "lifecycle_tests",
+   "text": "Tests cover the import and publication lifecycle."
+  },
+  {
+   "id": "actually_verified",
+   "text": "The result has been verified, not assumed."
+  }
+ ],
+ "domains": [
+  {
+   "source": "PyPI quran-text (quran.ws, KFGQPC text) 0.1.0; fawazahmed0/quran-api for the two translations; npm @quran.ws/tajwid-* 0.1.0",
+   "source_url": "https://pypi.org/project/quran-text/",
+   "source_version": "0.1.0",
+   "source_type": "open dataset package (PyPI) and open repository (GitHub)",
+   "licence": "CC BY 4.0 (text, tajweed); public domain (Pickthall, d. 1936; Yusuf Ali 1934 edition, d. 1953)",
+   "licence_evidence": "PyPI metadata for quran-text shows license CC-BY-4.0 (re-read 2026-10-01); wheel sha256 compared with PyPI's published digest at import; translators' death dates in the manifest.",
+   "attribution": "CC BY 4.0: quran.ws / KFGQPC, shown with the text",
+   "provenance_confidence": "high",
+   "data_quality_confidence": "high",
+   "import_availability": "importer",
+   "importer": "scripts/import_quran_reader.py, import_tajweed.py, import_translations.py",
+   "last_successful_retrieval": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "publication_status": "published",
+   "blockers": [],
+   "notes": "Public-domain status of the two translations can differ by jurisdiction. Verified by scripts/validate_data.py (every ayah's text matches its recorded sha256; source edition approved and ready) and a live assistant query that cites Qur'an passages.",
+   "candidates_examined": [],
+   "datasets": [
+    "quran-arabic-uthmani-hafs",
+    "quran-tajweed-quranws",
+    "quran-translation-pickthall",
+    "quran-translation-yusufali-1934",
+    "quran-translations-catalogue"
+   ],
+   "published_datasets": [
+    "quran-arabic-uthmani-hafs",
+    "quran-tajweed-quranws",
+    "quran-translation-pickthall",
+    "quran-translation-yusufali-1934"
+   ],
+   "coverage": "FULL",
+   "coverage_note": "482 further translations are imported but hidden (rights not cleared); recitation audio is a separate domain.",
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "quran",
+   "label": "Qur'an",
+   "tier": 1,
+   "status": "READY",
+   "scope": "Arabic text (Uthmani, Hafs 'an 'Asim), tajweed rules and spans, and two public-domain English translations (Pickthall 1930, Yusuf Ali 1934 edition).",
+   "gates": {
+    "real_source": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "provenance_documented": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "rights_established": {
+     "passed": true,
+     "evidence": "CC BY 4.0 (attribution shown); translations public domain (jurisdiction caveat in notes)."
+    },
+    "retrievable_or_present": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "schema_maps_without_invention": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "validation_passes": {
+     "passed": true,
+     "evidence": "validate_data.py: quran_text_has_verified_source PASS."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "record_level_provenance": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "ui_shows_verification_status": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "assistant_can_cite": {
+     "passed": true,
+     "evidence": "Verified live: assistant query returned Qur'an passages with source and licence (see report)."
+    },
+    "lifecycle_tests": {
+     "passed": true,
+     "evidence": "tests/test_quran_*_contracts.py and integration tests."
+    },
+    "actually_verified": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    }
+   },
+   "records": {
+    "unit": "ayahs (Arabic text)",
+    "total": 6236,
+    "published": 6236,
+    "hidden": 0,
+    "live_key": "quran_ayahs"
+   }
+  },
+  {
+   "source": "PyPI sahih-al-bukhari 3.1.7, sahih-muslim 1.1.2; npm @kazishariar/nawawi-40-hadith-data 1.0.3",
+   "source_url": "https://pypi.org/project/sahih-al-bukhari/",
+   "source_version": "3.1.7 / 1.1.2 / 1.0.3",
+   "source_type": "packaged datasets (PyPI, npm)",
+   "licence": "Packagers declare AGPL-3.0 (Bukhari, Muslim) and CC BY 4.0 (Nawawi); the classical Arabic works are public domain",
+   "licence_evidence": "Package metadata. The packagers' claim to rights in the digital edition (selection, diacritics, numbering) is not documented, and no upstream edition is named.",
+   "attribution": "Package author and licence shown with each text",
+   "provenance_confidence": "medium",
+   "data_quality_confidence": "medium",
+   "import_availability": "importer",
+   "importer": "scripts/import_hadith_reader.py",
+   "last_successful_retrieval": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "publication_status": "published",
+   "blockers": [
+    "Owner must confirm the AGPL-3.0 position for redistributing the packaged Arabic text (does not affect the public-domain status of the original work).",
+    "Nawawi-40 upstream compilation is undocumented; 41 of 42 entries cross-checked verbatim against Bukhari/Muslim.",
+    "English translations: translator and publisher permission not documented.",
+    "Hisn al-Muslim and adhkar: upstream not documented."
+   ],
+   "notes": "Published on the basis of the declared open licences and public-domain originals; this is flagged for the owner, not settled.",
+   "candidates_examined": [],
+   "datasets": [
+    "hadith-bukhari-arabic",
+    "hadith-muslim-arabic",
+    "hadith-nawawi40-arabic",
+    "hadith-bukhari-english",
+    "hadith-muslim-english",
+    "hadith-nawawi40-english",
+    "devotional-hisn-almuslim-arabic",
+    "devotional-adhkar-arabic",
+    "devotional-adhkar-english"
+   ],
+   "published_datasets": [
+    "hadith-bukhari-arabic",
+    "hadith-muslim-arabic",
+    "hadith-nawawi40-arabic"
+   ],
+   "coverage": "PARTIAL",
+   "coverage_note": "Only three collections are loaded. The four Sunan, Muwatta and Musnad Ahmad are not.",
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "hadith",
+   "label": "Hadith",
+   "tier": 1,
+   "status": "RIGHTS_UNVERIFIED",
+   "scope": "Arabic text of Sahih al-Bukhari (7,277), Sahih Muslim (7,459) and Forty Hadith of al-Nawawi (42) is published; English translations, Hisn al-Muslim and adhkar (332) are imported but hidden.",
+   "gates": {
+    "real_source": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "provenance_documented": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Packager's AGPL-3.0/CC BY declarations are not backed by a named upstream edition."
+    },
+    "retrievable_or_present": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "schema_maps_without_invention": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Manifest validation_status is NEEDS_REVIEW for all three published datasets."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "record_level_provenance": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "ui_shows_verification_status": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "assistant_can_cite": {
+     "passed": true,
+     "evidence": "Hadith passages are retrievable and cited by the assistant."
+    },
+    "lifecycle_tests": {
+     "passed": true,
+     "evidence": "tests/test_hadith_*.py and integration tests."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Hadith 1 wording and Arabic cross-checks were verified; no scholar or legal review."
+    }
+   },
+   "records": {
+    "unit": "narrations",
+    "total": 15110,
+    "published": 14778,
+    "hidden": 332,
+    "live_key": "hadith_narrations"
+   }
+  },
+  {
+   "source": "fawazahmed0/hadith-api info.json, git tag 1",
+   "source_url": "https://github.com/fawazahmed0/hadith-api/tree/1",
+   "source_version": "tag 1 (sha256 cf1ced267ada8f606f95eb84e2b6ddfa87bfa2a6a9dd4cb2a5d9a8c1734f10fb)",
+   "source_type": "aggregated community dataset (GitHub)",
+   "licence": "Unlicense (repository). Rights in the compiled grades are not established.",
+   "licence_evidence": "Repository LICENSE read verbatim (Unlicense, dedicates the author's own work). References.md names al-maktaba.org books and zubairalizai.com as the sources of the grades; database/originals files are named '*scrapped.txt'. None of those sites' terms could be read (unreachable).",
+   "attribution": "Each grader and the aggregator should be credited if ever published",
+   "provenance_confidence": "medium",
+   "data_quality_confidence": "low",
+   "import_availability": "importer",
+   "importer": "scripts/build_hadith_grading_records.py + import_knowledge_records.py",
+   "last_successful_retrieval": "2026-10-01",
+   "validation_status": "NEEDS_REVIEW",
+   "publication_status": "hidden",
+   "blockers": [
+    "The Unlicense covers only the repository author's own work, not the graders' modern published works that the grades were compiled from.",
+    "Source sites' terms unreachable; the compilation method (scraping) is evidenced by file names.",
+    "Grades not compared with the graders' printed works.",
+    "The five graded collections are not loaded, so no record links to hadith text."
+   ],
+   "notes": "Not published and must stay hidden until the publication gate is legitimately satisfied. Per-grade fields now allow grading work, edition, page, rights and verification status per entry.",
+   "candidates_examined": [],
+   "datasets": [
+    "hadith-grading"
+   ],
+   "published_datasets": [],
+   "coverage": "PARTIAL",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "hadith_gradings",
+   "label": "Hadith gradings",
+   "tier": 1,
+   "status": "RIGHTS_UNVERIFIED",
+   "scope": "Per-grader grades for Abu Dawud, Ibn Majah, Malik, al-Nasa'i and al-Tirmidhi (collection and number only; the texts are not loaded). Imported and hidden.",
+   "gates": {
+    "real_source": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "provenance_documented": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Grader, grade and source reference are copied; work, edition and page are not in the source and are left empty."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Contract validation passes (0 failures) but manifest validation is NEEDS_REVIEW."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "record_level_provenance": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Hidden; nothing public to label."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not published, so never cited."
+    },
+    "lifecycle_tests": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "hadith gradings (records; 67,681 grader entries)",
+    "total": 21185,
+    "published": 0,
+    "hidden": 21185,
+    "live_key": "kr:hadith_grading"
+   }
+  },
+  {
+   "source": "spa5k/tafsir_api (data compiled from Quran.com / Tarteel QUL / altafsir.com)",
+   "source_url": "https://github.com/spa5k/tafsir_api",
+   "source_version": "branch main, retrieved 2026-09-30",
+   "source_type": "aggregated open repository (GitHub)",
+   "licence": "Original classical works are public domain; the digital editions' own rights are not stated and modern works are in copyright",
+   "licence_evidence": "No per-edition licence in the repository; compilations from third-party sites whose terms were not read.",
+   "attribution": "Per-edition author and compiler",
+   "provenance_confidence": "medium",
+   "data_quality_confidence": "medium",
+   "import_availability": "importer",
+   "importer": "scripts/import_tafsir.py, import_tafsir_catalogue.py",
+   "last_successful_retrieval": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "publication_status": "hidden",
+   "blockers": [
+    "Rights of the digital editions are not established; modern works need permission from authors/estates/publishers.",
+    "Some editions carry modern editorial notes that would need stripping."
+   ],
+   "notes": "Coverage and ayah-alignment were validated per edition; partial works are labelled with their coverage.",
+   "candidates_examined": [],
+   "datasets": [
+    "tafsir-arabic-classical",
+    "tafsir-arabic-modern",
+    "tafsir-english"
+   ],
+   "published_datasets": [],
+   "coverage": "PARTIAL",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "tafsir",
+   "label": "Tafsir",
+   "tier": 1,
+   "status": "RIGHTS_UNVERIFIED",
+   "scope": "54 editions (Arabic classical and modern, English) imported with 182,320 entries; all hidden.",
+   "gates": {
+    "real_source": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "provenance_documented": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "schema_maps_without_invention": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "validation_passes": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "record_level_provenance": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Hidden; nothing public to label."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Hidden editions are never retrieved."
+    },
+    "lifecycle_tests": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Alignment validated by script; rights not reviewed."
+    }
+   },
+   "records": {
+    "unit": "tafsir entries",
+    "total": 182320,
+    "published": 0,
+    "hidden": 182320,
+    "live_key": "tafsir_entries"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No openly licensed, verifiable fiqh dataset found.",
+    "@al-mabsut/muslimah rejected: no cited work or page, no content licence."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "npm-al-mabsut-muslimah",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "fiqh-rulings"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "fiqh",
+   "label": "Fiqh",
+   "tier": 1,
+   "status": "EMPTY",
+   "scope": "Per-madhhab positions with question, ruling, evidence and a page-level citation.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:fiqh"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source found."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "aqeedah"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "aqeedah",
+   "label": "Aqeedah",
+   "tier": 1,
+   "status": "EMPTY",
+   "scope": "Statements per school with work and page citations.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:aqeedah"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source found; OpenITI licence not established."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "openiti",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "seerah"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "seerah",
+   "label": "Seerah",
+   "tier": 1,
+   "status": "EMPTY",
+   "scope": "Chronology with reliability categories (established, well-known but disputed, weak reports).",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:seerah"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).",
+    "OpenITI licence not established."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "wikidata",
+    "openiti",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "scholar-biographies"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "scholars",
+   "label": "Scholar biographies",
+   "tier": 1,
+   "status": "SOURCE_BLOCKED",
+   "scope": "Biographies from verified sources with teachers, students and works.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:scholar"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source found."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "terminology"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "terminology",
+   "label": "Islamic terminology",
+   "tier": 1,
+   "status": "EMPTY",
+   "scope": "Terms with Arabic, transliteration, definition and sources.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:terminology"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source found."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied",
+    "openiti"
+   ],
+   "datasets": [
+    "history"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "history",
+   "label": "Islamic history",
+   "tier": 2,
+   "status": "EMPTY",
+   "scope": "Source-backed timeline with historians' disagreements preserved.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:history"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source found."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "civilization"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "civilization",
+   "label": "Islamic civilization",
+   "tier": 2,
+   "status": "EMPTY",
+   "scope": "Source-backed contributions, institutions, manuscripts.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:civilization"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).",
+    "OpenITI licence not established.",
+    "PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "open-library-catalogues",
+    "wikidata",
+    "openiti",
+    "pypi-hadith-umma1"
+   ],
+   "datasets": [
+    "library-works"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "libraries",
+   "label": "Libraries, books and catalogues",
+   "tier": 2,
+   "status": "SOURCE_BLOCKED",
+   "scope": "Metadata-only or external-link records for works; no copyrighted files.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "records",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "kr:library_work"
+   }
+  },
+  {
+   "source": "GeoAlgeria @geoalgeria/mosquees 2.0.4 (composite of Wikidata and OpenStreetMap)",
+   "source_url": "https://www.npmjs.com/package/@geoalgeria/mosquees",
+   "source_version": "2.0.4 (data built 2026-06-25)",
+   "source_type": "open dataset package (npm)",
+   "licence": "ODbL 1.0 (OpenStreetMap-derived records) and CC0-1.0 (Wikidata records); package code MIT",
+   "licence_evidence": "Package LICENSE and dataset-metadata.json read; README documents the build. ODbL requires attribution and share-alike for a derived database.",
+   "attribution": "© OpenStreetMap contributors (ODbL); Wikidata CC0; GeoAlgeria. Shown on every listing and the directory page.",
+   "provenance_confidence": "high",
+   "data_quality_confidence": "medium",
+   "import_availability": "importer",
+   "importer": "app/importers (geoalgeria-mosquees adapter), scripts/run_importer.py, scripts/import_osm_mosques.py",
+   "last_successful_retrieval": "2026-10-01",
+   "validation_status": "VERIFIED",
+   "publication_status": "published",
+   "blockers": [
+    "Algeria only.",
+    "Community composite, not an official registry; individual mosques are not verified in person.",
+    "Known source-quality anomalies are retained unchanged (e.g. a former synagogue classified as a mosque by Wikidata); see data/source-quality-notes.json."
+   ],
+   "notes": "Duplicate and conflict candidates are reported, not auto-corrected. Other countries need a legitimate source (OpenStreetMap Overpass is blocked from the build environment).",
+   "candidates_examined": [],
+   "datasets": [
+    "directory-mosques"
+   ],
+   "published_datasets": [
+    "directory-mosques"
+   ],
+   "coverage": "PARTIAL",
+   "coverage_note": "Algeria only; no data for any other country. Do not read this as global coverage.",
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "mosques",
+   "label": "Mosques",
+   "tier": 3,
+   "status": "PUBLISHED",
+   "scope": "Algeria only: 19,781 listings (19,776 visible after 5 probable duplicates were linked). Every listing is 'Not verified'.",
+   "gates": {
+    "real_source": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "provenance_documented": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "rights_established": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "retrievable_or_present": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "schema_maps_without_invention": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "validation_passes": {
+     "passed": true,
+     "evidence": "validate_data.py: 13 rules PASS."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": true,
+     "evidence": "Earliest listing is kept, later duplicates linked deterministically; suspicious pairs reported."
+    },
+    "record_level_provenance": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "ui_shows_verification_status": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Directory listings are not assistant sources (they are not religious knowledge)."
+    },
+    "lifecycle_tests": {
+     "passed": true,
+     "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Automated checks only; no ground-truth survey."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 19781,
+    "published": 19776,
+    "hidden": 5,
+    "live_key": "dl:mosque"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source reachable or found; Wikidata and OpenStreetMap unreachable."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "wikidata",
+    "openstreetmap-overpass",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-organisations"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "organisations",
+   "label": "Organisations",
+   "tier": 3,
+   "status": "EMPTY",
+   "scope": "Islamic organisations and institutions with registration and source.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:organisation"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Organiser-supplied only; Hijri calendar libraries carry no cited authority."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "npm-islamic-calendar-events",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-events"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "events",
+   "label": "Events",
+   "tier": 3,
+   "status": "EMPTY",
+   "scope": "Organiser-supplied events with start/end; expired events disappear.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:event"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "National charity registers unreachable (2026-10-01).",
+    "A register does not say whether a charity is Muslim."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "official-charity-registers",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-charities"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "charities",
+   "label": "Charities",
+   "tier": 3,
+   "status": "SOURCE_BLOCKED",
+   "scope": "Registered charities with registration and source; no donation links.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:charity"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-volunteering"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "volunteering",
+   "label": "Volunteering",
+   "tier": 3,
+   "status": "EMPTY",
+   "scope": "Opportunities with organisation, application URL and source.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:volunteering"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No open dataset identifies Muslim-owned businesses."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-businesses"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "businesses",
+   "label": "Businesses",
+   "tier": 4,
+   "status": "EMPTY",
+   "scope": "Businesses with category, location and source; no ratings.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:business"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Self-registration with moderation is the legitimate route; none registered."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-professionals"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "professionals",
+   "label": "Professionals",
+   "tier": 4,
+   "status": "EMPTY",
+   "scope": "Professionals with registration where legitimate.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:professional"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "No source."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-health"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "health",
+   "label": "Health services",
+   "tier": 4,
+   "status": "EMPTY",
+   "scope": "Health services without medical claims.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:health"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "importer",
+   "importer": "scripts/import_knowledge_records.py (contract importer; all-or-nothing, preview, rollback)",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Job APIs unreachable and need keys and terms acceptance (2026-10-01)."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "job-feeds",
+    "owner-supplied"
+   ],
+   "datasets": [
+    "directory-jobs"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "jobs",
+   "label": "Jobs",
+   "tier": 4,
+   "status": "SOURCE_BLOCKED",
+   "scope": "Employer-supplied jobs with application URL and expiry.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "listings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "dl:job"
+   }
+  },
+  {
+   "source": null,
+   "source_url": null,
+   "source_version": null,
+   "source_type": null,
+   "licence": null,
+   "licence_evidence": null,
+   "attribution": null,
+   "provenance_confidence": "none",
+   "data_quality_confidence": "none",
+   "import_availability": "admin_api",
+   "importer": "Admin API POST /quran/admin/recitations",
+   "last_successful_retrieval": null,
+   "validation_status": "NOT_RUN",
+   "publication_status": "none",
+   "blockers": [
+    "Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).",
+    "Reciter and publisher redistribution terms not documented in an accessible form."
+   ],
+   "notes": "",
+   "candidates_examined": [
+    "quran-recitation-sources",
+    "npm-mp3quran-wrappers"
+   ],
+   "datasets": [
+    "audio-quran-recitations"
+   ],
+   "published_datasets": [],
+   "coverage": "NONE",
+   "coverage_note": null,
+   "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "last_verified": "2026-10-01",
+   "domain": "recitation_audio",
+   "label": "Recitation audio",
+   "tier": 5,
+   "status": "SOURCE_BLOCKED",
+   "scope": "Per-ayah or per-surah recitation, hosted with checksum or as an external link.",
+   "gates": {
+    "real_source": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "provenance_documented": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "rights_established": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "retrievable_or_present": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "schema_maps_without_invention": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "validation_passes": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "duplicates_conflicts_deterministic": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "record_level_provenance": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "ui_shows_verification_status": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "assistant_can_cite": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "lifecycle_tests": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    },
+    "actually_verified": {
+     "passed": false,
+     "evidence": "Not satisfied."
+    }
+   },
+   "records": {
+    "unit": "recordings",
+    "total": 0,
+    "published": 0,
+    "hidden": 0,
+    "live_key": "audio"
+   }
+  }
+ ]
+}

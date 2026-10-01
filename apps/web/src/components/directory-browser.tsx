@@ -9,6 +9,7 @@ export type Listing = { id: string; type: string; name: string; arabic_name: str
   starts_at?: string | null; ends_at?: string | null; expires_at?: string | null; provenance?: string; attributes?: Record<string, unknown> };
 type Result = { total: number; page: number; page_size: number; items: Listing[] };
 type Summary = { types: { type: string; count: number }[] };
+type Coverage = { countries_by_type: Record<string, string[]>; statement: string };
 
 export function ListingCard({ item, locale }: { item: Listing; locale: "en" | "ar" }) {
   const ar = locale === "ar";
@@ -59,9 +60,10 @@ export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar";
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Result | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => { apiFetch<Summary>("/directory/summary").then(setSummary).catch(() => undefined); }, []);
+  useEffect(() => { apiFetch<Summary>("/directory/summary").then(setSummary).catch(() => undefined); apiFetch<Coverage>("/directory/coverage").then(setCoverage).catch(() => undefined); }, []);
   useEffect(() => {
     const params = new URLSearchParams({ type, page: String(page) });
     if (q.trim()) params.set("q", q.trim());
@@ -94,6 +96,13 @@ export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar";
         {near && <label>{ar ? "المسافة (كم)" : "Radius (km)"}<input type="number" min={1} max={500} value={radius} onChange={(e) => setRadius(Math.max(1, Number(e.target.value) || 1))} /></label>}
         {near && <button type="button" onClick={() => setNear(null)}>{ar ? "إلغاء الموقع" : "Clear location"}</button>}
       </form>
+      {coverage && (
+        <p className="tool-note" role="note" data-testid="coverage-note">
+          {(coverage.countries_by_type[type] ?? []).length > 0
+            ? `${ar ? "الدول التي لها بيانات لهذا النوع" : "Countries with data for this type"}: ${coverage.countries_by_type[type].join(", ")}. ${ar ? "لا تعني قلة القوائم في أي مكان آخر غياب الخدمات هناك." : "No data yet for any other country; a missing listing does not mean a missing place."}`
+            : (ar ? "لا توجد بيانات لهذا النوع في أي دولة بعد." : "No country has data for this type yet.")}
+        </p>
+      )}
       {error && <p role="alert">{error}</p>}
       {data && data.items.length === 0 && !error && (
         <section className="empty-state" role="status">

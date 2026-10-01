@@ -20,14 +20,28 @@
    "LICENSE": "ODbL 1.0 for OpenStreetMap-derived records; CC0-1.0 for Wikidata records; MIT for package code",
    "LICENSE_URL": "https://opendatacommons.org/licenses/odbl/1-0/",
    "PROVENANCE": "Package LICENSE and dataset-metadata.json state the terms; README documents the Wikidata SPARQL + OSM Overpass build and the ~150 m merge; every record keeps its Wikidata/OSM reference. Not an official registry.",
-   "ACCESS_METHOD": "npm tarball, sha512 integrity verified; scripts/build_geoalgeria_mosques.py",
+   "ACCESS_METHOD": "npm tarball, sha512 integrity verified; app/importers/geoalgeria.py (scripts/run_importer.py geoalgeria-mosquees)",
    "REDISTRIBUTION_ALLOWED": "Yes, with attribution; share-alike for a derived database (ODbL)",
    "COMMERCIAL_USE_ALLOWED": "Yes (ODbL permits commercial use with attribution and share-alike)",
    "ATTRIBUTION_REQUIRED": "Yes: © OpenStreetMap contributors; Wikidata CC0 needs none",
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "VERIFIED",
    "NOTES": "Algeria only. Wilaya/commune are derived by centroid, not from the sources. 978 of 20,759 records have no name and are skipped. Denomination kept only where the package took it from an OSM tag.",
-   "MANIFEST_DATASET": "directory-mosques"
+   "MANIFEST_DATASET": "directory-mosques",
+   "EVIDENCE": [
+    "Package LICENSE read (MIT for code; ODbL 1.0 and CC0 for data)",
+    "dataset-metadata.json read (license URL, citations, dateModified 2026-06-25)",
+    "README read: build from Wikidata SPARQL and OSM Overpass, ~150 m merge",
+    "registry sha512 integrity verified on every download; tarball sha256 5705920a..."
+   ],
+   "UNDERLYING_RIGHTS": "Same as the data: ODbL for OSM-derived records, CC0 for Wikidata records; OSM contributors hold the underlying rights.",
+   "MODIFICATION_ALLOWED": "Yes (ODbL: derivative databases must remain ODbL)",
+   "DATABASE_RIGHTS": "Yes: ODbL is a database licence; share-alike applies to a derived database",
+   "METADATA_ONLY_SAFE": "Not needed: names and coordinates are the data and are covered by the licence",
+   "OPEN_QUESTIONS": [
+    "Whether the platform's directory counts as a 'derived database' needing ODbL share-alike (attribution is shown regardless).",
+    "Accuracy of individual records (e.g. the synagogue anomaly) is unverified."
+   ]
   },
   {
    "SOURCE_ID": "hadith-api-grades",
@@ -39,14 +53,31 @@
    "LICENSE": "Unlicense (repository); rights in the compiled grades not established",
    "LICENSE_URL": "https://github.com/fawazahmed0/hadith-api/blob/1/LICENSE",
    "PROVENANCE": "References.md names the al-maktaba.org book (or site) each grader's grades were taken from. Not independently checked against the printed works.",
-   "ACCESS_METHOD": "raw.githubusercontent.com; scripts/build_hadith_grading_records.py",
+   "ACCESS_METHOD": "raw.githubusercontent.com; app/importers/hadith_grades.py (scripts/run_importer.py hadith-api-grades)",
    "REDISTRIBUTION_ALLOWED": "Unknown: the Unlicense covers only the repository author's own work",
    "COMMERCIAL_USE_ALLOWED": "Unknown",
    "ATTRIBUTION_REQUIRED": "Recommended",
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "LICENSE_REQUIRED",
    "NOTES": "Imported and STAGED (21,185 records, 67,681 grader entries); hidden from every public view until rights are confirmed in Data & trust. Five collections not loaded in the reader, so no link to hadith text.",
-   "MANIFEST_DATASET": "hadith-grading"
+   "MANIFEST_DATASET": "hadith-grading",
+   "EVIDENCE": [
+    "LICENSE read verbatim: Unlicense",
+    "References.md read: grades taken from al-maktaba.org books (ids listed) and zubairalizai.com",
+    "CONTRIBUTING.md/README.md read: no statement about rights in the data",
+    "database/originals file names end in 'scrapped.txt' (e.g. englishtirmidhiscrapped.txt, 1.5 MB), evidencing scraping",
+    "al-maktaba.org, zubairalizai.com and the maktaba-grades-backup site are unreachable from the build environment"
+   ],
+   "UNDERLYING_RIGHTS": "Held by the graders (e.g. al-Albani's and Zubair Ali Za'i's published works) and the publishers/compilers on al-maktaba.org; not addressed by the repository licence.",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Possible: a systematic extraction of grades for ~21,000 hadiths from compiled web editions",
+   "METADATA_ONLY_SAFE": "Probably safe as bibliographic pointers (collection, number, grader, work), but the grade labels themselves are the compiled content; not decided",
+   "OPEN_QUESTIONS": [
+    "Do individual grade labels (short factual judgements) attract copyright, or only the compilation (database right)?",
+    "Do the sites' terms permit extraction and republication?",
+    "Are the grade values accurate relative to the printed works (not checked)?",
+    "A grader's grade may differ between editions of their work."
+   ]
   },
   {
    "SOURCE_ID": "hadith-api-translations",
@@ -65,7 +96,18 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "LICENSE_REQUIRED",
    "NOTES": "Already held, staged and hidden (hadith-bukhari-english, hadith-muslim-english).",
-   "MANIFEST_DATASET": "hadith-bukhari-english"
+   "MANIFEST_DATASET": "hadith-bukhari-english",
+   "EVIDENCE": [
+    "editions.json read: author 'Unknown' for most editions; some name Muhsin Khan, Abdul Hamid Siddiqui, Imam Nawawi, Shah Waliullah Dehlawi",
+    "only two editions state a source (isnad.link)"
+   ],
+   "UNDERLYING_RIGHTS": "Translators' and publishers' rights; not addressed",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Edition metadata yes; text no",
+   "OPEN_QUESTIONS": [
+    "Translator and publisher permission for each edition."
+   ]
   },
   {
    "SOURCE_ID": "npm-sunan-packages",
@@ -84,7 +126,20 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
    "NOTES": "Not imported. The Arabic text of these classical works would be public domain, but the edition and the English translation are unattributed.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "npm metadata: AGPL-3.0 declared by 'muhammadsaadamin'",
+    "README read: no source, translator or edition named",
+    "data file (gzip JSON) read: Arabic plus English narrator/text, no attribution"
+   ],
+   "UNDERLYING_RIGHTS": "Arabic classical text: public domain; edition and English translation: unattributed (the English text appears to be a published translation)",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Collection and chapter titles only",
+   "OPEN_QUESTIONS": [
+    "Where the English text came from and who holds rights in it.",
+    "An AGPL declaration cannot grant rights the packager does not hold."
+   ]
   },
   {
    "SOURCE_ID": "openiti",
@@ -103,7 +158,21 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
    "NOTES": "Not used. A catalogue of authors, works and death dates would fill several domains; it needs its licence confirmed first.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "RELEASE repository README (master) read: cites Zenodo doi 10.5281/zenodo.3082463; states no licence",
+    "LICENSE, LICENSE.md, license.txt return 404 on master and main",
+    "PyPI package 'openiti' 0.1.6: MIT for the Python code; its METADATA says nothing about corpus licensing",
+    "Zenodo, GitHub tree and metadata CSV unreachable from the build environment"
+   ],
+   "UNDERLYING_RIGHTS": "Not established: individual texts come from several sources and may carry their own terms",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Unknown: the metadata CSV could not be read, so its terms are not known",
+   "OPEN_QUESTIONS": [
+    "The corpus and metadata licence (read the Zenodo record or the project's own statement).",
+    "Whether non-commercial or share-alike terms apply."
+   ]
   },
   {
    "SOURCE_ID": "npm-al-mabsut-muslimah",
@@ -122,7 +191,20 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
    "NOTES": "Not imported: fiqh records must be traceable to a named work and page (data contract).",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "package.json: ISC, author Mufti Khalil Johnson",
+    "raw repository: no LICENSE file (404)",
+    "content page read: guidance in markdown with no cited work, edition or page"
+   ],
+   "UNDERLYING_RIGHTS": "Author's own guidance; sources not cited",
+   "MODIFICATION_ALLOWED": "Unknown for the content",
+   "DATABASE_RIGHTS": "Not applicable",
+   "METADATA_ONLY_SAFE": "Titles only",
+   "OPEN_QUESTIONS": [
+    "Which works the rulings come from.",
+    "Whether ISC (a software licence) was intended for the content."
+   ]
   },
   {
    "SOURCE_ID": "npm-trydaleel-hadith-domain",
@@ -141,7 +223,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
    "NOTES": "Not a dataset of gradings; the authority list has no stated provenance, so it is not used.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "package contents read: code (grade taxonomy, authority normalisation); no README"
+   ],
+   "UNDERLYING_RIGHTS": "Code author",
+   "MODIFICATION_ALLOWED": "Yes (Apache-2.0) for the code",
+   "DATABASE_RIGHTS": "Not applicable",
+   "METADATA_ONLY_SAFE": "Not applicable",
+   "OPEN_QUESTIONS": [
+    "Source of the 'authority' list."
+   ]
   },
   {
    "SOURCE_ID": "npm-islamic-calendar-events",
@@ -160,7 +252,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
    "NOTES": "Not imported. Community events come from organisers, not a calendar library.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "npm metadata only"
+   ],
+   "UNDERLYING_RIGHTS": "Unknown",
+   "MODIFICATION_ALLOWED": "Code yes (MIT)",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Not applicable",
+   "OPEN_QUESTIONS": [
+    "Authority behind the occasion lists."
+   ]
   },
   {
    "SOURCE_ID": "qivam-api",
@@ -179,7 +281,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "NOT_ALLOWED_FOR_REDISTRIBUTION",
    "NOTES": "Not used.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "@qivam/client LICENSE read: all rights reserved; no modification, redistribution or derivative works without permission"
+   ],
+   "UNDERLYING_RIGHTS": "Qivam",
+   "MODIFICATION_ALLOWED": "No",
+   "DATABASE_RIGHTS": "Presumed",
+   "METADATA_ONLY_SAFE": "No",
+   "OPEN_QUESTIONS": [
+    "API terms (not reviewed)."
+   ]
   },
   {
    "SOURCE_ID": "openstreetmap-overpass",
@@ -199,7 +311,18 @@
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Host unreachable from the build environment (HTTP 000, 2026-10-01). Run the importer on the production server for the regions you serve.",
    "MANIFEST_DATASET": null,
-   "INTENDED_DATASET": "directory-mosques"
+   "INTENDED_DATASET": "directory-mosques",
+   "EVIDENCE": [
+    "Overpass status endpoint did not answer (URLError) from the build environment on 2026-10-01",
+    "ODbL terms are the project's published licence (not re-read in this environment: openstreetmap.org unreachable)"
+   ],
+   "UNDERLYING_RIGHTS": "OSM contributors (ODbL)",
+   "MODIFICATION_ALLOWED": "Yes, share-alike",
+   "DATABASE_RIGHTS": "Yes (ODbL)",
+   "METADATA_ONLY_SAFE": "Not needed",
+   "OPEN_QUESTIONS": [
+    "Usage policy of the public Overpass instance for the production server (small boxes, no repeated runs)."
+   ]
   },
   {
    "SOURCE_ID": "wikidata",
@@ -218,7 +341,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Host unreachable from the build environment (2026-10-01). A good source of scholars, works and dates once reachable, with the Wikidata item cited per record.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "query.wikidata.org and www.wikidata.org did not answer from the build environment on 2026-10-01"
+   ],
+   "UNDERLYING_RIGHTS": "CC0 dedication for structured data (not re-read here)",
+   "MODIFICATION_ALLOWED": "Yes",
+   "DATABASE_RIGHTS": "CC0",
+   "METADATA_ONLY_SAFE": "Yes",
+   "OPEN_QUESTIONS": [
+    "Per-statement accuracy; every record must cite its Q-number and retrieval date."
+   ]
   },
   {
    "SOURCE_ID": "sunnah-com-api",
@@ -237,7 +370,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Host unreachable and a key is required; owner would need to apply and accept the terms.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "sunnah.com and api.sunnah.com did not answer from the build environment"
+   ],
+   "UNDERLYING_RIGHTS": "Translators' and publishers' rights; sunnah.com terms not read",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Unknown",
+   "OPEN_QUESTIONS": [
+    "API terms, key, and whether republication is allowed."
+   ]
   },
   {
    "SOURCE_ID": "quran-recitation-sources",
@@ -256,7 +399,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "No audio is copied. Link-only records need the host's stated permission; the schema (QuranRecitationEdition, QuranAyahAudio) and player exist.",
-   "MANIFEST_DATASET": "audio-quran-recitations"
+   "MANIFEST_DATASET": "audio-quran-recitations",
+   "EVIDENCE": [
+    "everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network did not answer on 2026-10-01"
+   ],
+   "UNDERLYING_RIGHTS": "Reciters and publishers",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Reciter names and surah/ayah mapping could be metadata; links need the host's terms",
+   "OPEN_QUESTIONS": [
+    "Each host's redistribution and hotlinking terms."
+   ]
   },
   {
    "SOURCE_ID": "npm-mp3quran-wrappers",
@@ -275,7 +428,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "LICENSE_REQUIRED",
    "NOTES": "Not used.",
-   "MANIFEST_DATASET": "audio-quran-recitations"
+   "MANIFEST_DATASET": "audio-quran-recitations",
+   "EVIDENCE": [
+    "npm metadata: MIT for the wrapper code"
+   ],
+   "UNDERLYING_RIGHTS": "mp3quran.net and reciters",
+   "MODIFICATION_ALLOWED": "Code yes",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Unknown",
+   "OPEN_QUESTIONS": [
+    "mp3quran.net terms."
+   ]
   },
   {
    "SOURCE_ID": "official-charity-registers",
@@ -294,7 +457,18 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Hosts unreachable. Note that a register lists charities, not whether a charity is Muslim: a faith filter would need an explicit field.",
-   "MANIFEST_DATASET": "directory-charities"
+   "MANIFEST_DATASET": "directory-charities",
+   "EVIDENCE": [
+    "register-of-charities.charitycommission.gov.uk and irs.gov did not answer on 2026-10-01"
+   ],
+   "UNDERLYING_RIGHTS": "Government bodies; licence not re-read here",
+   "MODIFICATION_ALLOWED": "Unknown until read",
+   "DATABASE_RIGHTS": "Unknown until read",
+   "METADATA_ONLY_SAFE": "Registration data is the data",
+   "OPEN_QUESTIONS": [
+    "Licence per register.",
+    "A faith field is required before listing as Muslim charities."
+   ]
   },
   {
    "SOURCE_ID": "job-feeds",
@@ -313,7 +487,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Needs owner credentials or employer submissions. Job listings require employer, application URL and expiry; none are invented.",
-   "MANIFEST_DATASET": "directory-jobs"
+   "MANIFEST_DATASET": "directory-jobs",
+   "EVIDENCE": [
+    "api.adzuna.com and usajobs.gov did not answer on 2026-10-01"
+   ],
+   "UNDERLYING_RIGHTS": "Employers and feed operators",
+   "MODIFICATION_ALLOWED": "Per terms",
+   "DATABASE_RIGHTS": "Per terms",
+   "METADATA_ONLY_SAFE": "Per terms",
+   "OPEN_QUESTIONS": [
+    "Keys, terms, and whether republication is allowed."
+   ]
   },
   {
    "SOURCE_ID": "open-library-catalogues",
@@ -332,7 +516,17 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
    "NOTES": "Hosts unreachable. Metadata-only records (no files) are the intended use.",
-   "MANIFEST_DATASET": "library-works"
+   "MANIFEST_DATASET": "library-works",
+   "EVIDENCE": [
+    "openlibrary.org, archive.org, gutenberg.org did not answer on 2026-10-01"
+   ],
+   "UNDERLYING_RIGHTS": "Per catalogue",
+   "MODIFICATION_ALLOWED": "Unknown until read",
+   "DATABASE_RIGHTS": "Unknown until read",
+   "METADATA_ONLY_SAFE": "Intended use: metadata and external links only",
+   "OPEN_QUESTIONS": [
+    "Licence of each catalogue's metadata."
+   ]
   },
   {
    "SOURCE_ID": "owner-supplied",
@@ -351,7 +545,109 @@
    "LAST_VERIFIED": "2026-10-01",
    "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
    "NOTES": "The pipeline is ready; each dataset enters as staged until rights are confirmed.",
-   "MANIFEST_DATASET": null
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "Admin upload and adapters implemented and tested"
+   ],
+   "UNDERLYING_RIGHTS": "The owner must state them",
+   "MODIFICATION_ALLOWED": "Per dataset",
+   "DATABASE_RIGHTS": "Per dataset",
+   "METADATA_ONLY_SAFE": "Per dataset",
+   "OPEN_QUESTIONS": [
+    "Everything: no dataset has been supplied."
+   ]
+  },
+  {
+   "SOURCE_ID": "pypi-hadith-umma1",
+   "SOURCE_NAME": "PyPI hadith 0.0.2a1 (Umma Open Source)",
+   "SOURCE_URL": "https://pypi.org/project/hadith/",
+   "OWNER": "Umma Open Source",
+   "TYPE": "packaged dataset",
+   "DATA_DOMAIN": "hadith (Arabic collections)",
+   "LICENSE": "MIT classifier; metadata says 'License: UNKNOWN'",
+   "LICENSE_URL": "https://pypi.org/project/hadith/",
+   "PROVENANCE": "Wheel contains CSV files of Sahih al-Bukhari, Sahih Muslim, the four Sunan, Musnad Ahmad, Muwatta Malik and al-Darimi with no stated edition, source or compiler.",
+   "ACCESS_METHOD": "pip download (wheel read, not imported)",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "COMMERCIAL_USE_ALLOWED": "Unknown",
+   "ATTRIBUTION_REQUIRED": "Unknown",
+   "LAST_VERIFIED": "2026-10-01",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "NOTES": "Not imported. The classical Arabic texts are public domain, but this digital edition has no stated origin.",
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "wheel METADATA read: license UNKNOWN, description 'UNKNOWN'",
+    "no README or LICENSE in the wheel",
+    "CSV header and first rows read: text only, no isnad split, no numbering metadata"
+   ],
+   "UNDERLYING_RIGHTS": "Classical Arabic: public domain; this edition: unknown",
+   "MODIFICATION_ALLOWED": "Unknown",
+   "DATABASE_RIGHTS": "Unknown",
+   "METADATA_ONLY_SAFE": "Collection names only",
+   "OPEN_QUESTIONS": [
+    "Which edition and who typed or scraped it."
+   ]
+  },
+  {
+   "SOURCE_ID": "pypi-index-scan",
+   "SOURCE_NAME": "Systematic scan of the PyPI project index for Islamic datasets",
+   "SOURCE_URL": "https://pypi.org/simple/",
+   "OWNER": "PyPI",
+   "TYPE": "discovery method",
+   "DATA_DOMAIN": "all domains",
+   "LICENSE": "n/a",
+   "LICENSE_URL": "https://pypi.org/simple/",
+   "PROVENANCE": "All 903,694 project names were matched against Islamic keywords (hadith, quran, tafsir, fiqh, sunnah, seerah, aqeedah, mosque, ...); 89 plausible names were reviewed by metadata, and the data-bearing ones by wheel contents.",
+   "ACCESS_METHOD": "PyPI JSON simple index",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "COMMERCIAL_USE_ALLOWED": "Unknown",
+   "ATTRIBUTION_REQUIRED": "Unknown",
+   "LAST_VERIFIED": "2026-10-01",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "NOTES": "Reviewed: ahadith (GPL, API wrapper), hadith (provenance unclear), isnad* (software), openiti (code only), pytafseer/quran/sunnah-api/widequran (API wrappers), kaeshur-quran (app data, Kashmiri), quran-text (already used). No new usable domain dataset was found.",
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "pypi-simple.json (44 MB) downloaded 2026-10-01 and filtered",
+    "metadata of 20 candidates read",
+    "wheels of openiti, hadith and islamlib downloaded and inspected"
+   ],
+   "UNDERLYING_RIGHTS": "n/a",
+   "MODIFICATION_ALLOWED": "n/a",
+   "DATABASE_RIGHTS": "n/a",
+   "METADATA_ONLY_SAFE": "n/a",
+   "OPEN_QUESTIONS": [
+    "Packages that wrap remote APIs were not followed to the remote service (unreachable)."
+   ]
+  },
+  {
+   "SOURCE_ID": "npm-registry-scan",
+   "SOURCE_NAME": "Keyword scan of the npm registry for Islamic datasets",
+   "SOURCE_URL": "https://registry.npmjs.org/",
+   "OWNER": "npm",
+   "TYPE": "discovery method",
+   "DATA_DOMAIN": "all domains",
+   "LICENSE": "n/a",
+   "LICENSE_URL": "https://registry.npmjs.org/",
+   "PROVENANCE": "About 40 search queries (hadith, fiqh, seerah, aqeedah, mosque, charity, reciter, glossary, scholar, history ...) returned 491 relevant package names; data-bearing ones were opened and their LICENSE and README read.",
+   "ACCESS_METHOD": "npm search API",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "COMMERCIAL_USE_ALLOWED": "Unknown",
+   "ATTRIBUTION_REQUIRED": "Unknown",
+   "LAST_VERIFIED": "2026-10-01",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "NOTES": "Only @geoalgeria/mosquees (used) and the already-held @quran.ws and @kazishariar packages qualified; the rest were API wrappers, UI kits or calendar/prayer-time libraries.",
+   "MANIFEST_DATASET": null,
+   "EVIDENCE": [
+    "/tmp scan outputs reviewed 2026-10-01",
+    "tarballs of @geoalgeria/mosquees, @al-mabsut/muslimah, sacred_texts, arabic-dictionary, @qivam/client, @trydaleel/domain-islamic-hadith read"
+   ],
+   "UNDERLYING_RIGHTS": "n/a",
+   "MODIFICATION_ALLOWED": "n/a",
+   "DATABASE_RIGHTS": "n/a",
+   "METADATA_ONLY_SAFE": "n/a",
+   "OPEN_QUESTIONS": [
+    "Packages published after 2026-10-01 are not covered."
+   ]
   }
  ]
 }

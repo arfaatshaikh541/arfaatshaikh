@@ -85,6 +85,11 @@ class DataSetImport(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     snapshot: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     imported_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     rolled_back_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # what the importer retrieved: source version, when, its checksum and which adapter produced the rows
+    adapter_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    source_version: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    source_retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class KnowledgeRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):

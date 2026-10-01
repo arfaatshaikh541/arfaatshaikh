@@ -66,13 +66,11 @@ python scripts/import_hadith_reader.py     python scripts/import_tajweed.py
 python scripts/import_tafsir.py            python scripts/import_translations.py    # long
 python scripts/import_tafsir_catalogue.py  # long
 python scripts/sync_manifest.py            # registers the manifest and applies publication decisions
-python scripts/build_geoalgeria_mosques.py --out /tmp/dz.json                  # Algerian mosques (npm, integrity-checked)
-for i in 0 1 2 3; do python scripts/import_directory.py --dataset directory-mosques --file /tmp/dz.$i.json; done
+python scripts/run_importer.py geoalgeria-mosquees --apply                     # Algerian mosques (npm, integrity-checked, all-or-nothing)
 python scripts/scan_directory_duplicates.py                                     # links probable duplicates, deletes nothing
 python scripts/dataset_action.py --dataset directory-mosques --action mark_verified --note "what you checked"
 python scripts/dataset_action.py --dataset directory-mosques --action publish
-python scripts/build_hadith_grading_records.py --out /tmp/hg.json              # staged: rights not established
-for i in 0 1 2 3 4; do python scripts/import_knowledge_records.py --dataset hadith-grading --file /tmp/hg.$i.json; done
+python scripts/run_importer.py hadith-api-grades --apply                       # imported HIDDEN: rights not established
 python scripts/build_knowledge_graph.py    # sourced relationships between published entities
 python scripts/validate_data.py            # must print PASS for every rule before a release
 ```

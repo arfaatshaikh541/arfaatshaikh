@@ -133,13 +133,8 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 
 def _load(name):
-    import importlib.util
-    import sys
-    sys.path.insert(0, str(SCRIPTS))
-    spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    import importlib
+    return importlib.import_module({"build_hadith_grading_records": "app.importers.hadith_grades", "build_geoalgeria_mosques": "app.importers.geoalgeria"}[name])
 
 
 def test_hadith_grade_adapter_copies_grades_verbatim_and_drops_placeholders():
@@ -149,7 +144,7 @@ def test_hadith_grade_adapter_copies_grades_verbatim_and_drops_placeholders():
             {"name": "Al-Albani", "grade": "Hasan Sahih"}, {"name": "Zubair Ali Zai", "grade": "Daif"}, {"name": "Shuaib Al Arnaut", "grade": "-"}]},
         {"hadithnumber": 2, "arabicnumber": 2, "reference": {"book": 1, "hadith": 2}, "grades": []}]},
         **{k: {"metadata": {"sections": {}}, "hadiths": []} for k in ("ibnmajah", "malik", "nasai", "tirmidhi")}}
-    rows, stats = module.build(info)
+    rows, stats = module.build_rows(info, {})
     assert len(rows) == 1 and stats["placeholder_grades_skipped"] == 1
     grades = rows[0]["attributes"]["grades"]
     assert [(g["grader"], g["grade"]) for g in grades] == [("Al-Albani", "Hasan Sahih"), ("Zubair Ali Zai", "Daif")]
@@ -164,7 +159,7 @@ def test_mosque_adapter_invents_nothing():
         {"id": "16-0002", "name": None, "name_ar": None, "name_fr": None, "lat": 36.7, "lng": 3.0, "source": "osm", "refs": {"osm": "node/6"}, "denomination": None},
         {"id": "16-0003", "name": "مسجد", "name_ar": "مسجد", "wilaya_code": "16", "lat": 36.7, "lng": 3.1, "source": "wikidata", "refs": {"wikidata": "Q3"}, "denomination": "sunni"},
     ]
-    rows, skipped = module.build(records)
+    rows, skipped = module.build_rows(records)
     assert skipped["no_name"] == 1 and len(rows) == 2
     assert rows[0]["attributes"]["denomination"] == "sunni" and "ODbL" in rows[0]["license"]
     assert "denomination" not in rows[1]["attributes"] and rows[1]["license"].startswith("CC0")   # Wikidata-only: denomination not from an explicit OSM tag
@@ -177,10 +172,11 @@ def test_source_candidates_are_complete_and_never_silently_verified():
     manifest = json.loads((path.parent / "source-manifest.json").read_text(encoding="utf-8"))
     published = {d["id"] for d in manifest["datasets"] if d["publication_status"] == "published"}
     required = ("SOURCE_NAME", "SOURCE_URL", "OWNER", "TYPE", "DATA_DOMAIN", "LICENSE", "LICENSE_URL", "PROVENANCE", "ACCESS_METHOD", "REDISTRIBUTION_ALLOWED",
-                "COMMERCIAL_USE_ALLOWED", "ATTRIBUTION_REQUIRED", "LAST_VERIFIED", "VERIFICATION_STATUS")
+                "COMMERCIAL_USE_ALLOWED", "ATTRIBUTION_REQUIRED", "MODIFICATION_ALLOWED", "UNDERLYING_RIGHTS", "DATABASE_RIGHTS", "METADATA_ONLY_SAFE", "LAST_VERIFIED", "VERIFICATION_STATUS")
     for source in data["sources"]:
         assert source["VERIFICATION_STATUS"] in data["statuses"]
         assert all(str(source.get(k) or "").strip() for k in required), source["SOURCE_ID"]
+        assert source["EVIDENCE"] and source["OPEN_QUESTIONS"], source["SOURCE_ID"]
         if source["VERIFICATION_STATUS"] == "VERIFIED":
             assert source["LICENSE_URL"].startswith("http") and source["MANIFEST_DATASET"] in {d["id"] for d in manifest["datasets"]}
         if source["MANIFEST_DATASET"] in published and source["VERIFICATION_STATUS"] != "VERIFIED":

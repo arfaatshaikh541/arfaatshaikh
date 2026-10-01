@@ -103,10 +103,10 @@ class DatasetService:
         return dataset
 
     # -------------------------------------------------------------- knowledge records
-    async def _failed_import(self, dataset: DataSet, file_sha: str, failures: list[dict], importer_version: str, actor: User | None, total: int) -> DataSetImport:
+    async def _failed_import(self, dataset: DataSet, file_sha: str, failures: list[dict], importer_version: str, actor: User | None, total: int, source: dict | None = None) -> DataSetImport:
         """A strict import with any invalid row changes nothing; the attempt and its errors are still recorded for review."""
         imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, status="failed",
-                            failed_count=len(failures), failures=failures[:MAX_ERRORS_REPORTED], imported_by_user_id=actor.id if actor else None)
+                            failed_count=len(failures), failures=failures[:MAX_ERRORS_REPORTED], imported_by_user_id=actor.id if actor else None, **_source_fields(source))
         self.session.add(imp)
         await self.session.flush()
         await self.audit(actor, "dataset.import_failed", "data_set_import", imp.id, {"key": dataset.dataset_key, "rows": total, "failed": len(failures)})
@@ -136,10 +136,11 @@ class DatasetService:
         return {"rows": len(rows), "valid": len(valid), "would_create": create, "would_update_or_unchanged": len(valid) - create,
                 "failed": len(failures), "failures": failures[:MAX_ERRORS_REPORTED]}
 
-    async def import_records(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True) -> DataSetImport:
+    async def import_records(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True,
+        max_records: int = MAX_RECORDS_PER_UPLOAD, source: dict | None = None) -> DataSetImport:
         dataset = await self.by_key(key)
-        if len(rows) > MAX_RECORDS_PER_UPLOAD:
-            raise ApplicationError("too_many_records", f"At most {MAX_RECORDS_PER_UPLOAD} records per upload.", 413)
+        if len(rows) > max_records:
+            raise ApplicationError("too_many_records", f"At most {max_records} records per upload.", 413)
         file_sha = sha256_json(rows)
         previous = await self.session.scalar(select(DataSetImport).where(
             DataSetImport.dataset_id == dataset.id, DataSetImport.file_sha256 == file_sha, DataSetImport.status == "applied"))
@@ -147,8 +148,8 @@ class DatasetService:
             return previous  # idempotent: the same file applied twice changes nothing
         batch = validate_record_batch(rows, expected_type=dataset.entity_type if dataset.entity_type != "unspecified" else None)
         if strict and batch.failures:
-            return await self._failed_import(dataset, file_sha, batch.failures, importer_version, actor, len(rows))
-        imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None)
+            return await self._failed_import(dataset, file_sha, batch.failures, importer_version, actor, len(rows), source)
+        imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None, **_source_fields(source))
         self.session.add(imp)
         await self.session.flush()
         existing = {r.record_key: r for r in (await self.session.scalars(select(KnowledgeRecord).where(KnowledgeRecord.dataset_id == dataset.id))).all()}
@@ -212,10 +213,11 @@ class DatasetService:
         return imp
 
     # -------------------------------------------------------------- directory listings
-    async def import_listings(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True) -> DataSetImport:
+    async def import_listings(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True,
+        max_records: int = MAX_RECORDS_PER_UPLOAD, source: dict | None = None) -> DataSetImport:
         dataset = await self.by_key(key)
-        if len(rows) > MAX_RECORDS_PER_UPLOAD:
-            raise ApplicationError("too_many_records", f"At most {MAX_RECORDS_PER_UPLOAD} records per upload.", 413)
+        if len(rows) > max_records:
+            raise ApplicationError("too_many_records", f"At most {max_records} records per upload.", 413)
         file_sha = sha256_json(rows)
         previous = await self.session.scalar(select(DataSetImport).where(
             DataSetImport.dataset_id == dataset.id, DataSetImport.file_sha256 == file_sha, DataSetImport.status == "applied"))
@@ -223,8 +225,8 @@ class DatasetService:
             return previous
         valid, failures = _validate_listings(rows)
         if strict and failures:
-            return await self._failed_import(dataset, file_sha, failures, importer_version, actor, len(rows))
-        imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None)
+            return await self._failed_import(dataset, file_sha, failures, importer_version, actor, len(rows), source)
+        imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None, **_source_fields(source))
         self.session.add(imp)
         await self.session.flush()
         created = updated = unchanged = 0
@@ -277,6 +279,11 @@ def _validate_listings(rows: Sequence[object]) -> tuple[list[DirectoryListingInp
         seen.add(identity)
         valid.append(item)
     return valid, failures
+
+
+def _source_fields(source: dict | None) -> dict:
+    """adapter_id, source_version, source_retrieved_at, source_checksum for the import row (empty for manual uploads)."""
+    return {k: v for k, v in (source or {}).items() if k in {"adapter_id", "source_version", "source_retrieved_at", "source_checksum"}}
 
 
 def _date(value: str | None) -> date | None:

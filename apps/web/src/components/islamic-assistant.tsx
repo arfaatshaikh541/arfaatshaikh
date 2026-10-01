@@ -2,11 +2,11 @@
 
 import { FormEvent, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { INSUFFICIENT } from "@/lib/copy";
+import { AUTHORITY_LABEL, INSUFFICIENT } from "@/lib/copy";
 
-type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number };
+type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number; authority_class?: string; verification_state?: string };
 type Sections = { primary_source: Item[]; scholarly_explanation: Item[]; secondary_source: Item[] };
-type KnowledgeSource = { label: string; kind: string; title: string; text: string; position: string | null; source: string; source_work: string | null; locator: string; license: string; scholarly_status: string; uncertainty: string[] };
+type KnowledgeSource = { authority_class: string; verification_state: string; source_title: string; author: string | null; edition: string | null; url: string | null; record: { dataset: string; id: string }; label: string; kind: string; title: string; text: string; position: string | null; source: string; source_work: string | null; locator: string; license: string; scholarly_status: string; uncertainty: string[] };
 type Answer = {
   knowledge_sources?: KnowledgeSource[];
   status: string; message?: string; insufficiency_reason?: string | null; requires_escalation?: boolean; response_text?: string | null;
@@ -55,6 +55,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
             <p><strong>{item.label}</strong> {item.reference} · {item.attribution}</p>
             <blockquote lang={/[؀-ۿ]/.test(item.text) ? "ar" : undefined} dir={/[؀-ۿ]/.test(item.text) ? "rtl" : undefined}>{item.text}</blockquote>
             <small>{item.license}</small>
+            {item.authority_class && <p className="tool-note"><span className="status-pill status-implemented">{AUTHORITY_LABEL[item.authority_class]?.[rtl ? "ar" : "en"]}</span> <small>{item.verification_state}</small></p>}
           </article>
         ))}
       </section>
@@ -69,8 +70,10 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
       <ul>{answer!.knowledge_sources!.map((k) => (
         <li key={k.label}>
           <strong>{k.label} {k.title}</strong>{k.position ? ` · ${k.position}` : ""}
+          {" "}<span className={k.authority_class === "secondary_source" || k.authority_class === "primary_source" ? "status-pill status-implemented" : "status-pill status-not-verified"}>{AUTHORITY_LABEL[k.authority_class]?.[rtl ? "ar" : "en"]}</span>
           <p style={{ whiteSpace: "pre-line" }}>{k.text}</p>
-          <small>{k.source_work ?? k.source} · {k.locator} · {k.license}</small>
+          <small>{k.source_title}{k.author ? ` · ${k.author}` : ""}{k.edition ? ` · ${k.edition}` : ""} · {k.locator} · {k.license} · <code>{k.record.dataset}/{k.record.id}</code>{k.url ? <> · <a href={k.url} rel="noopener noreferrer nofollow">{rtl ? "المصدر" : "source"}</a></> : null}</small>
+          <p className="tool-note">{k.verification_state}</p>
           {k.uncertainty.length > 0 && <p role="note" className="tool-note">{k.uncertainty.join("; ")}</p>}
         </li>))}
       </ul>
@@ -103,7 +106,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
         <p className="assistant-boundary">{copy.boundary}</p>
       </>}
       {answer && knowledge}
-      {answer?.status === "insufficient" && <p role="status"><strong>{INSUFFICIENT[rtl ? "ar" : "en"]}</strong> {rtl ? "جرّب صياغة أخرى أو موضوعاً أعم." : "Try rephrasing, or a broader topic."}</p>}
+      {answer?.status === "insufficient" && <p role="status"><strong>{INSUFFICIENT[rtl ? "ar" : "en"]}</strong> {AUTHORITY_LABEL.unavailable[rtl ? "ar" : "en"]}. {rtl ? "جرّب صياغة أخرى أو موضوعاً أعم." : "Try rephrasing, or a broader topic."}</p>}
     </section>
   </main>;
 }

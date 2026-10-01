@@ -10,10 +10,16 @@ from sqlalchemy import or_, select
 
 from app.api.dependencies.auth import DbSession, require_csrf
 from app.api.dependencies.platform_admin import require_platform_administrator
+from app.api.routes.knowledge import reset_domains_cache
 from app.models.content_contract import DataSet, DataSetImport, PlatformAuditEvent
+from app.core.errors import ApplicationError
 from app.models.identity import Session, User
 from app.services.data_contracts import can_publish
+from app.importers import ADAPTERS, get_adapter
+from app.importers.runner import run_adapter
+from app.services.data_quality import dataset_conflicts, quality_report
 from app.services.datasets import MAX_RECORDS_PER_UPLOAD, DatasetService
+from app.services.readiness import live_state, load_registry, summarise
 from app.services.manifest import load_manifest, validate_manifest
 from app.services.publication_policy import apply_manifest_policy
 from app.services.verification import clear_cache as clear_verification_cache
@@ -59,6 +65,7 @@ async def manifest_sync(db: DbSession, admin: Admin, _: Csrf):
     await service.audit(admin, "dataset.manifest_synced", "data_set", None, {"datasets": len(manifest["datasets"])})
     await db.commit()
     clear_verification_cache()
+    reset_domains_cache()
     return {"applied": True, "report": report}
 
 
@@ -82,6 +89,7 @@ async def dataset_action(key: str, payload: ActionPayload, db: DbSession, admin:
     await apply_manifest_policy(db, load_manifest())
     await db.commit()
     clear_verification_cache()
+    reset_domains_cache()
     return dataset_view(dataset)
 
 
@@ -92,7 +100,9 @@ class UploadPayload(BaseModel):
 
 def import_view(imp: DataSetImport) -> dict:
     return {"id": str(imp.id), "status": imp.status, "created": imp.created_count, "updated": imp.updated_count, "unchanged": imp.unchanged_count,
-            "failed": imp.failed_count, "failures": imp.failures, "file_sha256": imp.file_sha256, "importer_version": imp.importer_version}
+            "failed": imp.failed_count, "failures": imp.failures, "file_sha256": imp.file_sha256, "importer_version": imp.importer_version,
+            "adapter_id": imp.adapter_id, "source_version": imp.source_version, "source_checksum": imp.source_checksum,
+            "source_retrieved_at": imp.source_retrieved_at.isoformat() if imp.source_retrieved_at else None, "at": imp.created_at.isoformat()}
 
 
 @router.post("/{key}/preview")
@@ -110,6 +120,7 @@ async def preview_listings(key: str, payload: UploadPayload, db: DbSession, _: A
 async def import_records(key: str, payload: UploadPayload, db: DbSession, admin: Admin, _: Csrf):
     imp = await DatasetService(db).import_records(key, payload.records, admin, strict=not payload.allow_partial)
     await db.commit()
+    reset_domains_cache()
     return import_view(imp)
 
 
@@ -117,6 +128,7 @@ async def import_records(key: str, payload: UploadPayload, db: DbSession, admin:
 async def import_listings(key: str, payload: UploadPayload, db: DbSession, admin: Admin, _: Csrf):
     imp = await DatasetService(db).import_listings(key, payload.records, admin, strict=not payload.allow_partial)
     await db.commit()
+    reset_domains_cache()
     return import_view(imp)
 
 
@@ -144,6 +156,7 @@ async def imports(key: str, db: DbSession, _: Admin):
 async def rollback(import_id: UUID, db: DbSession, admin: Admin, _: Csrf):
     imp = await DatasetService(db).rollback_import(import_id, admin)
     await db.commit()
+    reset_domains_cache()
     return import_view(imp)
 
 
@@ -154,3 +167,69 @@ async def audit_events(db: DbSession, _: Admin, limit: Annotated[int, Query(ge=1
         stmt = stmt.where(PlatformAuditEvent.action.like(f"{action}%"))
     return {"events": [{"id": str(e.id), "action": e.action, "actor": str(e.actor_user_id) if e.actor_user_id else None, "target_type": e.target_type,
                         "target_id": str(e.target_id) if e.target_id else None, "metadata": e.metadata_json, "at": e.created_at.isoformat()} for e in (await db.scalars(stmt)).all()]}
+
+
+# ------------------------------------------------------------------ readiness, quality, conflicts, importers
+@router.get("/readiness")
+async def readiness(db: DbSession, _: Admin):
+    """Every domain with its status, the gates that fail and every blocker: exactly why it is not READY."""
+    return summarise(load_registry(), await live_state(db))
+
+
+@router.get("/quality-report")
+async def quality(db: DbSession, _: Admin):
+    return await quality_report(db)
+
+
+@router.get("/{key}/conflicts")
+async def conflicts(key: str, db: DbSession, _: Admin, limit: Annotated[int, Query(ge=1, le=500)] = 100):
+    """Duplicate and conflict candidates for a dataset. Reported for review; nothing is merged, renamed or corrected."""
+    await DatasetService(db).by_key(key)
+    return await dataset_conflicts(db, key, limit)
+
+
+@router.get("/importers/list")
+async def importers(db: DbSession, _: Admin, probe: bool = False):
+    """Registered source adapters with their last runs. `probe=true` checks whether each source is reachable from this server right now."""
+    rows = []
+    for adapter in ADAPTERS.values():
+        dataset = await DatasetService(db).by_key(adapter.dataset_key)
+        last = await db.scalar(select(DataSetImport).where(DataSetImport.dataset_id == dataset.id, DataSetImport.adapter_id == adapter.id).order_by(DataSetImport.created_at.desc()).limit(1))
+        rows.append({**adapter.describe(), "last_run": import_view(last) if last else None, "dataset_publication": dataset.publication_status, "license_status": dataset.license_status,
+                     "probe": adapter.probe() if probe else None})
+    return {"importers": rows}
+
+
+class RunPayload(BaseModel):
+    params: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/importers/{adapter_id}/preview")
+async def importer_preview(adapter_id: str, payload: RunPayload, db: DbSession, admin: Admin, _: Csrf):
+    """Fetch and validate the source and show what an import would do. Writes nothing."""
+    try:
+        adapter = get_adapter(adapter_id)
+        result = await run_adapter(db, adapter, payload.params, apply=False, actor=admin)
+    except (KeyError, ValueError) as exc:
+        raise ApplicationError("importer_invalid", str(exc), 422) from exc
+    except Exception as exc:  # network or upstream failure: reported, never partially applied
+        raise ApplicationError("importer_unavailable", f"The source could not be retrieved: {exc.__class__.__name__}: {exc}", 502) from exc
+    return result
+
+
+@router.post("/importers/{adapter_id}/run")
+async def importer_run(adapter_id: str, payload: RunPayload, db: DbSession, admin: Admin, _: Csrf):
+    """Run an importer all-or-nothing. Re-running an unchanged source changes nothing. Never publishes."""
+    try:
+        adapter = get_adapter(adapter_id)
+        result = await run_adapter(db, adapter, payload.params, apply=True, actor=admin)
+    except (KeyError, ValueError) as exc:
+        raise ApplicationError("importer_invalid", str(exc), 422) from exc
+    except ApplicationError:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        raise ApplicationError("importer_unavailable", f"The source could not be retrieved: {exc.__class__.__name__}: {exc}", 502) from exc
+    await db.commit()
+    reset_domains_cache()
+    return result

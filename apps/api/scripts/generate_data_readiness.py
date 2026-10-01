@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.manifest import load_manifest, manifest_path  # noqa: E402
+from app.services.readiness import load_registry, validate_registry  # noqa: E402
 
 ORDER = ["VERIFIED", "NEEDS_REVIEW", "LICENSE_REQUIRED", "PROVENANCE_UNCLEAR", "UNAVAILABLE", "OWNER_UPLOAD_REQUIRED"]
 MEANING = {
@@ -21,60 +22,9 @@ MEANING = {
 }
 
 
-DOMAIN_STATUSES = {
-    "READY": "Real, verified, publishable data is published for the whole scope of the domain.",
-    "PARTIALLY_READY": "Real data is published, but only for part of the scope (stated in Remaining Action).",
-    "NEEDS_LICENSE": "Real data is imported and staged; the right to publish it is not established.",
-    "NEEDS_PROVENANCE": "Data exists but its origin cannot be established; not imported or not published.",
-    "SOURCE_UNAVAILABLE": "A legitimate source exists but could not be reached or accessed from the build environment.",
-    "OWNER_DATA_REQUIRED": "No openly verifiable source was found; the owner must supply an authorised dataset.",
-    "NOT_IMPLEMENTED": "The code needed to hold or show the data does not exist.",
-}
-# dataset id -> (domain label, importer, admin workflow, frontend, status assigned after reading the manifest entry and docs/SOURCE_VERIFICATION.md)
-KNOWLEDGE_IMPORTER = "`import_knowledge_records.py`: preview, all-or-nothing, rollback"
-LISTING_IMPORTER = "`import_directory.py`: preview, all-or-nothing, rollback"
-ADMIN = "Preview, import, verify, publish, unpublish, rollback, provenance and audit (Data & trust)"
-AUDIO_ADMIN = "Admin API: create recitation, add recordings, publish (hosted needs a permitting licence and a recorded authorisation)"
-DOMAINS = [
-    ("fiqh-rulings", "Fiqh", KNOWLEDGE_IMPORTER, "/knowledge/fiqh, per-madhhab filter", "OWNER_DATA_REQUIRED"),
-    ("aqeedah", "Aqeedah", KNOWLEDGE_IMPORTER, "/knowledge/aqeedah, per-school filter", "OWNER_DATA_REQUIRED"),
-    ("seerah", "Seerah", KNOWLEDGE_IMPORTER, "/knowledge/seerah, reliability category", "OWNER_DATA_REQUIRED"),
-    ("hadith-grading", "Hadith grading", KNOWLEDGE_IMPORTER + "; `build_hadith_grading_records.py`", "/knowledge/hadith_grading, one row per grader", "NEEDS_LICENSE"),
-    ("terminology", "Islamic terminology", KNOWLEDGE_IMPORTER, "/knowledge/terminology", "OWNER_DATA_REQUIRED"),
-    ("library-works", "Islamic library", KNOWLEDGE_IMPORTER + "; metadata or external link only", "/knowledge/library_work", "SOURCE_UNAVAILABLE"),
-    ("history", "Islamic history", KNOWLEDGE_IMPORTER, "/knowledge/history", "OWNER_DATA_REQUIRED"),
-    ("civilization", "Islamic civilization", KNOWLEDGE_IMPORTER, "/knowledge/civilization", "OWNER_DATA_REQUIRED"),
-    ("scholar-biographies", "Scholar biographies", KNOWLEDGE_IMPORTER, "/knowledge/scholar", "SOURCE_UNAVAILABLE"),
-    ("audio-quran-recitations", "Qur'an recitation audio", "Admin API `POST /quran/admin/recitations` (hosted with checksum, or external link)", "Qur'an reader player, attribution, empty state", "SOURCE_UNAVAILABLE"),
-    ("directory-mosques", "Mosques", LISTING_IMPORTER + "; `build_geoalgeria_mosques.py`; `import_osm_mosques.py`", "/directory (search, filters, near me, report)", "PARTIALLY_READY"),
-    ("directory-jobs", "Muslim jobs", LISTING_IMPORTER, "/directory, employer, apply link, expiry", "SOURCE_UNAVAILABLE"),
-    ("directory-businesses", "Muslim businesses", LISTING_IMPORTER, "/directory", "OWNER_DATA_REQUIRED"),
-    ("directory-charities", "Charities", LISTING_IMPORTER, "/directory, no donation links accepted", "SOURCE_UNAVAILABLE"),
-    ("directory-professionals", "Muslim professionals", LISTING_IMPORTER, "/directory", "OWNER_DATA_REQUIRED"),
-    ("directory-health", "Muslim health services", LISTING_IMPORTER, "/directory", "OWNER_DATA_REQUIRED"),
-    ("directory-events", "Islamic events", LISTING_IMPORTER, "/directory, expired events disappear automatically", "OWNER_DATA_REQUIRED"),
-    ("directory-organisations", "Islamic organisations and institutions", LISTING_IMPORTER, "/directory", "OWNER_DATA_REQUIRED"),
-    ("directory-volunteering", "Volunteering", LISTING_IMPORTER, "/directory", "OWNER_DATA_REQUIRED"),
-]
-
-
-def domain_rows(manifest: dict) -> list[dict]:
-    """One row per pending domain. The assigned status must agree with the manifest facts or generation fails."""
-    by_id = {d["id"]: d for d in manifest["datasets"]}
-    rows = []
-    for key, label, importer, frontend, status in DOMAINS:
-        d = by_id[key]
-        records = d.get("records", 0)
-        if status in {"READY", "PARTIALLY_READY"} and not (d["public"] and records > 0 and d["readiness"] == "VERIFIED"):
-            raise SystemExit(f"{key}: {status} needs published, verified records")
-        if status == "NEEDS_LICENSE" and not (records > 0 and not d["public"] and d["license"]["status"] == "LICENSE_REQUIRED"):
-            raise SystemExit(f"{key}: NEEDS_LICENSE needs imported, staged records with licence status LICENSE_REQUIRED")
-        if status in {"SOURCE_UNAVAILABLE", "OWNER_DATA_REQUIRED", "NEEDS_PROVENANCE"} and (records > 0 or d["public"]):
-            raise SystemExit(f"{key}: {status} cannot have records or be public")
-        rows.append({"id": key, "domain": label, "records": records, "source": d["source"]["name"], "license": f"{d['license']['name']} ({d['license']['status']})",
-                     "provenance": "recorded per record" if records else "-", "importer": importer, "validation": d.get("validation_status", "NOT_RUN"),
-                     "admin": AUDIO_ADMIN if key == "audio-quran-recitations" else ADMIN, "frontend": frontend, "status": status, "action": d["remaining_action"]})
-    return rows
+def domain_rows(registry: dict) -> list[dict]:
+    from app.services.readiness import evaluate_domain
+    return [{**d, "status": evaluate_domain(d)["status"]} for d in registry["domains"]]
 
 
 def render(manifest: dict) -> str:
@@ -83,13 +33,29 @@ def render(manifest: dict) -> str:
            "Generated from `data/source-manifest.json` by `scripts/generate_data_readiness.py`. Do not edit by hand; edit the manifest and regenerate.",
            f"Manifest as of **{manifest['as_of']}**. Public = visible to visitors in a production deployment after `scripts/sync_manifest.py`.", "",
            "## Domain readiness", "",
-           "One row per pending domain. A domain is READY only when every published record has verified provenance and publication rights; "
-           "no domain is READY today. Source reachability and licence findings are in [`SOURCE_VERIFICATION.md`](SOURCE_VERIFICATION.md).", ""]
-    out += [f"- **{k}** - {v}" for k, v in DOMAIN_STATUSES.items()]
-    out += ["", "| Domain | Records | Source | License | Provenance | Importer | Validation | Admin | Frontend | Status | Remaining Action |", "|---|---|---|---|---|---|---|---|---|---|---|"]
-    for r in domain_rows(manifest):
-        out.append("| " + " | ".join(cell(r[k]) for k in ("domain", "records", "source", "license", "provenance", "importer", "validation", "admin", "frontend")) + f" | **{r['status']}** | {cell(r['action'])} |")
-    out += ["", "## Per-source readiness legend", ""]
+           "Generated from `data/domain-readiness.json` (validated against the manifest by `scripts/validate_data.py` and the test-suite). "
+           "A domain is **READY** only when all twelve gates are met for its stated scope; an importer existing, records being present, or a dataset being published is not enough. "
+           "Source reachability and licence findings are in [`SOURCE_VERIFICATION.md`](SOURCE_VERIFICATION.md). Nothing here has had a human scholarly or legal review.", ""]
+    registry = load_registry()
+    problems = validate_registry(registry, manifest)
+    if problems:
+        raise SystemExit("domain registry is inconsistent:\n - " + "\n - ".join(problems))
+    out += [f"- **{k}** - {v}" for k, v in registry["status_meaning"].items()]
+    out += ["", "### The twelve gates", ""] + [f"{i + 1}. `{g['id']}` - {g['text']}" for i, g in enumerate(registry["gates"])]
+    out += ["", "### Dashboard", "", "| Domain | Status | Coverage | Records (published / hidden / total) | Source | Licence | Provenance / quality confidence | Validation | Publication |", "|---|---|---|---|---|---|---|---|---|"]
+    for d in registry["domains"]:
+        r = d["records"]
+        out.append(f"| **{d['label']}** | **{d['status']}** | {d['coverage']} | {r['published']} / {r['hidden']} / {r['total']} | {cell(d['source'])} | {cell(d['licence'])} | {d['provenance_confidence']} / {d['data_quality_confidence']} | {d['validation_status']} | {d['publication_status']} |")
+    out += ["", "### Blockers and failing gates", ""]
+    for d in registry["domains"]:
+        failing = [f"`{g}`" for g, v in d["gates"].items() if not v["passed"]]
+        out += [f"**{d['label']}** ({d['status']}): " + (f"scope - {d['scope']}" if d["scope"] else ""), ""]
+        out += [f"- Blocker: {b}" for b in d["blockers"]] or ["- No blockers."]
+        out += [f"- Gates not met: {', '.join(failing) if failing else 'none'}", ""]
+        if d.get("coverage_note"):
+            out += [f"- Coverage note: {d['coverage_note']}", ""]
+    out += ["", "## Per-source readiness (manifest)", ""]
+    out += ["### Per-source readiness legend", ""]
     out += [f"- **{k}** - {MEANING[k]}" for k in ORDER]
     out += ["", "## Summary", "", "| Readiness | Datasets | Public |", "|---|---|---|"]
     for k in ORDER:

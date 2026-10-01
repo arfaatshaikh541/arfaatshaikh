@@ -171,6 +171,10 @@ class KnowledgeRecordInput(BaseModel):
 SOURCED_TYPES = frozenset({"fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "library_work", "history", "civilization", "scholar"})
 SEERAH_RELIABILITY = ("established", "well_known_disputed", "weak_reports")
 LIBRARY_AVAILABILITY = ("metadata_only", "external_link", "owner_file")
+# One grade entry: who graded, what they said and where the grading is published. Work, edition and page stay empty unless the source states them.
+GRADE_FIELDS = frozenset({"grader", "grade", "grading_source", "grading_work", "grading_edition", "page_reference", "source_reference_text", "provenance", "note", "rights_status", "verification_status"})
+GRADE_RIGHTS = ("unverified", "open", "permission_granted", "restricted")
+GRADE_VERIFICATION = ("unverified", "checked_against_source", "disputed")
 QURAN_REF = re.compile(r"^(?:[1-9]|[1-9]\d|10\d|11[0-4]):[1-9]\d{0,2}(?:-[1-9]\d{0,2})?$")
 ISBN = re.compile(r"^(?:97[89])?\d{9}[\dXx]$")
 
@@ -239,6 +243,13 @@ def check_record_structure(record: "KnowledgeRecordInput") -> list[str]:
                 if grade["grader"] in graders:
                     problems.append(f"grader {grade['grader']} appears twice")
                 graders.add(grade["grader"])
+                unknown = sorted(set(grade) - GRADE_FIELDS)
+                if unknown:
+                    problems.append(f"grade fields not allowed: {', '.join(unknown)}")
+                if grade.get("rights_status", "unverified") not in GRADE_RIGHTS:
+                    problems.append(f"grade rights_status must be one of {', '.join(GRADE_RIGHTS)}")
+                if grade.get("verification_status", "unverified") not in GRADE_VERIFICATION:
+                    problems.append(f"grade verification_status must be one of {', '.join(GRADE_VERIFICATION)}")
     elif kind == "terminology":
         if not (_text(attrs.get("definition")) or _text(attrs.get("technical_meaning")) or _text(attrs.get("linguistic_meaning"))):
             problems.append("terminology records need a definition, technical_meaning or linguistic_meaning")
@@ -315,7 +326,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 EMPLOYMENT_TYPES = ("full_time", "part_time", "contract", "internship", "volunteer", "temporary")
 LISTING_ATTRIBUTES: dict[str, frozenset[str]] = {
-    "mosque": frozenset({"denomination", "denomination_source", "facilities", "hours", "commune", "commune_code", "wilaya_code", "wikidata", "osm", "geo_precision", "geo_method", "name_fr", "name_ar", "name_en"}),
+    "mosque": frozenset({"denomination", "denomination_source", "facilities", "hours", "commune", "commune_code", "wilaya_code", "wikidata", "osm", "geoalgeria_id", "geo_precision", "geo_method", "name_fr", "name_ar", "name_en"}),
     "business": frozenset({"hours", "opening_hours", "halal_certification", "halal_certifier", "registration"}),
     "charity": frozenset({"legal_name", "registration_number", "registration_body", "mission", "services", "countries_served"}),
     "job": frozenset({"employer", "employment_type", "salary", "salary_currency", "salary_period", "application_url", "requirements", "remote"}),

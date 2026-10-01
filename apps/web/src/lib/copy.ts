@@ -78,3 +78,30 @@ export const LISTING_EMPTY: Record<string, { en: string; ar: string }> = {
   health: { en: "No verified health listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للخدمات الصحية." },
 };
 export const AUDIO_NOT_AVAILABLE = { en: "Recitation audio is not currently available for redistribution.", ar: "التلاوات الصوتية غير متاحة حاليًا لإعادة النشر." };
+
+// How much weight a cited item deserves. The Arabic labels are NOT yet reviewed by a native speaker (see docs/ARABIC_QA.md).
+export const AUTHORITY_LABEL: Record<string, { en: string; ar: string }> = {
+  primary_source: { en: "Primary source", ar: "مصدر أصلي" },
+  secondary_source: { en: "Secondary source", ar: "مصدر ثانوي" },
+  community_dataset: { en: "Community dataset", ar: "مجموعة بيانات مجتمعية" },
+  unverified: { en: "Unverified", ar: "غير موثَّق" },
+  disputed: { en: "Disputed", ar: "محل خلاف" },
+  inferred: { en: "Inferred", ar: "مستنتَج" },
+  unavailable: { en: "No sufficiently reliable source is available", ar: "لا يتوفر مصدر موثوق كافٍ" },
+};
+
+// Domain readiness statuses. English is the source of truth; the Arabic is NOT yet reviewed by a native speaker (docs/ARABIC_QA.md).
+export const DOMAIN_STATUS_LABEL: Record<string, { en: string; ar: string }> = {
+  EMPTY: { en: "Empty: no data", ar: "فارغ: لا توجد بيانات" },
+  SOURCE_BLOCKED: { en: "Source blocked", ar: "المصدر غير متاح" },
+  SOURCE_UNVERIFIED: { en: "Source unverified", ar: "المصدر غير مؤكَّد" },
+  RIGHTS_UNVERIFIED: { en: "Rights unverified", ar: "الحقوق غير مؤكَّدة" },
+  IMPORT_READY: { en: "Ready to import", ar: "جاهز للاستيراد" },
+  IMPORTED: { en: "Imported (hidden)", ar: "مستورد (مخفي)" },
+  VALIDATED: { en: "Validated (not published)", ar: "تم التحقق (غير منشور)" },
+  PUBLISHED: { en: "Published, gates open", ar: "منشور مع بنود غير مستوفاة" },
+  READY: { en: "Ready", ar: "جاهز" },
+};
+export const COVERAGE_LABEL: Record<string, { en: string; ar: string }> = {
+  NONE: { en: "No coverage", ar: "بلا تغطية" }, PARTIAL: { en: "Partial coverage", ar: "تغطية جزئية" }, FULL: { en: "Full coverage of the stated scope", ar: "تغطية كاملة للنطاق المذكور" },
+};

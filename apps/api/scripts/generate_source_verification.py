@@ -25,7 +25,7 @@ MEANING = {
 }
 FROM_READINESS = {"VERIFIED": "VERIFIED", "NEEDS_REVIEW": "NEEDS_MANUAL_REVIEW", "LICENSE_REQUIRED": "LICENSE_REQUIRED", "PROVENANCE_UNCLEAR": "PROVENANCE_UNCLEAR", "UNAVAILABLE": "TECHNICALLY_UNAVAILABLE"}
 FIELDS = ("SOURCE_NAME", "SOURCE_URL", "OWNER", "TYPE", "DATA_DOMAIN", "LICENSE", "LICENSE_URL", "PROVENANCE", "ACCESS_METHOD", "REDISTRIBUTION_ALLOWED",
-          "COMMERCIAL_USE_ALLOWED", "ATTRIBUTION_REQUIRED", "LAST_VERIFIED", "VERIFICATION_STATUS")
+          "COMMERCIAL_USE_ALLOWED", "ATTRIBUTION_REQUIRED", "MODIFICATION_ALLOWED", "UNDERLYING_RIGHTS", "DATABASE_RIGHTS", "METADATA_ONLY_SAFE", "LAST_VERIFIED", "VERIFICATION_STATUS")
 
 
 def render(candidates: dict, manifest: dict) -> str:
@@ -45,6 +45,8 @@ def render(candidates: dict, manifest: dict) -> str:
     for s in sorted(sources, key=lambda s: (list(MEANING).index(s["VERIFICATION_STATUS"]), s["SOURCE_ID"])):
         out += [f"### {s['SOURCE_NAME']} - {s['VERIFICATION_STATUS']}", "", f"`{s['SOURCE_ID']}`" + (f" - backs dataset `{s['MANIFEST_DATASET']}`" if s.get("MANIFEST_DATASET") else ""), ""]
         out += [f"- **{k}**: {cell(s[k])}" for k in FIELDS]
+        out.append("- **EVIDENCE**: " + "; ".join(cell(e) for e in s["EVIDENCE"]))
+        out.append("- **UNRESOLVED_QUESTIONS**: " + "; ".join(cell(q) for q in s["OPEN_QUESTIONS"]))
         if s.get("NOTES"):
             out.append(f"- **NOTES**: {cell(s['NOTES'])}")
         out.append("")

@@ -41,7 +41,7 @@ uses the dataset licence vocabulary. `attributes` holds the type-specific struct
 | `fiqh` | `madhhab`, `topic`, `question`, `ruling`; optional `evidence` `[{type, reference or text}]`, `reasoning` | needs `page` or `chapter`. One record per madhhab position: disagreement is kept as separate records, never merged |
 | `aqeedah` | `school`, `topic`, `statement`; optional `historical_context`, `evidence` | needs `page` or `chapter` |
 | `seerah` | `reliability`: `established`, `well_known_disputed` or `weak_reports` | the category is never inferred |
-| `hadith_grading` | `collection`, `hadith_number`, `grades` `[{grader, grade, grading_source}]` | one entry per grader, grades copied verbatim, no grade is ever inferred; the same grader twice is rejected |
+| `hadith_grading` | `collection`, `hadith_number`, `grades` `[{grader, grade, grading_source}]`; optional per entry: `grading_work`, `grading_edition`, `page_reference`, `source_reference_text`, `provenance`, `note`, `rights_status` (`unverified open permission_granted restricted`), `verification_status` (`unverified checked_against_source disputed`) | one entry per grader, grades copied verbatim, no grade is ever inferred; the same grader twice is rejected; fields the source does not state stay empty |
 | `terminology` | one of `definition`, `technical_meaning`, `linguistic_meaning` | |
 | `library_work` | `availability`: `metadata_only`, `external_link` (+ `external_url`) or `owner_file` | `owner_file` needs a licence status that permits redistribution; `isbn` is validated; no copyrighted file is ever stored |
 
@@ -90,9 +90,30 @@ linked by `scripts/scan_directory_duplicates.py` and drop out of public results;
    Disabling or unpublishing (`unpublish`) hides them immediately; every step writes a platform audit event.
    `scripts/dataset_action.py` offers the same verify / publish / unpublish actions on the command line.
 
+## Source adapters and domain readiness
+
+A source is imported by a small adapter in `app/importers` (fetch one verified source, map it to the contract, invent nothing),
+run by `scripts/run_importer.py <adapter> [--apply]` or from *Data & trust > Importers*: probe reachability, preview, run
+all-or-nothing, and re-run safely (an unchanged source changes nothing). Each import records the adapter, source version,
+retrieval time and checksum (migration 0087). Adapters: `geoalgeria-mosquees` (Algeria, ODbL + CC0),
+`hadith-api-grades` (imports HIDDEN), `osm-overpass-mosques` (any area; needs a reachable Overpass API).
+Rolling back a listings import deletes only the listings that import created; in-place updates are not reverted.
+
+`data/domain-readiness.json` declares each domain's status (`EMPTY SOURCE_BLOCKED SOURCE_UNVERIFIED RIGHTS_UNVERIFIED IMPORT_READY
+IMPORTED VALIDATED PUBLISHED READY`), coverage, source, licence evidence, confidences, blockers and twelve gates, each with
+evidence. `READY` needs every gate. `GET /knowledge/domains` serves it with live counts and lowers any status the live data no
+longer supports; `scripts/validate_data.py` fails if the registry overclaims.
+
+## Authority of cited items
+
+The assistant labels everything it cites: `primary_source`, `secondary_source`, `community_dataset`, `unverified`, `disputed`,
+`inferred` or (when nothing sufficient exists) `unavailable`, with the verification state, source title, author, edition,
+record id and URL. A record is `primary_source` only if its supplier states `attributes.source_class = "primary"` and the
+record is reviewed in a verified dataset; it is never raised by inference.
+
 ## Validation
 
-`scripts/validate_data.py` runs 13 rules and must print PASS for each before a release: manifest consistency, Qur'an text
+`scripts/validate_data.py` runs 14 rules and must print PASS for each before a release: the domain registry matches the manifest and the database, manifest consistency, Qur'an text
 sources and checksums, hadith grades have sources, published content traces to an approved source, hidden datasets are
 hidden, knowledge records and listings carry source/licence/provenance, no duplicate identifiers, graph provenance, manifest
 record counts match the database, Qur'an/hadith references and relationship targets resolve (no orphans), no duplicate

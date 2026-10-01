@@ -18,6 +18,7 @@ from app.models.content_contract import DataSet, KnowledgeRecord, RECORD_TYPES
 from app.models.knowledge_network import CanonicalKnowledgeEntity, KnowledgeRelationship
 from app.models.sources import SourcePassage
 from app.services.manifest import load_manifest
+from app.services.readiness import live_state, load_registry, summarise
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -120,3 +121,25 @@ async def public_manifest():
     manifest = load_manifest()
     keep = ("id", "name", "purpose", "category", "source", "license", "provenance", "validation_status", "publication_status", "readiness", "public", "date_acquired", "last_checked", "remaining_action")
     return {"as_of": manifest["as_of"], "datasets": [{k: d.get(k) for k in keep} for d in manifest["datasets"]]}
+
+
+_domains_cache: dict = {"at": 0.0, "value": None}
+
+
+def reset_domains_cache() -> None:
+    _domains_cache["at"], _domains_cache["value"] = 0.0, None
+
+
+@router.get("/domains")
+async def domain_readiness(db: DbSession):
+    """The honest dashboard: every domain's status, scope, source, licence, counts, blockers and why it is not READY.
+
+    The status is the declared one lowered by the live data if a published dataset is no longer published or no longer
+    passes its checks. Counts come from the database (cached for a minute).
+    """
+    import time
+    now = time.monotonic()
+    if _domains_cache["value"] is None or now - _domains_cache["at"] > 60:
+        _domains_cache["value"] = summarise(load_registry(), await live_state(db))
+        _domains_cache["at"] = now
+    return _domains_cache["value"]

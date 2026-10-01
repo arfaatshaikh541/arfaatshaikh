@@ -1,0 +1,34 @@
+{
+ "version": 1,
+ "purpose": "Anomalies observed in imported source data. Each is retained unchanged: correcting a record without evidence would be an invention. An administrator may hide or link a listing; the source value is never silently rewritten.",
+ "notes": [
+  {
+   "dataset": "directory-mosques",
+   "record_key": "geoalgeria:16-0918",
+   "observed": "2026-10-01",
+   "observation": "One record carries the name \"Grande synagogue d'Alger\" and the Arabic name \"مسجد ابن فارس\" (a mosque), and is classified as a mosque. Its Wikidata item is Q5600070 and its OpenStreetMap object is way/1173895775.",
+   "evidence": "The listing as imported (name, arabic_name, attributes.wikidata, attributes.osm).",
+   "unknown": "Why the two labels disagree is not stated by the source; the building may have changed use, or one label may be wrong. This was not resolved.",
+   "action": "retained unchanged and shown as 'Not verified'; reported by the non_mosque_names check",
+   "status": "open"
+  },
+  {
+   "dataset": "directory-mosques",
+   "record_key": "geoalgeria:48-0139",
+   "related_records": [
+    "geoalgeria:17-0175",
+    "geoalgeria:43-0404",
+    "geoalgeria:02-0138",
+    "geoalgeria:17-0133",
+    "geoalgeria:48-0036",
+    "geoalgeria:02-0114"
+   ],
+   "observed": "2026-10-01",
+   "observation": "Seven further records have English names containing 'Chapel' or 'Temple' (for example \"Mercy Chapel in Oued Rhiou\", \"Chapel Omar ibn al-Khattab may Allah be pleased with him in Djelfa\") while being classified as mosques.",
+   "evidence": "The names as imported; the keyword check non_mosque_names in app/services/data_quality.py.",
+   "unknown": "Whether these are English renderings of an Arabic or French place-of-prayer word, or genuine errors, is not established by the source or by this project.",
+   "action": "retained unchanged and shown as 'Not verified'; listed by the non_mosque_names check as candidates for human review",
+   "status": "open"
+  }
+ ]
+}

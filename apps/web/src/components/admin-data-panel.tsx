@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
-import { READINESS_LABEL } from "@/lib/copy";
+import { COVERAGE_LABEL, DOMAIN_STATUS_LABEL, READINESS_LABEL } from "@/lib/copy";
 
 type Dataset = { id: string; name: string; type: string; source: { name: string; url: string | null; version: string | null }; license: { name: string; status: string }; provenance: string;
   validation_status: string; publication_status: string; enabled: boolean; readiness: string; remaining_action: string | null; record_count: number; can_publish: boolean; cannot_publish_because: string[];
@@ -11,12 +11,26 @@ type Reports = { items: { id: string; listing_id: string; reason: string; detail
 type Runs = { runs: { id: string; created_at: string; classification: string; status: string; insufficiency_reason: string | null; claims: { type: string; status: string; text: string; rejection_reason: string | null; citations: { label: string }[] }[] }[] };
 type Audit = { events: { id: string; action: string; target_type: string | null; metadata: Record<string, unknown>; at: string }[] };
 type Preview = { rows: number; valid: number; would_create: number; would_update?: number; would_update_or_unchanged?: number; unchanged?: number; failed: number; failures: { index: number; id: string | null; errors: string[] }[] };
-type History = { dataset: Dataset; imports: { id: string; status: string; created: number; updated: number; unchanged: number; failed: number; failures: { index: number; errors: string[] }[]; file_sha256: string }[]; events: { action: string; at: string; metadata: Record<string, unknown> }[] };
-type Tab = "datasets" | "directory" | "reports" | "answers" | "audit";
+type History = { dataset: Dataset; imports: { id: string; adapter_id: string | null; source_version: string | null; source_checksum: string | null; at: string; status: string; created: number; updated: number; unchanged: number; failed: number; failures: { index: number; errors: string[] }[]; file_sha256: string }[]; events: { action: string; at: string; metadata: Record<string, unknown> }[] };
+type Gate = { passed: boolean; evidence: string };
+type DomainRow = { domain: string; label: string; status: string; declared_status: string; coverage: string; scope: string; source: string | null; source_url: string | null; source_version: string | null; licence: string | null;
+  licence_evidence: string | null; provenance_confidence: string; data_quality_confidence: string; import_availability: string; last_successful_retrieval: string | null; records: { total: number; published: number; hidden: number };
+  validation_status: string; publication_status: string; blockers: string[]; notes: string; verified_by: string; gates: Record<string, Gate>; registry_out_of_date: boolean;
+  why_not_ready: { kind: string; text?: string; gate?: string; evidence?: string }[] };
+type Readiness = { as_of: string; summary: Record<string, number>; domains: DomainRow[] };
+type Importer = { id: string; dataset: string; title: string; licence: string; params: Record<string, string>; dataset_publication: string; license_status: string; probe: { all_reachable: boolean; urls: Record<string, string> } | null;
+  last_run: { id: string; status: string; created: number; updated: number; unchanged: number; failed: number; source_version: string | null; source_checksum: string | null; source_retrieved_at: string | null; at: string } | null };
+type RunResult = { adapter: string; source_version: string; source_checksum: string; skipped: Record<string, number>; preview: Preview; applied: boolean; status?: string; created?: number; updated?: number; failed?: number };
+type Conflicts = { dataset: string; kind: string; totals: Record<string, number>; items: Record<string, Record<string, unknown>[]>; note: string };
+type Tab = "readiness" | "datasets" | "importers" | "directory" | "reports" | "answers" | "audit";
 
 export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
   const ar = locale === "ar";
-  const [tab, setTab] = useState<Tab>("datasets");
+  const [tab, setTab] = useState<Tab>("readiness");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [importers, setImporters] = useState<Importer[]>([]);
+  const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [conflicts, setConflicts] = useState<Conflicts | null>(null);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [queue, setQueue] = useState<Queue["items"]>([]);
   const [reports, setReports] = useState<Reports["items"]>([]);
@@ -29,6 +43,8 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
 
   const load = useCallback(async () => {
     try {
+      if (tab === "readiness") setReadiness(await apiFetch<Readiness>("/admin/datasets/readiness"));
+      if (tab === "importers") setImporters((await apiFetch<{ importers: Importer[] }>("/admin/datasets/importers/list")).importers);
       if (tab === "datasets") setDatasets((await apiFetch<{ datasets: Dataset[] }>("/admin/datasets")).datasets);
       if (tab === "directory") setQueue((await apiFetch<Queue>("/directory/admin/queue?status=pending")).items);
       if (tab === "reports") setReports((await apiFetch<Reports>("/directory/admin/reports")).items);
@@ -74,16 +90,83 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
       setStaged(null); await load();
     } catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
   }
+  async function probe(id: string) {
+    try {
+      const r = await apiFetch<{ importers: Importer[] }>("/admin/datasets/importers/list?probe=true");
+      setImporters(r.importers); setMsg(r.importers.find((i) => i.id === id)?.probe?.all_reachable ? (ar ? "المصدر متاح من هذا الخادم." : "The source is reachable from this server.") : (ar ? "المصدر غير متاح من هذا الخادم." : "The source is NOT reachable from this server."));
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
+  }
+  async function runImporter(i: Importer, apply: boolean) {
+    setMsg(""); setRunResult(null);
+    const params: Record<string, string> = {};
+    for (const key of Object.keys(i.params)) { const v = window.prompt(`${key}: ${i.params[key]}`); if (!v) return; params[key] = v; }
+    try { setRunResult(await apiFetch<RunResult>(`/admin/datasets/importers/${i.id}/${apply ? "run" : "preview"}`, { method: "POST", body: JSON.stringify({ params }) })); if (apply) await load(); }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
+  }
+  async function showConflicts(d: Dataset) {
+    try { setConflicts(await apiFetch<Conflicts>(`/admin/datasets/${d.id}/conflicts?limit=25`)); } catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
+  }
   async function showHistory(d: Dataset) {
     try { setHistory(await apiFetch<History>(`/admin/datasets/${d.id}/provenance`)); } catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
   }
   if (forbidden) return <main className="knowledge-page"><p role="alert">{ar ? "هذه الصفحة للمشرفين فقط." : "This page is for platform administrators."}</p></main>;
-  const tabs: [Tab, string][] = [["datasets", ar ? "مجموعات البيانات" : "Datasets"], ["directory", ar ? "مراجعة الدليل" : "Directory queue"], ["reports", ar ? "البلاغات" : "Reports"], ["answers", ar ? "إجابات الذكاء الاصطناعي" : "AI answers"], ["audit", ar ? "سجل التدقيق" : "Audit log"]];
+  const tabs: [Tab, string][] = [["readiness", ar ? "الجاهزية" : "Readiness"], ["importers", ar ? "المستوردات" : "Importers"], ["datasets", ar ? "مجموعات البيانات" : "Datasets"], ["directory", ar ? "مراجعة الدليل" : "Directory queue"], ["reports", ar ? "البلاغات" : "Reports"], ["answers", ar ? "إجابات الذكاء الاصطناعي" : "AI answers"], ["audit", ar ? "سجل التدقيق" : "Audit log"]];
   return (
     <main className="knowledge-page admin-panel" dir={ar ? "rtl" : "ltr"}>
       <h1>{ar ? "الثقة والبيانات" : "Data & trust"}</h1>
       <nav className="knowledge-types" role="tablist">{tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "chip chip-active" : "chip"} onClick={() => setTab(id)}>{label}</button>)}</nav>
       {msg && <p role="status">{msg}</p>}
+      {tab === "readiness" && (!readiness ? <p aria-busy="true">…</p> : (
+        <>
+          <p>{Object.entries(readiness.summary).map(([k, v]) => `${DOMAIN_STATUS_LABEL[k]?.[ar ? "ar" : "en"] ?? k}: ${v}`).join(" · ")}</p>
+          <ul className="record-list">{readiness.domains.map((d) => (
+            <li key={d.domain} className="record-card" data-testid={`readiness-${d.domain}`}>
+              <h2>{d.label} <span className={`status-pill ${d.status === "READY" ? "status-implemented" : "status-not-verified"}`}>{DOMAIN_STATUS_LABEL[d.status]?.[ar ? "ar" : "en"] ?? d.status}</span> <small>{COVERAGE_LABEL[d.coverage]?.[ar ? "ar" : "en"]}</small></h2>
+              <p>{d.scope}</p>
+              <dl className="provenance">
+                <div><dt>Source</dt><dd>{d.source ?? "none"}{d.source_version ? ` · ${d.source_version}` : ""}</dd></div>
+                <div><dt>Licence</dt><dd>{d.licence ?? "none"}</dd></div>
+                <div><dt>Records</dt><dd>{d.records.published} published · {d.records.hidden} hidden · {d.records.total} total{d.registry_out_of_date ? " (registry out of date)" : ""}</dd></div>
+                <div><dt>Confidence</dt><dd>provenance {d.provenance_confidence} · quality {d.data_quality_confidence} · import {d.import_availability}</dd></div>
+                <div><dt>Verified by</dt><dd>{d.verified_by}</dd></div>
+              </dl>
+              {d.status !== "READY" && (
+                <details><summary>{ar ? "لماذا ليس جاهزاً" : "Why this is not READY"} ({d.why_not_ready.length})</summary>
+                  <ul>{d.why_not_ready.map((w, i) => <li key={i}>{w.kind === "gate" ? <><strong>{w.gate}</strong>: {w.evidence}</> : w.text}</li>)}</ul></details>
+              )}
+            </li>))}
+          </ul>
+        </>
+      ))}
+      {tab === "importers" && (
+        <>
+          <p className="tool-note">{ar ? "المستوردات تعمل كلها أو لا شيء، ولا تنشر ولا توثّق. إعادة التشغيل آمنة." : "Importers are all-or-nothing, never publish and never verify. Re-running is safe: an unchanged source changes nothing."}</p>
+          {runResult && (
+            <section className="record-card" role="region" aria-label="Importer result" data-testid="importer-result">
+              <h2>{runResult.adapter}: {runResult.applied ? (ar ? "طُبِّق" : "applied") : (runResult.status ?? (ar ? "معاينة" : "preview"))}</h2>
+              <p>{runResult.source_version} · <code>{runResult.source_checksum.slice(0, 16)}…</code></p>
+              <p>{runResult.preview.rows} {ar ? "صفوف" : "rows"} · {runResult.preview.valid} {ar ? "صالحة" : "valid"} · {runResult.preview.would_create} {ar ? "جديدة" : "new"} · {runResult.preview.failed} {ar ? "أخطاء" : "errors"} · {ar ? "متجاوَز" : "skipped"}: {JSON.stringify(runResult.skipped)}</p>
+              {runResult.preview.failures.length > 0 && <ul>{runResult.preview.failures.slice(0, 10).map((f) => <li key={f.index}>#{f.index}: {f.errors.join("; ")}</li>)}</ul>}
+            </section>
+          )}
+          <ul className="record-list">{importers.map((i) => (
+            <li key={i.id} className="record-card">
+              <h2>{i.title} <small>{i.id}</small></h2>
+              <dl className="provenance">
+                <div><dt>Dataset</dt><dd>{i.dataset} · {i.dataset_publication} · {i.license_status}</dd></div>
+                <div><dt>Licence</dt><dd>{i.licence}</dd></div>
+                <div><dt>Last run</dt><dd>{i.last_run ? `${i.last_run.at} · ${i.last_run.status} · +${i.last_run.created} ~${i.last_run.updated} =${i.last_run.unchanged} !${i.last_run.failed} · ${i.last_run.source_version ?? "no version"}` : "never"}</dd></div>
+                {i.probe && <div><dt>Reachability</dt><dd>{Object.entries(i.probe.urls).map(([u, v]) => `${u}: ${v}`).join("; ")}</dd></div>}
+              </dl>
+              <div className="reader-actions">
+                <button onClick={() => probe(i.id)}>{ar ? "فحص التوفر" : "Check reachability"}</button>
+                <button onClick={() => runImporter(i, false)}>{ar ? "معاينة" : "Preview"}</button>
+                <button onClick={() => runImporter(i, true)}>{ar ? "تشغيل" : "Run import"}</button>
+              </div>
+            </li>))}
+          </ul>
+        </>
+      )}
       {tab === "datasets" && (
         <>
           <p><button onClick={() => act("/admin/datasets/manifest/sync")}>{ar ? "مزامنة البيان وتطبيق النشر" : "Sync manifest and apply publication"}</button></p>
@@ -96,12 +179,21 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
               <div className="reader-actions"><button disabled={staged.preview.failed > 0} onClick={confirmImport}>{ar ? "استيراد" : "Import"}</button><button onClick={() => setStaged(null)}>{ar ? "إلغاء" : "Cancel"}</button></div>
             </section>
           )}
+          {conflicts && (
+            <section className="record-card" role="region" aria-label={ar ? "التكرار والتعارض" : "Duplicates and conflicts"} data-testid="conflicts-panel">
+              <h2>{conflicts.dataset}: {ar ? "التكرار والتعارض" : "duplicates and conflicts"}</h2>
+              <p className="tool-note">{conflicts.note}</p>
+              <p>{Object.entries(conflicts.totals).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(" · ")}</p>
+              {Object.entries(conflicts.items).map(([k, list]) => list.length > 0 && <details key={k}><summary>{k.replace(/_/g, " ")} ({list.length} {ar ? "معروض" : "shown"})</summary><ul>{list.slice(0, 10).map((x, i) => <li key={i}><code>{JSON.stringify(x).slice(0, 220)}</code></li>)}</ul></details>)}
+              <div className="reader-actions"><button onClick={() => setConflicts(null)}>{ar ? "إغلاق" : "Close"}</button></div>
+            </section>
+          )}
           {history && (
             <section className="record-card" role="region" aria-label={ar ? "سجل المجموعة" : "Dataset history"}>
               <h2>{history.dataset.name}: {ar ? "المنشأ والسجل" : "provenance and history"}</h2>
               <p>{history.dataset.provenance}</p>
               <h3>{ar ? "عمليات الاستيراد" : "Imports"}</h3>
-              <ul>{history.imports.map((i) => <li key={i.id}>{i.status} · +{i.created} / ~{i.updated} / ={i.unchanged} / !{i.failed} · <code>{i.file_sha256.slice(0, 12)}…</code>{i.status === "applied" && <> <button onClick={() => act(`/admin/datasets/imports/${i.id}/rollback`)}>{ar ? "تراجع" : "Roll back"}</button></>}{i.failures.length > 0 && <small> — {i.failures[0].errors[0]}</small>}</li>)}</ul>
+              <ul>{history.imports.map((i) => <li key={i.id}>{i.at} · {i.adapter_id ?? "manual upload"} · {i.source_version ?? ""} · {i.status} · +{i.created} / ~{i.updated} / ={i.unchanged} / !{i.failed} · <code>{i.file_sha256.slice(0, 12)}…</code>{i.status === "applied" && <> <button onClick={() => act(`/admin/datasets/imports/${i.id}/rollback`)}>{ar ? "تراجع" : "Roll back"}</button></>}{i.failures.length > 0 && <small> — {i.failures[0].errors[0]}</small>}</li>)}</ul>
               <h3>{ar ? "الأحداث" : "Events"}</h3>
               <ul>{history.events.slice(0, 15).map((e, n) => <li key={n}>{e.at} · {e.action}</li>)}</ul>
               <div className="reader-actions"><button onClick={() => setHistory(null)}>{ar ? "إغلاق" : "Close"}</button></div>
@@ -126,6 +218,7 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
                   <button onClick={() => datasetAction(d, "mark_verified")}>{ar ? "اعتماد التحقق" : "Mark verified"}</button>
                   <button onClick={() => datasetAction(d, "publish")}>{ar ? "نشر" : "Publish"}</button>
                   <button onClick={() => datasetAction(d, "unpublish")}>{ar ? "إلغاء النشر" : "Unpublish"}</button>
+                  <button onClick={() => showConflicts(d)}>{ar ? "التكرار والتعارض" : "Duplicates & conflicts"}</button>
                   <button onClick={() => showHistory(d)}>{ar ? "المنشأ والسجل" : "Provenance & history"}</button>
                   <button onClick={() => datasetAction(d, d.enabled ? "disable" : "enable")}>{d.enabled ? (ar ? "تعطيل" : "Disable") : (ar ? "تفعيل" : "Enable")}</button>
                   <button onClick={() => datasetAction(d, "reject")}>{ar ? "رفض" : "Reject"}</button>

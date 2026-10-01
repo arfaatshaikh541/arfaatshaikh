@@ -23,8 +23,37 @@ SOURCED_KINDS = ("fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "
 MIN_COVERAGE = 0.5
 
 
+AUTHORITY_CLASSES = ("primary_source", "secondary_source", "community_dataset", "unverified", "disputed", "inferred", "unavailable")
+SOURCE_CLASSES = ("primary", "secondary")  # an explicit attribute a supplier may state; never guessed
+
+
+def authority_of(kind: str, scholarly_status: str, dataset_validation: str, publication_status: str, attributes: dict) -> str:
+    """How much weight a record deserves, from what is recorded about it. Never raised by inference.
+
+    inferred > disputed > community_dataset > unverified > the supplier's own source_class (default secondary).
+    """
+    if attributes.get("inferred"):
+        return "inferred"
+    if scholarly_status == "disputed":
+        return "disputed"
+    if publication_status == "dataset" or kind == "hadith_grading":
+        return "community_dataset"
+    if scholarly_status == "unreviewed" or dataset_validation != "VERIFIED":
+        return "unverified"
+    return "primary_source" if attributes.get("source_class") == "primary" else "secondary_source"
+
+
+def verification_state(scholarly_status: str, dataset_validation: str, provenance_status: str) -> str:
+    return f"dataset validation {dataset_validation}; record {scholarly_status}; provenance {provenance_status}"
+
+
 @dataclass(frozen=True)
 class KnowledgeHit:
+    authority_class: str
+    verification_state: str
+    author: str | None
+    edition: str | None
+    url: str | None
     label: str
     record_key: str
     dataset: str
@@ -100,6 +129,9 @@ async def search_knowledge(db: AsyncSession, question: str, limit: int = 6) -> l
     for index, (score, record, dataset) in enumerate(scored[:limit]):
         a = record.attributes or {}
         hits.append(KnowledgeHit(
+            authority_class=authority_of(record.entity_type, record.scholarly_status, dataset.validation_status, record.publication_status, a),
+            verification_state=verification_state(record.scholarly_status, dataset.validation_status, record.provenance_status),
+            author=record.author, edition=record.edition, url=record.source_url,
             label=f"[K{index + 1}]", record_key=record.record_key, dataset=dataset.dataset_key, kind=record.entity_type, title=record.title,
             text=render_text(record), source=record.source, source_work=record.source_work, locator=locator_of(record), license=record.license,
             position=a.get("madhhab") or a.get("school"), scholarly_status=record.scholarly_status,
@@ -108,6 +140,18 @@ async def search_knowledge(db: AsyncSession, question: str, limit: int = 6) -> l
 
 
 def hits_view(hits: Sequence[KnowledgeHit]) -> list[dict]:
-    return [{"label": h.label, "kind": h.kind, "title": h.title, "text": h.text, "position": h.position, "source": h.source, "source_work": h.source_work,
+    return [{"label": h.label, "authority_class": h.authority_class, "verification_state": h.verification_state, "source_title": h.source_work or h.source, "author": h.author,
+             "edition": h.edition, "url": h.url, "kind": h.kind, "title": h.title, "text": h.text, "position": h.position, "source": h.source, "source_work": h.source_work,
              "locator": h.locator, "license": h.license, "scholarly_status": h.scholarly_status, "uncertainty": list(h.uncertainty),
              "record": {"dataset": h.dataset, "id": h.record_key}, "relevance": h.coverage} for h in hits]
+
+
+def authority_summary(sections: dict, knowledge: Sequence[dict]) -> dict[str, int]:
+    """Counts per authority class across everything the answer cites. `unavailable` when nothing sourced was found."""
+    counts: dict[str, int] = {}
+    for items in sections.values():
+        for item in items:
+            counts[item["authority_class"]] = counts.get(item["authority_class"], 0) + 1
+    for hit in knowledge:
+        counts[hit["authority_class"]] = counts.get(hit["authority_class"], 0) + 1
+    return counts or {"unavailable": 1}

@@ -49,6 +49,19 @@ async def summary(db: DbSession):
     return {"types": [{"type": t, "count": rows.get(t, 0)} for t in LISTING_TYPES]}
 
 
+@router.get("/coverage")
+async def coverage(db: DbSession):
+    """Which countries have data for which listing type, so the UI never implies global coverage."""
+    rows = (await db.execute(select(DirectoryListing.country, DirectoryListing.listing_type, func.count()).where(public_filter()).group_by(DirectoryListing.country, DirectoryListing.listing_type)
+                             .order_by(DirectoryListing.listing_type, DirectoryListing.country))).all()
+    items = [{"country": country or "unknown", "type": kind, "count": int(total)} for country, kind, total in rows]
+    by_type: dict[str, list[str]] = {}
+    for item in items:
+        by_type.setdefault(item["type"], []).append(item["country"])
+    return {"items": items, "countries_by_type": by_type,
+            "statement": "Listings exist only for the countries shown. Any other country has no data yet; absence of a listing does not mean absence of a mosque or service."}
+
+
 @router.get("/listings/{listing_id}")
 async def listing_detail(listing_id: UUID, db: DbSession):
     row = await db.scalar(select(DirectoryListing).where(DirectoryListing.id == listing_id, public_filter()))

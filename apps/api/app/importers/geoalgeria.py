@@ -1,20 +1,15 @@
-"""Build directory listings for Algeria's mosques from the npm package @geoalgeria/mosquees (exact version, integrity-checked).
+"""Algerian mosques from the npm package @geoalgeria/mosquees (composite of Wikidata CC0 and OpenStreetMap ODbL).
 
-    uv run python scripts/build_geoalgeria_mosques.py --out /tmp/dz-mosques.json
-    uv run python scripts/import_directory.py --dataset directory-mosques --file /tmp/dz-mosques.json   # chunked by this script
-
-Source: GeoAlgeria composite of Wikidata (CC0-1.0) and OpenStreetMap (ODbL 1.0, (c) OpenStreetMap contributors).
-Nothing is added or corrected here: coordinates, names and the denomination come from the package; a record without a
-name is skipped (not given a made-up one); a denomination is kept only when the package took it from OpenStreetMap.
-ODbL share-alike applies to a derived database: keep the attribution that every listing carries.
+Nothing is added or corrected: names, coordinates and the denomination come from the package; a record without a name is
+skipped (not given one); a denomination is kept only when the package took it from OpenStreetMap, with that source stated;
+the source's own record identifiers (GeoAlgeria id, Wikidata Q-number, OSM element) are preserved on every listing.
 """
-import argparse
-import json
-import sys
-from pathlib import Path
+from __future__ import annotations
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _acquire import npm_package  # noqa: E402
+import json
+
+from app.importers.acquire import npm_package, sha256
+from app.importers.base import AdapterResult, FetchResult, SourceAdapter
 
 PACKAGE, VERSION = "@geoalgeria/mosquees", "2.0.4"
 RETRIEVED = "2026-06-25"  # dataset-metadata.json: the date the composite was built from Wikidata and OpenStreetMap
@@ -22,7 +17,7 @@ OSM_LICENCE = "ODbL 1.0 (© OpenStreetMap contributors)"
 WIKIDATA_LICENCE = "CC0-1.0 (Wikidata)"
 
 
-def build(records: list[dict]) -> tuple[list[dict], dict]:
+def build_rows(records: list[dict]) -> tuple[list[dict], dict]:
     rows: list[dict] = []
     skipped = {"no_name": 0}
     for r in records:
@@ -40,6 +35,7 @@ def build(records: list[dict]) -> tuple[list[dict], dict]:
         else:
             url = None
         attributes = {k: r[k] for k in ("commune_code", "wilaya_code", "geo_precision", "geo_method", "name_fr") if r.get(k)}
+        attributes["geoalgeria_id"] = r["id"]
         if refs.get("wikidata"):
             attributes["wikidata"] = refs["wikidata"]
         if refs.get("osm"):
@@ -59,24 +55,23 @@ def build(records: list[dict]) -> tuple[list[dict], dict]:
     return rows, skipped
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--chunk", type=int, default=5000)
-    args = ap.parse_args()
-    package, files, tarball_sha = npm_package(PACKAGE, VERSION)
-    assert package["license"] == "MIT AND ODbL-1.0", package["license"]
-    records = json.loads(files["data/mosquees.json"])
-    rows, skipped = build(records)
-    out = Path(args.out)
-    out.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
-    chunks = [rows[i:i + args.chunk] for i in range(0, len(rows), args.chunk)]
-    for index, chunk in enumerate(chunks):
-        out.with_suffix(f".{index}.json").write_text(json.dumps(chunk, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps({"package": f"{PACKAGE}@{VERSION}", "tarball_sha256": tarball_sha,
-                      "source_records": len(records), "rows": len(rows), "skipped": skipped, "chunks": len(chunks)}, indent=1))
-    return 0
+class GeoAlgeriaMosques(SourceAdapter):
+    id = "geoalgeria-mosquees"
+    dataset_key = "directory-mosques"
+    kind = "listings"
+    title = "Mosques of Algeria (GeoAlgeria composite of Wikidata and OpenStreetMap)"
+    probe_urls = ("https://registry.npmjs.org/@geoalgeria%2fmosquees/2.0.4",)
+    licence_summary = "ODbL 1.0 (© OpenStreetMap contributors) for OSM-derived records; CC0-1.0 for Wikidata records"
+    country = "DZ"
 
+    def fetch(self, params: dict) -> FetchResult:
+        package, files, tarball_sha = npm_package(PACKAGE, VERSION)
+        if package.get("license") != "MIT AND ODbL-1.0":
+            raise SystemExit(f"licence changed upstream ({package.get('license')!r}); refusing to import until it is re-verified")
+        data = files["data/mosquees.json"]
+        return FetchResult(version=f"{PACKAGE}@{VERSION}", checksum=tarball_sha, payload=json.loads(data), source_url=f"https://www.npmjs.com/package/{PACKAGE}/v/{VERSION}",
+                           notes={"records_sha256": sha256(data), "dataset_metadata": json.loads(files["dataset-metadata.json"]).get("dateModified")})
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+    def build(self, fetched: FetchResult, params: dict) -> AdapterResult:
+        rows, skipped = build_rows(fetched.payload)
+        return AdapterResult(rows=rows, skipped=skipped, stats={"source_records": len(fetched.payload), "rows": len(rows), "country": self.country})
