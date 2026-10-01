@@ -57,7 +57,7 @@ standalone capability today.
   false` with a descriptive error - never an exception, never a fabricated
   response. This was also exercised over real HTTP end-to-end (registered
   a user, logged in, called `GET /api/v1/intelligence/status` and
-  `POST /api/v1/intelligence/generate`) - see `docs/FINAL_AUDIT_ULTIMATE.md`.
+  `POST /api/v1/intelligence/generate`) - see `docs/archive/FINAL_AUDIT.md`.
 - **Success path (real HTTP, stub server):** `apps/api/tests/test_ai_provider_ollama_contract.py`
   runs an actual local HTTP server (Python's `http.server`, not a mock of
   `httpx`) that implements Ollama's documented `/api/tags` and

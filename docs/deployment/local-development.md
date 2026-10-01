@@ -3,7 +3,7 @@
 Docker is **optional**. Everything below was verified in a sandbox with no
 Docker daemon available at all (`docker info` fails to reach
 `/var/run/docker.sock`) — the native path is the one actually exercised in
-this repository's own verification pass (`docs/FINAL_AUDIT.md` §9).
+this repository's own verification pass (`docs/archive/FINAL_AUDIT.md` §9).
 
 ## Requirements (native path)
 
@@ -72,6 +72,6 @@ the worker's own code was not exercised in the verification pass).
 pass — no daemon was available in the verification environment. Run
 `docker compose up --build` once yourself before relying on this path in
 production; the Dockerfiles were fixed for a real bug (build-time
-`NEXT_PUBLIC_*` args, see `docs/FINAL_AUDIT.md` §5) but that fix has only
+`NEXT_PUBLIC_*` args, see `docs/archive/FINAL_AUDIT.md` §5) but that fix has only
 been validated by inspection and by the equivalent native build, not by an
 actual `docker build`.

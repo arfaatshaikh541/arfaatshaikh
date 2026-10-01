@@ -1,3 +1,5 @@
+> **Historical document.** Superseded by `WORLD_OF_ISLAM_PRODUCTION_AUDIT.md`.
+
 # Final Audit — this pass only
 
 Scope note up front: this pass converts the base-path/Docker/wiring/security

@@ -1,5 +1,9 @@
 # Deploying to IONOS: app.arfaat.com/worldofislam
 
+> **Recommended path:** the Docker Compose deployment in `docs/deployment/production-docker.md` (tested end to end,
+> includes nginx/TLS, backups and a non-superuser database role). The native systemd instructions below remain
+> valid if you prefer not to use Docker.
+
 This is the IONOS-specific companion to `docs/deployment/base-path.md`
 (read that first for *why* each variable exists). No application code needs
 to change for this deployment - the `/worldofislam` base path is already

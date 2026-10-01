@@ -1,3 +1,5 @@
+> **Historical document.** This is an earlier pass and may describe a state that no longer holds. The current, tested status is in `WORLD_OF_ISLAM_PRODUCTION_AUDIT.md`.
+
 # World of Islam M20 Deep Fix Report (v3)
 
 ## Root causes fixed

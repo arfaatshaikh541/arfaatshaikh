@@ -36,7 +36,7 @@ base path without hardcoding one.
    reloaded the **first** page: it returned HTTP `200` from the cache with
    the real, correct page content (not a browser offline error page).
 
-See `WORLD_OF_ISLAM_FINAL_REPORT.md` for the exact command/output log.
+See `docs/archive/WORLD_OF_ISLAM_FINAL_REPORT.md` for the exact command/output log.
 
 ## What this does NOT do (by design, not oversight)
 

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: bootstrap up down logs api-test api-lint web-check verify
+.PHONY: bootstrap up down logs api-test api-lint web-check verify prod-config prod-up prod-logs
 bootstrap:
 	cp -n .env.example .env || true
 	corepack enable
@@ -26,3 +26,13 @@ web-check:
 	pnpm lint:web && pnpm typecheck:web && pnpm test:web && pnpm build:web
 
 verify: api-lint api-test web-check
+
+# Production stack (see docs/deployment/production-docker.md). Needs .env.production.
+prod-config:
+	docker compose --env-file .env.production -f docker-compose.prod.yml config -q && echo "compose file valid"
+
+prod-up:
+	docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+prod-logs:
+	docker compose --env-file .env.production -f docker-compose.prod.yml logs -f --tail=200

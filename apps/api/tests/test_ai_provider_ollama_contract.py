@@ -8,7 +8,7 @@ egress to ollama.com is blocked by policy (verified: `curl ollama.com`
 returns a policy-rejected CONNECT) and no apt/system package for the
 Ollama *server* exists here (only an unrelated PyPI "ollama" *client SDK*
 package). See docs/ai/provider-architecture.md and
-docs/FINAL_AUDIT_ULTIMATE.md for that distinction spelled out - the
+docs/archive/FINAL_AUDIT.md for that distinction spelled out - the
 absence-of-Ollama path is verified for real in test_ai_provider.py; this
 file only proves OllamaProvider parses a correctly-shaped success response
 the way the real server is documented to send one.

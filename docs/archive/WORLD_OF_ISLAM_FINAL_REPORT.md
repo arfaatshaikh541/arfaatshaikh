@@ -1,3 +1,5 @@
+> **Historical document.** This is an earlier pass and may describe a state that no longer holds. The current, tested status is in `WORLD_OF_ISLAM_PRODUCTION_AUDIT.md`.
+
 # World of Islam — Final Verification Report
 
 This is the current, comprehensive report across all engineering passes on
