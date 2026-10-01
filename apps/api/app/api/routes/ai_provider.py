@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
-from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.auth import get_current_user, require_csrf
+from app.api.dependencies.platform_admin import require_platform_administrator
 from app.core.config import get_settings
 from app.core.rate_limit import rate_limiter
-from app.models.identity import User
+from app.models.identity import Session, User
 from app.schemas.ai_provider import AIGenerateRequest, AIGenerateResponse, AIStatusResponse
 from app.services.ai_provider import get_ai_provider
 
@@ -30,8 +31,11 @@ async def status(_: Annotated[User, Depends(get_current_user)]) -> AIStatusRespo
 async def generate(
     payload: AIGenerateRequest,
     request: Request,
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_platform_administrator)],
+    __: Annotated[Session, Depends(require_csrf)],
 ) -> AIGenerateResponse:
+    """Operator diagnostic only. The text is raw, unvalidated model output: it must never be shown to users as an
+    answer. Reader-facing answers go through /assistant/query (retrieval, citation validation, abstention)."""
     await rate_limiter.check(request, "ai-generate", 20, 60)
     provider = get_ai_provider(settings)
     result = await provider.generate(payload.prompt)

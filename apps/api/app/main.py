@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import router
 from app.api.routes.health import router as health_router
 from app.core.config import get_settings
+from app.core.hardening import SecurityHeadersMiddleware, unhandled_error_handler
 from app.core.errors import ApplicationError, application_error_handler
 from app.core.logging import configure_logging
 from app.core.request_context import RequestContextMiddleware
@@ -32,10 +33,13 @@ app = FastAPI(
     version="0.3.0",
     docs_url="/docs" if settings.environment != "production" else None,
     redoc_url=None,
+    openapi_url="/openapi.json" if settings.environment != "production" else None,
     lifespan=lifespan,
     root_path=settings.root_path,
 )
 app.add_exception_handler(ApplicationError, application_error_handler)  # type: ignore[arg-type]
+app.add_exception_handler(Exception, unhandled_error_handler)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,

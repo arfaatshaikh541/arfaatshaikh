@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Annotated, Any, Sequence
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies.auth import DbSession, get_current_user
-from app.models.identity import User
+from app.api.dependencies.auth import DbSession, get_current_user, require_csrf
+from app.models.identity import Session, User
 from app.schemas.assistant import AssembleAnswerRequest, AssistantQueryRequest, QuestionClassificationRequest
 from app.services.assistant import AssemblyResult, ClaimDraft, ClassificationResult, assemble_grounded_answer, classify_question
 from app.api.dependencies.platform_admin import require_platform_administrator
@@ -82,7 +82,7 @@ async def assemble(payload: AssembleAnswerRequest, _: Annotated[User, Depends(ge
 
 
 @router.post("/query")
-async def query(payload: AssistantQueryRequest, db: DbSession, user: Annotated[User, Depends(get_current_user)]):
+async def query(payload: AssistantQueryRequest, db: DbSession, user: Annotated[User, Depends(get_current_user)], _: Annotated[Session, Depends(require_csrf)]):
     """Evidence-grounded answer: classify, retrieve verified evidence, rank, assess confidence, abstain if weak, assemble.
 
     The core answer is verbatim quotation of retrieved evidence (claim_type="direct_quote"), so the assembler's own

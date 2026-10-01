@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Secure platform API foundation for World of Islam"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-  "fastapi==0.116.1",
+  "fastapi==0.142.2",
   "uvicorn[standard]==0.35.0",
   "pydantic-settings==2.10.1",
   "sqlalchemy[asyncio]==2.0.43",
