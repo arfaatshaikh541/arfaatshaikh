@@ -1,6 +1,6 @@
 FROM python:3.12-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
+RUN pip install --no-cache-dir uv==0.8.13
 WORKDIR /app
 COPY apps/api/pyproject.toml apps/api/uv.lock ./
 RUN uv sync --frozen --no-dev

@@ -171,7 +171,10 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    networks: [edge, egress]
+    networks:
+      edge:
+        ipv4_address: 172.31.200.10   # fixed so WOI_FORWARDED_ALLOW_IPS can trust exactly this proxy
+      egress:
 
   backup:
     <<: [*restart, *logging]
@@ -194,6 +197,9 @@ services:
 networks:
   # edge: nginx <-> web/api only. backend: private (no route to the internet).
   edge:
+    ipam:
+      config:
+        - subnet: 172.31.200.0/24
   backend:
     internal: true
   # egress is attached only to nginx (to receive traffic) and ollama (to pull models).

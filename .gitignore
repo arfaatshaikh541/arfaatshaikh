@@ -15,3 +15,6 @@ __pycache__/
 .minio/
 postgres-data/
 redis-data/
+.test-ca.crt
+backups/
+*.zip
