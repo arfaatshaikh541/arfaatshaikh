@@ -1,11 +1,12 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
+import { NOT_PUBLIC } from "@/lib/copy";
 import {apiFetch} from '@/lib/api';
 
 type Item={entry:{id:string;reference:string;arabic_text:string};edition:{key:string;attribution:string;language?:string};collection:{key:string;title:string};author:{name:string;arabic_name:string};translation:null|{text:string;key:string;translator:string;attribution:string};references:Array<{id:string;relationship_type:string;rationale:string}>};
 export function TafsirReader({locale,surah,ayah}:{locale:string;surah:number;ayah:number}){
  const [items,setItems]=useState<Item[]>([]),[edition,setEdition]=useState(''),[translation,setTranslation]=useState('jalalayn-en'),[status,setStatus]=useState('Loading reviewed commentary…');
- useEffect(()=>{const q=new URLSearchParams();if(edition)q.set('edition',edition);if(translation)q.set('translation',translation);apiFetch<Item[]>(`/tafsir/reader/${surah}/${ayah}?${q}`).then(d=>{setItems(d);setStatus(d.length?'':'No published commentary is available for this ayah.')}).catch(()=>setStatus('Reviewed Tafsir is currently unavailable.'));},[surah,ayah,edition,translation]);
+ useEffect(()=>{const q=new URLSearchParams();if(edition)q.set('edition',edition);if(translation)q.set('translation',translation);apiFetch<Item[]>(`/tafsir/reader/${surah}/${ayah}?${q}`).then(d=>{setItems(d);setStatus(d.length?'':NOT_PUBLIC.en+' (no published commentary for this ayah)')}).catch(()=>setStatus('Reviewed Tafsir is currently unavailable.'));},[surah,ayah,edition,translation]);
  const editions=useMemo(()=>Array.from(new Map(items.map(x=>[x.edition.key,x.collection.title])).entries()),[items]);
  const copy=async(x:Item)=>{await navigator.clipboard.writeText(`${x.entry.arabic_text}\n\n${x.collection.title}, ${x.entry.reference}\n${location.href}#tafsir-${x.entry.id}`);setStatus('Citation copied.');};
  return <main className="reader-shell" aria-labelledby="tafsir-title"><header><p>Qur’an {surah}:{ayah}</p><h1 id="tafsir-title">{locale==='ar'?'التفسير':'Tafsir'}</h1><p>{locale==='ar'?'تُعرض أقوال العلماء منفصلة ومنسوبة إلى مصادرها.':'Scholarly commentaries remain separate and fully attributed.'}</p></header>

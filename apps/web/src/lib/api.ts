@@ -12,7 +12,7 @@ const API_PREFIX = "/api/v1";
 let csrfToken: string | null = null;
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly code: string, message: string) { super(message); }
+  constructor(public readonly status: number, public readonly code: string, message: string, public readonly details: Record<string, unknown> = {}) { super(message); }
 }
 
 export function setCsrfToken(token: string | null) { csrfToken = token; }
@@ -30,7 +30,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const error = (body ?? {}) as ApiErrorBody;
     const code = error.error?.code ?? error.code ?? "request_failed";
     const message = error.error?.message ?? error.message ?? error.detail ?? "The request could not be completed.";
-    throw new ApiError(response.status, code, message);
+    throw new ApiError(response.status, code, message, (error.error as { details?: Record<string, unknown> } | undefined)?.details ?? {});
   }
   return body as T;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NOT_PUBLIC } from "@/lib/copy";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
@@ -18,7 +19,7 @@ export function QuranIndex({ locale }: { locale: "en" | "ar" }) {
 
   if (error) return <p role="alert">{ar ? "تعذّر تحميل السور." : "The surah list could not be loaded."}</p>;
   if (!surahs) return <p role="status">{ar ? "جارٍ التحميل…" : "Loading…"}</p>;
-  if (surahs.length === 0) return <p role="status">{ar ? "لم يُنشر نص القرآن بعد." : "The Qur’an text has not been published yet."}</p>;
+  if (surahs.length === 0) return <p role="status">{NOT_PUBLIC[ar ? "ar" : "en"]}</p>;
 
   const q = filter.trim().toLowerCase();
   const shown = surahs.filter((s) => !q || String(s.surah_number) === q || s.transliterated_name.toLowerCase().includes(q) || s.arabic_name.includes(filter.trim()));

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, type KeyboardEvent } from "react";
+import { enqueue, getSurah, isOfflineStorageAvailable } from "@/lib/offline";
+import { NOT_PUBLIC } from "@/lib/copy";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 
@@ -58,8 +60,14 @@ export function QuranReader({ locale, surahNumber }:{locale:"en"|"ar";surahNumbe
   useEffect(()=>{
     setReading(null); setMessage(arabic?"جارٍ تحميل السورة…":"Loading surah…");
     const query=selected?`?translation=${encodeURIComponent(selected)}`:"";
-    apiFetch<Reading>(`/quran/surahs/${surahNumber}/reading${query}`).then(data=>{setReading(data);setMessage("");}).catch((error:unknown)=>{
-      setMessage(error instanceof ApiError && error.code==="quran_corpus_unavailable" ? (arabic?"لا توجد نسخة قرآنية معتمدة ومنشورة بعد.":"No approved canonical Qur’an edition is published yet.") : (arabic?"تعذر تحميل السورة.":"The surah could not be loaded."));
+    apiFetch<Reading>(`/quran/surahs/${surahNumber}/reading${query}`).then(data=>{setReading(data);setMessage("");}).catch(async (error:unknown)=>{
+      if(error instanceof ApiError && error.code==="quran_corpus_unavailable"){ setMessage(NOT_PUBLIC[arabic?"ar":"en"]); return; }
+      // No connection: fall back to the Arabic text downloaded for offline reading, if this surah was saved.
+      if(isOfflineStorageAvailable() && !selected){
+        const saved=await getSurah(surahNumber).catch(()=>undefined);
+        if(saved){ setReading(saved.payload as Reading); setMessage(arabic?"نسخة غير متصلة (النص العربي فقط).":"Offline copy (Arabic text only)."); return; }
+      }
+      setMessage(arabic?"تعذر تحميل السورة.":"The surah could not be loaded.");
     });
   },[arabic,selected,surahNumber]);
 
@@ -83,7 +91,10 @@ export function QuranReader({ locale, surahNumber }:{locale:"en"|"ar";surahNumbe
 
   async function bookmark(ayah:Ayah){
     try { await apiFetch("/quran/me/bookmarks",{method:"POST",body:JSON.stringify({ayah_id:ayah.id})}); setMessage(arabic?`تم حفظ ${ayah.canonical_reference}`:`Bookmarked ${ayah.canonical_reference}`); }
-    catch { setMessage(arabic?"سجّل الدخول لحفظ العلامات.":"Sign in to save bookmarks."); }
+    catch (error) {
+      if(!(error instanceof ApiError) && isOfflineStorageAvailable()){ await enqueue({path:"/quran/me/bookmarks",method:"POST",body:{ayah_id:ayah.id},key:`bookmark:${ayah.id}`}); setMessage(arabic?"لا اتصال: سيُحفظ عند عودة الاتصال.":"Offline: the bookmark will be saved when you reconnect."); }
+      else setMessage(arabic?"سجّل الدخول لحفظ العلامات.":"Sign in to save bookmarks.");
+    }
   }
   async function copyCitation(ayah:Ayah){
     const url=`${window.location.origin}/${locale}/quran/${surahNumber}#ayah-${ayah.ayah_number}`;

@@ -11,12 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@world-of-islam/shared-types": "workspace:*",
+    "@world-of-islam/ui": "workspace:*",
     "next": "15.5.2",
     "react": "19.1.1",
     "react-dom": "19.1.1",
-    "zod": "4.1.5",
-    "@world-of-islam/ui": "workspace:*",
-    "@world-of-islam/shared-types": "workspace:*"
+    "zod": "4.1.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
@@ -27,6 +27,7 @@
     "@types/react-dom": "19.1.9",
     "eslint": "9.34.0",
     "eslint-config-next": "15.5.2",
+    "fake-indexeddb": "6.2.2",
     "jsdom": "26.1.0",
     "typescript": "5.9.2",
     "vitest": "3.2.4"

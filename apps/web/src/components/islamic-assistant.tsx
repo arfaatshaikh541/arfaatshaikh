@@ -2,47 +2,89 @@
 
 import { FormEvent, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { INSUFFICIENT } from "@/lib/copy";
 
-type Evidence = { label: string; canonical_reference: string; attribution: string; exact_text: string };
-type Answer = { status: string; response_text?: string | null; insufficiency_reason?: string | null; evidence?: Evidence[] };
+type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number };
+type Sections = { primary_source: Item[]; scholarly_explanation: Item[]; secondary_source: Item[] };
+type Answer = {
+  status: string; message?: string; insufficiency_reason?: string | null; requires_escalation?: boolean; response_text?: string | null;
+  sections?: Sections; confidence?: { score: number; level: string; abstained: boolean; reasons: string[] };
+  scholarly_views?: { reference: string; views: { attribution: string }[]; note: string }[];
+  ai_synthesis?: { status: string; text: string | null; notice?: string; reasons?: string[] };
+};
 
 export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
   const rtl = locale === "ar";
   const [question, setQuestion] = useState("");
+  const [synthesis, setSynthesis] = useState(false);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [busy, setBusy] = useState(false);
 
   const copy = rtl ? {
-    title: "المساعد الإسلامي الموثّق", intro: "إجابات مبنية على مصادر منشورة ومعتمدة، مع إظهار الأدلة بوضوح.",
+    title: "المساعد الإسلامي الموثّق", intro: "إجابات مبنية على مصادر منشورة ومعتمدة فقط. تُعرض النصوص حرفياً مع مصدرها، وإن لم تكفِ المصادر فلا إجابة.",
     placeholder: "اكتب سؤالك…", submit: "بحث وإجابة", sources: "المصادر",
-    insufficient: "لم نجد إجابة موثّقة لهذا السؤال بعد. جرّب صياغة أخرى أو موضوعًا أعم.",
-    boundary: "لا تُعد الإجابة فتوى شخصية."
+    primary: "مصدر أصلي", scholarly: "شرح علمي", secondary: "مصدر ثانوي", ai: "توليف الذكاء الاصطناعي",
+    synthLabel: "أضف ملخصاً بالذكاء الاصطناعي (نموذج محلي، يُعرض فقط إن اجتاز التحقق من الاستشهادات)",
+    aiNotice: "كتبه نموذج لغوي من المصادر أعلاه. ليس مصدراً بحد ذاته.", aiUnavailable: "الملخص غير متاح: لا يوجد نموذج محلي يعمل.", aiRejected: "رُفض الملخص لأنه لم يجتز التحقق من الاستشهادات.",
+    confidence: "مستوى الثقة", views: "عدة علماء يعلّقون على", boundary: "هذه معلومات عامة قائمة على المصادر وليست فتوى شخصية.",
   } : {
-    title: "Evidence-grounded Islamic assistant", intro: "Answers are assembled from approved, published sources with inspectable evidence.",
+    title: "Evidence-grounded Islamic assistant", intro: "Answers come only from published, approved sources. Texts are quoted verbatim with their source; if the sources are not enough, there is no answer.",
     placeholder: "Ask an Islamic question…", submit: "Find grounded answer", sources: "Sources",
-    insufficient: "We couldn't find a sourced answer for this question yet. Try rephrasing it or asking about a broader topic.",
-    boundary: "This is not a personal fatwa."
+    primary: "Primary source", scholarly: "Scholarly explanation", secondary: "Secondary source", ai: "AI synthesis",
+    synthLabel: "Add an AI summary (local model; shown only if every citation validates)",
+    aiNotice: "Written by a language model from the sources above. It is not itself a source.", aiUnavailable: "Summary unavailable: no local model is running.", aiRejected: "The summary was rejected because it failed citation validation.",
+    confidence: "Confidence", views: "Several scholars comment on", boundary: "This is general, source-based information, not a personal fatwa.",
   };
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setAnswer(null);
-    try {
-      setAnswer(await apiFetch<Answer>("/assistant/query", { method: "POST", body: JSON.stringify({ question, locale }) }));
-    } catch { setAnswer({ status: "insufficient", insufficiency_reason: "request_failed" }); }
+    try { setAnswer(await apiFetch<Answer>("/assistant/query", { method: "POST", body: JSON.stringify({ question, locale, include_synthesis: synthesis }) })); }
+    catch { setAnswer({ status: "insufficient", insufficiency_reason: "request_failed" }); }
     finally { setBusy(false); }
   }
+  const section = (key: keyof Sections, title: string, cls: string) => {
+    const items = answer?.sections?.[key] ?? [];
+    if (!items.length) return null;
+    return (
+      <section className={`answer-section ${cls}`} aria-label={title}>
+        <h3>{title}</h3>
+        {items.map((item) => (
+          <article key={item.label}>
+            <p><strong>{item.label}</strong> {item.reference} · {item.attribution}</p>
+            <blockquote lang={/[؀-ۿ]/.test(item.text) ? "ar" : undefined} dir={/[؀-ۿ]/.test(item.text) ? "rtl" : undefined}>{item.text}</blockquote>
+            <small>{item.license}</small>
+          </article>
+        ))}
+      </section>
+    );
+  };
 
   return <main className="assistant-shell" dir={rtl ? "rtl" : "ltr"}>
     <header><h1>{copy.title}</h1><p>{copy.intro}</p></header>
     <form onSubmit={submit} aria-busy={busy}>
       <label htmlFor="assistant-question" className="sr-only">{copy.placeholder}</label>
       <textarea id="assistant-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={copy.placeholder} required maxLength={4000} />
+      <label className="check"><input type="checkbox" checked={synthesis} onChange={(e) => setSynthesis(e.target.checked)} /> {copy.synthLabel}</label>
       <button disabled={busy || !question.trim()}>{busy ? "…" : copy.submit}</button>
     </form>
     <section aria-live="polite" aria-atomic="false">
-      {answer?.status === "assembled" && <article><p className="assistant-answer">{answer.response_text}</p><p className="assistant-boundary">{copy.boundary}</p></article>}
-      {answer?.status === "insufficient" && <p role="status">{copy.insufficient}</p>}
+      {answer?.status === "assembled" && <>
+        {answer.confidence && <p className="tool-note">{copy.confidence}: {answer.confidence.level} ({answer.confidence.score})</p>}
+        {section("primary_source", copy.primary, "primary")}
+        {section("scholarly_explanation", copy.scholarly, "scholarly")}
+        {section("secondary_source", copy.secondary, "secondary")}
+        {answer.scholarly_views?.map((v) => <p key={v.reference} role="note" className="tool-note">{copy.views} {v.reference}: {v.views.map((x) => x.attribution).join(" · ")}. {v.note}</p>)}
+        {answer.ai_synthesis && answer.ai_synthesis.status !== "not_requested" && (
+          <section className="answer-section ai" aria-label={copy.ai}>
+            <h3>{copy.ai}</h3>
+            {answer.ai_synthesis.status === "validated" && <><p>{answer.ai_synthesis.text}</p><small>{copy.aiNotice}</small></>}
+            {answer.ai_synthesis.status === "unavailable" && <p>{copy.aiUnavailable}</p>}
+            {answer.ai_synthesis.status === "rejected" && <p>{copy.aiRejected}</p>}
+          </section>
+        )}
+        <p className="assistant-boundary">{copy.boundary}</p>
+      </>}
+      {answer?.status === "insufficient" && <p role="status"><strong>{INSUFFICIENT[rtl ? "ar" : "en"]}</strong> {rtl ? "جرّب صياغة أخرى أو موضوعاً أعم." : "Try rephrasing, or a broader topic."}</p>}
     </section>
-    {!!answer?.evidence?.length && <aside aria-labelledby="assistant-sources"><h2 id="assistant-sources">{copy.sources}</h2>{answer.evidence.map((item) => <details key={item.label}><summary>{item.label} {item.canonical_reference} · {item.attribution}</summary><blockquote lang={rtl ? "ar" : undefined}>{item.exact_text}</blockquote></details>)}</aside>}
   </main>;
 }

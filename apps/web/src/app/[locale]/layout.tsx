@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { AuthProvider } from "@/components/auth-provider";
 import { CommandPalette } from "@/components/command-palette";
+import { OfflineSync } from "@/components/offline-sync";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { direction, isLocale } from "@/i18n/config";
 
@@ -25,6 +26,7 @@ export default async function LocaleLayout({
         <CommandPalette locale={locale as Locale} />
       </div>
       <ServiceWorkerRegistration />
+      <OfflineSync />
     </div>
   );
 }

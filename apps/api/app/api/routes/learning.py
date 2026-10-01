@@ -17,3 +17,16 @@ async def score(body:ScoreRequest,user:CurrentUser): return {'score':calculate_s
 async def recommendations(body:RecommendationRequest,user:CurrentUser): return {'items':deterministic_recommendations([x.model_dump() for x in body.candidates],body.preferred_language,set(body.completed_course_ids))}
 @router.post('/children/validate-defaults',dependencies=[Depends(require_csrf)])
 async def child_defaults(body:ChildDefaultsRequest,user:CurrentUser): validate_child_defaults(**body.model_dump()); return {'safe':True}
+
+
+from sqlalchemy import select
+from app.api.dependencies.auth import DbSession
+from app.models.learning import Course
+
+
+@router.get('/courses')
+async def published_courses(db: DbSession):
+    """Courses that have passed content review and are published. Empty until content is authored and approved."""
+    rows = (await db.scalars(select(Course).where(Course.status == 'published').order_by(Course.title))).all()
+    return {'courses': [{'slug': c.slug, 'title': c.title, 'summary': c.summary, 'intended_audience': c.intended_audience,
+                         'estimated_minutes': c.estimated_minutes} for c in rows]}

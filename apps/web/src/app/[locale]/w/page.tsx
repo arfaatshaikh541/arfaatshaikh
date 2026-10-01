@@ -24,9 +24,10 @@ export default async function WorldsIndex({ params }: { params: Promise<{ locale
         <h1>{ar ? "عالم الإسلام" : "World of Islam"}</h1>
         <p className="worlds-hero-note">
           {ar
-            ? `${counts.available} ميزة متاحة اليوم، والمزيد في الطريق.`
-            : `${counts.available} features are live today, with more on the way.`}
+            ? `${counts.byStatus.IMPLEMENTED} قدرة منجزة و${counts.byStatus.PARTIALLY_IMPLEMENTED} منجزة جزئياً من ${counts.total}. الباقي ينتظر مصادر بيانات موثقة.`
+            : `${counts.byStatus.IMPLEMENTED} of ${counts.total} capabilities are implemented and ${counts.byStatus.PARTIALLY_IMPLEMENTED} partly; the rest wait for verified data sources.`}
         </p>
+        <p className="worlds-hero-note"><Link className="text-link" href={`/${locale}/status`}>{ar ? "حالة كل قدرة وكل مصدر" : "The status of every capability and every source"}</Link></p>
       </section>
       <section className="world-grid" aria-label={ar ? "العوالم" : "Worlds"}>
         {worlds.map((w) => (

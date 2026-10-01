@@ -58,7 +58,7 @@ export function CommandPalette({ locale }: { locale: Locale }) {
 
   function go(hit: Hit) {
     setOpen(false);
-    const href = hit.feature.status === "available" && hit.feature.href ? hit.feature.href : `/w/${hit.world.slug}`;
+    const href = hit.feature.status !== "NOT_IMPLEMENTED" && hit.feature.href ? hit.feature.href : `/w/${hit.world.slug}`;
     router.push(`/${locale}${href}`);
   }
 
@@ -118,8 +118,8 @@ export function CommandPalette({ locale }: { locale: Locale }) {
                 >
                   <span className="command-hit-name">{hit.feature.name}</span>
                   <span className="command-hit-world">{ar ? hit.world.nameAr : hit.world.name}</span>
-                  <span className={`status-pill status-${hit.feature.status}`}>
-                    {hit.feature.status === "available" ? (ar ? "متاح" : "Open") : ar ? "التفاصيل" : "Details"}
+                  <span className={`status-pill status-${hit.feature.status.toLowerCase().replaceAll("_", "-")}`}>
+                    {hit.feature.status === "IMPLEMENTED" || hit.feature.status === "PARTIALLY_IMPLEMENTED" ? (ar ? "افتح" : "Open") : ar ? "التفاصيل" : "Details"}
                   </span>
                 </li>
               ))}

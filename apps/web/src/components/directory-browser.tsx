@@ -1,0 +1,126 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiFetch, ApiError } from "@/lib/api";
+import { LISTING_TYPES } from "@/lib/copy";
+
+export type Listing = { id: string; type: string; name: string; arabic_name: string | null; description: string | null; category: string | null; address: string | null; city: string | null; country: string | null;
+  phone: string | null; email: string | null; website: string | null; source: string; source_url: string | null; license: string; verification_status: string; last_updated: string; distance_km: number | null };
+type Result = { total: number; page: number; page_size: number; items: Listing[] };
+type Summary = { types: { type: string; count: number }[] };
+
+export function ListingCard({ item, locale }: { item: Listing; locale: "en" | "ar" }) {
+  const ar = locale === "ar";
+  return (
+    <li className="record-card">
+      <h2><Link href={`/${locale}/directory/${item.id}`}>{item.name}</Link>{item.arabic_name && <span lang="ar" dir="rtl" className="record-ar"> {item.arabic_name}</span>}</h2>
+      <p className="tool-note">
+        {[item.address, item.city, item.country].filter(Boolean).join(", ")}
+        {item.distance_km !== null && ` · ${item.distance_km} km`}
+      </p>
+      {item.description && <p>{item.description}</p>}
+      <p>
+        <span className={item.verification_status === "verified" ? "status-pill status-implemented" : "status-pill status-architecture-ready"}>
+          {item.verification_status === "verified" ? (ar ? "موثَّق" : "Verified") : (ar ? "غير موثَّق" : "Not verified")}
+        </span>
+        {" "}<small>{ar ? "المصدر" : "Source"}: {item.source_url ? <a href={item.source_url} rel="noopener noreferrer nofollow">{item.source}</a> : item.source} · {item.license} · {ar ? "آخر تحديث" : "Updated"} {item.last_updated}</small>
+      </p>
+    </li>
+  );
+}
+
+export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar"; initialType?: string }) {
+  const ar = locale === "ar";
+  const [type, setType] = useState(initialType ?? "mosque");
+  const [q, setQ] = useState("");
+  const [city, setCity] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [near, setNear] = useState<{ lat: number; lon: number } | null>(null);
+  const [radius, setRadius] = useState(10);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<Result | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => { apiFetch<Summary>("/directory/summary").then(setSummary).catch(() => undefined); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams({ type, page: String(page) });
+    if (q.trim()) params.set("q", q.trim());
+    if (city.trim()) params.set("city", city.trim());
+    if (verified) params.set("verified_only", "true");
+    if (near) { params.set("lat", String(near.lat)); params.set("lon", String(near.lon)); params.set("radius_km", String(radius)); }
+    setError("");
+    apiFetch<Result>(`/directory/listings?${params}`).then(setData).catch(() => setError(ar ? "تعذّر تحميل الدليل." : "Could not load the directory."));
+  }, [type, q, city, verified, near, radius, page, ar]);
+
+  function locate() {
+    if (!navigator.geolocation) { setError(ar ? "الموقع غير متاح في هذا المتصفح." : "Location is not available in this browser."); return; }
+    navigator.geolocation.getCurrentPosition((p) => { setNear({ lat: p.coords.latitude, lon: p.coords.longitude }); setPage(1); }, () => setError(ar ? "تعذّر تحديد موقعك." : "Could not get your location."), { maximumAge: 600000 });
+  }
+  const count = (t: string) => summary?.types.find((x) => x.type === t)?.count;
+  return (
+    <main className="knowledge-page" dir={ar ? "rtl" : "ltr"}>
+      <h1>{ar ? "الدليل" : "Directory"}</h1>
+      <p className="tool-note">{ar ? "لا تُعرض هنا إلا قوائم لها مصدر وترخيص ومنشأ موثق. لا قوائم مختلقة." : "Only listings with a source, licence and provenance are shown. Nothing here is invented."}</p>
+      <nav className="knowledge-types" aria-label={ar ? "أنواع القوائم" : "Listing types"}>
+        {LISTING_TYPES.map((t) => <button key={t.id} className={t.id === type ? "chip chip-active" : "chip"} aria-pressed={t.id === type} onClick={() => { setType(t.id); setPage(1); }}>{ar ? t.ar : t.en}{count(t.id) !== undefined ? ` (${count(t.id)})` : ""}</button>)}
+      </nav>
+      <form role="search" className="filter-row" onSubmit={(e) => e.preventDefault()}>
+        <label>{ar ? "بحث" : "Search"}<input type="search" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></label>
+        <label>{ar ? "المدينة" : "City"}<input value={city} onChange={(e) => { setCity(e.target.value); setPage(1); }} /></label>
+        <label className="check"><input type="checkbox" checked={verified} onChange={(e) => { setVerified(e.target.checked); setPage(1); }} /> {ar ? "الموثَّق فقط" : "Verified only"}</label>
+        <button type="button" onClick={locate}>{near ? (ar ? "تحديث موقعي" : "Update my location") : (ar ? "بالقرب مني" : "Near me")}</button>
+        {near && <label>{ar ? "المسافة (كم)" : "Radius (km)"}<input type="number" min={1} max={500} value={radius} onChange={(e) => setRadius(Math.max(1, Number(e.target.value) || 1))} /></label>}
+        {near && <button type="button" onClick={() => setNear(null)}>{ar ? "إلغاء الموقع" : "Clear location"}</button>}
+      </form>
+      {error && <p role="alert">{error}</p>}
+      {data && data.items.length === 0 && !error && (
+        <section className="empty-state" role="status">
+          <h2>{ar ? "لا توجد قوائم منشورة لهذا النوع بعد." : "No listings are published for this type yet."}</h2>
+          <p className="tool-note">{ar ? "تُضاف القوائم عبر مجموعات بيانات مرخّصة أو اقتراحات المجتمع بعد مراجعة المشرفين." : "Listings arrive through authorised datasets or community suggestions that moderators approve."}</p>
+        </section>
+      )}
+      <ul className="record-list">{data?.items.map((item) => <ListingCard key={item.id} item={item} locale={locale} />)}</ul>
+      {data && data.total > data.page_size && (
+        <div className="pager"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>{ar ? "السابق" : "Previous"}</button><span>{page} / {Math.ceil(data.total / data.page_size)}</span><button disabled={page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>{ar ? "التالي" : "Next"}</button></div>
+      )}
+      <SuggestListing locale={locale} />
+    </main>
+  );
+}
+
+function SuggestListing({ locale }: { locale: "en" | "ar" }) {
+  const ar = locale === "ar";
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const body: Record<string, unknown> = {
+      listing_type: f.get("listing_type"), name: f.get("name"), city: f.get("city") || null, country: (f.get("country") as string)?.toUpperCase() || null, address: f.get("address") || null,
+      website: f.get("website") || null, description: f.get("description") || null,
+      source: "Community suggestion", license: "Contributor grant (see terms)", provenance: String(f.get("provenance") || "Suggested by a signed-in user"),
+    };
+    try {
+      const r = await apiFetch<{ message: string }>("/directory/listings", { method: "POST", body: JSON.stringify(body) });
+      setMsg(r.message); (e.target as HTMLFormElement).reset();
+    } catch (err) { setMsg(err instanceof ApiError && err.status === 401 ? (ar ? "سجّل الدخول لاقتراح قائمة." : "Sign in to suggest a listing.") : (err instanceof ApiError ? err.message : ar ? "تعذّر الإرسال." : "Could not submit.")); }
+  }
+  return (
+    <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="suggest">
+      <summary>{ar ? "اقترح قائمة" : "Suggest a listing"}</summary>
+      <form onSubmit={submit} className="stack">
+        <label>{ar ? "النوع" : "Type"}<select name="listing_type">{LISTING_TYPES.map((t) => <option key={t.id} value={t.id}>{ar ? t.ar : t.en}</option>)}</select></label>
+        <label>{ar ? "الاسم" : "Name"}<input name="name" required minLength={2} maxLength={300} /></label>
+        <label>{ar ? "العنوان" : "Address"}<input name="address" maxLength={500} /></label>
+        <label>{ar ? "المدينة" : "City"}<input name="city" maxLength={120} /></label>
+        <label>{ar ? "الدولة (رمزان)" : "Country (2-letter code)"}<input name="country" maxLength={2} minLength={2} /></label>
+        <label>{ar ? "الموقع الإلكتروني" : "Website"}<input name="website" type="url" /></label>
+        <label>{ar ? "وصف" : "Description"}<textarea name="description" maxLength={5000} /></label>
+        <label>{ar ? "كيف تعرف هذه المعلومات؟" : "How do you know this?"}<input name="provenance" required minLength={3} maxLength={500} /></label>
+        <button>{ar ? "إرسال للمراجعة" : "Submit for review"}</button>
+        {msg && <p role="status">{msg}</p>}
+      </form>
+    </details>
+  );
+}

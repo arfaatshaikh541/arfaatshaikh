@@ -16,9 +16,9 @@ export default async function Dashboard({ params }: { params: Promise<{ locale:s
           : "Browse the twelve worlds of the platform below."}
       </p>
       <div className="metric-grid">
-        <article><strong>{counts.available}</strong><span>{ar ? "ميزة متاحة الآن" : "Features live now"}</span></article>
-        <article><strong>{counts.backendOnly}</strong><span>{ar ? "قيد الإنجاز" : "In progress"}</span></article>
-        <article><strong>{counts.planned}</strong><span>{ar ? "قريباً" : "Coming soon"}</span></article>
+        <article><strong>{counts.byStatus.IMPLEMENTED}</strong><span>{ar ? "قدرة منجزة" : "Capabilities implemented"}</span></article>
+        <article><strong>{counts.byStatus.PARTIALLY_IMPLEMENTED + counts.byStatus.NOT_VERIFIED}</strong><span>{ar ? "جزئياً أو غير موثّق" : "Partly built or not yet verified"}</span></article>
+        <article><strong>{counts.byStatus.DATA_SOURCE_REQUIRED + counts.byStatus.ARCHITECTURE_READY}</strong><span>{ar ? "جاهز وينتظر البيانات" : "Built, waiting for data"}</span></article>
       </div>
       <p className="hero-actions">
         <Link className="button-link" href={`/${locale}/w`}>{ar ? "استكشف العوالم الاثني عشر" : "Explore the twelve worlds"}</Link>

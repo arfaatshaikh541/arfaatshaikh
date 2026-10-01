@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NOT_PUBLIC } from "@/lib/copy";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
@@ -36,7 +37,7 @@ export function HadithBrowser({ locale, collection }: { locale: "en" | "ar"; col
     );
   }
   if (!collections) return <p role="status">{ar ? "جارٍ التحميل…" : "Loading…"}</p>;
-  if (collections.length === 0) return <p role="status">{ar ? "لم تُنشر مجموعات الحديث بعد." : "No hadith collections have been published yet."}</p>;
+  if (collections.length === 0) return <p role="status">{NOT_PUBLIC[ar ? "ar" : "en"]}</p>;
   return (
     <ol className="surah-list">
       {collections.map((c) => (

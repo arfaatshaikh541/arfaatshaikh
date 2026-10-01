@@ -1,109 +1,69 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
+import { SEARCH_TYPES } from "@/lib/copy";
 
-type Evidence = {
-  chunk_id: string;
-  corpus_type: string;
-  canonical_reference: string;
-  exact_text: string;
-  attribution: string;
-  licence: string;
+type Result = { type: string; title: string; snippet: string; reference: string; source: string; license: string | null; path: string; language?: string; layer?: string; verification_status?: string; scholarly_status?: string };
+type Response = { query: string; results: Result[]; empty_types: string[]; searched_types: string[] };
+
+const LAYER: Record<string, { en: string; ar: string }> = {
+  primary_source: { en: "Primary source", ar: "مصدر أصلي" },
+  scholarly_explanation: { en: "Scholarly explanation", ar: "شرح علمي" },
+  secondary_source: { en: "Secondary source", ar: "مصدر ثانوي" },
 };
-type RetrievalResponse = { policy_version: string; insufficient: boolean; evidence: Evidence[] };
-
-const CORPORA = ["quran", "hadith", "tafsir"] as const;
 
 export function GlobalSearch({ locale }: { locale: "en" | "ar" }) {
   const ar = locale === "ar";
   const [query, setQuery] = useState("");
-  const [corpora, setCorpora] = useState<string[]>([...CORPORA]);
-  const [results, setResults] = useState<Evidence[] | null>(null);
+  const [types, setTypes] = useState<string[]>([]);
+  const [data, setData] = useState<Response | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  function toggleCorpus(corpus: string) {
-    setCorpora((prev) => (prev.includes(corpus) ? prev.filter((c) => c !== corpus) : [...prev, corpus]));
-  }
-
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!query.trim() || corpora.length === 0) return;
-    setBusy(true);
-    setError("");
-    setResults(null);
+    if (query.trim().length < 2) return;
+    setBusy(true); setError(""); setData(null);
     try {
-      const response = await apiFetch<RetrievalResponse>("/retrieval/query", {
-        method: "POST",
-        body: JSON.stringify({ query, language: locale, corpora, limit: 20 }),
-      });
-      setResults(response.evidence);
+      const params = new URLSearchParams({ q: query.trim() });
+      if (types.length) params.set("types", types.join(","));
+      setData(await apiFetch<Response>(`/search?${params}`));
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 401
-          ? ar ? "سجّل الدخول للبحث في عالم الإسلام." : "Sign in to search World of Islam."
-          : ar ? "تعذّر إتمام البحث." : "Search could not be completed.",
-      );
-    } finally {
-      setBusy(false);
-    }
+      setError(err instanceof ApiError && err.status === 429 ? (ar ? "طلبات كثيرة. حاول بعد قليل." : "Too many searches. Try again shortly.") : ar ? "تعذّر إتمام البحث." : "Search could not be completed.");
+    } finally { setBusy(false); }
   }
-
-  const corpusLabel: Record<string, { en: string; ar: string }> = {
-    quran: { en: "Qur'an", ar: "القرآن" },
-    hadith: { en: "Hadith", ar: "الحديث" },
-    tafsir: { en: "Tafsir", ar: "التفسير" },
-  };
-
+  const label = (id: string) => SEARCH_TYPES.find((t) => t.id === id)?.[ar ? "ar" : "en"] ?? id;
   return (
-    <div className="global-search">
-      <form onSubmit={submit} className="global-search-form">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={ar ? "ابحث في القرآن والحديث والتفسير المعتمد…" : "Search approved Qur'an, Hadith, and Tafsir text…"}
-          aria-label={ar ? "استعلام البحث" : "Search query"}
-          minLength={2}
-          required
-        />
-        <div className="global-search-corpora" role="group" aria-label={ar ? "المصادر" : "Corpora"}>
-          {CORPORA.map((c) => (
-            <label key={c} className="corpus-toggle">
-              <input type="checkbox" checked={corpora.includes(c)} onChange={() => toggleCorpus(c)} />
-              {ar ? corpusLabel[c].ar : corpusLabel[c].en}
-            </label>
-          ))}
+    <div className="global-search" dir={ar ? "rtl" : "ltr"}>
+      <form onSubmit={submit} className="global-search-form" role="search">
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} minLength={2} required aria-label={ar ? "استعلام البحث" : "Search query"}
+          placeholder={ar ? "ابحث في المصادر المنشورة…" : "Search published sources…"} />
+        <div className="knowledge-types" role="group" aria-label={ar ? "أنواع المحتوى" : "Content types"}>
+          {SEARCH_TYPES.map((t) => <button type="button" key={t.id} aria-pressed={types.includes(t.id)} className={types.includes(t.id) ? "chip chip-active" : "chip"}
+            onClick={() => setTypes((prev) => prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id])}>{ar ? t.ar : t.en}</button>)}
         </div>
-        <button type="submit" disabled={busy || !query.trim() || corpora.length === 0}>
-          {busy ? (ar ? "جارٍ البحث…" : "Searching…") : ar ? "بحث" : "Search"}
-        </button>
+        <p className="tool-note">{types.length === 0 ? (ar ? "يُبحث في كل الأنواع." : "Searching every type.") : (ar ? "يُبحث في الأنواع المختارة فقط." : "Searching the selected types only.")}</p>
+        <button type="submit" disabled={busy || query.trim().length < 2}>{busy ? (ar ? "جارٍ البحث…" : "Searching…") : ar ? "بحث" : "Search"}</button>
       </form>
-
       {error && <p role="alert" className="global-search-error">{error}</p>}
-
-      {results !== null && (
+      {data && (
         <section aria-live="polite" className="global-search-results">
-          {results.length === 0 ? (
-            <p className="tool-note">
-              {ar
-                ? "لا نتائج مطابقة. جرّب كلمات مختلفة."
-                : "No results found. Try different search terms."}
-            </p>
+          {data.results.length === 0 ? (
+            <p className="tool-note">{ar ? "لا نتائج في المصادر المنشورة. لا تُعرض نتائج غير موثقة." : "No results in the published sources. Unverified results are never shown."}</p>
           ) : (
-            <ul className="global-search-list">
-              {results.map((item) => (
-                <li key={item.chunk_id} className="global-search-item">
-                  <span className={`status-pill status-available`}>{corpusLabel[item.corpus_type]?.[ar ? "ar" : "en"] ?? item.corpus_type}</span>
-                  <p className="global-search-reference">{item.canonical_reference}</p>
-                  <p className={item.corpus_type === "quran" || item.corpus_type === "hadith" || item.corpus_type === "tafsir" ? "arabic-text" : undefined} lang={ar ? undefined : "ar"} dir="rtl">
-                    {item.exact_text}
-                  </p>
-                  <small>{item.attribution} · {item.licence}</small>
+            <ul className="record-list">
+              {data.results.map((r, i) => (
+                <li key={i} className="record-card">
+                  <p><span className="status-pill status-implemented">{label(r.type)}</span>{r.layer && <> <span className="status-pill status-architecture-ready">{LAYER[r.layer]?.[ar ? "ar" : "en"]}</span></>}</p>
+                  <h2><Link href={`/${locale}${r.path}`}>{r.title}</Link></h2>
+                  <p lang={r.language === "ar" ? "ar" : undefined} dir={r.language === "ar" ? "rtl" : undefined} className={r.language === "ar" ? "arabic-text" : undefined}>{r.snippet}</p>
+                  <small>{r.source}{r.license ? ` · ${r.license}` : ""}</small>
                 </li>
               ))}
             </ul>
           )}
+          {data.empty_types.length > 0 && <p className="tool-note">{ar ? "لا بيانات منشورة حالياً في: " : "No published data currently in: "}{data.empty_types.map(label).join(", ")}.</p>}
         </section>
       )}
     </div>

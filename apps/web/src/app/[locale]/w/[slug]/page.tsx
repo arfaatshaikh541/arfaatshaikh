@@ -12,9 +12,12 @@ export function generateStaticParams() {
 }
 
 const STATUS_LABEL: Record<FeatureStatus, { en: string; ar: string }> = {
-  available: { en: "Available", ar: "متاح" },
-  "backend-only": { en: "In progress", ar: "قيد الإنجاز" },
-  planned: { en: "Coming soon", ar: "قريباً" },
+  IMPLEMENTED: { en: "Implemented", ar: "مُنجز" },
+  PARTIALLY_IMPLEMENTED: { en: "Partly implemented", ar: "منجز جزئياً" },
+  NOT_VERIFIED: { en: "Not yet verified", ar: "لم يُتحقق منه بعد" },
+  DATA_SOURCE_REQUIRED: { en: "Data source required", ar: "يتطلب مصدر بيانات" },
+  ARCHITECTURE_READY: { en: "Ready for data", ar: "جاهز لاستقبال البيانات" },
+  NOT_IMPLEMENTED: { en: "Not built", ar: "غير مبني" },
 };
 
 export default async function WorldPage({ params }: { params: Promise<{ locale:string; slug: string }> }) {
@@ -43,14 +46,14 @@ export default async function WorldPage({ params }: { params: Promise<{ locale:s
             <>
               <div className="feature-list-head">
                 <h2>{feat.name}</h2>
-                <span className={`status-pill status-${feat.status}`}>{ar ? label.ar : label.en}</span>
+                <span className={`status-pill status-${feat.status.toLowerCase().replaceAll("_", "-")}`}>{ar ? label.ar : label.en}</span>
               </div>
               <p>{feat.note}</p>
             </>
           );
           return (
-            <li key={feat.id} className={feat.status === "available" ? "feature-item feature-item-live" : "feature-item"}>
-              {feat.status === "available" && feat.href ? (
+            <li key={feat.id} className={feat.status === "IMPLEMENTED" || feat.status === "PARTIALLY_IMPLEMENTED" ? "feature-item feature-item-live" : "feature-item"}>
+              {feat.href && feat.status !== "NOT_IMPLEMENTED" ? (
                 <Link href={`/${locale}${feat.href}`} className="feature-item-link">{body}</Link>
               ) : (
                 body
