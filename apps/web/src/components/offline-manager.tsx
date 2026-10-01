@@ -1,8 +1,21 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { clearSurahs, estimateBytes, isOfflineStorageAvailable, listDownloaded, queuedCount, saveSurah, searchOffline, SURAH_COUNT } from "@/lib/offline";
 import Link from "next/link";
+
+// One surah, retrying with a pause when the server asks us to slow down (HTTP 429).
+async function fetchSurah(n: number, attempt = 0): Promise<{ ayahs: { arabic_text: string }[] }> {
+  try {
+    return await apiFetch<{ ayahs: { arabic_text: string }[] }>(`/quran/surahs/${n}/reading`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 429 && attempt < 5) {
+      await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+      return fetchSurah(n, attempt + 1);
+    }
+    throw error;
+  }
+}
 
 type Surah = { surah_number: number; arabic_name: string; transliterated_name: string; english_name: string; ayah_count: number };
 
@@ -36,7 +49,8 @@ export function OfflineManager({ locale }: { locale: "en" | "ar" }) {
     try {
       for (const n of numbers) {
         setBusy(`${n}/${SURAH_COUNT}`);
-        await saveSurah(n, await apiFetch<{ ayahs: { arabic_text: string }[] }>(`/quran/surahs/${n}/reading`));
+        await saveSurah(n, await fetchSurah(n));
+        await new Promise((resolve) => setTimeout(resolve, 80)); // stay well inside the server's request-rate limit
       }
     } catch { setError(ar ? "تعذّر التنزيل. تحقق من الاتصال وحاول مجدداً." : "Download failed. Check your connection and try again."); }
     setBusy(""); await refresh();
