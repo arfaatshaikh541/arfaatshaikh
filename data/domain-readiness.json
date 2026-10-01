@@ -181,6 +181,28 @@
     "published": 6236,
     "hidden": 0,
     "live_key": "quran_ayahs"
+   },
+   "verification_classes": {
+    "verified": [
+     "Every ayah's text matches its recorded sha256 and traces to an approved source edition (validate_data.py)",
+     "CC BY 4.0 licence of quran-text read from PyPI metadata (2026-10-01)",
+     "6,236 ayahs published (database count)",
+     "Assistant query returns Qur'an passages with source, licence and authority class (live check)"
+    ],
+    "imported": [
+     "6,236 ayahs (Arabic)",
+     "Pickthall and Yusuf Ali (1934) translations",
+     "tajweed rules and spans"
+    ],
+    "unverified": [
+     "Arabic wording against a printed mushaf by a person",
+     "Translation accuracy"
+    ],
+    "assumed": [
+     "Public-domain status of the two translations in every jurisdiction",
+     "Fidelity of the upstream text beyond sha256 consistency"
+    ],
+    "blocked": []
    }
   },
   {
@@ -287,6 +309,31 @@
     "published": 14778,
     "hidden": 332,
     "live_key": "hadith_narrations"
+   },
+   "verification_classes": {
+    "verified": [
+     "Bukhari and Muslim hadith 1 wording matches the expected text",
+     "Counts: 15,110 narrations, 14,778 published (database)",
+     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim"
+    ],
+    "imported": [
+     "Bukhari 7,277",
+     "Muslim 7,459",
+     "Nawawi-40 42",
+     "Hisn al-Muslim and adhkar 332 (hidden)"
+    ],
+    "unverified": [
+     "Redistribution rights of the packaged Arabic text (AGPL-3.0 declared)",
+     "English translations' rights",
+     "Nawawi-40 upstream"
+    ],
+    "assumed": [
+     "Public-domain status of the classical Arabic originals",
+     "Numbering and diacritics of the packaged editions"
+    ],
+    "blocked": [
+     "Rights decision by the owner"
+    ]
    }
   },
   {
@@ -381,6 +428,27 @@
     "published": 0,
     "hidden": 21185,
     "live_key": "kr:hadith_grading"
+   },
+   "verification_classes": {
+    "verified": [
+     "Contract validation: 21,185 records, 0 failures",
+     "Each grader's grade is stored separately; none inferred",
+     "Repository LICENSE read verbatim (Unlicense); References.md read"
+    ],
+    "imported": [
+     "21,185 records / 67,681 grader entries (hidden)"
+    ],
+    "unverified": [
+     "Rights in the compiled grades",
+     "Accuracy against the graders' printed works",
+     "Whether short grade labels are protected"
+    ],
+    "assumed": [
+     "Grades are as the repository states them"
+    ],
+    "blocked": [
+     "al-maktaba.org, zubairalizai.com terms unreachable"
+    ]
    }
   },
   {
@@ -475,6 +543,25 @@
     "published": 0,
     "hidden": 182320,
     "live_key": "tafsir_entries"
+   },
+   "verification_classes": {
+    "verified": [
+     "Per-edition coverage and ayah alignment checks (import time)",
+     "182,320 entries hidden (database count)"
+    ],
+    "imported": [
+     "54 editions, 182,320 entries (hidden)"
+    ],
+    "unverified": [
+     "Rights of every edition",
+     "Absence of modern editorial notes"
+    ],
+    "assumed": [
+     "Attribution of each edition as the repository states it"
+    ],
+    "blocked": [
+     "Rights of digital editions"
+    ]
    }
   },
   {
@@ -570,6 +657,18 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:fiqh"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No openly licensed, verifiable fiqh dataset found.",
+     "@al-mabsut/muslimah rejected: no cited work or page, no content licence."
+    ]
    }
   },
   {
@@ -663,6 +762,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:aqeedah"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
    }
   },
   {
@@ -757,6 +867,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:seerah"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found; OpenITI licence not established."
+    ]
    }
   },
   {
@@ -853,6 +974,18 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:scholar"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).",
+     "OpenITI licence not established."
+    ]
    }
   },
   {
@@ -946,6 +1079,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:terminology"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
    }
   },
   {
@@ -1040,6 +1184,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:history"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
    }
   },
   {
@@ -1133,6 +1288,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:civilization"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
    }
   },
   {
@@ -1231,6 +1397,19 @@
     "published": 0,
     "hidden": 0,
     "live_key": "kr:library_work"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).",
+     "OpenITI licence not established.",
+     "PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear."
+    ]
    }
   },
   {
@@ -1326,6 +1505,29 @@
     "published": 19776,
     "hidden": 5,
     "live_key": "dl:mosque"
+   },
+   "verification_classes": {
+    "verified": [
+     "Package LICENSE and dataset-metadata read (ODbL + CC0)",
+     "Download integrity (sha512) and tarball sha256 recorded",
+     "All coordinates inside Algeria's bounding box; ids unique; validate_data.py passes",
+     "Source identifiers preserved on every listing"
+    ],
+    "imported": [
+     "19,781 listings (19,776 visible)"
+    ],
+    "unverified": [
+     "Each mosque's existence and details",
+     "Commune assignment (derived by the source)",
+     "Records flagged by the conflict check (282 co-located different names, 38 similar names, 8 non-mosque names)"
+    ],
+    "assumed": [
+     "That the platform's directory needs only attribution for ODbL (share-alike may apply)",
+     "Upstream OSM/Wikidata accuracy"
+    ],
+    "blocked": [
+     "No source for other countries reachable"
+    ]
    }
   },
   {
@@ -1421,6 +1623,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:organisation"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source reachable or found; Wikidata and OpenStreetMap unreachable."
+    ]
    }
   },
   {
@@ -1515,6 +1728,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:event"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Organiser-supplied only; Hijri calendar libraries carry no cited authority."
+    ]
    }
   },
   {
@@ -1610,6 +1834,18 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:charity"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "National charity registers unreachable (2026-10-01).",
+     "A register does not say whether a charity is Muslim."
+    ]
    }
   },
   {
@@ -1703,6 +1939,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:volunteering"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source."
+    ]
    }
   },
   {
@@ -1796,6 +2043,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:business"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No open dataset identifies Muslim-owned businesses."
+    ]
    }
   },
   {
@@ -1889,6 +2147,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:professional"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Self-registration with moderation is the legitimate route; none registered."
+    ]
    }
   },
   {
@@ -1982,6 +2251,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:health"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source."
+    ]
    }
   },
   {
@@ -2076,6 +2356,17 @@
     "published": 0,
     "hidden": 0,
     "live_key": "dl:job"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Job APIs unreachable and need keys and terms acceptance (2026-10-01)."
+    ]
    }
   },
   {
@@ -2171,6 +2462,18 @@
     "published": 0,
     "hidden": 0,
     "live_key": "audio"
+   },
+   "verification_classes": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).",
+     "Reciter and publisher redistribution terms not documented in an accessible form."
+    ]
    }
   }
  ]

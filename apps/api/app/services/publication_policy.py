@@ -31,9 +31,10 @@ def desired_visibility(dataset) -> bool:
 async def _set_retrieval(db: AsyncSession, edition_ids: list, visible: bool) -> None:
     if not edition_ids:
         return
+    # Only rows whose flag actually differs are written: on a populated database an unconditional rewrite of every chunk takes minutes.
     doc_ids = select(RetrievalDocument.id).where(RetrievalDocument.source_edition_id.in_(edition_ids))
-    await db.execute(update(RetrievalChunk).where(RetrievalChunk.document_id.in_(doc_ids)).values(active=visible))
-    await db.execute(update(RetrievalDocument).where(RetrievalDocument.source_edition_id.in_(edition_ids)).values(active=visible))
+    await db.execute(update(RetrievalChunk).where(RetrievalChunk.document_id.in_(doc_ids), RetrievalChunk.active.is_distinct_from(visible)).values(active=visible))
+    await db.execute(update(RetrievalDocument).where(RetrievalDocument.source_edition_id.in_(edition_ids), RetrievalDocument.active.is_distinct_from(visible)).values(active=visible))
 
 
 async def _apply_target(db: AsyncSession, target: dict, visible: bool) -> tuple[str, int]:
@@ -44,14 +45,14 @@ async def _apply_target(db: AsyncSession, target: dict, visible: bool) -> tuple[
         rows = (await db.execute(select(HadithCollection).where(HadithCollection.collection_key == target["key"]))).scalars().all()
         for row in rows:
             row.published = visible
-            await db.execute(update(HadithNarration).where(HadithNarration.collection_id == row.id).values(published=visible))
+            await db.execute(update(HadithNarration).where(HadithNarration.collection_id == row.id, HadithNarration.published.is_distinct_from(visible)).values(published=visible))
             await _set_retrieval(db, [row.source_edition_id], visible)
         return kind, len(rows)
     if kind == "hadith_translation_edition":
         rows = (await db.execute(select(HadithTranslationEdition).where(HadithTranslationEdition.translation_key == target["key"]))).scalars().all()
         for row in rows:
             row.published = visible
-            await db.execute(update(HadithTranslation).where(HadithTranslation.translation_edition_id == row.id).values(published=visible))
+            await db.execute(update(HadithTranslation).where(HadithTranslation.translation_edition_id == row.id, HadithTranslation.published.is_distinct_from(visible)).values(published=visible))
             await _set_retrieval(db, [row.source_edition_id], visible)
         return kind, len(rows)
     if kind in ("quran_translation_edition", "quran_translation_editions"):
@@ -62,9 +63,8 @@ async def _apply_target(db: AsyncSession, target: dict, visible: bool) -> tuple[
             stmt = stmt.where(QuranTranslationEdition.translation_key.not_in(target["all_except"]))
         rows = (await db.execute(stmt)).scalars().all()
         for row in rows:
-            if row.published != visible:
-                row.published = visible
-                await db.execute(update(QuranAyahTranslation).where(QuranAyahTranslation.translation_edition_id == row.id).values(published=visible))
+            row.published = visible
+            await db.execute(update(QuranAyahTranslation).where(QuranAyahTranslation.translation_edition_id == row.id, QuranAyahTranslation.published.is_distinct_from(visible)).values(published=visible))
         await _set_retrieval(db, [r.source_edition_id for r in rows if r.source_edition_id], visible)
         return kind, len(rows)
     if kind == "tafsir_editions":
@@ -74,7 +74,7 @@ async def _apply_target(db: AsyncSession, target: dict, visible: bool) -> tuple[
         rows = (await db.execute(stmt)).scalars().all()
         for row in rows:
             row.published = visible
-            await db.execute(update(TafsirEntry).where(TafsirEntry.edition_id == row.id).values(published=visible))
+            await db.execute(update(TafsirEntry).where(TafsirEntry.edition_id == row.id, TafsirEntry.published.is_distinct_from(visible)).values(published=visible))
             await db.execute(update(TafsirCollection).where(TafsirCollection.id == row.collection_id).values(published=visible))
         await _set_retrieval(db, [r.source_edition_id for r in rows], visible)
         return kind, len(rows)
@@ -82,40 +82,41 @@ async def _apply_target(db: AsyncSession, target: dict, visible: bool) -> tuple[
         rows = (await db.execute(select(TafsirTranslationEdition).where(TafsirTranslationEdition.translation_key == target["key"]))).scalars().all()
         for row in rows:
             row.published = visible
-            await db.execute(update(TafsirTranslation).where(TafsirTranslation.translation_edition_id == row.id).values(published=visible))
+            await db.execute(update(TafsirTranslation).where(TafsirTranslation.translation_edition_id == row.id, TafsirTranslation.published.is_distinct_from(visible)).values(published=visible))
         await _set_retrieval(db, [r.source_edition_id for r in rows], visible)
         return kind, len(rows)
     raise ValueError(f"unknown target kind {kind}")
 
 
 async def refresh_dependent_visibility(db: AsyncSession) -> None:
-    """Authors are visible only while one of their works is; graph nodes/edges follow their source rows."""
+    """Authors are visible only while one of their works is; graph nodes/edges follow their source rows.
+
+    The end state is the same as rewriting everything, but only rows that differ are written, so an administrator's action on a
+    populated database takes milliseconds instead of minutes.
+    """
     visible_authors = select(TafsirCollection.author_id).where(TafsirCollection.published.is_(True))
-    await db.execute(update(TafsirAuthor).values(published=False))
-    await db.execute(update(TafsirAuthor).where(TafsirAuthor.id.in_(visible_authors)).values(published=True))
-    # graph entities: tafsir entries/works/scholars mirror their rows; a relationship is visible only if both ends are
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "tafsir_entry").values(publication_status="draft"))
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "tafsir_entry",
-                                                            CanonicalKnowledgeEntity.source_entity_id.in_(select(TafsirEntry.id).where(TafsirEntry.published.is_(True)))).values(publication_status="published"))
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "tafsir_work").values(publication_status="draft"))
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "tafsir_work",
-                                                            CanonicalKnowledgeEntity.source_entity_id.in_(select(TafsirCollection.id).where(TafsirCollection.published.is_(True)))).values(publication_status="published"))
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "scholar").values(publication_status="draft"))
-    await db.execute(update(CanonicalKnowledgeEntity).where(CanonicalKnowledgeEntity.entity_type == "scholar",
-                                                            CanonicalKnowledgeEntity.source_entity_id.in_(select(TafsirAuthor.id).where(TafsirAuthor.published.is_(True)))).values(publication_status="published"))
+    await db.execute(update(TafsirAuthor).where(TafsirAuthor.published.is_(True), TafsirAuthor.id.not_in(visible_authors)).values(published=False))
+    await db.execute(update(TafsirAuthor).where(TafsirAuthor.published.is_(False), TafsirAuthor.id.in_(visible_authors)).values(published=True))
+    for entity_type, source_ids in (("tafsir_entry", select(TafsirEntry.id).where(TafsirEntry.published.is_(True))),
+                                    ("tafsir_work", select(TafsirCollection.id).where(TafsirCollection.published.is_(True))),
+                                    ("scholar", select(TafsirAuthor.id).where(TafsirAuthor.published.is_(True)))):
+        entity = CanonicalKnowledgeEntity
+        await db.execute(update(entity).where(entity.entity_type == entity_type, entity.publication_status == "published", entity.source_entity_id.not_in(source_ids)).values(publication_status="draft"))
+        await db.execute(update(entity).where(entity.entity_type == entity_type, entity.publication_status != "published", entity.source_entity_id.in_(source_ids)).values(publication_status="published"))
     hidden = select(CanonicalKnowledgeEntity.id).where(CanonicalKnowledgeEntity.publication_status != "published")
-    await db.execute(update(KnowledgeRelationship).values(published=True))
-    await db.execute(update(KnowledgeRelationship).where(KnowledgeRelationship.source_entity_id.in_(hidden)).values(published=False))
-    await db.execute(update(KnowledgeRelationship).where(KnowledgeRelationship.target_entity_id.in_(hidden)).values(published=False))
+    rel = KnowledgeRelationship
+    await db.execute(update(rel).where(rel.published.is_(True), (rel.source_entity_id.in_(hidden)) | (rel.target_entity_id.in_(hidden))).values(published=False))
+    await db.execute(update(rel).where(rel.published.is_(False), rel.source_entity_id.not_in(hidden), rel.target_entity_id.not_in(hidden)).values(published=True))
 
 
-async def apply_manifest_policy(db: AsyncSession, manifest: dict, *, dry_run: bool = False) -> list[dict]:
+async def apply_manifest_policy(db: AsyncSession, manifest: dict, *, dry_run: bool = False, only: Sequence[str] | None = None) -> list[dict]:
+    """Apply the publication decision of every manifest dataset (or only those named in `only`) to the content tables."""
     from app.models.content_contract import DataSet
     datasets = {d.dataset_key: d for d in (await db.scalars(select(DataSet))).all()}
     report: list[dict] = []
     for entry in manifest["datasets"]:
         targets = entry.get("targets") or []
-        if not targets:
+        if not targets or (only is not None and entry["id"] not in only):
             continue
         visible = desired_visibility(datasets.get(entry["id"]))
         touched = []
@@ -123,7 +124,8 @@ async def apply_manifest_policy(db: AsyncSession, manifest: dict, *, dry_run: bo
             kind, count = await _apply_target(db, target, visible)
             touched.append({"kind": kind, "rows": count})
         report.append({"dataset": entry["id"], "visible": visible, "targets": touched})
-    await refresh_dependent_visibility(db)
+    if report or only is None:  # a dataset without content-table targets (knowledge records, directories) leaves the dependent rows untouched
+        await refresh_dependent_visibility(db)
     if dry_run:
         await db.rollback()
     return report

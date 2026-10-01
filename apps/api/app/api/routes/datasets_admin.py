@@ -86,7 +86,7 @@ async def dataset_action(key: str, payload: ActionPayload, db: DbSession, admin:
     service = DatasetService(db)
     dataset = await service.apply_action(key, payload.action, admin, note=payload.note, rights_confirmation=confirmation)
     await db.flush()
-    await apply_manifest_policy(db, load_manifest())
+    await apply_manifest_policy(db, load_manifest(), only=[key])  # only this dataset's content rows can change
     await db.commit()
     clear_verification_cache()
     reset_domains_cache()

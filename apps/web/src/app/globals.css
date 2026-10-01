@@ -159,7 +159,7 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .tj-mushaddadatan{color:#ffd166}.tj-letter-relations{color:#4dd0e1}.tj-tafkheem-tarqeeq{color:#ef7b9b}
 
 /* Knowledge, directory, admin and status pages */
-.knowledge-page{width:min(1100px,calc(100% - 2rem));margin-inline:auto;padding:2rem 0 6rem;display:grid;gap:1rem}
+.knowledge-page{width:min(1100px,calc(100% - 2rem));margin-inline:auto;padding:2rem 0 6rem;display:grid;grid-template-columns:minmax(0,1fr);gap:1rem}
 .knowledge-page h1{font-family:var(--font-display),Georgia,serif;font-size:clamp(2rem,5vw,3.4rem);margin:.2rem 0}
 .knowledge-types{display:flex;flex-wrap:wrap;gap:.5rem}
 .chip{display:inline-flex;align-items:center;padding:.4rem .85rem;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:650;font-size:.88rem;text-decoration:none;cursor:pointer}
@@ -189,3 +189,5 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .grades{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.92rem}
 .grades caption{text-align:start;font-size:.85rem;opacity:.8;padding-bottom:.3rem}
 .grades th,.grades td{border-bottom:1px solid var(--line);padding:.35rem .5rem;text-align:start;vertical-align:top}
+.table-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+.table-scroll .audit-table{min-width:46rem}

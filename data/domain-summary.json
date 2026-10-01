@@ -1,0 +1,943 @@
+{
+ "generated_for": "World of Islam",
+ "as_of": "2026-10-01",
+ "status_counts": {
+  "READY": 1,
+  "RIGHTS_UNVERIFIED": 3,
+  "EMPTY": 12,
+  "SOURCE_BLOCKED": 5,
+  "PUBLISHED": 1
+ },
+ "domains": [
+  {
+   "DOMAIN": "Qur'an",
+   "STATUS": "READY",
+   "COVERAGE": "FULL",
+   "SOURCE": "PyPI quran-text (quran.ws, KFGQPC text) 0.1.0; fawazahmed0/quran-api for the two translations; npm @quran.ws/tajwid-* 0.1.0",
+   "LICENCE": "CC BY 4.0 (text, tajweed); public domain (Pickthall, d. 1936; Yusuf Ali 1934 edition, d. 1953)",
+   "RECORD_COUNT": 6236,
+   "PUBLISHED": 6236,
+   "HIDDEN": 0,
+   "VALIDATION": "VERIFIED",
+   "PROVENANCE": "confidence high; recorded per record",
+   "BLOCKER": [],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [],
+   "EVIDENCE": {
+    "verified": [
+     "Every ayah's text matches its recorded sha256 and traces to an approved source edition (validate_data.py)",
+     "CC BY 4.0 licence of quran-text read from PyPI metadata (2026-10-01)",
+     "6,236 ayahs published (database count)",
+     "Assistant query returns Qur'an passages with source, licence and authority class (live check)"
+    ],
+    "imported": [
+     "6,236 ayahs (Arabic)",
+     "Pickthall and Yusuf Ali (1934) translations",
+     "tajweed rules and spans"
+    ],
+    "unverified": [
+     "Arabic wording against a printed mushaf by a person",
+     "Translation accuracy"
+    ],
+    "assumed": [
+     "Public-domain status of the two translations in every jurisdiction",
+     "Fidelity of the upstream text beyond sha256 consistency"
+    ],
+    "blocked": []
+   }
+  },
+  {
+   "DOMAIN": "Hadith",
+   "STATUS": "RIGHTS_UNVERIFIED",
+   "COVERAGE": "PARTIAL",
+   "SOURCE": "PyPI sahih-al-bukhari 3.1.7, sahih-muslim 1.1.2; npm @kazishariar/nawawi-40-hadith-data 1.0.3",
+   "LICENCE": "Packagers declare AGPL-3.0 (Bukhari, Muslim) and CC BY 4.0 (Nawawi); the classical Arabic works are public domain",
+   "RECORD_COUNT": 15110,
+   "PUBLISHED": 14778,
+   "HIDDEN": 332,
+   "VALIDATION": "NEEDS_REVIEW",
+   "PROVENANCE": "confidence medium; recorded per record",
+   "BLOCKER": [
+    "Owner must confirm the AGPL-3.0 position for redistributing the packaged Arabic text (does not affect the public-domain status of the original work).",
+    "Nawawi-40 upstream compilation is undocumented; 41 of 42 entries cross-checked verbatim against Bukhari/Muslim.",
+    "English translations: translator and publisher permission not documented.",
+    "Hisn al-Muslim and adhkar: upstream not documented."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "rights_established",
+    "validation_passes",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Bukhari and Muslim hadith 1 wording matches the expected text",
+     "Counts: 15,110 narrations, 14,778 published (database)",
+     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim"
+    ],
+    "imported": [
+     "Bukhari 7,277",
+     "Muslim 7,459",
+     "Nawawi-40 42",
+     "Hisn al-Muslim and adhkar 332 (hidden)"
+    ],
+    "unverified": [
+     "Redistribution rights of the packaged Arabic text (AGPL-3.0 declared)",
+     "English translations' rights",
+     "Nawawi-40 upstream"
+    ],
+    "assumed": [
+     "Public-domain status of the classical Arabic originals",
+     "Numbering and diacritics of the packaged editions"
+    ],
+    "blocked": [
+     "Rights decision by the owner"
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Hadith gradings",
+   "STATUS": "RIGHTS_UNVERIFIED",
+   "COVERAGE": "PARTIAL",
+   "SOURCE": "fawazahmed0/hadith-api info.json, git tag 1",
+   "LICENCE": "Unlicense (repository). Rights in the compiled grades are not established.",
+   "RECORD_COUNT": 21185,
+   "PUBLISHED": 0,
+   "HIDDEN": 21185,
+   "VALIDATION": "NEEDS_REVIEW",
+   "PROVENANCE": "confidence medium; recorded per record",
+   "BLOCKER": [
+    "The Unlicense covers only the repository author's own work, not the graders' modern published works that the grades were compiled from.",
+    "Source sites' terms unreachable; the compilation method (scraping) is evidenced by file names.",
+    "Grades not compared with the graders' printed works.",
+    "The five graded collections are not loaded, so no record links to hadith text."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "rights_established",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Contract validation: 21,185 records, 0 failures",
+     "Each grader's grade is stored separately; none inferred",
+     "Repository LICENSE read verbatim (Unlicense); References.md read"
+    ],
+    "imported": [
+     "21,185 records / 67,681 grader entries (hidden)"
+    ],
+    "unverified": [
+     "Rights in the compiled grades",
+     "Accuracy against the graders' printed works",
+     "Whether short grade labels are protected"
+    ],
+    "assumed": [
+     "Grades are as the repository states them"
+    ],
+    "blocked": [
+     "al-maktaba.org, zubairalizai.com terms unreachable"
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Tafsir",
+   "STATUS": "RIGHTS_UNVERIFIED",
+   "COVERAGE": "PARTIAL",
+   "SOURCE": "spa5k/tafsir_api (data compiled from Quran.com / Tarteel QUL / altafsir.com)",
+   "LICENCE": "Original classical works are public domain; the digital editions' own rights are not stated and modern works are in copyright",
+   "RECORD_COUNT": 182320,
+   "PUBLISHED": 0,
+   "HIDDEN": 182320,
+   "VALIDATION": "VERIFIED",
+   "PROVENANCE": "confidence medium; recorded per record",
+   "BLOCKER": [
+    "Rights of the digital editions are not established; modern works need permission from authors/estates/publishers.",
+    "Some editions carry modern editorial notes that would need stripping."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "rights_established",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Per-edition coverage and ayah alignment checks (import time)",
+     "182,320 entries hidden (database count)"
+    ],
+    "imported": [
+     "54 editions, 182,320 entries (hidden)"
+    ],
+    "unverified": [
+     "Rights of every edition",
+     "Absence of modern editorial notes"
+    ],
+    "assumed": [
+     "Attribution of each edition as the repository states it"
+    ],
+    "blocked": [
+     "Rights of digital editions"
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Fiqh",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No openly licensed, verifiable fiqh dataset found.",
+    "@al-mabsut/muslimah rejected: no cited work or page, no content licence."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No openly licensed, verifiable fiqh dataset found.",
+     "@al-mabsut/muslimah rejected: no cited work or page, no content licence."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Aqeedah",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source found."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Seerah",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source found; OpenITI licence not established."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found; OpenITI licence not established."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Scholar biographies",
+   "STATUS": "SOURCE_BLOCKED",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).",
+    "OpenITI licence not established."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).",
+     "OpenITI licence not established."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Islamic terminology",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source found."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Islamic history",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source found."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Islamic civilization",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source found."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source found."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Libraries, books and catalogues",
+   "STATUS": "SOURCE_BLOCKED",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).",
+    "OpenITI licence not established.",
+    "PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).",
+     "OpenITI licence not established.",
+     "PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Mosques",
+   "STATUS": "PUBLISHED",
+   "COVERAGE": "PARTIAL",
+   "SOURCE": "GeoAlgeria @geoalgeria/mosquees 2.0.4 (composite of Wikidata and OpenStreetMap)",
+   "LICENCE": "ODbL 1.0 (OpenStreetMap-derived records) and CC0-1.0 (Wikidata records); package code MIT",
+   "RECORD_COUNT": 19781,
+   "PUBLISHED": 19776,
+   "HIDDEN": 5,
+   "VALIDATION": "VERIFIED",
+   "PROVENANCE": "confidence high; recorded per record",
+   "BLOCKER": [
+    "Algeria only.",
+    "Community composite, not an official registry; individual mosques are not verified in person.",
+    "Known source-quality anomalies are retained unchanged (e.g. a former synagogue classified as a mosque by Wikidata); see data/source-quality-notes.json."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "assistant_can_cite",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Package LICENSE and dataset-metadata read (ODbL + CC0)",
+     "Download integrity (sha512) and tarball sha256 recorded",
+     "All coordinates inside Algeria's bounding box; ids unique; validate_data.py passes",
+     "Source identifiers preserved on every listing"
+    ],
+    "imported": [
+     "19,781 listings (19,776 visible)"
+    ],
+    "unverified": [
+     "Each mosque's existence and details",
+     "Commune assignment (derived by the source)",
+     "Records flagged by the conflict check (282 co-located different names, 38 similar names, 8 non-mosque names)"
+    ],
+    "assumed": [
+     "That the platform's directory needs only attribution for ODbL (share-alike may apply)",
+     "Upstream OSM/Wikidata accuracy"
+    ],
+    "blocked": [
+     "No source for other countries reachable"
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Organisations",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source reachable or found; Wikidata and OpenStreetMap unreachable."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source reachable or found; Wikidata and OpenStreetMap unreachable."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Events",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Organiser-supplied only; Hijri calendar libraries carry no cited authority."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Organiser-supplied only; Hijri calendar libraries carry no cited authority."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Charities",
+   "STATUS": "SOURCE_BLOCKED",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "National charity registers unreachable (2026-10-01).",
+    "A register does not say whether a charity is Muslim."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "National charity registers unreachable (2026-10-01).",
+     "A register does not say whether a charity is Muslim."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Volunteering",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Businesses",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No open dataset identifies Muslim-owned businesses."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No open dataset identifies Muslim-owned businesses."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Professionals",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Self-registration with moderation is the legitimate route; none registered."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Self-registration with moderation is the legitimate route; none registered."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Health services",
+   "STATUS": "EMPTY",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "No source."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "No source."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Jobs",
+   "STATUS": "SOURCE_BLOCKED",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Job APIs unreachable and need keys and terms acceptance (2026-10-01)."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Job APIs unreachable and need keys and terms acceptance (2026-10-01)."
+    ]
+   }
+  },
+  {
+   "DOMAIN": "Recitation audio",
+   "STATUS": "SOURCE_BLOCKED",
+   "COVERAGE": "NONE",
+   "SOURCE": null,
+   "LICENCE": null,
+   "RECORD_COUNT": 0,
+   "PUBLISHED": 0,
+   "HIDDEN": 0,
+   "VALIDATION": "NOT_RUN",
+   "PROVENANCE": "confidence none; no records",
+   "BLOCKER": [
+    "Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).",
+    "Reciter and publisher redistribution terms not documented in an accessible form."
+   ],
+   "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
+   "GATES_NOT_MET": [
+    "real_source",
+    "provenance_documented",
+    "rights_established",
+    "retrievable_or_present",
+    "schema_maps_without_invention",
+    "validation_passes",
+    "duplicates_conflicts_deterministic",
+    "record_level_provenance",
+    "ui_shows_verification_status",
+    "assistant_can_cite",
+    "lifecycle_tests",
+    "actually_verified"
+   ],
+   "EVIDENCE": {
+    "verified": [
+     "Importer, validators and empty state exist and are tested; the database holds 0 records for this domain"
+    ],
+    "imported": [],
+    "unverified": [],
+    "assumed": [],
+    "blocked": [
+     "Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).",
+     "Reciter and publisher redistribution terms not documented in an accessible form."
+    ]
+   }
+  }
+ ]
+}

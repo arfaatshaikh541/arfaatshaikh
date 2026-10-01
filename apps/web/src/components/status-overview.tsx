@@ -36,7 +36,7 @@ export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
         {domains && (
           <>
             <p>{Object.entries(domains.summary).map(([k, v]) => `${DOMAIN_STATUS_LABEL[k]?.[ar ? "ar" : "en"] ?? k}: ${v}`).join(" · ")}</p>
-            <table className="audit-table" data-testid="domain-dashboard">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label={ar ? "جدول جاهزية المجالات" : "Domain readiness table"}><table className="audit-table" data-testid="domain-dashboard">
               <thead><tr><th>{ar ? "المجال" : "Domain"}</th><th>{ar ? "الحالة" : "Status"}</th><th>{ar ? "السجلات" : "Records"}</th><th>{ar ? "المصدر والترخيص" : "Source and licence"}</th><th>{ar ? "لماذا ليس جاهزاً" : "Why not ready"}</th></tr></thead>
               <tbody>{domains.domains.map((d) => (
                 <tr key={d.domain}>
@@ -46,7 +46,7 @@ export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
                   <td>{d.source ?? "—"}<br /><small>{d.licence ?? ""}</small></td>
                   <td>{d.status === "READY" ? "—" : <ul>{d.blockers.slice(0, 3).map((b, i) => <li key={i}><small>{b}</small></li>)}{d.blockers.length === 0 && <li><small>{d.why_not_ready.find((w) => w.kind === "gate")?.evidence}</small></li>}</ul>}</td>
                 </tr>))}</tbody>
-            </table>
+            </table></div>
             <p className="tool-note">{ar ? "تحقّقٌ آلي فقط؛ لم تتم مراجعة بشرية علمية أو قانونية." : "Automated checks only; no human scholarly or legal review has taken place."} {domains.as_of}</p>
           </>
         )}
@@ -62,8 +62,8 @@ export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
         <h2>{ar ? "المصادر والتراخيص" : "Sources and licences"}</h2>
         {!manifest && <p aria-busy="true">…</p>}
         {manifest && (
-          <table className="audit-table"><thead><tr><th>{ar ? "المصدر" : "Source"}</th><th>{ar ? "الترخيص" : "Licence"}</th><th>{ar ? "الحالة" : "Status"}</th><th>{ar ? "عام" : "Public"}</th></tr></thead>
-            <tbody>{manifest.datasets.map((d) => <tr key={d.id}><td><strong>{d.name}</strong><br /><small>{d.source.name}{d.source.version ? ` ${d.source.version}` : ""}</small></td><td>{d.license.name}<br /><small>{d.license.status}</small></td><td>{READINESS_LABEL[d.readiness]?.[ar ? "ar" : "en"] ?? d.readiness}{d.remaining_action ? <><br /><small>{d.remaining_action}</small></> : null}</td><td>{d.public ? (ar ? "نعم" : "Yes") : (ar ? "لا" : "No")}</td></tr>)}</tbody></table>
+          <div className="table-scroll" tabIndex={0} role="region" aria-label={ar ? "جدول المصادر" : "Sources table"}><table className="audit-table"><thead><tr><th>{ar ? "المصدر" : "Source"}</th><th>{ar ? "الترخيص" : "Licence"}</th><th>{ar ? "الحالة" : "Status"}</th><th>{ar ? "عام" : "Public"}</th></tr></thead>
+            <tbody>{manifest.datasets.map((d) => <tr key={d.id}><td><strong>{d.name}</strong><br /><small>{d.source.name}{d.source.version ? ` ${d.source.version}` : ""}</small></td><td>{d.license.name}<br /><small>{d.license.status}</small></td><td>{READINESS_LABEL[d.readiness]?.[ar ? "ar" : "en"] ?? d.readiness}{d.remaining_action ? <><br /><small>{d.remaining_action}</small></> : null}</td><td>{d.public ? (ar ? "نعم" : "Yes") : (ar ? "لا" : "No")}</td></tr>)}</tbody></table></div>
         )}
       </section>
     </main>

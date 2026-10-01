@@ -18,7 +18,24 @@ export class ApiError extends Error {
 export function setCsrfToken(token: string | null) { csrfToken = token; }
 export function getCsrfToken() { return csrfToken; }
 
+/**
+ * The server keeps one CSRF token per session and issues a new one whenever any page loads (/auth/csrf), so a second tab invalidates the
+ * first tab's token. A write that fails with csrf_failed therefore fetches the current token once and is retried once; a second
+ * failure is reported as it is.
+ */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  try {
+    return await request<T>(path, init);
+  } catch (error) {
+    const write = !["GET", "HEAD", "OPTIONS"].includes((init.method ?? "GET").toUpperCase());
+    if (!(error instanceof ApiError && error.status === 403 && error.code === "csrf_failed" && write && path !== "/auth/csrf")) throw error;
+    const refreshed = await request<{ csrf_token: string }>("/auth/csrf", {});
+    setCsrfToken(refreshed.csrf_token);
+    return request<T>(path, init);
+  }
+}
+
+async function request<T>(path: string, init: RequestInit): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes((init.method ?? "GET").toUpperCase())) {

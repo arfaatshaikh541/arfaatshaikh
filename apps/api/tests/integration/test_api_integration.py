@@ -425,3 +425,21 @@ async def test_importer_lifecycle_preview_run_idempotent_failsafe_and_rollback(a
 async def test_directory_coverage_states_only_the_countries_that_have_data(app_client):
     body = (await app_client.get("/api/v1/directory/coverage")).json()
     assert "items" in body and "countries_by_type" in body and "absence" in body["statement"]
+
+
+async def test_publication_policy_can_be_scoped_to_one_dataset(app_client):
+    """An administrator's action touches only that dataset's content rows (a full pass takes minutes on a populated database)."""
+    from app.core.config import get_settings
+    from app.db.session import Database
+    from app.services.manifest import load_manifest
+    from app.services.publication_policy import apply_manifest_policy
+    db = Database(get_settings())
+    async with db.session_factory() as session:
+        manifest = load_manifest()
+        assert await apply_manifest_policy(session, manifest, only=["directory-mosques"]) == []          # no content-table targets: nothing to do
+        scoped = await apply_manifest_policy(session, manifest, only=["quran-translation-pickthall"])
+        assert [r["dataset"] for r in scoped] == ["quran-translation-pickthall"]
+        everything = await apply_manifest_policy(session, manifest)
+        assert len(everything) > 5 and "quran-translation-pickthall" in {r["dataset"] for r in everything}
+        await session.rollback()
+    await db.dispose()

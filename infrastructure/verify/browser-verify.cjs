@@ -23,7 +23,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 async function api(page, path, init) { return page.evaluate(async ([p, i]) => { const r = await fetch(p, { credentials: "include", ...(i || {}) }); let b = null; try { b = await r.json(); } catch {} return { status: r.status, body: b }; }, [BASE + "/api/v1" + path, init]); }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--host-resolver-rules=MAP woi.test 127.0.0.1"] });
+  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--proxy-server=direct://", "--host-resolver-rules=MAP woi.test 127.0.0.1"] });
 
   // ------------------------------------------------------------ public pages (anonymous)
   let ctx = await newContext(browser); let page = await ctx.newPage();
@@ -64,7 +64,7 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   record("fiqh page: exact empty-state wording", (await text(page)).includes("Verified Fiqh sources have not yet been imported."));
   await page.goto(`${BASE}/en/quran/1`, { waitUntil: "networkidle" });
   t = await text(page);
-  record("quran reader: Arabic text from the database and the audio notice", /بِسْمِ|بسم/.test(t) && t.includes("Recitation audio is not currently available for redistribution."));
+  record("quran reader: Arabic text from the database and the audio notice", (t.match(/Copy citation/g) || []).length >= 7 && /[\u0600-\u06FF]{4,}/.test(t) && t.includes("Recitation audio is not currently available for redistribution."));
   await page.goto(`${BASE}/en/hadith`, { waitUntil: "networkidle" });
   record("hadith reader loads published collections", /Bukhari|Muslim/i.test(await text(page)));
   await ctx.close();
@@ -147,12 +147,12 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   record("import applied (created 2)", true);
   let pub = await api(page, "/directory/listings?type=job");
   record("imported but unpublished jobs are not public", pub.body.total === 0, pub.body.total);
-  await jobs.getByRole("button", { name: "Publish" }).click();
+  await jobs.getByRole("button", { name: "Publish", exact: true }).click();
   await page.waitForSelector("text=/cannot be published|validation status/i", { timeout: 15000 });
   record("publishing before verification is refused with reasons", true);
   await jobs.getByRole("button", { name: "Mark verified" }).click();
   await page.waitForSelector("text=Done.");
-  await jobs.getByRole("button", { name: "Publish" }).click();
+  await jobs.getByRole("button", { name: "Publish", exact: true }).click();
   await page.waitForTimeout(2500);
   pub = await api(page, "/directory/listings?type=job");
   record("after verify+publish only the open job is public; the expired job is excluded", pub.body.total === 1 && pub.body.items[0].name === "Fixture Job Open", JSON.stringify(pub.body.items.map((i) => i.name)));
@@ -187,15 +187,24 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await page.waitForSelector("text=Created 2");
   await events.getByRole("button", { name: "Mark verified" }).click(); await page.waitForSelector("text=Done.");
-  await events.getByRole("button", { name: "Publish" }).click(); await page.waitForTimeout(2500);
+  await events.getByRole("button", { name: "Publish", exact: true }).click(); await page.waitForTimeout(2500);
   const evPub = await api(page, "/directory/listings?type=event");
   record("completed events stay excluded; upcoming event is shown", evPub.body.total === 1 && evPub.body.items[0].name === "Fixture Event Upcoming", JSON.stringify(evPub.body.items.map((i) => i.name)));
   await events.getByRole("button", { name: "Unpublish" }).click(); await page.waitForTimeout(1500);
   await page.screenshot({ path: "/tmp/shots/prod-admin-datasets.png" });
 
+  // assistant: cites primary sources with authority labels; abstains when nothing sufficient exists
+  const ask = async (q) => { await page.goto(`${BASE}/en/assistant`, { waitUntil: "networkidle" }); await page.fill("#assistant-question", q); await page.getByRole("button", { name: "Find grounded answer" }).click(); await page.waitForTimeout(6000); return text(page); };
+  let at = await ask("What does the Qur'an say about patience in hardship?");
+  record("assistant cites Qur'an passages as primary sources with verification state, source and licence", /Primary source/.test(at) && /source edition approved for retrieval/.test(at) && /Qur'an \d+:\d+/.test(at) && /Public domain|CC BY/i.test(at), (at.match(/Primary source[^\n]*/) || [""])[0]);
+  await page.screenshot({ path: "/tmp/shots/prod-assistant-cited.png" });
+  at = await ask("What do the sources say about quantum entanglement in blockchain mining?");
+  record("assistant abstains and says no sufficiently reliable source is available", /Insufficient verified sources/.test(at) && /No sufficiently reliable source is available/.test(at), at.slice(0, 200).replace(/\n/g, " "));
+
   // audit log shows every action
+  await page.goto(`${BASE}/en/admin/data`, { waitUntil: "networkidle" });
   await page.click('role=tab[name="Audit log"]');
-  await page.waitForSelector("table.audit-table");
+  await page.waitForSelector("table.audit-table tbody tr"); await page.waitForTimeout(500);
   const audit = await page.innerText("table.audit-table");
   record("audit log records import, verify, publish, unpublish and rollback", ["dataset.import_listings", "dataset.mark_verified", "dataset.publish", "dataset.unpublish", "dataset.import_rolled_back"].every((a) => audit.includes(a)), audit.slice(0, 100));
   await ctx.close();

@@ -1,7 +1,6 @@
 """Source-sensitive validation. These tests FAIL if provenance, licence status, sources or identifiers are missing,
 so a release cannot silently ship unsourced religious content."""
 import copy
-import importlib.util
 import re
 import subprocess
 import sys
@@ -169,3 +168,20 @@ def test_visibility_requires_enabled_published_licensed_and_verified(kw, expecte
 def test_published_json_schemas_match_the_models():
     result = subprocess.run([sys.executable, str(ROOT / "apps" / "api" / "scripts" / "export_schemas.py"), "--check"], cwd=ROOT / "apps" / "api")
     assert result.returncode == 0, "data/contracts/*.json is stale: run scripts/export_schemas.py"
+
+
+def test_manifest_path_works_in_the_container_layout(monkeypatch, tmp_path):
+    """In the production image the module lives at /app/app/services/manifest.py (too shallow for parents[4]); the data dir is found via WOI_MANIFEST_PATH."""
+    import app.services.manifest as manifest_module
+    (tmp_path / "source-manifest.json").write_text("{}")
+
+    class Shallow:
+        def resolve(self):
+            return self
+
+        @property
+        def parents(self):
+            return [Path("/app/app/services"), Path("/app/app"), Path("/app")]
+    monkeypatch.setattr(manifest_module, "Path", lambda *a, **k: Shallow() if a == (manifest_module.__file__,) else Path(*a, **k))
+    monkeypatch.setenv("WOI_MANIFEST_PATH", str(tmp_path / "source-manifest.json"))
+    assert manifest_module.manifest_path() == tmp_path / "source-manifest.json"

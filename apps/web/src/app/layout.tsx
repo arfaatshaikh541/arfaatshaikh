@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   // and carries its own indexable metadata; the application itself must never
   // be indexed or linked from search results.
   robots: { index: false, follow: false, nocache: true },
+  // Declared explicitly: without it browsers ask for /favicon.ico at the host root, which does not exist (a 404 on every page).
+  icons: { icon: [{ url: `${process.env.NEXT_PUBLIC_WOI_BASE_PATH ?? ""}/icon.svg`, type: "image/svg+xml" }] },
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

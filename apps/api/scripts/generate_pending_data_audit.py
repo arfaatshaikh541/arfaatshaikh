@@ -17,8 +17,8 @@ CLAIMS = [
     ("19,781 mosque listings, 19,776 visible, 5 duplicates hidden", "SQL counts on the working database", "CONFIRMED"),
     ("21,185 hadith gradings / 67,681 grader entries, hidden", "SQL counts; public `/knowledge/records` returned 0 for the type", "CONFIRMED (hidden)"),
     ("13 validation rules pass", "Ran `scripts/validate_data.py` on the populated database", "CONFIRMED (now 14 rules after this pass)"),
-    ("Admin preview, unpublish, provenance/history exist", "Read `datasets_admin.py` and `admin-data-panel.tsx`", "CONFIRMED in code; the screens had NOT been clicked through (done in this pass)"),
-    ("Browser checks passed on the production stack", "The report said development server only", "CONFIRMED as a limitation: production Docker/nginx verification had not been done (done in this pass)"),
+    ("Admin preview, unpublish, provenance/history exist", "Read `datasets_admin.py` and `admin-data-panel.tsx`; then clicked through every step in Chromium against the production-like stack", "CONFIRMED in code and in the browser (53 checks, see the report). The click-through found a real defect: an admin action took minutes on a populated database (fixed)"),
+    ("Browser checks passed on the production stack", "The report said development server only", "CONFIRMED as a limitation, then closed: the production API and web images behind nginx with TLS were run and checked (without MinIO, Ollama, worker or backup; see `infrastructure/verify/README.md`)"),
     ("Hadith gradings: Zubair Ali Za'i's references are 'named' in References.md", "Re-read References.md", "CONFIRMED: the file names zubairalizai.com with no page"),
     ("Mosque anomaly: one former synagogue", "Keyword scan of every imported name", "INCOMPLETE: the scan found 7 more records with 'Chapel'/'Temple' in their names (see `data/source-quality-notes.json`); cause unknown"),
     ("Domain status vocabulary (READY, PARTIALLY_READY, ...)", "Compared with the requested vocabulary", "REPLACED by EMPTY ... READY with twelve gates (`data/domain-readiness.json`)"),
@@ -75,7 +75,10 @@ def render(registry: dict) -> str:
             "4. Mosque data lacked source identifiers in a first-class place, coverage statements, and conflict reports: added the GeoAlgeria id, a coverage endpoint and UI statement, and duplicate/similar/co-located/non-mosque-name candidates (reported, never corrected).",
             "5. The assistant treated every record alike: every cited item now carries an authority class and verification state.",
             "6. No data-quality report and no Arabic review list: added both.",
-            "7. The admin screens had not been exercised in a browser and production Docker/nginx verification had not been done: see the final report for what was and was not verified.", ""]
+            "7. The admin screens had not been exercised in a browser and production verification had not been done. Running the real images found and fixed: `manifest_path()` raised `IndexError` inside the container (every manifest and registry endpoint returned 500); every dataset action rewrote all rows of every large table (minutes on a populated database) and is now scoped and conditional (14 s for a full pass, under a second for one dataset); a second browser tab invalidated the first tab's CSRF token (writes failed with 403; the client now refreshes and retries once); the status table overflowed on phones; browsers requested a missing `/favicon.ico` on every page; cited passages showed attribution text but not the licence name.",
+            "",
+            "## Defects in the data that were found and left as they are", "",
+            "See [`DATA_QUALITY_REPORT.md`](DATA_QUALITY_REPORT.md) and `data/source-quality-notes.json`: eight mosque records whose names mention another kind of building (including the former-synagogue record), 282 pairs of differently named mosques within 25 m, 38 pairs of near-identical names within 100 m. They are reported for human review and never rewritten.", ""]
     return "\n".join(out)
 
 

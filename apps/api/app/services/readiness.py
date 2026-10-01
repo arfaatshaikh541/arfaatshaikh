@@ -29,7 +29,7 @@ WITH_RECORDS = {"IMPORTED", "VALIDATED", "PUBLISHED", "READY"}
 WITHOUT_RECORDS = {"EMPTY", "SOURCE_BLOCKED", "SOURCE_UNVERIFIED", "IMPORT_READY"}
 REQUIRED = ("domain", "label", "tier", "status", "coverage", "scope", "source", "source_url", "source_version", "source_type", "licence", "licence_evidence", "attribution",
             "provenance_confidence", "data_quality_confidence", "import_availability", "last_successful_retrieval", "records", "validation_status", "publication_status",
-            "blockers", "notes", "gates", "datasets", "published_datasets", "verified_by", "last_verified")
+            "blockers", "notes", "gates", "datasets", "published_datasets", "verified_by", "last_verified", "verification_classes")
 
 
 def registry_path() -> Path:
@@ -61,6 +61,8 @@ def validate_registry(registry: dict, manifest: dict) -> list[str]:
         if any(key not in d for key in REQUIRED):
             continue
         status, records, g = d["status"], d["records"], d["gates"]
+        if set(d["verification_classes"]) != {"verified", "imported", "unverified", "assumed", "blocked"}:
+            problems.append(f"{where}: verification_classes must have exactly verified, imported, unverified, assumed, blocked")
         if status not in STATUSES:
             problems.append(f"{where}: invalid status {status}")
             continue
@@ -158,7 +160,7 @@ def summarise(registry: dict, live: dict | None = None) -> dict:
         evaluated = evaluate_domain(d, live)
         rows.append({k: d[k] for k in ("domain", "label", "tier", "coverage", "scope", "coverage_note", "source", "source_url", "source_version", "source_type", "licence", "licence_evidence", "attribution",
                                         "provenance_confidence", "data_quality_confidence", "import_availability", "importer", "last_successful_retrieval", "validation_status", "publication_status",
-                                        "blockers", "notes", "candidates_examined", "verified_by", "last_verified")} | {"status": evaluated["status"], "declared_status": evaluated["declared_status"],
+                                        "blockers", "notes", "candidates_examined", "verified_by", "last_verified", "verification_classes")} | {"status": evaluated["status"], "declared_status": evaluated["declared_status"],
                     "records": evaluated["counts"], "registry_out_of_date": evaluated["registry_out_of_date"], "why_not_ready": evaluated["why_not_ready"],
                     "gates": d["gates"]})
     by_status: dict[str, int] = {}

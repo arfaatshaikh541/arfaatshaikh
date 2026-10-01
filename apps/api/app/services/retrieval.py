@@ -127,7 +127,7 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
     assistant can never surface evidence the retrieval API itself would withhold.
     """
     from app.models.retrieval import RetrievalChunk, RetrievalDocument
-    from app.models.sources import SourceEdition, SourcePassage
+    from app.models.sources import SourceEdition, SourceLicence, SourcePassage
 
     allowed = set(corpora) & ALLOWED_CORPORA
     if not allowed:
@@ -137,9 +137,10 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
         return []
     term_match = or_(*(RetrievalChunk.text.ilike(f"%{term}%") for term in terms))
     stmt = (
-        select(RetrievalChunk, RetrievalDocument)
+        select(RetrievalChunk, RetrievalDocument, SourceLicence.name)
         .join(RetrievalDocument, RetrievalDocument.id == RetrievalChunk.document_id)
         .join(SourceEdition, SourceEdition.id == RetrievalDocument.source_edition_id)
+        .outerjoin(SourceLicence, SourceLicence.id == SourceEdition.licence_id)
         .join(SourcePassage, SourcePassage.id == RetrievalDocument.source_passage_id)
         .where(
             RetrievalChunk.active.is_(True), RetrievalDocument.active.is_(True),
@@ -156,7 +157,9 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
             chunk_id=str(chunk.id), document_id=str(doc.id), corpus_type=doc.corpus_type,
             canonical_reference=doc.canonical_reference, source_edition_id=str(doc.source_edition_id),
             source_passage_id=str(doc.source_passage_id), exact_text=chunk.text, text_sha256=chunk.text_sha256,
-            attribution=doc.attribution_snapshot, licence=doc.licence_snapshot,
+            attribution=doc.attribution_snapshot,
+            # the licence's name first (what a reader needs to judge it), then the attribution text recorded with it
+            licence=f"{licence_name}. {doc.licence_snapshot}" if licence_name and licence_name not in doc.licence_snapshot else doc.licence_snapshot,
         )
-        for chunk, doc in rows
+        for chunk, doc, licence_name in rows
     ]

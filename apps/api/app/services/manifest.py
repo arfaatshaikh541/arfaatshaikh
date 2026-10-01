@@ -17,7 +17,10 @@ REQUIRED_TEXT = ("id", "name", "purpose", "category", "entity_type", "provenance
 
 
 def manifest_path() -> Path:
-    candidates = [os.environ.get("WOI_MANIFEST_PATH"), str(Path(__file__).resolve().parents[4] / "data" / "source-manifest.json"), "/app/data/source-manifest.json"]
+    parents = Path(__file__).resolve().parents
+    # In the container this file is /app/app/services/manifest.py, which has no fourth parent: never index blindly.
+    in_repo = str(parents[4] / "data" / "source-manifest.json") if len(parents) > 4 else None
+    candidates = [os.environ.get("WOI_MANIFEST_PATH"), in_repo, "/app/data/source-manifest.json"]
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return Path(candidate)
