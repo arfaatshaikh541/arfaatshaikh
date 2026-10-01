@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -88,7 +89,7 @@ class QuranService:
         progress, reference = row; return {"ayah_id": progress.ayah_id, "canonical_reference": reference, "translation_edition_id": progress.translation_edition_id}
 
 
-    async def get_preferences(self, user_id: UUID) -> dict:
+    async def get_preferences(self, user_id: UUID) -> Any:
         preference = await self.db.scalar(select(QuranReaderPreference).where(QuranReaderPreference.user_id == user_id))
         if not preference:
             return {"id": UUID(int=0), "translation_edition_id": None, "show_translation": True, "arabic_font_scale": 100, "theme": "system"}
@@ -184,6 +185,8 @@ class QuranService:
         else:
             progress = QuranPlaybackProgress(user_id=user_id, **values); self.db.add(progress)
         ayah = await self.db.get(QuranAyah, audio.ayah_id)
+        if ayah is None:  # the audio row references an ayah; its absence is a data-integrity error, not a None to dereference
+            raise AppError("ayah_not_found", "The ayah for this recording does not exist.", 404)
         await self.db.flush()
         return {**values, "canonical_reference": ayah.canonical_reference}
 

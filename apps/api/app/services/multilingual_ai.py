@@ -49,7 +49,7 @@ def normalize_text(text: str, language: str) -> str:
     value = unicodedata.normalize("NFKC", text).strip()
     if language in ARABIC_SCRIPT_LANGUAGES:
         value = _ARABIC_DIACRITICS.sub("", value)
-        value = value.translate(str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه"}))
+        value = value.translate(str.maketrans("أإآٱىة", "اااايه"))
     value = _SPACE.sub(" ", value)
     return value.casefold()
 

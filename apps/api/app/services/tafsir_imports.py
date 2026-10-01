@@ -136,10 +136,10 @@ class TafsirImportService:
                     errors.append(f"volume {item.volume_number} metadata conflicts")
                 volumes[item.volume_number] = signature
             if item.section_key:
-                signature = (item.section_type, item.section_title, item.section_sort_order, item.section_source_passage_id, item.volume_number)
-                if item.section_key in sections and sections[item.section_key] != signature:
+                section_signature = (item.section_type, item.section_title, item.section_sort_order, item.section_source_passage_id, item.volume_number)
+                if item.section_key in sections and sections[item.section_key] != section_signature:
                     errors.append(f"section {item.section_key} metadata conflicts")
-                sections[item.section_key] = signature
+                sections[item.section_key] = section_signature
         return errors
 
     async def validate_batch(self, batch_id: UUID, actor_id: UUID) -> TafsirImportBatch:

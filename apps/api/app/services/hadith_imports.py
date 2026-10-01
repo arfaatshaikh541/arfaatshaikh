@@ -316,7 +316,7 @@ class HadithImportService:
     def _hierarchy_errors(items: list[HadithImportNarration]) -> list[str]:
         errors: list[str] = []
         books: dict[int, tuple[str, str, UUID]] = {}
-        chapters: dict[tuple[int, int], tuple[str, str, UUID]] = {}
+        chapters: dict[tuple[int, int], tuple[str, str, UUID | None]] = {}
         for item in items:
             book_value = (item.book_arabic_title, item.book_display_title, item.book_source_passage_id)
             if item.book_number in books and books[item.book_number] != book_value:

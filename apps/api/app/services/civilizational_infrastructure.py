@@ -31,7 +31,7 @@ def compute_archive_manifest(*,archive_slug:str,version:str,objects:list[dict[st
     if not objects:raise ValueError('archive objects are required')
     rows=[]
     for o in objects:
-        path=str(o.get('path','')).strip(); digest=str(o.get('sha256','')); size=int(o.get('size_bytes',-1))
+        path=str(o.get('path','')).strip(); digest=str(o.get('sha256','')); size=int(str(o.get('size_bytes',-1)))
         if not path or path.startswith('/') or '..' in path.split('/'):raise ValueError('unsafe archive path')
         if not _sha(digest) or size<0:raise ValueError('invalid archive object')
         rows.append(f'{path}|{digest}|{size}')

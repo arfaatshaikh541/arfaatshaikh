@@ -1,54 +1,35 @@
 # Offline support
 
-## What's real
+Offline is limited to what may lawfully be stored on a device, and the Offline page (`/{locale}/offline`) states plainly
+what works without a connection and what does not.
 
-`apps/web/public/sw.js` is a minimal, hand-written service worker (no
-`next-pwa` or similar dependency added) registered by
-`apps/web/src/components/service-worker-registration.tsx` at the
-deployment's actual base path (`NEXT_PUBLIC_WOI_BASE_PATH`, mirrored from
-`WOI_BASE_PATH` in `next.config.ts`).
+| Capability | Offline? | How |
+|---|---|---|
+| Qur'an Arabic text (CC BY 4.0) | Yes, after the reader downloads it | Explicit download on the Offline page; stored in IndexedDB (`src/lib/offline.ts`); the Qur'an reader falls back to it when the API is unreachable |
+| Search within the downloaded Qur'an text | Yes | Diacritic-insensitive search over IndexedDB |
+| Layout of public pages already visited | Yes | Service worker (`public/sw.js`), network-first with cached fallback; hashed build assets cache-first |
+| Bookmarks made while offline | Queued, synced on reconnect | IndexedDB outbox, replayed in order on the `online` event; newest write per key wins; a write the server rejects (4xx) is dropped as a conflict |
+| Translations, tafsir, hadith, assistant, unified search, directory | **No** (needs internet) | Their rights or size do not permit on-device copies |
 
-It caches exactly two things:
-- **Pages you have actually visited**, network-first (so a signed-in session
-  and fresh content are always preferred over anything cached), falling
-  back to the cached copy of that exact page only when the network is
-  unreachable.
-- **`_next/static/**` build assets**, cache-first (safe because every such
-  URL already contains a content hash and never changes meaning).
+## Rules the implementation follows
 
-It explicitly never intercepts anything under `/api/` (session-sensitive,
-must always be live) or cross-origin requests.
+- Only the Arabic text is downloaded: the reading request is made **without** a translation, so no translation whose
+  rights are unconfirmed is ever copied to a device.
+- The service worker never intercepts `/api/`, cross-origin requests, or non-GET requests, and never caches account,
+  admin or authentication pages (`PRIVATE_PATHS` in `sw.js`).
+- The worker is registered at the deployment base path (`NEXT_PUBLIC_WOI_BASE_PATH`) so it works at `/` and at
+  `/worldofislam`.
+- Downloads are paced and retry on HTTP 429, staying inside the server's request-rate limits.
 
-`apps/web/src/app/manifest.ts` provides installable-app metadata (name,
-theme colors, one SVG icon derived from the existing brand mark). `start_url`
-and the icon path are both relative, so they resolve correctly under any
-base path without hardcoding one.
+## What was verified (real browser, Playwright, through the production nginx stack)
 
-## What was actually verified (Playwright, real browser, not simulated)
+- Service worker registered with scope `/worldofislam/`.
+- Download of the Qur'an text into IndexedDB; with the browser set offline, `/en/quran/1` rendered from the device copy
+  with an "Offline copy (Arabic text only)" notice; offline search returned ayahs.
+- Unit tests (`src/lib/offline.test.ts`, fake-indexeddb): storage, diacritic-insensitive search, newest-write-wins queue,
+  ordered replay, conflict drop, stop-on-network-failure.
 
-1. Built the production app with `WOI_BASE_PATH=/worldofislam`, served it
-   with the standalone server, confirmed `GET /worldofislam/manifest.webmanifest`,
-   `GET /worldofislam/sw.js`, and `GET /worldofislam/icon.svg` all return `200`.
-2. Loaded `/worldofislam/en/w`, waited for the service worker to reach
-   `activated` state at scope `http://.../worldofislam/`, then visited a
-   second page.
-3. Set the browser context fully offline (`context.setOffline(true)`) and
-   reloaded the **first** page: it returned HTTP `200` from the cache with
-   the real, correct page content (not a browser offline error page).
+## Not verified
 
-See `docs/archive/WORLD_OF_ISLAM_FINAL_REPORT.md` for the exact command/output log.
-
-## What this does NOT do (by design, not oversight)
-
-- **No Islamic knowledge content (Qur'an/Hadith/Tafsir text) is cached or
-  bundled for offline use.** This dev environment's database has no
-  imported corpus to cache in the first place, and caching real source text
-  offline deserves its own licensing review before being added - "offline
-  Qur'an" and "Offline Islam" remain `planned` in the feature registry, not
-  `available`.
-- No background sync, no IndexedDB data layer, no conflict resolution for
-  offline-created content - there is no offline-capable read/write feature
-  in this app yet, only a read-only shell cache.
-- Cross-browser/cross-platform install behavior (Safari, Firefox, various
-  Android/iOS home-screen install flows) is **NOT VERIFIED** - only Chromium
-  via Playwright was exercised.
+- Behaviour on iOS Safari (storage eviction rules differ) and on very low-storage devices.
+- Background sync while the tab is closed (replay happens when a tab is open and the browser reports it is online).

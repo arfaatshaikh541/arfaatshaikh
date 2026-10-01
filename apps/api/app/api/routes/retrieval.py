@@ -16,7 +16,7 @@ async def query_retrieval(payload: RetrievalQueryRequest, db: DbSession, _: Anno
     corpora = set(payload.corpora)
     if not corpora.issubset(ALLOWED_CORPORA):
         raise HTTPException(status_code=422, detail="unsupported corpus requested")
-    evidence = await search_evidence(db, corpora, payload.query, payload.limit)
+    evidence = await search_evidence(db, sorted(corpora), payload.query, payload.limit)
     return {"policy_version": "retrieval-v1", "insufficient": len(evidence) == 0, "evidence": [
         {"chunk_id": item.chunk_id, "corpus_type": item.corpus_type, "canonical_reference": item.canonical_reference,
          "exact_text": item.exact_text, "text_sha256": item.text_sha256, "source_edition_id": item.source_edition_id,

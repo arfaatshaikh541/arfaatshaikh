@@ -1,10 +1,8 @@
 import type { MetadataRoute } from "next";
 
-// Installable app-shell metadata. Deliberately does not declare any content
-// (Qur'an/Hadith/Tafsir) as "available offline" - the service worker
-// (public/sw.js) caches only the shell and previously-visited pages, never
-// any Islamic knowledge content, which this dev environment has none of
-// anyway. See docs/deployment/offline.md.
+// Installable app-shell metadata. The service worker (public/sw.js) caches only page layout and build assets; the
+// Qur'an's Arabic text becomes available offline only when the reader downloads it on the Offline page
+// (IndexedDB, see src/lib/offline.ts). See docs/deployment/offline.md.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "World of Islam",

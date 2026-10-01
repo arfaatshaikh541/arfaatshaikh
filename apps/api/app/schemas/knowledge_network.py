@@ -44,9 +44,12 @@ class TraversalRequest(BaseModel):
     max_nodes: int = Field(default=100, ge=1, le=500)
     relationship_types: list[RelationshipType] = Field(default_factory=list, max_length=16)
 
+_ALL_LANGUAGES: tuple[Literal['ar', 'en', 'transliteration'], ...] = ('ar', 'en', 'transliteration')
+
+
 class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=200)
-    languages: list[Literal['ar','en','transliteration']] = Field(default_factory=lambda:['ar','en','transliteration'])
+    languages: list[Literal['ar','en','transliteration']] = Field(default_factory=lambda: list(_ALL_LANGUAGES))
     entity_types: list[EntityType] = Field(default_factory=list, max_length=14)
     exact_phrase: bool = False
     evidence_only: bool = True
