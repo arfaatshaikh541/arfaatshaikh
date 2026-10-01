@@ -1,0 +1,248 @@
+{
+ "properties": {
+  "external_key": {
+   "anyOf": [
+    {
+     "maxLength": 200,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "External Key"
+  },
+  "listing_type": {
+   "title": "Listing Type",
+   "type": "string"
+  },
+  "name": {
+   "maxLength": 300,
+   "minLength": 2,
+   "title": "Name",
+   "type": "string"
+  },
+  "arabic_name": {
+   "anyOf": [
+    {
+     "maxLength": 300,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Arabic Name"
+  },
+  "description": {
+   "anyOf": [
+    {
+     "maxLength": 5000,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Description"
+  },
+  "category": {
+   "anyOf": [
+    {
+     "maxLength": 120,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Category"
+  },
+  "tags": {
+   "items": {
+    "type": "string"
+   },
+   "maxItems": 30,
+   "title": "Tags",
+   "type": "array"
+  },
+  "address": {
+   "anyOf": [
+    {
+     "maxLength": 500,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Address"
+  },
+  "city": {
+   "anyOf": [
+    {
+     "maxLength": 120,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "City"
+  },
+  "region": {
+   "anyOf": [
+    {
+     "maxLength": 120,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Region"
+  },
+  "country": {
+   "anyOf": [
+    {
+     "maxLength": 2,
+     "minLength": 2,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Country"
+  },
+  "latitude": {
+   "anyOf": [
+    {
+     "maximum": 90,
+     "minimum": -90,
+     "type": "number"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Latitude"
+  },
+  "longitude": {
+   "anyOf": [
+    {
+     "maximum": 180,
+     "minimum": -180,
+     "type": "number"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Longitude"
+  },
+  "phone": {
+   "anyOf": [
+    {
+     "maxLength": 60,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Phone"
+  },
+  "email": {
+   "anyOf": [
+    {
+     "maxLength": 254,
+     "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Email"
+  },
+  "website": {
+   "anyOf": [
+    {
+     "maxLength": 500,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Website"
+  },
+  "source": {
+   "maxLength": 500,
+   "minLength": 2,
+   "title": "Source",
+   "type": "string"
+  },
+  "source_url": {
+   "anyOf": [
+    {
+     "maxLength": 800,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Source Url"
+  },
+  "license": {
+   "maxLength": 240,
+   "minLength": 2,
+   "title": "License",
+   "type": "string"
+  },
+  "provenance": {
+   "maxLength": 4000,
+   "minLength": 3,
+   "title": "Provenance",
+   "type": "string"
+  },
+  "source_updated_at": {
+   "anyOf": [
+    {
+     "format": "date",
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Source Updated At"
+  }
+ },
+ "required": [
+  "listing_type",
+  "name",
+  "source",
+  "license",
+  "provenance"
+ ],
+ "title": "DirectoryListingInput",
+ "type": "object"
+}

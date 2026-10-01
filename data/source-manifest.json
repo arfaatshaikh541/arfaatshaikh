@@ -1,0 +1,1324 @@
+{
+ "manifest_version": 1,
+ "generated_for": "World of Islam",
+ "as_of": "2026-10-01",
+ "statuses": {
+  "license": [
+   "VERIFIED_OPEN",
+   "PUBLIC_DOMAIN",
+   "PD_WORK_OPEN_EDITION_DECLARED",
+   "OWNER_PERMISSION_GRANTED",
+   "LICENSE_REQUIRED",
+   "PROVENANCE_UNCLEAR",
+   "UNKNOWN"
+  ],
+  "validation": [
+   "VERIFIED",
+   "NEEDS_REVIEW",
+   "FAILED",
+   "NOT_RUN"
+  ],
+  "publication": [
+   "published",
+   "staged"
+  ],
+  "readiness": [
+   "VERIFIED",
+   "NEEDS_REVIEW",
+   "LICENSE_REQUIRED",
+   "PROVENANCE_UNCLEAR",
+   "UNAVAILABLE",
+   "OWNER_UPLOAD_REQUIRED"
+  ]
+ },
+ "datasets": [
+  {
+   "id": "quran-arabic-uthmani-hafs",
+   "name": "Qur'an, Arabic text (Uthmani, Hafs 'an 'Asim)",
+   "purpose": "Primary Qur'an text for the reader, search, verification and assistant.",
+   "category": "quran",
+   "entity_type": "quran_ayah",
+   "source": {
+    "name": "PyPI package quran-text (quran.ws, KFGQPC text)",
+    "url": "https://pypi.org/project/quran-text/0.1.0/",
+    "version": "0.1.0"
+   },
+   "license": {
+    "name": "CC BY 4.0",
+    "status": "VERIFIED_OPEN",
+    "notes": "Licence read from the package metadata; attribution recorded in the source registry."
+   },
+   "provenance": "Downloaded from PyPI; wheel sha256 compared with PyPI's published digest before import.",
+   "transformation": "None to the text. Ayah numbering cross-checked against an independent ayah map; stored per ayah with a sha256.",
+   "importer": "scripts/import_real_evidence.py + scripts/import_quran_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-29",
+   "validation_status": "VERIFIED",
+   "validation_notes": "114 surahs / 6,236 ayahs; well-known ayahs spot-checked.",
+   "publication_status": "published",
+   "readiness": "VERIFIED",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "None.",
+   "targets": [],
+   "checksum_sha256": "8b9a0c23ccabe6ff2a25732c7004af267ce2f10de3953fb6e27c37607891fe77"
+  },
+  {
+   "id": "quran-tajweed-quranws",
+   "name": "Tajweed rules and per-ayah spans",
+   "purpose": "Colour-coded tajweed in the Qur'an reader.",
+   "category": "quran",
+   "entity_type": "quran_ayah",
+   "source": {
+    "name": "npm @quran.ws/tajwid-rules and @quran.ws/tajwid-annotations (rules from Quranpedia)",
+    "url": "https://www.npmjs.com/package/@quran.ws/tajwid-annotations",
+    "version": "0.1.0"
+   },
+   "license": {
+    "name": "CC BY 4.0",
+    "status": "VERIFIED_OPEN",
+    "notes": "Licence read from the npm package metadata."
+   },
+   "provenance": "npm registry; sha512 integrity from the registry compared before import.",
+   "transformation": "Offsets re-based onto the text with waqf marks.",
+   "importer": "scripts/import_tajweed.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "All 147,255 spans in bounds; all 3,839 qalqalah spans land on a qalqalah letter.",
+   "publication_status": "published",
+   "readiness": "VERIFIED",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "None.",
+   "targets": [],
+   "integrity": "npm sha512 integrity verified at import (value from the registry)"
+  },
+  {
+   "id": "hadith-bukhari-arabic",
+   "name": "Sahih al-Bukhari, Arabic text",
+   "purpose": "Primary hadith text for the reader, search and assistant.",
+   "category": "hadith",
+   "entity_type": "hadith_narration",
+   "source": {
+    "name": "PyPI sahih-al-bukhari",
+    "url": "https://pypi.org/project/sahih-al-bukhari/3.1.7/",
+    "version": "3.1.7"
+   },
+   "license": {
+    "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
+    "status": "PD_WORK_OPEN_EDITION_DECLARED",
+    "notes": "Applying AGPL-3.0 to a text database is legally unsettled; confirm before launch if you redistribute the data itself."
+   },
+   "provenance": "Downloaded from PyPI with checksum verification.",
+   "transformation": "Arabic matn and structure only; English layer is a separate dataset.",
+   "importer": "scripts/import_real_evidence.py + scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Hadith 1 matches the expected wording; wheel sha256 matches PyPI.",
+   "publication_status": "published",
+   "readiness": "NEEDS_REVIEW",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Owner to confirm the AGPL-3.0 position for redistributing the Arabic text database (does not affect the original text being public domain).",
+   "targets": [
+    {
+     "kind": "hadith_collection",
+     "key": "bukhari"
+    }
+   ],
+   "checksum_sha256": "3784821cbde815d4de48b88abe60f44dd99e2783a39fe5ddbc7a81e939d02f35"
+  },
+  {
+   "id": "hadith-muslim-arabic",
+   "name": "Sahih Muslim, Arabic text",
+   "purpose": "Primary hadith text for the reader, search and assistant.",
+   "category": "hadith",
+   "entity_type": "hadith_narration",
+   "source": {
+    "name": "PyPI sahih-muslim",
+    "url": "https://pypi.org/project/sahih-muslim/1.1.2/",
+    "version": "1.1.2"
+   },
+   "license": {
+    "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
+    "status": "PD_WORK_OPEN_EDITION_DECLARED",
+    "notes": "Applying AGPL-3.0 to a text database is legally unsettled; confirm before launch if you redistribute the data itself."
+   },
+   "provenance": "Downloaded from PyPI with checksum verification.",
+   "transformation": "Arabic matn and structure only; English layer is a separate dataset.",
+   "importer": "scripts/import_real_evidence.py + scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-29",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Hadith 1 matches the expected wording; wheel sha256 matches PyPI.",
+   "publication_status": "published",
+   "readiness": "NEEDS_REVIEW",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Owner to confirm the AGPL-3.0 position for redistributing the Arabic text database (does not affect the original text being public domain).",
+   "targets": [
+    {
+     "kind": "hadith_collection",
+     "key": "muslim"
+    }
+   ],
+   "checksum_sha256": "d962f014bf77dcb27fd936ee86c9c02673bb1e9eb87bc2d422d3ffc7e5701b51"
+  },
+  {
+   "id": "hadith-bukhari-english",
+   "name": "Sahih al-Bukhari, English translation",
+   "purpose": "English reading layer for the hadith reader.",
+   "category": "hadith",
+   "entity_type": "hadith_translation",
+   "source": {
+    "name": "PyPI sahih-al-bukhari 3.1.7 (translation bundled in the package)",
+    "url": "https://pypi.org/project/sahih-al-bukhari/",
+    "version": "3.1.7"
+   },
+   "license": {
+    "name": "Commercially published translation; redistribution rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The package licence does not grant rights in the translation itself."
+   },
+   "provenance": "Bundled in the PyPI package; translator/publisher permission not documented.",
+   "transformation": "None.",
+   "importer": "scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Aligned 1:1 with the Arabic narrations.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Obtain permission from the translation's rights holder, then publish with scripts/apply_publication_policy.py after recording rights_confirmation in this entry.",
+   "targets": [
+    {
+     "kind": "hadith_translation_edition",
+     "key": "bukhari-en"
+    }
+   ],
+   "checksum_sha256": "3784821cbde815d4de48b88abe60f44dd99e2783a39fe5ddbc7a81e939d02f35"
+  },
+  {
+   "id": "hadith-muslim-english",
+   "name": "Sahih Muslim, English translation",
+   "purpose": "English reading layer for the hadith reader.",
+   "category": "hadith",
+   "entity_type": "hadith_translation",
+   "source": {
+    "name": "PyPI sahih-muslim 1.1.2 (translation bundled in the package)",
+    "url": "https://pypi.org/project/sahih-muslim/",
+    "version": "1.1.2"
+   },
+   "license": {
+    "name": "Commercially published translation; redistribution rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The package licence does not grant rights in the translation itself."
+   },
+   "provenance": "Bundled in the PyPI package; translator/publisher permission not documented.",
+   "transformation": "None.",
+   "importer": "scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Aligned 1:1 with the Arabic narrations.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Obtain permission from the translation's rights holder, then publish with scripts/apply_publication_policy.py after recording rights_confirmation in this entry.",
+   "targets": [
+    {
+     "kind": "hadith_translation_edition",
+     "key": "muslim-en"
+    }
+   ],
+   "checksum_sha256": "d962f014bf77dcb27fd936ee86c9c02673bb1e9eb87bc2d422d3ffc7e5701b51"
+  },
+  {
+   "id": "hadith-nawawi40-arabic",
+   "name": "Forty Hadith of al-Nawawi, Arabic text",
+   "purpose": "Short curated hadith collection.",
+   "category": "hadith",
+   "entity_type": "hadith_narration",
+   "source": {
+    "name": "npm @kazishariar/nawawi-40-hadith-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/nawawi-40-hadith-data",
+    "version": "1.0.3"
+   },
+   "license": {
+    "name": "Package declares CC BY 4.0; upstream source not documented. Original text is public domain.",
+    "status": "PD_WORK_OPEN_EDITION_DECLARED",
+    "notes": "Wording was checked against the already-verified Bukhari/Muslim text."
+   },
+   "provenance": "npm registry download.",
+   "transformation": "Restructured into collection/book/narration rows.",
+   "importer": "scripts/import_real_evidence.py (devotional_sources.py)",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Arabic cross-checked against Bukhari/Muslim: 41 of 42 entries found verbatim; the remainder are not marked as verified.",
+   "publication_status": "published",
+   "readiness": "NEEDS_REVIEW",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Confirm the upstream compilation's terms.",
+   "targets": [
+    {
+     "kind": "hadith_collection",
+     "key": "nawawi40"
+    }
+   ],
+   "checksum_sha256": "9504dc681862e5408afc2b5fb7fd15d144b5a4ba3f178a45dbeda50b07c3aacc"
+  },
+  {
+   "id": "hadith-nawawi40-english",
+   "name": "Forty Hadith of al-Nawawi, English",
+   "purpose": "English layer.",
+   "category": "hadith",
+   "entity_type": "hadith_translation",
+   "source": {
+    "name": "npm @kazishariar/nawawi-40-hadith-data (bundled translation)",
+    "url": "https://www.npmjs.com/package/@kazishariar/nawawi-40-hadith-data",
+    "version": "1.0.3"
+   },
+   "license": {
+    "name": "Translator and upstream not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "No translator is named in the package."
+   },
+   "provenance": "npm package.",
+   "transformation": "None.",
+   "importer": "scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Not independently verified.",
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Identify the translator and obtain permission, or supply an authorised translation.",
+   "targets": [
+    {
+     "kind": "hadith_translation_edition",
+     "key": "nawawi40-en"
+    }
+   ]
+  },
+  {
+   "id": "devotional-hisn-almuslim-arabic",
+   "name": "Hisn al-Muslim (supplications), Arabic",
+   "purpose": "Dua and dhikr reader.",
+   "category": "hadith",
+   "entity_type": "hadith_narration",
+   "source": {
+    "name": "npm @kazishariar/hisnul-muslim-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/hisnul-muslim-data",
+    "version": "1.0.3"
+   },
+   "license": {
+    "name": "Package declares CC BY 4.0; upstream (selection, numbering, commentary) not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "The supplications are classical texts, but the compiled selection is another author's work."
+   },
+   "provenance": "npm package.",
+   "transformation": "Machine transliteration in the package deliberately not used.",
+   "importer": "scripts/import_real_evidence.py (devotional_sources.py)",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Per entry: 67 cross-checked against the Qur'an, 109 against Bukhari/Muslim, the rest not cross-checked and labelled as such.",
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Identify the upstream compilation and confirm its terms, or supply a licensed source.",
+   "targets": [
+    {
+     "kind": "hadith_collection",
+     "key": "hisn"
+    }
+   ],
+   "checksum_sha256": "212dfcbcb3e028c7c8872067b323944777667d8b57487ec01ec04022487b9333"
+  },
+  {
+   "id": "devotional-adhkar-arabic",
+   "name": "Morning and evening adhkar, Arabic",
+   "purpose": "Dhikr reader.",
+   "category": "hadith",
+   "entity_type": "hadith_narration",
+   "source": {
+    "name": "npm @kazishariar/morning-evening-adhkar-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/morning-evening-adhkar-data",
+    "version": "1.0.3"
+   },
+   "license": {
+    "name": "Package declares CC BY 4.0; upstream not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": ""
+   },
+   "provenance": "npm package.",
+   "transformation": "None.",
+   "importer": "scripts/import_real_evidence.py (devotional_sources.py)",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Arabic cross-check label per entry; source cited per entry.",
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Confirm upstream terms.",
+   "targets": [
+    {
+     "kind": "hadith_collection",
+     "key": "adhkar"
+    }
+   ],
+   "checksum_sha256": "da4abc70907c666962ba2cfc8d9195bdc79d1b98f5c9c2c9e01f23d57a33385d"
+  },
+  {
+   "id": "devotional-adhkar-english",
+   "name": "Morning and evening adhkar, English",
+   "purpose": "English layer.",
+   "category": "hadith",
+   "entity_type": "hadith_translation",
+   "source": {
+    "name": "npm @kazishariar/morning-evening-adhkar-data (bundled translation)",
+    "url": "https://www.npmjs.com/package/@kazishariar/morning-evening-adhkar-data",
+    "version": "1.0.3"
+   },
+   "license": {
+    "name": "Translator not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": ""
+   },
+   "provenance": "npm package.",
+   "transformation": "None.",
+   "importer": "scripts/import_hadith_reader.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Not independently verified.",
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Identify the translator and obtain permission.",
+   "targets": [
+    {
+     "kind": "hadith_translation_edition",
+     "key": "adhkar-en"
+    }
+   ]
+  },
+  {
+   "id": "quran-translation-pickthall",
+   "name": "Qur'an translation: Marmaduke Pickthall (1930)",
+   "purpose": "English translation in the reader and assistant.",
+   "category": "translation",
+   "entity_type": "quran_translation",
+   "source": {
+    "name": "fawazahmed0/quran-api edition eng-mohammedmarmadu",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "Public domain (translator died 1936; first published 1930)",
+    "status": "PUBLIC_DOMAIN",
+    "notes": "The catalogue's own Unlicense covers the aggregation, not translations; the public-domain basis is the translator's date of death."
+   },
+   "provenance": "raw.githubusercontent.com; sha256 recorded.",
+   "transformation": "Whitespace normalised.",
+   "importer": "scripts/import_translations.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "6,236 verses; numbering identical to the Arabic; 100% non-empty.",
+   "publication_status": "published",
+   "readiness": "VERIFIED",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "None (public-domain status can differ by jurisdiction; confirm for your audience).",
+   "targets": [
+    {
+     "kind": "quran_translation_edition",
+     "key": "eng-mohammedmarmadu"
+    }
+   ],
+   "checksum_sha256": "0dbb55fa4daeb93aa6bc030441aec750ebf6a5d5235d0f4695f1f30666a72107"
+  },
+  {
+   "id": "quran-translation-yusufali-1934",
+   "name": "Qur'an translation: Abdullah Yusuf Ali (1934 original edition)",
+   "purpose": "English translation in the reader and assistant.",
+   "category": "translation",
+   "entity_type": "quran_translation",
+   "source": {
+    "name": "fawazahmed0/quran-api edition eng-yusufaliorig",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "Public domain (translator died 1953; 1934 edition)",
+    "status": "PUBLIC_DOMAIN",
+    "notes": "Only the 1934 original text; later revised editions are in copyright."
+   },
+   "provenance": "raw.githubusercontent.com; sha256 recorded.",
+   "transformation": "Whitespace normalised.",
+   "importer": "scripts/import_translations.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "6,236 verses; numbering identical to the Arabic; 100% non-empty.",
+   "publication_status": "published",
+   "readiness": "VERIFIED",
+   "public": true,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "None (jurisdiction note as above).",
+   "targets": [
+    {
+     "kind": "quran_translation_edition",
+     "key": "eng-yusufaliorig"
+    }
+   ],
+   "checksum_sha256": "f447534acb33d57c449aebf50ac72b054ce18d95222ef8de38c3ec80ca48c45b"
+  },
+  {
+   "id": "quran-translations-catalogue",
+   "name": "Qur'an translations, 482 further editions in 97 languages",
+   "purpose": "Optional extra translations once rights are confirmed.",
+   "category": "translation",
+   "entity_type": "quran_translation",
+   "source": {
+    "name": "fawazahmed0/quran-api catalogue (editions.json)",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "No per-edition licence in the catalogue",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The repository's Unlicense does not cover third-party translations. Non-Muslim translators and groups outside mainstream Islam were excluded (not stored)."
+   },
+   "provenance": "raw.githubusercontent.com; each edition's sha256 recorded.",
+   "transformation": "Whitespace normalised.",
+   "importer": "scripts/import_translations.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Every stored edition has 6,236 verses, numbering identical to the Arabic, at least 99% non-empty. 1 edition failed (217 empty verses).",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "For each edition you want public: confirm the publisher's/translator's permission, record it, then publish (scripts/publish_staged.py or this manifest).",
+   "targets": [
+    {
+     "kind": "quran_translation_editions",
+     "all_except": [
+      "eng-mohammedmarmadu",
+      "eng-yusufaliorig"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tafsir-arabic-classical",
+   "name": "Arabic classical tafsirs (29 editions incl. al-Tabari, al-Qurtubi, al-Razi, Ibn Kathir, al-Jalalayn)",
+   "purpose": "Scholarly explanation layer for the reader and assistant.",
+   "category": "tafsir",
+   "entity_type": "tafsir_entry",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "Original works are public domain; the digital editions' own rights are not stated (some carry modern editorial notes)",
+    "status": "LICENSE_REQUIRED",
+    "notes": "Example: the al-Tabari text includes a modern editor's footnotes."
+   },
+   "provenance": "raw.githubusercontent.com.",
+   "transformation": "Identical consecutive ayah entries merged into ranges; ayah alignment verified.",
+   "importer": "scripts/import_tafsir.py, scripts/import_tafsir_catalogue.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Each edition checked for Qur'an coverage and for alignment of entries to their ayah (quoted ayah or at least 60% word overlap, 80% of entries). Partial works are labelled with their coverage.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Confirm the terms of the digital editions (QUL / Quran.com compilations) and strip modern editorial matter if required; then publish.",
+   "targets": [
+    {
+     "kind": "tafsir_editions",
+     "keys": [
+      "al-bahr-al-muhit",
+      "al-basit",
+      "al-durr-al-manthur",
+      "al-lubab-fi-ulum-al-kitab",
+      "al-muharrar-al-wajiz-ibn-atiyyah",
+      "al-wajiz-wahidi",
+      "ar-tafseer-al-qurtubi",
+      "ar-tafsir-al-baghawi",
+      "ar-tafsir-al-tabari",
+      "ar-tafsir-al-tha-alibi",
+      "fath-al-bayan-li-al-qanuji",
+      "fath-al-qadir-al-shawkani",
+      "ibn-kathir-ar",
+      "jalalayn-ar",
+      "jamia-al-bayan-aliji",
+      "mahasin-al-ta-wil-al-qasimi",
+      "nazam-al-durar-al-biqa-i",
+      "tafsir-abi-al-su-ood",
+      "tafsir-al-alusi",
+      "tafsir-al-baydawi",
+      "tafsir-al-mawardi",
+      "tafsir-al-nasafi",
+      "tafsir-al-razi",
+      "tafsir-al-sam-ani",
+      "tafsir-al-samarqandi",
+      "tafsir-ibn-abi-hatim",
+      "tafsir-ibn-abi-zamanin",
+      "tafsir-ibn-al-jawzi",
+      "tafsir-ibn-juzay"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tafsir-arabic-modern",
+   "name": "Arabic modern tafsirs (16 editions incl. Ibn Ashur, Tantawi, al-Muyassar)",
+   "purpose": "Scholarly explanation layer.",
+   "category": "tafsir",
+   "entity_type": "tafsir_entry",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "Modern works; rights not cleared",
+    "status": "LICENSE_REQUIRED",
+    "notes": ""
+   },
+   "provenance": "raw.githubusercontent.com.",
+   "transformation": "Same as above.",
+   "importer": "scripts/import_tafsir_catalogue.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "As above.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Permission from each author's estate or publisher.",
+   "targets": [
+    {
+     "kind": "tafsir_editions",
+     "keys": [
+      "abu-bakr-jabir-al-jazairi",
+      "adwa-al-bayan",
+      "al-i-rab-al-muyassar",
+      "al-muyassar-fi-al-gharib",
+      "alrab-al-quran-li-da-as",
+      "ar-tafseer-al-saddi",
+      "ar-tafseer-tahrir-al-tanwir",
+      "ar-tafsir-al-jami-al-wajiz",
+      "ar-tafsir-al-wasit",
+      "ar-tafsir-muyassar",
+      "i-rab-al-quran-li-al-darwish",
+      "mawsoo-at-al-tafsir-al-ma-thoor",
+      "tadabbur-wa-amal",
+      "tafsir-ibn-al-qayyim",
+      "tafsir-ibn-uthaymeen",
+      "tafsir-makhi"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tafsir-english",
+   "name": "English tafsirs (9 editions incl. Ibn Kathir (abridged), Ma'ariful Qur'an, Jalalayn, Tazkirul Quran)",
+   "purpose": "English scholarly explanation.",
+   "category": "tafsir",
+   "entity_type": "tafsir_entry",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "license": {
+    "name": "Modern translations; rights not cleared",
+    "status": "LICENSE_REQUIRED",
+    "notes": "Jalalayn (English) is recorded upstream as non-commercial."
+   },
+   "provenance": "raw.githubusercontent.com.",
+   "transformation": "Same as above.",
+   "importer": "scripts/import_tafsir.py, scripts/import_tafsir_catalogue.py",
+   "importer_version": "1.0",
+   "date_acquired": "2026-09-30",
+   "validation_status": "VERIFIED",
+   "validation_notes": "As above.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "importer script",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Permission from each translator or publisher.",
+   "targets": [
+    {
+     "kind": "tafsir_editions",
+     "keys": [
+      "en-al-jalalayn",
+      "en-al-qushairi-tafsir",
+      "en-kashani-tafsir",
+      "en-tafisr-ibn-kathir",
+      "en-tafsir-al-mukhtasar",
+      "en-tafsir-ibn-abbas",
+      "en-tafsir-maarif-ul-quran",
+      "en-tazkirul-quran",
+      "tazkirul-quran-en"
+     ]
+    },
+    {
+     "kind": "tafsir_translation_edition",
+     "key": "jalalayn-en"
+    }
+   ]
+  },
+  {
+   "id": "hadith-grading",
+   "name": "Hadith grading",
+   "purpose": "Grade labels with the grader and source.",
+   "category": "knowledge",
+   "entity_type": "hadith_grading",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply a grading dataset with each grade attributed to a named grader and a citable source, with permission to publish.",
+   "targets": [],
+   "alternatives_investigated": [
+    "fawazahmed0/hadith-api (Unlicense for the aggregation; includes per-hadith grades attributed to named graders such as al-Albani). Not imported: the Unlicense does not cover third-party grades, and a grade without a verifiable grader and source is refused by the contract.",
+    "sunnah.com API: requires an API key and has its own terms; not accessed."
+   ]
+  },
+  {
+   "id": "fiqh-rulings",
+   "name": "Fiqh (rulings and madhhab positions)",
+   "purpose": "Source-cited fiqh references.",
+   "category": "knowledge",
+   "entity_type": "fiqh",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply licensed fiqh text/data with author, school and citation. The assistant never invents rulings.",
+   "targets": [],
+   "alternatives_investigated": [
+    "No openly licensed, verifiable fiqh dataset was found reachable from this environment."
+   ]
+  },
+  {
+   "id": "aqeedah",
+   "name": "Aqeedah texts",
+   "purpose": "Creed texts and references.",
+   "category": "knowledge",
+   "entity_type": "aqeedah",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply licensed texts with authors and citations.",
+   "targets": [],
+   "alternatives_investigated": [
+    "No verifiable open dataset found."
+   ]
+  },
+  {
+   "id": "seerah",
+   "name": "Seerah",
+   "purpose": "Source-cited biography of the Prophet.",
+   "category": "knowledge",
+   "entity_type": "seerah",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply licensed seerah sources (e.g. a public-domain translation with provenance).",
+   "targets": [],
+   "alternatives_investigated": [
+    "OpenITI (Open Islamicate Texts Initiative) hosts classical Arabic texts. Its licence could not be read from the files reachable here, so it was not used; the owner should check its terms (it is understood to carry a non-commercial restriction) before importing anything."
+   ]
+  },
+  {
+   "id": "terminology",
+   "name": "Islamic terminology",
+   "purpose": "Glossary with sources.",
+   "category": "knowledge",
+   "entity_type": "terminology",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply a licensed glossary with a source per term.",
+   "targets": []
+  },
+  {
+   "id": "library-works",
+   "name": "Library (books and works)",
+   "purpose": "Catalogue of classical works with edition and licence.",
+   "category": "knowledge",
+   "entity_type": "library_work",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply a catalogue with edition/licence per work, or a public-domain corpus whose licence has been verified.",
+   "targets": [],
+   "alternatives_investigated": [
+    "OpenITI: see seerah entry."
+   ]
+  },
+  {
+   "id": "history",
+   "name": "Islamic history",
+   "purpose": "Sourced historical entries.",
+   "category": "knowledge",
+   "entity_type": "history",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply licensed history sources.",
+   "targets": []
+  },
+  {
+   "id": "civilization",
+   "name": "Civilization and heritage",
+   "purpose": "Sourced civilization entries.",
+   "category": "knowledge",
+   "entity_type": "civilization",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply licensed sources.",
+   "targets": []
+  },
+  {
+   "id": "scholar-biographies",
+   "name": "Scholar biographies",
+   "purpose": "Biographies with sources.",
+   "category": "knowledge",
+   "entity_type": "scholar",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply biographies with sources and licence. Wikipedia/Wikidata could not be reached from this environment, so none was imported.",
+   "targets": [],
+   "alternatives_investigated": [
+    "Wikidata (CC0) and Wikipedia (CC BY-SA) are legitimate candidates but were unreachable here; use the data-contract importer on a machine that can reach them, keeping the per-record source URL."
+   ]
+  },
+  {
+   "id": "directory-mosques",
+   "name": "Mosques",
+   "purpose": "Mosques directory.",
+   "category": "directory",
+   "entity_type": "mosque",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_osm_mosques.py (OpenStreetMap importer, ready) and scripts/import_directory.py",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "UNAVAILABLE",
+   "public": false,
+   "import_method": "scripts/import_osm_mosques.py --bbox ... (run on a machine that can reach the Overpass API) or admin upload",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Run scripts/import_osm_mosques.py for your region on your server, or upload an authorised dataset.",
+   "targets": [],
+   "alternatives_investigated": [
+    "OpenStreetMap (ODbL 1.0, attribution '© OpenStreetMap contributors', share-alike for derived databases) is a legitimate source for mosque locations via the Overpass API. scripts/import_osm_mosques.py is provided; the Overpass endpoint was not reachable from this environment, so it has NOT been run against live data."
+   ]
+  },
+  {
+   "id": "directory-businesses",
+   "name": "Businesses",
+   "purpose": "Businesses directory.",
+   "category": "directory",
+   "entity_type": "business",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply an authorised business dataset or partner API.",
+   "targets": []
+  },
+  {
+   "id": "directory-charities",
+   "name": "Charities",
+   "purpose": "Charities directory.",
+   "category": "directory",
+   "entity_type": "charity",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply an authorised dataset, e.g. a national charity register published under an open government licence (verify the licence per country).",
+   "targets": []
+  },
+  {
+   "id": "directory-jobs",
+   "name": "Jobs",
+   "purpose": "Jobs directory.",
+   "category": "directory",
+   "entity_type": "job",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply listings or an employer partnership.",
+   "targets": []
+  },
+  {
+   "id": "directory-professionals",
+   "name": "Professionals",
+   "purpose": "Professionals directory.",
+   "category": "directory",
+   "entity_type": "professional",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Professionals register themselves via 'suggest a listing' and are verified by moderators; or upload a dataset.",
+   "targets": []
+  },
+  {
+   "id": "directory-organisations",
+   "name": "Organisations",
+   "purpose": "Organisations directory.",
+   "category": "directory",
+   "entity_type": "organisation",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply an authorised dataset or use 'suggest a listing'.",
+   "targets": []
+  },
+  {
+   "id": "directory-events",
+   "name": "Events",
+   "purpose": "Events directory.",
+   "category": "directory",
+   "entity_type": "event",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply an events feed or use 'suggest a listing'.",
+   "targets": []
+  },
+  {
+   "id": "directory-volunteering",
+   "name": "Volunteering",
+   "purpose": "Volunteering directory.",
+   "category": "directory",
+   "entity_type": "volunteering",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply opportunities or partner feed.",
+   "targets": []
+  },
+  {
+   "id": "directory-health",
+   "name": "Health services",
+   "purpose": "Health services directory.",
+   "category": "directory",
+   "entity_type": "health",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "provenance": "No dataset is loaded; nothing is generated from model memory.",
+   "transformation": "None.",
+   "importer": "scripts/import_directory.py (directory importer, ready)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data to validate.",
+   "publication_status": "staged",
+   "readiness": "OWNER_UPLOAD_REQUIRED",
+   "public": false,
+   "import_method": "admin upload or scripts/import_directory.py",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply an authorised dataset.",
+   "targets": []
+  },
+  {
+   "id": "audio-quran-recitations",
+   "name": "Qur'an recitation audio",
+   "purpose": "Per-ayah audio in the reader.",
+   "category": "audio",
+   "entity_type": "quran_ayah",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "license": {
+    "name": "Reciter and publisher rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": ""
+   },
+   "provenance": "None.",
+   "transformation": "None.",
+   "importer": "none (schema and player exist)",
+   "importer_version": "1.0",
+   "date_acquired": null,
+   "validation_status": "NOT_RUN",
+   "validation_notes": "No data.",
+   "publication_status": "staged",
+   "readiness": "LICENSE_REQUIRED",
+   "public": false,
+   "import_method": "owner upload",
+   "last_checked": "2026-10-01",
+   "remaining_action": "Supply recitation files with the reciter's/publisher's permission and a checksum per file.",
+   "targets": []
+  }
+ ]
+}

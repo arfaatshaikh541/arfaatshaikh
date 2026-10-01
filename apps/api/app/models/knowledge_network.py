@@ -13,7 +13,7 @@ class CanonicalKnowledgeEntity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("canonical_key", name="uq_canonical_knowledge_entity_key"),
         UniqueConstraint("entity_type", "source_entity_id", name="uq_canonical_knowledge_entity_source"),
-        CheckConstraint("entity_type IN ('quran_ayah','hadith_narration','tafsir_entry','topic','lesson','course','scholar','research','dua','prophet','companion','place','historical_event')", name="canonical_knowledge_entity_type"),
+        CheckConstraint("entity_type IN ('quran_ayah','hadith_narration','tafsir_entry','topic','lesson','course','scholar','research','dua','prophet','companion','place','historical_event','quran_surah','hadith_collection','tafsir_work','book','person','event','institution','mosque','organisation','concept')", name="canonical_knowledge_entity_type"),
         CheckConstraint("publication_status IN ('draft','reviewed','published','archived')", name="canonical_knowledge_publication_status"),
         Index("ix_canonical_knowledge_entity_type_status", "entity_type", "publication_status"),
     )
@@ -36,7 +36,7 @@ class KnowledgeRelationship(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("source_entity_id", "target_entity_id", "relationship_type", "evidence_passage_id", name="uq_knowledge_relationship_evidence"),
         CheckConstraint("source_entity_id <> target_entity_id", name="knowledge_relationship_not_self"),
-        CheckConstraint("relationship_type IN ('explains','supports','authenticates','references','narrated_by','revealed_in','mentions','contradicts_claim','related_topic','prerequisite','continuation_of','derived_from','contextualises','topic_membership')", name="knowledge_relationship_type"),
+        CheckConstraint("relationship_type IN ('explains','supports','authenticates','references','narrated_by','revealed_in','mentions','contradicts_claim','related_topic','prerequisite','continuation_of','derived_from','contextualises','topic_membership','authored','discusses','relates_to','explained_by','part_of','located_in','affiliated_with')", name="knowledge_relationship_type"),
         CheckConstraint("review_status IN ('pending','approved','rejected','withdrawn')", name="knowledge_relationship_review_status"),
         CheckConstraint("confidence BETWEEN 0 AND 100", name="knowledge_relationship_confidence"),
         Index("ix_knowledge_relationship_source", "source_entity_id", "relationship_type"),

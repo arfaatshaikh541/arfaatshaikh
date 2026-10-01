@@ -1,0 +1,192 @@
+{
+ "$defs": {
+  "RelationshipInput": {
+   "properties": {
+    "relation_type": {
+     "title": "Relation Type",
+     "type": "string"
+    },
+    "target_id": {
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Target Id",
+     "type": "string"
+    },
+    "source": {
+     "maxLength": 500,
+     "minLength": 1,
+     "title": "Source",
+     "type": "string"
+    },
+    "source_url": {
+     "anyOf": [
+      {
+       "maxLength": 800,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Source Url"
+    }
+   },
+   "required": [
+    "relation_type",
+    "target_id",
+    "source"
+   ],
+   "title": "RelationshipInput",
+   "type": "object"
+  }
+ },
+ "description": "One record of the contract: ID, TITLE, ARABIC_TITLE, DESCRIPTION, SOURCE, SOURCE_URL, AUTHOR, DATE,\nLICENSE, PROVENANCE, SCHOLARLY_STATUS, CONFIDENCE, LAST_VERIFIED, TAGS, RELATIONSHIPS.",
+ "properties": {
+  "id": {
+   "maxLength": 200,
+   "minLength": 1,
+   "pattern": "^[A-Za-z0-9][A-Za-z0-9._:\\-]*$",
+   "title": "Id",
+   "type": "string"
+  },
+  "entity_type": {
+   "title": "Entity Type",
+   "type": "string"
+  },
+  "title": {
+   "maxLength": 500,
+   "minLength": 1,
+   "title": "Title",
+   "type": "string"
+  },
+  "arabic_title": {
+   "anyOf": [
+    {
+     "maxLength": 500,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Arabic Title"
+  },
+  "description": {
+   "maxLength": 20000,
+   "minLength": 1,
+   "title": "Description",
+   "type": "string"
+  },
+  "source": {
+   "maxLength": 500,
+   "minLength": 1,
+   "title": "Source",
+   "type": "string"
+  },
+  "source_url": {
+   "anyOf": [
+    {
+     "maxLength": 800,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Source Url"
+  },
+  "author": {
+   "anyOf": [
+    {
+     "maxLength": 300,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Author"
+  },
+  "date": {
+   "anyOf": [
+    {
+     "maxLength": 80,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Date"
+  },
+  "license": {
+   "maxLength": 240,
+   "minLength": 1,
+   "title": "License",
+   "type": "string"
+  },
+  "provenance": {
+   "maxLength": 4000,
+   "minLength": 3,
+   "title": "Provenance",
+   "type": "string"
+  },
+  "scholarly_status": {
+   "default": "unreviewed",
+   "title": "Scholarly Status",
+   "type": "string"
+  },
+  "confidence": {
+   "default": 0,
+   "maximum": 100,
+   "minimum": 0,
+   "title": "Confidence",
+   "type": "integer"
+  },
+  "last_verified": {
+   "anyOf": [
+    {
+     "format": "date",
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Last Verified"
+  },
+  "tags": {
+   "items": {
+    "type": "string"
+   },
+   "maxItems": 40,
+   "title": "Tags",
+   "type": "array"
+  },
+  "relationships": {
+   "items": {
+    "$ref": "#/$defs/RelationshipInput"
+   },
+   "maxItems": 100,
+   "title": "Relationships",
+   "type": "array"
+  }
+ },
+ "required": [
+  "id",
+  "entity_type",
+  "title",
+  "description",
+  "source",
+  "license",
+  "provenance"
+ ],
+ "title": "KnowledgeRecordInput",
+ "type": "object"
+}

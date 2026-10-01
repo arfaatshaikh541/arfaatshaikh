@@ -66,3 +66,4 @@ from app.models.civilization_os import ScholarlyLineage, ScholarlyLineageLink, T
 from app.models.islamic_life import PrayerTimeAuthority, PrayerCalculationProfile, PrayerTimeVerification, HijriCalendarAuthority, HalalStandard, HalalCertificationRecord, ProductTraceabilityRecord, EthicalCommerceReview, IslamicFinanceProduct, ShariahBoardReview, ContractDisclosure, CharityFinanceReconciliation, FamilyServiceProgramme, FamilyCaseSafeguard, HeritageSiteRecord, TrustedIslamicLifeAcceptance
 from app.models.platform_v1 import *
 from app.models.tajweed import QuranAyahTajweed, QuranTajweedRule
+from app.models.content_contract import DataSet, DataSetImport, KnowledgeRecord, DirectoryListing, DirectoryReport, PlatformAuditEvent  # noqa: E402,F401

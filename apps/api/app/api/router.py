@@ -66,3 +66,8 @@ from app.api.routes import islamic_life
 router.include_router(islamic_life.router)
 from app.api.routes import platform_v1
 router.include_router(platform_v1.router)
+from app.api.routes import knowledge, directory, datasets_admin, search as unified_search_routes
+router.include_router(knowledge.router)
+router.include_router(directory.router)
+router.include_router(datasets_admin.router)
+router.include_router(unified_search_routes.router)

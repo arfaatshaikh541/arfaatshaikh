@@ -14,6 +14,8 @@ COPY apps/api/app ./app
 COPY apps/api/alembic ./alembic
 COPY apps/api/alembic.ini ./alembic.ini
 COPY apps/api/scripts ./scripts
+COPY data ./data
+ENV WOI_MANIFEST_PATH=/app/data/source-manifest.json
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=6s --start-period=20s --retries=8 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)"

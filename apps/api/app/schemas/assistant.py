@@ -12,6 +12,7 @@ class AssistantQueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=4000)
     locale: str = Field(default="en", min_length=2, max_length=16)
     limit: int = Field(default=8, ge=1, le=20)
+    include_synthesis: bool = False
 
 
 class EvidenceInput(BaseModel):
