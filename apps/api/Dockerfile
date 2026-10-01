@@ -2,8 +2,8 @@ FROM python:3.12-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
 WORKDIR /app
-COPY apps/api/pyproject.toml ./
-RUN uv sync --no-dev
+COPY apps/api/pyproject.toml apps/api/uv.lock ./
+RUN uv sync --frozen --no-dev
 
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
@@ -13,8 +13,10 @@ COPY --from=builder /app/.venv /app/.venv
 COPY apps/api/app ./app
 COPY apps/api/alembic ./alembic
 COPY apps/api/alembic.ini ./alembic.ini
+COPY apps/api/scripts ./scripts
 USER app
 EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=6s --start-period=20s --retries=8 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)"
 
 # SECURITY: --forwarded-allow-ips must never be "*" in production. With a
 # wildcard, uvicorn trusts an X-Forwarded-For header from ANY connecting

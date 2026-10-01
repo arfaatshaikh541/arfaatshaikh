@@ -6,14 +6,15 @@ WORKDIR /app
 
 COPY . .
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # NEXT_PUBLIC_* variables and basePath are inlined into the client bundle at
 # build time, not read at container startup, so they must arrive as build
 # args (wired from docker-compose.yml's build.args, sourced from .env) rather
 # than as plain runtime environment variables.
-ARG NEXT_PUBLIC_WOI_API_ORIGIN=http://localhost:8000
-ARG WOI_BASE_PATH=
+ARG NEXT_PUBLIC_WOI_API_ORIGIN
+ARG WOI_BASE_PATH
+RUN test -n "$NEXT_PUBLIC_WOI_API_ORIGIN" || (echo 'NEXT_PUBLIC_WOI_API_ORIGIN build arg is required' >&2; exit 1)
 ENV NEXT_PUBLIC_WOI_API_ORIGIN=$NEXT_PUBLIC_WOI_API_ORIGIN
 ENV WOI_BASE_PATH=$WOI_BASE_PATH
 
@@ -37,4 +38,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 EXPOSE 3000
+ARG WOI_BASE_PATH
+ENV WOI_BASE_PATH=$WOI_BASE_PATH
 CMD ["node", "apps/web/server.js"]

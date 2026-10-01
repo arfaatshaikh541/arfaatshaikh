@@ -1,11 +1,16 @@
 import path from "path";
 import type { NextConfig } from "next";
 
-const apiOrigin = process.env.WOI_API_ORIGIN ?? "http://api:8000";
-const publicApiOrigin = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? "http://localhost:8000";
 const isDev = process.env.NODE_ENV !== "production";
+// The browser-visible API origin is inlined at build time. A production build without it would ship a
+// bundle that calls a development address, so it is refused instead of defaulting.
+const publicApiOrigin = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? (isDev ? "http://localhost:8000" : "");
+if (!publicApiOrigin) throw new Error("NEXT_PUBLIC_WOI_API_ORIGIN must be set for a production build");
+if (!isDev && /localhost|127\.0\.0\.1/.test(publicApiOrigin) && process.env.WOI_ALLOW_LOCAL_PRODUCTION_BUILD !== "1") {
+  throw new Error("NEXT_PUBLIC_WOI_API_ORIGIN points at localhost; set the real public origin (or WOI_ALLOW_LOCAL_PRODUCTION_BUILD=1 for a local test build)");
+}
 const scriptSources = isDev ? "'self' 'unsafe-inline' 'unsafe-eval'" : "'self' 'unsafe-inline'";
-const connectSources = ["'self'", apiOrigin, publicApiOrigin].join(" ");
+const connectSources = ["'self'", new URL(publicApiOrigin).origin].join(" ");
 
 // Deployment base path, e.g. "/worldofislam" when served at
 // https://app.arfaat.com/worldofislam. Empty string ("") for local dev and
@@ -27,12 +32,6 @@ const nextConfig: NextConfig = {
   // scope - basePath alone only affects page routing, not arbitrary client
   // code, so it is mirrored here as a build-time-inlined public constant.
   env: { NEXT_PUBLIC_WOI_BASE_PATH: basePath },
-
-  // Keep Docker production builds from being blocked by generated Next.js
-  // route-type diagnostics. Runtime-invalid imports and syntax still fail.
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 
   async headers() {
     return [

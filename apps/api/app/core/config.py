@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -57,12 +57,48 @@ class Settings(BaseSettings):
             raise ValueError("WOI_SECRET_KEY must contain at least 32 characters")
         return value
 
+    @model_validator(mode="after")
+    def enforce_production_safety(self) -> "Settings":
+        if self.environment == "production":
+            problems = production_problems(self)
+            if problems:
+                raise ValueError("Unsafe production configuration: " + "; ".join(problems))
+        return self
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def parse_origins(cls, value: object) -> object:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+
+PLACEHOLDER_MARKERS = ("replace-with", "change-me", "change-this", "local-redis-password", "devpassword", "example")
+
+
+def production_problems(settings: "Settings") -> list[str]:
+    """Configuration mistakes that must stop a production process from starting."""
+    problems: list[str] = []
+    if not settings.cookie_secure:
+        problems.append("WOI_COOKIE_SECURE must be true")
+    if not settings.allowed_origins:
+        problems.append("WOI_ALLOWED_ORIGINS must list the public origin")
+    for origin in settings.allowed_origins:
+        text = str(origin)
+        if origin.scheme != "https" or origin.host in {"localhost", "127.0.0.1", "::1"}:
+            problems.append(f"WOI_ALLOWED_ORIGINS entry {text} must be an https, non-localhost origin")
+    secrets = {
+        "WOI_SECRET_KEY": settings.secret_key.get_secret_value(),
+        "WOI_S3_SECRET_KEY": settings.s3_secret_key.get_secret_value(),
+        "WOI_DATABASE_URL": settings.database_url,
+        "WOI_REDIS_URL": settings.redis_url,
+    }
+    for name, value in secrets.items():
+        if any(marker in value.lower() for marker in PLACEHOLDER_MARKERS):
+            problems.append(f"{name} still contains a placeholder value")
+    if settings.external_ai_enabled:
+        problems.append("WOI_EXTERNAL_AI_ENABLED must stay false unless the owner has approved an external provider (not supported in this release)")
+    return problems
 
 
 @lru_cache

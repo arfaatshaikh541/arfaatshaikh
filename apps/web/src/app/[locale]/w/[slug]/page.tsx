@@ -1,4 +1,4 @@
-import type { Locale } from "@world-of-islam/shared-types";
+import { asLocale } from "@/i18n/route-locale";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Brand } from "@/components/brand";
@@ -17,8 +17,8 @@ const STATUS_LABEL: Record<FeatureStatus, { en: string; ar: string }> = {
   planned: { en: "Coming soon", ar: "قريباً" },
 };
 
-export default async function WorldPage({ params }: { params: Promise<{ locale: Locale; slug: string }> }) {
-  const { locale, slug } = await params;
+export default async function WorldPage({ params }: { params: Promise<{ locale:string; slug: string }> }) {
+  const {locale:rawLocale, slug }=await params;const locale=asLocale(rawLocale);
   const world = findWorld(slug);
   if (!world) notFound();
   const ar = locale === "ar";

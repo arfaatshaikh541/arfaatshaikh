@@ -1,0 +1,207 @@
+# Production stack for https://app.arfaat.com/worldofislam on a Linux VPS or AWS EC2.
+#
+#   cp .env.production.example .env.production   # then edit every CHANGE_ME value
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# Only the nginx service publishes ports (80, 443). PostgreSQL, Redis, MinIO, Ollama, Celery and the
+# API/web containers are reachable only on private Docker networks.
+name: world-of-islam
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "5"}
+
+services:
+  postgres:
+    <<: [*restart, *logging]
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+
+  redis:
+    <<: [*restart, *logging]
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+
+  minio:
+    <<: [*restart, *logging]
+    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: server /data --console-address "127.0.0.1:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - minio_data:/data
+    networks: [backend]
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: ["/bin/sh", "/scripts/init-minio.sh"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      WOI_S3_BUCKET: ${WOI_S3_BUCKET}
+    volumes:
+      - ./infrastructure/scripts/init-minio.sh:/scripts/init-minio.sh:ro
+    networks: [backend]
+
+  ollama:
+    <<: [*restart, *logging]
+    image: ollama/ollama:latest
+    # Models are pulled once with:  docker compose -f docker-compose.prod.yml exec ollama ollama pull <model>
+    # (needs outbound internet, hence the egress network). No port is published.
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ollama_data:/root/.ollama
+    networks: [backend, egress]
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env.production
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [backend]
+
+  api:
+    <<: [*restart, *logging]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env.production
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 8
+      start_period: 20s
+    networks: [backend, edge]
+
+  worker:
+    <<: [*restart, *logging]
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env.production
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    networks: [backend]
+
+  web:
+    <<: [*restart, *logging]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_WOI_API_ORIGIN: ${NEXT_PUBLIC_WOI_API_ORIGIN}
+        WOI_BASE_PATH: ${WOI_BASE_PATH}
+    environment:
+      WOI_BASE_PATH: ${WOI_BASE_PATH}
+      WOI_API_ORIGIN: http://api:8000
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000${WOI_BASE_PATH}/robots.txt"]
+      interval: 15s
+      timeout: 6s
+      retries: 8
+      start_period: 20s
+    networks: [edge]
+
+  nginx:
+    <<: [*restart, *logging]
+    image: nginx:1.27-alpine
+    depends_on:
+      web: {condition: service_healthy}
+      api: {condition: service_healthy}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/woi.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+    environment:
+      WOI_PUBLIC_HOST: ${WOI_PUBLIC_HOST}
+      WOI_BASE_PATH: ${WOI_BASE_PATH}
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [edge, egress]
+
+  backup:
+    <<: [*restart, *logging]
+    image: postgres:17-alpine
+    # Nightly pg_dump into ./backups (host bind mount). Copy that folder off the machine.
+    entrypoint: ["/bin/sh", "/scripts/backup-loop.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - ./infrastructure/scripts/backup-loop.sh:/scripts/backup-loop.sh:ro
+      - ./backups:/backups
+    networks: [backend]
+
+networks:
+  # edge: nginx <-> web/api only. backend: private (no route to the internet).
+  edge:
+  backend:
+    internal: true
+  # egress is attached only to nginx (to receive traffic) and ollama (to pull models).
+  egress:
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  ollama_data:
+  certbot_webroot:

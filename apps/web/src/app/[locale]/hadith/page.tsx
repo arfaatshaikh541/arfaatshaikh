@@ -1,11 +1,11 @@
-import type { Locale } from "@world-of-islam/shared-types";
+import { asLocale } from "@/i18n/route-locale";
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { HadithBrowser } from "@/components/hadith-browser";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 
-export default async function HadithIndexPage({ params }: { params: Promise<{ locale: Locale }> }) {
-  const { locale } = await params;
+export default async function HadithIndexPage({ params }: { params: Promise<{ locale:string }> }) {
+  const {locale:rawLocale }=await params;const locale=asLocale(rawLocale);
   const ar = locale === "ar";
   return (
     <main className="quran-landing">

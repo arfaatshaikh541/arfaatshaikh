@@ -1,11 +1,11 @@
-import type { Locale } from "@world-of-islam/shared-types";
+import { asLocale } from "@/i18n/route-locale";
 import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { QuranIndex } from "@/components/quran-index";
 
-export default async function QuranPage({params}:{params:Promise<{locale:Locale}>}) {
-  const {locale}=await params;
+export default async function QuranPage({params}:{params:Promise<{locale:string}>}) {
+  const {locale:rawLocale}=await params;const locale=asLocale(rawLocale);
   const arabic=locale==="ar";
   return <main className="quran-landing">
     <header className="topbar"><Brand locale={locale}/><LocaleSwitcher locale={locale} label={arabic?"اللغة":"Language"}/></header>

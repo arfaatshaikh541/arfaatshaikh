@@ -1,12 +1,12 @@
-import type { Locale } from "@world-of-islam/shared-types";
+import { asLocale } from "@/i18n/route-locale";
 import { Brand } from "@/components/brand";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { WorldsNav } from "@/components/worlds-nav";
 import { GlobalSearch } from "@/components/global-search";
 import { getMessages } from "@/i18n/messages";
 
-export default async function SearchPage({ params }: { params: Promise<{ locale: Locale }> }) {
-  const { locale } = await params;
+export default async function SearchPage({ params }: { params: Promise<{ locale:string }> }) {
+  const {locale:rawLocale }=await params;const locale=asLocale(rawLocale);
   const ar = locale === "ar";
   const t = getMessages(locale);
   return (

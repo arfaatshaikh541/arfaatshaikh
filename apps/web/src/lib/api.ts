@@ -5,7 +5,9 @@ import type { ApiErrorBody } from "@world-of-islam/shared-types";
 // Every request is versioned under /api/v1, which the FastAPI app mounts at
 // its root - callers pass domain-relative paths ("/quran/...", "/auth/login")
 // and never repeat "/api/v1" themselves.
-const API_ORIGIN = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? "http://localhost:8000";
+// Development falls back to the local API; a production build refuses to start without the variable
+// (see next.config.ts), so this fallback can never be baked into a production bundle.
+const API_ORIGIN = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000");
 const API_PREFIX = "/api/v1";
 let csrfToken: string | null = null;
 
