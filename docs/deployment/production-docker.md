@@ -63,7 +63,8 @@ Required variables (all listed with comments in `.env.production.example`):
 | `WOI_SECRET_KEY` | 64 hex characters |
 | `WOI_COOKIE_SECURE` / `WOI_COOKIE_PATH` | `true` / `/worldofislam` |
 | `WOI_FORWARDED_ALLOW_IPS` | `172.31.200.10` (nginx's fixed address; never `*`) |
-| `POSTGRES_*`, `WOI_DATABASE_URL` | same password in both |
+| `POSTGRES_USER/PASSWORD` | bootstrap **superuser**, used only by the backup job; never by the app |
+| `WOI_APP_DB_USER/PASSWORD`, `WOI_DATABASE_URL` | the application's non-superuser database role (owns the database so row-level security applies); the same credentials in all three |
 | `REDIS_PASSWORD`, `WOI_REDIS_URL`, `WOI_CELERY_*` | same password everywhere |
 | `MINIO_ROOT_USER/PASSWORD`, `WOI_S3_*` | same credentials in both groups |
 | `WOI_AI_MODE=local`, `WOI_EXTERNAL_AI_ENABLED=false`, `WOI_OLLAMA_BASE_URL=http://ollama:11434`, `WOI_OLLAMA_MODEL` | local AI only |
@@ -134,6 +135,11 @@ docker compose --env-file .env.production -f docker-compose.prod.yml start api w
 ```
 
 Also snapshot the Docker volumes `minio_data` and `ollama_data` if you rely on uploaded files.
+
+> **Why two database roles?** PostgreSQL superusers bypass row-level security, so an application running as the
+> bootstrap superuser would silently disable the tenant-isolation policies in the schema. The init script
+> `infrastructure/postgres/10-app-role.sh` creates the non-superuser application role the first time the volume is
+> created. If you already created the volume without it, create the role by hand (see that script) before starting.
 
 ## 6. Updating
 

@@ -177,7 +177,16 @@ Works whose copyright is not confirmed are stored but hidden ("staged"). Only pu
 appear right away. See `docs/data-sources.md` for what is published and how to publish a staged work
 (`scripts/publish_staged.py --list`).
 
-Every source, its licence and what was verified is listed in `docs/data-sources.md`.
+Finally register the sources and apply the publication rules (hides anything whose rights are not confirmed):
+
+```bash
+uv run python scripts/sync_manifest.py                 # what a public server should run
+uv run python scripts/sync_manifest.py --dev-show-all  # LOCAL TESTING ONLY: keep everything visible so you can try every page
+uv run python scripts/build_knowledge_graph.py         # optional: sourced relationships (takes a few minutes)
+uv run python scripts/validate_data.py                 # source/licence/provenance checks
+```
+
+Every source, its licence and what was verified is listed in `docs/DATA_READINESS.md`.
 
 ## Troubleshooting
 

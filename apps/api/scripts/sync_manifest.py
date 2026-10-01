@@ -21,6 +21,8 @@ async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--dev-show-all", action="store_true",
+                    help="LOCAL TESTING ONLY: register the datasets but do not hide staged content (refused in production)")
     args = ap.parse_args()
     manifest = load_manifest()
     problems = validate_manifest(manifest)
@@ -35,12 +37,20 @@ async def main() -> None:
     from app.services.datasets import DatasetService
     from app.services.publication_policy import apply_manifest_policy
 
-    db = Database(get_settings())
+    settings = get_settings()
+    if args.dev_show_all and settings.environment == "production":
+        raise SystemExit("--dev-show-all is not allowed when WOI_ENVIRONMENT=production")
+    db = Database(settings)
     async with db.session_factory() as session:
         service = DatasetService(session)
         for entry in manifest["datasets"]:
             await service.register(entry, None)
         await session.flush()
+        if args.dev_show_all:
+            print("WARNING: publication policy NOT applied; staged content may be visible. Do not use this on a public server.")
+            await session.commit()
+            await db.dispose()
+            return
         report = await apply_manifest_policy(session, manifest, dry_run=args.dry_run)
         for row in report:
             print(("SHOW " if row["visible"] else "HIDE ") + row["dataset"], row["targets"])
