@@ -13,7 +13,7 @@ export function LearningDashboard({ locale }: Props) {
   const t = copy[locale];
   const [courses, setCourses] = useState<Course[] | null>(null);
   useEffect(() => { apiFetch<{ courses: Course[] }>('/learning/courses').then((r) => setCourses(r.courses)).catch(() => setCourses([])); }, []);
-  return <main dir={locale === 'ar' ? 'rtl' : 'ltr'} aria-labelledby="learning-title" className="learning-dashboard">
+  return <main dir={locale==='ar'?'rtl':'ltr'} aria-labelledby="learning-title" className="learning-dashboard">
     <header><h1 id="learning-title">{t.title}</h1></header>
     <section aria-labelledby="courses-title"><h2 id="courses-title">{t.courses}</h2>
       {courses === null && <p aria-busy="true">…</p>}
