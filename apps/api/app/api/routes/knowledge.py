@@ -31,6 +31,9 @@ def record_view(record: KnowledgeRecord, dataset: DataSet) -> dict:
         "description": record.description, "source": record.source, "source_url": record.source_url, "author": record.author, "date": record.record_date,
         "license": record.license, "provenance": record.provenance, "scholarly_status": record.scholarly_status, "confidence": record.confidence,
         "last_verified": record.last_verified.isoformat() if record.last_verified else None, "tags": record.tags, "relationships": record.relationships,
+        "source_work": record.source_work, "edition": record.edition, "volume": record.volume, "page": record.page, "chapter": record.chapter,
+        "language": record.language, "publication_status": record.publication_status, "license_status": record.license_status,
+        "provenance_status": record.provenance_status, "attributes": record.attributes or {},
     }
 
 
@@ -41,13 +44,18 @@ async def readiness(db: DbSession, entity_type: str | None = None):
     rows = (await db.scalars(stmt)).all()
     items = [{"id": d.dataset_key, "name": d.name, "type": d.entity_type, "public": d.publication_status == "published" and d.enabled,
               "readiness": d.readiness, "license_status": d.license_status, "validation_status": d.validation_status, "record_count": d.record_count,
-              "remaining_action": d.remaining_action} for d in rows if not entity_type or d.entity_type == entity_type]
+              "remaining_action": d.remaining_action,
+              # a domain with no loaded dataset says so plainly instead of implying content exists
+              "data_source_required": d.record_count == 0} for d in rows if not entity_type or d.entity_type == entity_type]
     return {"datasets": items}
 
 
 @router.get("/records")
 async def list_records(request: Request, db: DbSession, type: Annotated[str | None, Query(max_length=40)] = None, q: Annotated[str | None, Query(max_length=200)] = None,
-                       tag: Annotated[str | None, Query(max_length=80)] = None, page: Annotated[int, Query(ge=1, le=10000)] = 1, page_size: Annotated[int, Query(ge=1, le=50)] = 20):
+                       tag: Annotated[str | None, Query(max_length=80)] = None,
+                       madhhab: Annotated[str | None, Query(max_length=80)] = None, school: Annotated[str | None, Query(max_length=80)] = None,
+                       topic: Annotated[str | None, Query(max_length=200)] = None, collection: Annotated[str | None, Query(max_length=80)] = None,
+                       hadith_number: Annotated[str | None, Query(max_length=40)] = None, page: Annotated[int, Query(ge=1, le=10000)] = 1, page_size: Annotated[int, Query(ge=1, le=50)] = 20):
     await rate_limiter.check(request, "knowledge", max(get_settings().auth_rate_limit * 6, 60), 60)
     if type and type not in RECORD_TYPES:
         raise ApplicationError("invalid_type", "Unknown record type.", 422)
@@ -56,6 +64,10 @@ async def list_records(request: Request, db: DbSession, type: Annotated[str | No
         conditions.append(KnowledgeRecord.entity_type == type)
     if tag:
         conditions.append(KnowledgeRecord.tags.contains([tag.lower()]))
+    for key, value in (("madhhab", madhhab), ("school", school), ("topic", topic), ("collection", collection), ("hadith_number", hadith_number)):
+        if value:
+            # each scholarly position stays its own row; filtering never merges or ranks opposing views
+            conditions.append(KnowledgeRecord.attributes.contains({key: int(value) if key == "hadith_number" and value.isdigit() else value}))
     if q and q.strip():
         document = func.to_tsvector("simple", KnowledgeRecord.title + " " + func.coalesce(KnowledgeRecord.arabic_title, "") + " " + KnowledgeRecord.description)
         conditions.append(document.op("@@")(func.plainto_tsquery("simple", q.strip())))

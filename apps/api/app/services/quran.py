@@ -15,6 +15,7 @@ from app.models.quran import (
     QuranRecitationEdition, QuranAyahAudio, QuranPlaybackProgress,
 )
 from app.models.sources import SourceEdition, SourcePassage
+from app.services.data_contracts import PUBLISHABLE_LICENCE_STATUSES
 from app.schemas.quran import QuranAyahCreate, QuranSurahCreate, QuranTextEditionCreate, QuranTranslationEditionCreate, QuranRecitationEditionCreate, QuranAyahAudioCreate, QuranPlaybackProgressUpdate
 
 
@@ -150,6 +151,10 @@ class QuranService:
         ayah = await self.db.get(QuranAyah, payload.ayah_id)
         if not recitation or not ayah or not ayah.published:
             raise AppError("recitation_reference_invalid", "Recitation edition or published ayah is invalid", 422)
+        if recitation.delivery_mode == "hosted" and not (payload.audio_sha256 and payload.octet_size and payload.duration_ms):
+            raise AppError("recitation_checksum_required", "A hosted recording needs its sha256, size and duration", 422)
+        if bool(payload.audio_sha256) != bool(payload.octet_size):
+            raise AppError("recitation_checksum_incomplete", "Give both sha256 and size, or neither", 422)
         audio = QuranAyahAudio(recitation_edition_id=recitation.id, **payload.model_dump())
         self.db.add(audio); await self.db.flush(); return audio
 
@@ -160,6 +165,12 @@ class QuranService:
         source = await self.db.get(SourceEdition, recitation.source_edition_id)
         if not source or source.review_status != "approved" or source.ingestion_status != "ready" or not source.approved_for_retrieval:
             raise AppError("recitation_source_revoked", "The recitation source is no longer retrieval eligible", 409)
+        if recitation.delivery_mode == "hosted":
+            # Redistribution needs a licence that permits it plus a recorded authorisation; an external link needs only the rights holder's own host.
+            if recitation.license_status not in PUBLISHABLE_LICENCE_STATUSES or not (recitation.rights_authorization or "").strip():
+                raise AppError("recitation_rights_not_established", "Hosting this recitation needs a licence that permits redistribution and a recorded authorisation", 409)
+        elif not recitation.source_url:
+            raise AppError("recitation_source_url_required", "An external-link recitation needs the rights holder's page (source_url)", 409)
         count = await self.db.scalar(select(sa.func.count()).select_from(QuranAyahAudio).where(QuranAyahAudio.recitation_edition_id == recitation.id))
         if not count:
             raise AppError("recitation_audio_missing", "At least one verified ayah audio record is required", 409)
@@ -176,7 +187,7 @@ class QuranService:
         audio = await self.db.get(QuranAyahAudio, payload.ayah_audio_id)
         if not audio or not audio.published:
             raise AppError("quran_audio_not_found", "Published ayah audio not found", 404)
-        if payload.position_ms > audio.duration_ms:
+        if audio.duration_ms is not None and payload.position_ms > audio.duration_ms:
             raise AppError("quran_audio_position_invalid", "Playback position exceeds audio duration", 422)
         progress = await self.db.scalar(select(QuranPlaybackProgress).where(QuranPlaybackProgress.user_id == user_id))
         values = payload.model_dump()

@@ -6,7 +6,9 @@ import { INSUFFICIENT } from "@/lib/copy";
 
 type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number };
 type Sections = { primary_source: Item[]; scholarly_explanation: Item[]; secondary_source: Item[] };
+type KnowledgeSource = { label: string; kind: string; title: string; text: string; position: string | null; source: string; source_work: string | null; locator: string; license: string; scholarly_status: string; uncertainty: string[] };
 type Answer = {
+  knowledge_sources?: KnowledgeSource[];
   status: string; message?: string; insufficiency_reason?: string | null; requires_escalation?: boolean; response_text?: string | null;
   sections?: Sections; confidence?: { score: number; level: string; abstained: boolean; reasons: string[] };
   scholarly_views?: { reference: string; views: { attribution: string }[]; note: string }[];
@@ -59,6 +61,22 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
     );
   };
 
+
+  const knowledge = (answer?.knowledge_sources ?? []).length > 0 && (
+    <section className="answer-section" aria-label={rtl ? "سجلات موثّقة ذات صلة" : "Related sourced records"}>
+      <h3>{rtl ? "سجلات موثّقة ذات صلة" : "Related sourced records"}</h3>
+      <p className="tool-note">{rtl ? "تُعرض المواقف العلمية المختلفة منفصلة، دون دمج أو ترجيح." : "Different scholarly positions are listed separately; they are not merged or ranked."}</p>
+      <ul>{answer!.knowledge_sources!.map((k) => (
+        <li key={k.label}>
+          <strong>{k.label} {k.title}</strong>{k.position ? ` · ${k.position}` : ""}
+          <p style={{ whiteSpace: "pre-line" }}>{k.text}</p>
+          <small>{k.source_work ?? k.source} · {k.locator} · {k.license}</small>
+          {k.uncertainty.length > 0 && <p role="note" className="tool-note">{k.uncertainty.join("; ")}</p>}
+        </li>))}
+      </ul>
+    </section>
+  );
+
   return <main className="assistant-shell" dir={rtl ? "rtl" : "ltr"}>
     <header><h1>{copy.title}</h1><p>{copy.intro}</p></header>
     <form onSubmit={submit} aria-busy={busy}>
@@ -84,6 +102,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
         )}
         <p className="assistant-boundary">{copy.boundary}</p>
       </>}
+      {answer && knowledge}
       {answer?.status === "insufficient" && <p role="status"><strong>{INSUFFICIENT[rtl ? "ar" : "en"]}</strong> {rtl ? "جرّب صياغة أخرى أو موضوعاً أعم." : "Try rephrasing, or a broader topic."}</p>}
     </section>
   </main>;

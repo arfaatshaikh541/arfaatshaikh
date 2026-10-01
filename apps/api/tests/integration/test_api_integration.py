@@ -6,6 +6,7 @@ Skipped unless WOI_TEST_DATABASE_URL is set (an EMPTY, migrated database; the te
 """
 import os
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -95,13 +96,23 @@ async def test_dataset_lifecycle_publication_gate_import_rollback_and_audit(app_
     assert r.status_code == 409 and r.json()["error"]["details"]["reasons"]
 
     record = {"id": "seerah-0001", "entity_type": "seerah", "title": "Owner supplied example", "description": "A record supplied by the owner for this test.",
-              "source": "Owner dataset (test)", "license": "Owner permission", "provenance": "Supplied by the test suite; not real religious content."}
+              "source": "Owner dataset (test)", "license": "Owner permission", "provenance": "Supplied by the test suite; not real religious content.",
+              "source_work": "Test fixture work", "language": "en", "attributes": {"reliability": "established"}}
     upload = {"records": [record, {**record, "title": ""}, {"nonsense": True}]}
+    # preview writes nothing and reports every problem; a strict import of the same file is refused as a whole
+    preview = (await admin.post("/api/v1/admin/datasets/seerah/preview", headers=headers, json=upload)).json()
+    assert (preview["valid"], preview["would_create"], preview["failed"]) == (1, 1, 2)
+    strict = (await admin.post("/api/v1/admin/datasets/seerah/import", headers=headers, json=upload)).json()
+    assert strict["status"] == "failed" and strict["created"] == 0 and strict["failed"] == 2
+    assert (await admin.get("/api/v1/admin/datasets/seerah/imports")).json()["imports"][0]["status"] == "failed"
+    upload["allow_partial"] = True
     r = await admin.post("/api/v1/admin/datasets/seerah/import", headers=headers, json=upload)
     body = r.json()
     assert r.status_code == 200 and (body["created"], body["failed"]) == (1, 2) and len(body["failures"]) == 2
     first_import = body["id"]
     assert (await admin.post("/api/v1/admin/datasets/seerah/import", headers=headers, json=upload)).json()["id"] == first_import  # idempotent
+    provenance = (await admin.get("/api/v1/admin/datasets/seerah/provenance")).json()
+    assert provenance["dataset"]["id"] == "seerah" and provenance["imports"] and any(e["action"] == "dataset.import" for e in provenance["events"])
 
     # an import never verifies itself; publication stays blocked until a person verifies AND rights are confirmed
     r = await admin.post("/api/v1/admin/datasets/seerah/action", headers=headers, json={"action": "publish", "confirmed_by": "Owner", "confirmed_on": "2026-10-01", "basis": "written permission (test)"})
@@ -244,3 +255,94 @@ async def test_admin_can_review_which_sources_an_answer_cited(app_client, monkey
     admin, _, _ = await make_user(app_client, admin=True)
     runs = (await admin.get("/api/v1/assistant/admin/runs?limit=5")).json()["runs"]
     assert runs and runs[0]["status"] in {"assembled", "insufficient"}
+
+
+async def _drop_datasets(*keys):
+    """Leave the database as the other tests expect to find it (their datasets are re-created from the manifest on demand)."""
+    from sqlalchemy import text
+    from app.core.config import get_settings
+    from app.db.session import Database
+    db = Database(get_settings())
+    async with db.session_factory() as session:
+        for key in keys:
+            await session.execute(text("delete from data_sets where dataset_key = :k"), {"k": key})
+        await session.commit()
+    await db.dispose()
+
+
+async def test_unpublish_withdraws_a_published_dataset_and_assistant_lists_sourced_records(app_client, monkeypatch):
+    """A published, sourced record is retrieved with its metadata; unpublishing removes it everywhere at once."""
+    from sqlalchemy import text
+    from app.core.config import get_settings
+    from app.db.session import Database
+    db = Database(get_settings())
+    async with db.session_factory() as session:
+        await session.execute(text("delete from data_sets where dataset_key = 'aqeedah'"))
+        await session.commit()
+    await db.dispose()
+    admin, headers, _ = await make_user(app_client, admin=True)
+    assert (await admin.post("/api/v1/admin/datasets/manifest/sync", headers=headers)).status_code == 200
+    record = {"id": "aq-1", "entity_type": "aqeedah", "title": "Patience in hardship (fixture)", "description": "Fixture record about patience in hardship, written for the test suite only.",
+              "source": "Test fixture", "license": "Owner permission", "provenance": "Written by the test suite; not real religious content.", "source_work": "Fixture work",
+              "edition": "Fixture edition", "page": "12", "chapter": "Fixture chapter", "language": "en", "provenance_status": "source_and_page_cited",
+              "attributes": {"school": "Fixture school", "topic": "patience", "statement": "A fixture statement.", "quran_refs": ["2:153"]}}
+    other = {**record, "id": "aq-2", "attributes": {**record["attributes"], "school": "Another fixture school", "statement": "A different fixture statement."}}
+    assert (await admin.post("/api/v1/admin/datasets/aqeedah/import", headers=headers, json={"records": [record, other]})).json()["created"] == 2
+    await admin.post("/api/v1/admin/datasets/aqeedah/action", headers=headers, json={"action": "mark_verified", "note": "Checked the fixture records by hand."})
+    confirm = {"action": "publish", "confirmed_by": "Owner", "confirmed_on": "2026-10-01", "basis": "written permission (test)"}
+    assert (await admin.post("/api/v1/admin/datasets/aqeedah/action", headers=headers, json=confirm)).status_code == 200
+
+    both = (await app_client.get("/api/v1/knowledge/records?type=aqeedah&topic=patience")).json()
+    assert both["total"] == 2  # two schools, two separate records
+    one = (await app_client.get("/api/v1/knowledge/records?type=aqeedah&school=Another%20fixture%20school")).json()
+    assert one["total"] == 1 and one["items"][0]["attributes"]["statement"] == "A different fixture statement." and one["items"][0]["page"] == "12"
+
+    from app.api.routes import assistant as route
+
+    async def no_evidence(db, corpora, question, limit):
+        return []
+    monkeypatch.setattr(route, "search_evidence", no_evidence)
+    client, user_headers, _ = await make_user(app_client)
+    r = await client.post("/api/v1/assistant/query", headers=user_headers, json={"question": "What does the Qur'an say about patience in hardship?"})
+    body = r.json()
+    assert body["status"] == "insufficient"  # no primary source: the assistant still abstains
+    labels = {k["label"]: k for k in body["knowledge_sources"]}
+    assert len(labels) == 2 and all(k["source_work"] == "Fixture work" and "p. 12" in k["locator"] for k in labels.values())
+    assert {k["position"] for k in labels.values()} == {"Fixture school", "Another fixture school"}
+    assert all(any("not the only one" in n for n in k["uncertainty"]) for k in labels.values())
+
+    assert (await admin.post("/api/v1/admin/datasets/aqeedah/action", headers=headers, json={"action": "unpublish"})).json()["publication_status"] == "staged"
+    assert (await app_client.get("/api/v1/knowledge/records?type=aqeedah")).json()["total"] == 0
+    body = (await client.post("/api/v1/assistant/query", headers=user_headers, json={"question": "What does the Qur'an say about patience in hardship?"})).json()
+    assert body["knowledge_sources"] == []
+    await _drop_datasets("aqeedah")
+
+
+async def test_expired_jobs_and_finished_events_disappear_and_job_fields_are_enforced(app_client):
+    from sqlalchemy import text
+    from app.core.config import get_settings
+    from app.db.session import Database
+    db = Database(get_settings())
+    async with db.session_factory() as session:
+        await session.execute(text("delete from data_sets where dataset_key = 'directory-jobs'"))
+        await session.commit()
+    await db.dispose()
+    admin, headers, _ = await make_user(app_client, admin=True)
+    assert (await admin.post("/api/v1/admin/datasets/manifest/sync", headers=headers)).status_code == 200
+    unique = uuid.uuid4().hex[:8]
+    job = {"listing_type": "job", "name": f"Analyst {unique}", "source": "Employer feed (test)", "license": "Employer terms (test)", "provenance": "Posted by the test suite",
+           "external_key": f"job-{unique}", "country": "GB", "city": "Leeds", "attributes": {"employer": "Example Ltd", "application_url": "https://example.org/apply", "employment_type": "full_time"}}
+    soon = (datetime.now(UTC) + timedelta(days=2)).isoformat()
+    past = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    rows = [{**job, "expires_at": soon}, {**job, "external_key": f"old-{unique}", "name": f"Closed {unique}", "expires_at": past},
+            {**job, "external_key": f"bad-{unique}", "name": f"Missing {unique}", "attributes": {"employer": "X"}, "expires_at": soon}]
+    r = await admin.post("/api/v1/admin/datasets/directory-jobs/import-listings", headers=headers, json={"records": rows})
+    assert r.json()["status"] == "failed" and r.json()["failures"][0]["index"] == 2  # all-or-nothing: the invalid row blocks the file
+    r = await admin.post("/api/v1/admin/datasets/directory-jobs/import-listings", headers=headers, json={"records": rows[:2]})
+    assert r.json()["created"] == 2
+    await admin.post("/api/v1/admin/datasets/directory-jobs/action", headers=headers, json={"action": "mark_verified", "note": "Checked the two test jobs by hand."})
+    assert (await admin.post("/api/v1/admin/datasets/directory-jobs/action", headers=headers, json={"action": "publish", "confirmed_by": "Owner", "confirmed_on": "2026-10-01", "basis": "test"})).status_code == 200
+    found = (await app_client.get(f"/api/v1/directory/listings?type=job&q={unique}")).json()
+    assert [i["name"] for i in found["items"]] == [f"Analyst {unique}"]  # the closed job is not listed
+    assert found["items"][0]["attributes"]["application_url"] == "https://example.org/apply" and found["items"][0]["expires_at"]
+    await _drop_datasets("directory-jobs")

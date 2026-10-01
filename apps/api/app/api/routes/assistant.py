@@ -11,6 +11,7 @@ from app.api.dependencies.platform_admin import require_platform_administrator
 from app.core.config import get_settings
 from app.services.ai_provider import get_ai_provider
 from app.services.assistant_runs import persist_run, recent_runs
+from app.services.knowledge_retrieval import hits_view, search_knowledge
 from app.services.rag import INSUFFICIENT, assess_confidence, build_sections, build_synthesis_prompt, detect_scholarly_views, rank_evidence, validate_synthesis
 from app.services.retrieval import EvidenceContract, search_evidence
 from app.services.assistant_safety import SAFETY_POLICY_VERSION, SafetyDecision, evaluate_safety
@@ -131,6 +132,7 @@ async def query(payload: AssistantQueryRequest, db: DbSession, user: Annotated[U
         run_id = None
     response = _with_pipeline(_assembled_response(result, safety, evidence), confidence, synthesis, detect_scholarly_views(ranked_for_view))
     response["sections"] = build_sections(ranked_for_view)
+    response["knowledge_sources"] = hits_view(await search_knowledge(db, payload.question))
     response["answer_run_id"] = str(run_id) if run_id else None
     return response
 
@@ -140,6 +142,7 @@ def _with_pipeline(response: dict, confidence, synthesis, views: list[dict]) -> 
                               if confidence else {"score": 0.0, "level": "none", "abstained": True, "reasons": ["no_supported_scope"]})
     response["ai_synthesis"] = synthesis or {"status": "not_requested", "text": None, "label": "AI SYNTHESIS"}
     response["scholarly_views"] = views
+    response.setdefault("knowledge_sources", [])
     response["sections"] = response.get("sections", {"primary_source": [], "scholarly_explanation": [], "secondary_source": []})
     if response["status"] == "insufficient":
         response["message"] = INSUFFICIENT

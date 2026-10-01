@@ -4,8 +4,9 @@ from app.services.data_contracts import (
     DirectoryListingInput, KnowledgeRecordInput, can_publish, dedupe_key, haversine_km, validate_record_batch,
 )
 
-GOOD = dict(id="seerah-0001", entity_type="seerah", title="Example", description="Described.", source="Owner-supplied dataset X",
-            license="Owner permission", provenance="Supplied by the owner on 2026-10-01", scholarly_status="unreviewed")
+GOOD = dict(id="history-0001", entity_type="history", title="Example", description="Described.", source="Owner-supplied dataset X",
+            license="Owner permission", provenance="Supplied by the owner on 2026-10-01", scholarly_status="unreviewed",
+            source_work="Owner-supplied work", language="en")
 
 
 def test_valid_record_round_trips():
@@ -32,9 +33,9 @@ def test_reviewed_record_needs_last_verified():
 
 
 def test_duplicates_and_type_mismatch_are_reported_not_hidden():
-    result = validate_record_batch([GOOD, GOOD, {**GOOD, "id": "x2", "entity_type": "fiqh"}], expected_type="seerah")
+    result = validate_record_batch([GOOD, GOOD, {**GOOD, "id": "x2", "entity_type": "scholar"}], expected_type="history")
     assert len(result.valid) == 1
-    assert {f["errors"][0] for f in result.failures} == {"duplicate id in file", "entity_type fiqh does not match dataset type seerah"}
+    assert {f["errors"][0] for f in result.failures} == {"duplicate id in file", "entity_type scholar does not match dataset type history"}
 
 
 def test_non_object_rows_fail_cleanly():

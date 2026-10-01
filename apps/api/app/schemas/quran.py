@@ -220,14 +220,21 @@ class QuranRecitationEditionCreate(BaseModel):
     display_name: str = Field(min_length=2, max_length=300)
     audio_format: str = Field(pattern=r"^(mp3|m4a|ogg|webm)$")
     attribution_text: str = Field(min_length=5, max_length=4000)
+    delivery_mode: Literal["hosted", "external_link"] = "hosted"
+    license_status: str = Field(default="LICENSE_REQUIRED", pattern=r"^(VERIFIED_OPEN|PUBLIC_DOMAIN|PD_WORK_OPEN_EDITION_DECLARED|OWNER_PERMISSION_GRANTED|LICENSE_REQUIRED|PROVENANCE_UNCLEAR|UNKNOWN)$")
+    license_name: str | None = Field(default=None, max_length=240)
+    rights_authorization: str | None = Field(default=None, max_length=4000)  # who authorised redistribution, when, on what basis
+    source_url: str | None = Field(default=None, pattern=r"^https://[^\s]+$", max_length=800)
+    caching_allowed: bool = False
+    offline_allowed: bool = False
 
 
 class QuranAyahAudioCreate(BaseModel):
     ayah_id: UUID
     audio_url: str = Field(pattern=r"^https://[^\s]+$")
-    audio_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    duration_ms: int = Field(gt=0, le=3600000)
-    octet_size: int = Field(gt=0, le=100000000)
+    audio_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")  # required for hosted recitations, optional for external links
+    duration_ms: int | None = Field(default=None, gt=0, le=3600000)
+    octet_size: int | None = Field(default=None, gt=0, le=100000000)
 
 
 class QuranRecitationView(BaseModel):
@@ -237,6 +244,12 @@ class QuranRecitationView(BaseModel):
     riwayah: str
     display_name: str
     attribution_text: str
+    delivery_mode: str = "hosted"
+    license_name: str | None = None
+    license_status: str = "LICENSE_REQUIRED"
+    source_url: str | None = None
+    caching_allowed: bool = False
+    offline_allowed: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -245,7 +258,7 @@ class QuranAyahAudioView(BaseModel):
     ayah_id: UUID
     canonical_reference: str
     audio_url: str
-    duration_ms: int
+    duration_ms: int | None = None
 
 
 class QuranPlaybackProgressUpdate(BaseModel):

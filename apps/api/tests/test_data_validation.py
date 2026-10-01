@@ -79,6 +79,25 @@ def test_data_readiness_document_is_in_sync_with_the_manifest():
     assert result.returncode == 0, "docs/DATA_READINESS.md is stale: run scripts/generate_data_readiness.py"
 
 
+def test_source_verification_document_is_in_sync():
+    result = subprocess.run([sys.executable, str(ROOT / "apps" / "api" / "scripts" / "generate_source_verification.py"), "--check"], cwd=ROOT / "apps" / "api")
+    assert result.returncode == 0, "docs/SOURCE_VERIFICATION.md is stale: run scripts/generate_source_verification.py"
+
+
+def test_domain_readiness_statuses_agree_with_the_manifest():
+    """Every pending domain has a row, and READY/PARTIALLY_READY/NEEDS_LICENSE are only claimed when the manifest backs them."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gen", ROOT / "apps" / "api" / "scripts" / "generate_data_readiness.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rows = module.domain_rows(MANIFEST)
+    assert len(rows) == 19 and {r["status"] for r in rows} <= set(module.DOMAIN_STATUSES)
+    assert not any(r["status"] == "READY" for r in rows)  # nothing is complete until every published record is verified and permitted
+    for r in rows:
+        if r["status"] in {"PARTIALLY_READY", "NEEDS_LICENSE"}:
+            assert r["records"] > 0
+
+
 # ---------------------------------------------------------------- the checks themselves catch violations
 def test_manifest_without_provenance_fails():
     assert any("provenance" in p for p in validate_manifest(entry(provenance="")))

@@ -250,6 +250,9 @@ class QuranRecitationEdition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("recitation_key"),
         CheckConstraint("audio_format IN ('mp3','m4a','ogg','webm')", name="ck_quran_recitation_editions_format"),
+        CheckConstraint("delivery_mode IN ('hosted','external_link')", name="ck_quran_recitation_editions_delivery_mode"),
+        CheckConstraint("license_status IN ('VERIFIED_OPEN','PUBLIC_DOMAIN','PD_WORK_OPEN_EDITION_DECLARED','OWNER_PERMISSION_GRANTED','LICENSE_REQUIRED','PROVENANCE_UNCLEAR','UNKNOWN')", name="ck_quran_recitation_editions_license_status"),
+        CheckConstraint("NOT offline_allowed OR caching_allowed", name="ck_quran_recitation_editions_offline_needs_cache"),
     )
 
     source_edition_id: Mapped[UUID] = mapped_column(ForeignKey("source_editions.id", ondelete="RESTRICT"), nullable=False)
@@ -260,6 +263,14 @@ class QuranRecitationEdition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     audio_format: Mapped[str] = mapped_column(String(16), nullable=False)
     attribution_text: Mapped[str] = mapped_column(Text, nullable=False)
     published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # hosted = checksummed files we may redistribute; external_link = we only link to the rights holder's own host
+    delivery_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="hosted", server_default="hosted")
+    license_status: Mapped[str] = mapped_column(String(40), nullable=False, default="LICENSE_REQUIRED", server_default="LICENSE_REQUIRED")
+    license_name: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    rights_authorization: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(800), nullable=True)
+    caching_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    offline_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
 
 class QuranAyahAudio(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -268,15 +279,16 @@ class QuranAyahAudio(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("recitation_edition_id", "ayah_id"),
         CheckConstraint("duration_ms > 0", name="ck_quran_ayah_audio_duration"),
         CheckConstraint("octet_size > 0", name="ck_quran_ayah_audio_size"),
+        CheckConstraint("(audio_sha256 IS NULL) = (octet_size IS NULL)", name="ck_quran_ayah_audio_checksum_pair"),
         Index("ix_quran_ayah_audio_ayah", "ayah_id"),
     )
 
     recitation_edition_id: Mapped[UUID] = mapped_column(ForeignKey("quran_recitation_editions.id", ondelete="RESTRICT"), nullable=False)
     ayah_id: Mapped[UUID] = mapped_column(ForeignKey("quran_ayahs.id", ondelete="RESTRICT"), nullable=False)
     audio_url: Mapped[str] = mapped_column(Text, nullable=False)
-    audio_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
-    octet_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    audio_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    octet_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
 

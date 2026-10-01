@@ -186,3 +186,6 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .knowledge-page form[role=search] input{width:100%}.knowledge-page textarea{min-height:5rem}
 .knowledge-page button:not(.chip):not(.linklike){min-height:2.5rem;padding:.4rem 1rem;border-radius:.6rem;border:1px solid rgba(179,146,90,.5);background:rgba(179,146,90,.12);color:var(--gold-strong);font-weight:650;cursor:pointer}
 .knowledge-page button:disabled{opacity:.5;cursor:not-allowed}
+.grades{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.92rem}
+.grades caption{text-align:start;font-size:.85rem;opacity:.8;padding-bottom:.3rem}
+.grades th,.grades td{border-bottom:1px solid var(--line);padding:.35rem .5rem;text-align:start;vertical-align:top}

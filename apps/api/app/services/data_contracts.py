@@ -15,11 +15,12 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Sequence
 from datetime import date as Date
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.content_contract import LISTING_TYPES, RECORD_TYPES
+from app.models.content_contract import LICENSE_STATUSES, LISTING_TYPES, PROVENANCE_STATUSES, PUBLICATION_FORMS, RECORD_TYPES
 
 IMPORTER_VERSION = "contract-importer-1.0"
 
@@ -87,12 +88,44 @@ class KnowledgeRecordInput(BaseModel):
     last_verified: Date | None = None
     tags: list[str] = Field(default_factory=list, max_length=40)
     relationships: list[RelationshipInput] = Field(default_factory=list, max_length=100)
+    # source-level provenance of religious content
+    source_work: str | None = Field(default=None, max_length=500)
+    edition: str | None = Field(default=None, max_length=300)
+    volume: str | None = Field(default=None, max_length=80)
+    page: str | None = Field(default=None, max_length=80)
+    chapter: str | None = Field(default=None, max_length=300)
+    language: str | None = Field(default=None, max_length=24)
+    publication_status: str = "unspecified"
+    license_status: str = "UNKNOWN"
+    provenance_status: str = "unclear"
+    attributes: dict = Field(default_factory=dict)
 
     @field_validator("entity_type")
     @classmethod
     def known_type(cls, value: str) -> str:
         if value not in RECORD_TYPES:
             raise ValueError(f"entity_type must be one of {', '.join(RECORD_TYPES)}")
+        return value
+
+    @field_validator("publication_status")
+    @classmethod
+    def known_publication(cls, value: str) -> str:
+        if value not in PUBLICATION_FORMS:
+            raise ValueError(f"publication_status must be one of {', '.join(PUBLICATION_FORMS)}")
+        return value
+
+    @field_validator("license_status")
+    @classmethod
+    def known_license(cls, value: str) -> str:
+        if value not in LICENSE_STATUSES:
+            raise ValueError(f"license_status must be one of {', '.join(LICENSE_STATUSES)}")
+        return value
+
+    @field_validator("provenance_status")
+    @classmethod
+    def known_provenance(cls, value: str) -> str:
+        if value not in PROVENANCE_STATUSES:
+            raise ValueError(f"provenance_status must be one of {', '.join(PROVENANCE_STATUSES)}")
         return value
 
     @field_validator("scholarly_status")
@@ -121,9 +154,111 @@ class KnowledgeRecordInput(BaseModel):
             raise ValueError("a reviewed record needs last_verified")
         return self
 
+    @model_validator(mode="after")
+    def type_rules(self):
+        problems = check_record_structure(self)
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
     def content_hash(self) -> str:
         return hashlib.sha256(json.dumps(self.model_dump(mode="json"), sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
+
+
+# ---------------------------------------------------------------- religious-content structure
+
+SOURCED_TYPES = frozenset({"fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "library_work", "history", "civilization", "scholar"})
+SEERAH_RELIABILITY = ("established", "well_known_disputed", "weak_reports")
+LIBRARY_AVAILABILITY = ("metadata_only", "external_link", "owner_file")
+QURAN_REF = re.compile(r"^(?:[1-9]|[1-9]\d|10\d|11[0-4]):[1-9]\d{0,2}(?:-[1-9]\d{0,2})?$")
+ISBN = re.compile(r"^(?:97[89])?\d{9}[\dXx]$")
+
+
+def _text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _refs(attributes: dict) -> list[str]:
+    problems: list[str] = []
+    for ref in attributes.get("quran_refs", []) or []:
+        if not isinstance(ref, str) or not QURAN_REF.match(ref):
+            problems.append(f"quran_refs entry {ref!r} must look like 2:255 or 2:255-257")
+        elif "-" in ref:
+            start, end = ref.split(":")[1].split("-")
+            if int(end) < int(start):
+                problems.append(f"quran_refs entry {ref!r} ends before it starts")
+    for ref in attributes.get("hadith_refs", []) or []:
+        if not (isinstance(ref, dict) and _text(ref.get("collection")) and (isinstance(ref.get("number"), int) or _text(ref.get("number")))):
+            problems.append("hadith_refs entries need collection and number")
+    return problems
+
+
+def check_record_structure(record: "KnowledgeRecordInput") -> list[str]:
+    """Rules a religious record must satisfy: traceable to a named work, never a generated ruling, disagreement kept apart."""
+    attrs = record.attributes or {}
+    problems: list[str] = _refs(attrs)
+    kind = record.entity_type
+    if kind in SOURCED_TYPES:
+        if not _text(record.source_work):
+            problems.append(f"{kind} records need source_work (the named work the content comes from)")
+        if not _text(record.language):
+            problems.append(f"{kind} records need language")
+        if record.provenance_status == "source_and_page_cited" and not (_text(record.page) or _text(record.chapter)):
+            problems.append("provenance_status source_and_page_cited needs page or chapter")
+    if kind == "fiqh":
+        for key in ("madhhab", "topic", "question", "ruling"):
+            if not _text(attrs.get(key)):
+                problems.append(f"fiqh records need attributes.{key}")
+        if not (_text(record.page) or _text(record.chapter)):
+            problems.append("fiqh records need page or chapter so the ruling can be traced")
+        for item in attrs.get("evidence", []) or []:
+            if not (isinstance(item, dict) and _text(item.get("type")) and (_text(item.get("reference")) or _text(item.get("text")))):
+                problems.append("each evidence entry needs type and reference or text")
+    elif kind == "aqeedah":
+        for key in ("school", "topic", "statement"):
+            if not _text(attrs.get(key)):
+                problems.append(f"aqeedah records need attributes.{key}")
+        if not (_text(record.page) or _text(record.chapter)):
+            problems.append("aqeedah records need page or chapter so the statement can be traced")
+    elif kind == "seerah":
+        if attrs.get("reliability") not in SEERAH_RELIABILITY:
+            problems.append(f"seerah records need attributes.reliability, one of {', '.join(SEERAH_RELIABILITY)}")
+    elif kind == "hadith_grading":
+        grades = attrs.get("grades")
+        if not _text(attrs.get("collection")) or attrs.get("hadith_number") in (None, ""):
+            problems.append("hadith_grading records need attributes.collection and attributes.hadith_number")
+        if not isinstance(grades, list) or not grades:
+            problems.append("hadith_grading records need at least one grade (grader, grade, grading_source)")
+        else:
+            graders: set[str] = set()
+            for grade in grades:
+                if not (isinstance(grade, dict) and _text(grade.get("grader")) and _text(grade.get("grade")) and _text(grade.get("grading_source"))):
+                    problems.append("every grade needs grader, grade and grading_source (a grade is never inferred)")
+                    continue
+                if grade["grader"] in graders:
+                    problems.append(f"grader {grade['grader']} appears twice")
+                graders.add(grade["grader"])
+    elif kind == "terminology":
+        if not (_text(attrs.get("definition")) or _text(attrs.get("technical_meaning")) or _text(attrs.get("linguistic_meaning"))):
+            problems.append("terminology records need a definition, technical_meaning or linguistic_meaning")
+    elif kind == "library_work":
+        if attrs.get("availability") not in LIBRARY_AVAILABILITY:
+            problems.append(f"library_work records need attributes.availability, one of {', '.join(LIBRARY_AVAILABILITY)}")
+        if attrs.get("availability") == "external_link" and not _text(attrs.get("external_url")):
+            problems.append("an external_link work needs attributes.external_url")
+        if attrs.get("availability") == "owner_file" and record.license_status not in PUBLISHABLE_LICENCE_STATUSES:
+            problems.append("a stored file needs a licence status that permits redistribution; otherwise use metadata_only or external_link")
+        isbn = attrs.get("isbn")
+        if isbn and not ISBN.match(str(isbn).replace("-", "").replace(" ", "")):
+            problems.append("isbn is not valid")
+        for key in ("external_url", "digital_file_reference"):
+            if attrs.get(key) and key == "external_url":
+                try:
+                    _https_or_none(str(attrs[key]))
+                except ValueError as exc:
+                    problems.append(f"{key} {exc}")
+    return problems
 
 @dataclass
 class BatchResult:
@@ -178,6 +313,59 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * radius * math.asin(math.sqrt(a))
 
 
+EMPLOYMENT_TYPES = ("full_time", "part_time", "contract", "internship", "volunteer", "temporary")
+LISTING_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "mosque": frozenset({"denomination", "denomination_source", "facilities", "hours", "commune", "commune_code", "wilaya_code", "wikidata", "osm", "geo_precision", "geo_method", "name_fr", "name_ar", "name_en"}),
+    "business": frozenset({"hours", "opening_hours", "halal_certification", "halal_certifier", "registration"}),
+    "charity": frozenset({"legal_name", "registration_number", "registration_body", "mission", "services", "countries_served"}),
+    "job": frozenset({"employer", "employment_type", "salary", "salary_currency", "salary_period", "application_url", "requirements", "remote"}),
+    "professional": frozenset({"organization", "specialization", "registration_number", "registration_body", "languages"}),
+    "organisation": frozenset({"legal_name", "registration_number", "registration_body", "mission", "services", "parent_organisation"}),
+    "event": frozenset({"organizer", "registration_url", "online", "recurrence"}),
+    "volunteering": frozenset({"organization", "requirements", "application_url", "commitment", "remote"}),
+    "health": frozenset({"organization", "specialization", "registration_number", "registration_body", "languages"}),
+}
+URL_ATTRIBUTES = ("application_url", "registration_url")
+
+
+def check_listing_structure(item: "DirectoryListingInput") -> list[str]:
+    """Per-type requirements. Nothing here invents a value: a job without an employer or a way to apply is rejected, not completed."""
+    attrs = item.attributes or {}
+    problems: list[str] = []
+    unknown = sorted(set(attrs) - LISTING_ATTRIBUTES.get(item.listing_type, frozenset()))
+    if unknown:
+        problems.append(f"attributes not allowed for {item.listing_type}: {', '.join(unknown)}")
+    for key in URL_ATTRIBUTES:
+        if attrs.get(key):
+            try:
+                _https_or_none(str(attrs[key]))
+            except ValueError as exc:
+                problems.append(f"attributes.{key} {exc}")
+    if item.starts_at and item.ends_at and item.ends_at < item.starts_at:
+        problems.append("ends_at is before starts_at")
+    if item.listing_type == "job":
+        if not _text(attrs.get("employer")):
+            problems.append("a job needs attributes.employer")
+        if not _text(attrs.get("application_url")):
+            problems.append("a job needs attributes.application_url (where to apply)")
+        if attrs.get("employment_type") not in (None, *EMPLOYMENT_TYPES):
+            problems.append(f"employment_type must be one of {', '.join(EMPLOYMENT_TYPES)}")
+        if item.expires_at is None:
+            problems.append("a job needs expires_at so it disappears when it closes")
+        if attrs.get("salary") is not None and not isinstance(attrs.get("salary"), (int, float, str)):
+            problems.append("salary must be a number or text exactly as the employer gave it")
+    if item.listing_type == "event" and item.starts_at is None:
+        problems.append("an event needs starts_at")
+    if item.listing_type == "volunteering":
+        if not _text(attrs.get("organization")):
+            problems.append("a volunteering opportunity needs attributes.organization")
+    if item.listing_type in {"charity", "organisation"} and attrs.get("donation_url"):
+        problems.append("donation links are not accepted from imports")
+    if item.listing_type == "mosque" and attrs.get("denomination") and not _text(attrs.get("denomination_source")):
+        problems.append("a mosque denomination is only kept when its source is stated (denomination_source)")
+    return problems
+
+
 class DirectoryListingInput(BaseModel):
     external_key: str | None = Field(default=None, max_length=200)
     listing_type: str
@@ -200,12 +388,26 @@ class DirectoryListingInput(BaseModel):
     license: str = Field(min_length=2, max_length=240)
     provenance: str = Field(min_length=3, max_length=4000)
     source_updated_at: Date | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    expires_at: datetime | None = None
+    posted_at: datetime | None = None
+    last_verified: Date | None = None
+    attributes: dict = Field(default_factory=dict)
 
     @field_validator("listing_type")
     @classmethod
     def known_listing(cls, value: str) -> str:
         if value not in LISTING_TYPES:
             raise ValueError(f"listing_type must be one of {', '.join(LISTING_TYPES)}")
+        return value
+
+    @field_validator("starts_at", "ends_at", "expires_at", "posted_at")
+    @classmethod
+    def utc(cls, value: datetime | None) -> datetime | None:
+        """A time without a zone is read as UTC, so comparisons never mix naive and aware values."""
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
         return value
 
     @field_validator("country")
@@ -222,6 +424,13 @@ class DirectoryListingInput(BaseModel):
     def coordinate_pair(self):
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("latitude and longitude must be given together")
+        return self
+
+    @model_validator(mode="after")
+    def type_rules(self):
+        problems = check_listing_structure(self)
+        if problems:
+            raise ValueError("; ".join(problems))
         return self
 
     @property

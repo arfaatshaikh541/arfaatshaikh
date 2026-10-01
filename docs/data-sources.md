@@ -42,11 +42,18 @@ Qur'an translations in 97 languages. See `DATA_READINESS.md` for the reason and 
   (insufficient coverage, or entries that did not align with their ayah). Details in `DATA_READINESS.md`.
 - Any dataset whose licence or provenance could not be established.
 
+## Data completion (2026-10-01)
+
+Two real datasets were added: **19,781 Algerian mosques** (OpenStreetMap ODbL + Wikidata CC0, published, every listing "not
+verified") and **21,185 hadith gradings** with 67,681 per-grader grades (staged: the right to publish them is not
+established). Everything else stays empty. See [`PENDING_DATA_AUDIT.md`](PENDING_DATA_AUDIT.md),
+[`SOURCE_VERIFICATION.md`](SOURCE_VERIFICATION.md) and [`DATA_READINESS.md`](DATA_READINESS.md).
+
 ## Still without a source (empty states, ready for data)
 
-Fiqh, aqeedah, seerah, hadith grading, terminology, library, history, civilization, scholar biographies, recitation audio
-and every directory (mosques, businesses, charities, jobs, professionals, organisations, events, volunteering, health)
-have **no dataset loaded**. Their schemas, importers, admin workflow and empty-state pages exist
+Fiqh, aqeedah, seerah, terminology, library, history, civilization, scholar biographies, recitation audio and every directory
+except mosques (businesses, charities, jobs, professionals, organisations, events, volunteering, health), and mosques outside
+Algeria, have **no dataset loaded**. Their schemas, importers, admin workflow and empty-state pages exist
 (`docs/data-contracts.md`); nothing is written from memory. Alternatives that were investigated, and why they were or
 were not used, are listed in `DATA_READINESS.md`.
 
@@ -59,6 +66,13 @@ python scripts/import_hadith_reader.py     python scripts/import_tajweed.py
 python scripts/import_tafsir.py            python scripts/import_translations.py    # long
 python scripts/import_tafsir_catalogue.py  # long
 python scripts/sync_manifest.py            # registers the manifest and applies publication decisions
+python scripts/build_geoalgeria_mosques.py --out /tmp/dz.json                  # Algerian mosques (npm, integrity-checked)
+for i in 0 1 2 3; do python scripts/import_directory.py --dataset directory-mosques --file /tmp/dz.$i.json; done
+python scripts/scan_directory_duplicates.py                                     # links probable duplicates, deletes nothing
+python scripts/dataset_action.py --dataset directory-mosques --action mark_verified --note "what you checked"
+python scripts/dataset_action.py --dataset directory-mosques --action publish
+python scripts/build_hadith_grading_records.py --out /tmp/hg.json              # staged: rights not established
+for i in 0 1 2 3 4; do python scripts/import_knowledge_records.py --dataset hadith-grading --file /tmp/hg.$i.json; done
 python scripts/build_knowledge_graph.py    # sourced relationships between published entities
 python scripts/validate_data.py            # must print PASS for every rule before a release
 ```

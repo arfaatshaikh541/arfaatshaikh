@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
-import { LISTING_TYPES } from "@/lib/copy";
+import { LISTING_EMPTY, LISTING_TYPES } from "@/lib/copy";
 
 export type Listing = { id: string; type: string; name: string; arabic_name: string | null; description: string | null; category: string | null; address: string | null; city: string | null; country: string | null;
-  phone: string | null; email: string | null; website: string | null; source: string; source_url: string | null; license: string; verification_status: string; last_updated: string; distance_km: number | null };
+  phone: string | null; email: string | null; website: string | null; source: string; source_url: string | null; license: string; verification_status: string; last_updated: string; distance_km: number | null;
+  starts_at?: string | null; ends_at?: string | null; expires_at?: string | null; provenance?: string; attributes?: Record<string, unknown> };
 type Result = { total: number; page: number; page_size: number; items: Listing[] };
 type Summary = { types: { type: string; count: number }[] };
 
@@ -19,6 +20,7 @@ export function ListingCard({ item, locale }: { item: Listing; locale: "en" | "a
         {item.distance_km !== null && ` · ${item.distance_km} km`}
       </p>
       {item.description && <p>{item.description}</p>}
+      <ListingFacts item={item} ar={ar} />
       <p>
         <span className={item.verification_status === "verified" ? "status-pill status-implemented" : "status-pill status-architecture-ready"}>
           {item.verification_status === "verified" ? (ar ? "موثَّق" : "Verified") : (ar ? "غير موثَّق" : "Not verified")}
@@ -29,11 +31,28 @@ export function ListingCard({ item, locale }: { item: Listing; locale: "en" | "a
   );
 }
 
+function ListingFacts({ item, ar }: { item: Listing; ar: boolean }) {
+  const a = item.attributes ?? {};
+  const when = (value?: string | null) => (value ? new Date(value).toLocaleString(ar ? "ar" : "en", { dateStyle: "medium", timeStyle: "short" }) : null);
+  return (
+    <ul className="tool-note">
+      {typeof a.employer === "string" && <li>{ar ? "جهة العمل" : "Employer"}: {a.employer}{typeof a.employment_type === "string" ? ` · ${a.employment_type.replace(/_/g, " ")}` : ""}</li>}
+      {typeof a.organization === "string" && <li>{ar ? "الجهة" : "Organisation"}: {a.organization}</li>}
+      {typeof a.organizer === "string" && <li>{ar ? "المنظّم" : "Organiser"}: {a.organizer}</li>}
+      {item.starts_at && <li>{ar ? "يبدأ" : "Starts"}: {when(item.starts_at)}{item.ends_at ? ` · ${ar ? "ينتهي" : "ends"} ${when(item.ends_at)}` : ""}</li>}
+      {item.expires_at && <li>{ar ? "آخر موعد" : "Closes"}: {when(item.expires_at)}</li>}
+      {typeof a.application_url === "string" && <li><a href={a.application_url} rel="noopener noreferrer nofollow">{ar ? "التقديم" : "Apply"}</a></li>}
+      {typeof a.denomination === "string" && <li>{ar ? "المذهب (كما ورد في المصدر)" : "Denomination (as stated by the source)"}: {a.denomination}{typeof a.denomination_source === "string" ? ` — ${a.denomination_source}` : ""}</li>}
+    </ul>
+  );
+}
+
 export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar"; initialType?: string }) {
   const ar = locale === "ar";
   const [type, setType] = useState(initialType ?? "mosque");
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
   const [verified, setVerified] = useState(false);
   const [near, setNear] = useState<{ lat: number; lon: number } | null>(null);
   const [radius, setRadius] = useState(10);
@@ -47,11 +66,12 @@ export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar";
     const params = new URLSearchParams({ type, page: String(page) });
     if (q.trim()) params.set("q", q.trim());
     if (city.trim()) params.set("city", city.trim());
+    if (country.trim().length === 2) params.set("country", country.trim().toUpperCase());
     if (verified) params.set("verified_only", "true");
     if (near) { params.set("lat", String(near.lat)); params.set("lon", String(near.lon)); params.set("radius_km", String(radius)); }
     setError("");
     apiFetch<Result>(`/directory/listings?${params}`).then(setData).catch(() => setError(ar ? "تعذّر تحميل الدليل." : "Could not load the directory."));
-  }, [type, q, city, verified, near, radius, page, ar]);
+  }, [type, q, city, country, verified, near, radius, page, ar]);
 
   function locate() {
     if (!navigator.geolocation) { setError(ar ? "الموقع غير متاح في هذا المتصفح." : "Location is not available in this browser."); return; }
@@ -68,6 +88,7 @@ export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar";
       <form role="search" className="filter-row" onSubmit={(e) => e.preventDefault()}>
         <label>{ar ? "بحث" : "Search"}<input type="search" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></label>
         <label>{ar ? "المدينة" : "City"}<input value={city} onChange={(e) => { setCity(e.target.value); setPage(1); }} /></label>
+        <label>{ar ? "الدولة (رمزان)" : "Country (2-letter)"}<input value={country} maxLength={2} onChange={(e) => { setCountry(e.target.value); setPage(1); }} /></label>
         <label className="check"><input type="checkbox" checked={verified} onChange={(e) => { setVerified(e.target.checked); setPage(1); }} /> {ar ? "الموثَّق فقط" : "Verified only"}</label>
         <button type="button" onClick={locate}>{near ? (ar ? "تحديث موقعي" : "Update my location") : (ar ? "بالقرب مني" : "Near me")}</button>
         {near && <label>{ar ? "المسافة (كم)" : "Radius (km)"}<input type="number" min={1} max={500} value={radius} onChange={(e) => setRadius(Math.max(1, Number(e.target.value) || 1))} /></label>}
@@ -76,9 +97,15 @@ export function DirectoryBrowser({ locale, initialType }: { locale: "en" | "ar";
       {error && <p role="alert">{error}</p>}
       {data && data.items.length === 0 && !error && (
         <section className="empty-state" role="status">
-          <h2>{ar ? "لا توجد قوائم منشورة لهذا النوع بعد." : "No listings are published for this type yet."}</h2>
+          <h2>{LISTING_EMPTY[type]?.[ar ? "ar" : "en"] ?? (ar ? "لا توجد قوائم منشورة لهذا النوع بعد." : "No listings are published for this type yet.")}</h2>
           <p className="tool-note">{ar ? "تُضاف القوائم عبر مجموعات بيانات مرخّصة أو اقتراحات المجتمع بعد مراجعة المشرفين." : "Listings arrive through authorised datasets or community suggestions that moderators approve."}</p>
         </section>
+      )}
+      {type === "mosque" && data && data.items.length > 0 && (
+        <p className="tool-note" role="note">
+          {ar ? "بيانات المساجد: © مساهمو OpenStreetMap (رخصة ODbL) وWikidata (CC0)، عبر GeoAlgeria. بيانات مجتمعية وليست سجلاً رسمياً، وقد تحتوي أخطاء." : "Mosque data: © OpenStreetMap contributors (ODbL) and Wikidata (CC0), via GeoAlgeria. Community-sourced, not an official registry, and may contain errors."}
+          {" "}<a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer nofollow">{ar ? "حقوق النشر" : "Copyright"}</a>
+        </p>
       )}
       <ul className="record-list">{data?.items.map((item) => <ListingCard key={item.id} item={item} locale={locale} />)}</ul>
       {data && data.total > data.page_size && (

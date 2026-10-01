@@ -8,7 +8,8 @@ publication.") and activate automatically when an authorised dataset is loaded.
 Start with these three documents:
 
 - **`WORLD_OF_ISLAM_PRODUCTION_AUDIT.md`** - what was tested and the result (PASS / FAIL / BLOCKED / NOT_VERIFIED).
-- **`docs/DATA_READINESS.md`** - every data source: licence, provenance, verification, public or not, remaining action.
+- **`docs/DATA_READINESS.md`** - every pending domain (records, source, licence, status, remaining action) and every data source.
+- **`docs/SOURCE_VERIFICATION.md`** and **`docs/PENDING_DATA_AUDIT.md`** - which sources were examined and why each was used or not; the audit of the pending domains.
 - **`docs/FEATURE_STATUS.md`** - every capability and its status.
 
 ## Architecture
@@ -18,7 +19,7 @@ Nginx (443/80) -> Next.js (web, basePath /worldofislam) -> FastAPI (api) -> Post
                                                            Celery worker, nightly backup
 ```
 
-- **API**: FastAPI + async SQLAlchemy + Alembic (85 migrations), Python 3.12.
+- **API**: FastAPI + async SQLAlchemy + Alembic (86 migrations), Python 3.12.
 - **Web**: Next.js 15 / React 19 / TypeScript; English and Arabic (RTL) throughout.
 - **Data**: PostgreSQL (row-level security on tenant tables), Redis, S3-compatible object storage.
 - **AI**: Ollama by default; no paid API; external providers are off and unsupported. See `docs/ai/provider-architecture.md`.

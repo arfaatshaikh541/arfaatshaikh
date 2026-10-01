@@ -23,6 +23,8 @@ READINESS = ("VERIFIED", "NEEDS_REVIEW", "LICENSE_REQUIRED", "PROVENANCE_UNCLEAR
 RECORD_TYPES = ("fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "library_work", "history", "civilization",
                 "scholar", "book", "person", "event", "place", "concept", "institution")
 LISTING_TYPES = ("mosque", "business", "charity", "job", "professional", "organisation", "event", "volunteering", "health")
+PUBLICATION_FORMS = ("published_edition", "manuscript", "online_resource", "dataset", "unspecified")
+PROVENANCE_STATUSES = ("source_and_page_cited", "source_cited", "unclear")
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
@@ -92,6 +94,9 @@ class KnowledgeRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(_in("entity_type", RECORD_TYPES), name="entity_type"),
         CheckConstraint("scholarly_status IN ('unreviewed','reviewed','scholar_verified','disputed','rejected')", name="scholarly_status"),
         CheckConstraint("confidence BETWEEN 0 AND 100", name="confidence"),
+        CheckConstraint(_in("license_status", LICENSE_STATUSES), name="license_status"),
+        CheckConstraint(_in("publication_status", PUBLICATION_FORMS), name="publication_status"),
+        CheckConstraint(_in("provenance_status", PROVENANCE_STATUSES), name="provenance_status"),
         Index("ix_knowledge_records_type", "entity_type"),
     )
 
@@ -114,6 +119,18 @@ class KnowledgeRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     relationships: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # source-level provenance of religious content (docs/data-contracts.md): which work, edition, volume, page, chapter
+    source_work: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    edition: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    volume: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    page: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    chapter: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    publication_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unspecified", server_default="unspecified")
+    license_status: Mapped[str] = mapped_column(String(40), nullable=False, default="UNKNOWN", server_default="UNKNOWN")
+    provenance_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unclear", server_default="unclear")
+    # type-specific structure: madhhab/question/ruling/evidence (fiqh), school/statement (aqeedah), grades (hadith grading) ...
+    attributes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
 
 class DirectoryListing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -164,6 +181,11 @@ class DirectoryListing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     submitted_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     duplicate_of_id: Mapped[UUID | None] = mapped_column(ForeignKey("directory_listings.id", ondelete="SET NULL"), nullable=True)
     dedupe_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_verified: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # type-specific fields (employer, salary, employment_type, application_url, hours, facilities, registration ...)
+    attributes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
 
 class DirectoryReport(UUIDPrimaryKeyMixin, TimestampMixin, Base):

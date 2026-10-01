@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, case, func, or_, select
@@ -27,11 +27,17 @@ DUPLICATE_RADIUS_KM = 0.2
 
 
 
-def public_filter():
-    """Visible to everyone: published listing, not a duplicate, and (if imported) from an enabled published dataset."""
+def public_filter(now: datetime | None = None):
+    """Visible to everyone: published, not a duplicate, not expired (jobs, events), and, if imported, from an enabled published dataset.
+
+    Expiry is evaluated on every read, so a closed job or a finished event disappears without any background task.
+    """
+    now = now or datetime.now(UTC)
     return and_(
         DirectoryListing.status == "published",
         DirectoryListing.duplicate_of_id.is_(None),
+        or_(DirectoryListing.expires_at.is_(None), DirectoryListing.expires_at > now),
+        or_(DirectoryListing.listing_type != "event", func.coalesce(DirectoryListing.ends_at, DirectoryListing.starts_at + timedelta(hours=6)) > now),
         or_(DirectoryListing.dataset_id.is_(None),
             DirectoryListing.dataset_id.in_(select(DataSet.id).where(DataSet.publication_status == "published", DataSet.enabled.is_(True)))),
     )
@@ -44,7 +50,10 @@ def listing_view(listing: DirectoryListing, distance_km: float | None = None) ->
         "city": listing.city, "region": listing.region, "country": listing.country, "latitude": listing.latitude, "longitude": listing.longitude,
         "phone": listing.phone, "email": listing.email, "website": listing.website,
         "starts_at": listing.starts_at.isoformat() if listing.starts_at else None, "ends_at": listing.ends_at.isoformat() if listing.ends_at else None,
-        "source": listing.source, "source_url": listing.source_url, "license": listing.license,
+        "expires_at": listing.expires_at.isoformat() if listing.expires_at else None, "posted_at": listing.posted_at.isoformat() if listing.posted_at else None,
+        "attributes": listing.attributes or {},
+        "source": listing.source, "source_url": listing.source_url, "license": listing.license, "provenance": listing.provenance,
+        "last_verified": listing.last_verified.isoformat() if listing.last_verified else None,
         "verification_status": listing.verification_status, "verified_at": listing.verified_at.isoformat() if listing.verified_at else None,
         "last_updated": (listing.source_updated_at.isoformat() if listing.source_updated_at else listing.updated_at.date().isoformat()),
         "distance_km": round(distance_km, 2) if distance_km is not None else None,

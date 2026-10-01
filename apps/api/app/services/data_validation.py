@@ -9,15 +9,15 @@ import hashlib
 from collections import Counter
 from typing import Iterable
 
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.content_contract import DataSet, DirectoryListing, KnowledgeRecord
-from app.models.hadith import HadithGrading
+from app.models.hadith import HadithCollection, HadithGrading, HadithNarration
 from app.models.knowledge_network import CanonicalKnowledgeEntity, KnowledgeRelationship
 from app.models.quran import QuranAyah, QuranTextEdition
 from app.models.sources import SourceEdition, SourcePassage
-from app.services.data_contracts import can_publish
+from app.services.data_contracts import QURAN_REF, can_publish, dedupe_key, haversine_km
 from app.services.manifest import validate_manifest
 from app.services.publication_policy import desired_visibility
 
@@ -151,6 +151,126 @@ async def graph_provenance(db: AsyncSession) -> list[str]:
     return problems
 
 
+# ------------------------------------------------------------------ data-completion checks (pure helpers + database rules)
+MOSQUE_DUPLICATE_RADIUS_KM = 0.05
+
+
+def url_problems(label: str, ident: str, urls: dict[str, object]) -> list[str]:
+    from urllib.parse import urlparse
+    problems = []
+    for name, value in urls.items():
+        if value in (None, ""):
+            continue
+        parsed = urlparse(str(value))
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            problems.append(f"{label} {ident}: {name} is not a valid http(s) URL")
+    return problems
+
+
+def quran_ref_problems(refs: Iterable[object], ayah_counts: dict[int, int]) -> list[str]:
+    """Every cited ayah must exist: surah 1-114 and an ayah number within that surah."""
+    problems = []
+    for ref in refs:
+        if not isinstance(ref, str) or not QURAN_REF.match(ref):
+            problems.append(f"malformed Qur'an reference {ref!r}")
+            continue
+        surah, rest = ref.split(":")
+        last = int(rest.split("-")[-1])
+        if int(surah) not in ayah_counts:
+            problems.append(f"Qur'an reference {ref} names a surah that is not loaded")
+        elif last > ayah_counts[int(surah)]:
+            problems.append(f"Qur'an reference {ref} is past the end of surah {surah} ({ayah_counts[int(surah)]} ayahs)")
+    return problems
+
+
+def same_place_duplicates(items: Iterable[tuple[str, str, float | None, float | None]], radius_km: float) -> list[str]:
+    """(id, dedupe_key, lat, lon): same normalised name and within radius_km (or coordinates unknown) is a duplicate."""
+    groups: dict[str, list[tuple[str, float | None, float | None]]] = {}
+    for ident, key, lat, lon in items:
+        groups.setdefault(key, []).append((ident, lat, lon))
+    problems = []
+    for key, members in groups.items():
+        for index, (ident, lat, lon) in enumerate(members):
+            for other, olat, olon in members[:index]:
+                if lat is None or olat is None or lon is None or olon is None or haversine_km(lat, lon, olat, olon) <= radius_km:
+                    problems.append(f"possible duplicate: {ident} and {other} ({key})")
+                    break
+    return problems
+
+
+async def knowledge_reference_checks(db: AsyncSession) -> list[str]:
+    """Qur'an and hadith references inside records must exist; relationship targets must resolve (no orphans)."""
+    rows = (await db.scalars(select(KnowledgeRecord))).all()
+    if not rows:
+        return []
+    surah_number = cast(func.regexp_replace(QuranAyah.canonical_reference, ':.*$', ''), Integer)
+    counts = {int(k): int(v) for k, v in (await db.execute(select(surah_number, func.max(QuranAyah.ayah_number)).group_by(surah_number))).all()}
+    collections = {c.collection_key: c.id for c in (await db.scalars(select(HadithCollection))).all()}
+    keys = {r.record_key for r in rows} | set((await db.scalars(select(CanonicalKnowledgeEntity.canonical_key))).all())
+    problems: list[str] = []
+    for record in rows:
+        attrs = record.attributes or {}
+        for issue in quran_ref_problems(attrs.get("quran_refs", []) or [], counts):
+            problems.append(f"record {record.record_key}: {issue}")
+        for ref in attrs.get("hadith_refs", []) or []:
+            collection_id = collections.get(str(ref.get("collection")))
+            if collection_id is None:
+                continue  # a collection that is not loaded cannot be checked; the reference stays an unresolved citation
+            number = int(ref["number"]) if str(ref.get("number", "")).isdigit() else None
+            exists = number is not None and await db.scalar(select(func.count()).select_from(HadithNarration).where(HadithNarration.collection_id == collection_id, HadithNarration.collection_hadith_number == number))
+            if not exists:
+                problems.append(f"record {record.record_key}: hadith reference {ref.get('collection')} {ref.get('number')} does not exist")
+        for rel in record.relationships or []:
+            if rel.get("target_id") not in keys:
+                problems.append(f"record {record.record_key}: relationship target {rel.get('target_id')} does not exist")
+        problems += url_problems("record", record.record_key, {"source_url": record.source_url, "external_url": attrs.get("external_url")})
+        if record.entity_type in {"fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "library_work", "history", "civilization", "scholar"} and not (record.source_work or "").strip():
+            problems.append(f"record {record.record_key}: religious record without source_work")
+    return problems[:200]
+
+
+async def duplicate_scholars_books(db: AsyncSession) -> list[str]:
+    rows = (await db.scalars(select(KnowledgeRecord).where(KnowledgeRecord.entity_type.in_(("scholar", "library_work", "book"))))).all()
+    seen: dict[tuple[str, str], str] = {}
+    problems = []
+    for r in rows:
+        key = (r.entity_type, dedupe_key(r.title, r.author or "", None))
+        if key in seen and seen[key] != r.record_key:
+            problems.append(f"possible duplicate {r.entity_type}: {r.record_key} and {seen[key]}")
+        seen.setdefault(key, r.record_key)
+    return problems
+
+
+async def directory_integrity(db: AsyncSession) -> list[str]:
+    """URLs, coordinates, dates and duplicate organisations/mosque locations across every listing."""
+    rows = (await db.scalars(select(DirectoryListing).where(DirectoryListing.duplicate_of_id.is_(None), DirectoryListing.status.in_(("pending", "published"))))).all()
+    problems: list[str] = []
+    for r in rows:
+        attrs = r.attributes or {}
+        problems += url_problems("listing", str(r.id), {"website": r.website, "source_url": r.source_url, "application_url": attrs.get("application_url"), "registration_url": attrs.get("registration_url")})
+        if r.latitude is not None and not (-90 <= r.latitude <= 90 and -180 <= (r.longitude or 0) <= 180):
+            problems.append(f"listing {r.id}: coordinates out of range")
+        if r.starts_at and r.ends_at and r.ends_at < r.starts_at:
+            problems.append(f"listing {r.id}: ends before it starts")
+        if r.listing_type == "job" and not (attrs.get("employer") and attrs.get("application_url") and r.expires_at):
+            problems.append(f"listing {r.id}: job without employer, application_url or expires_at")
+        if r.listing_type == "mosque" and attrs.get("denomination") and not attrs.get("denomination_source"):
+            problems.append(f"listing {r.id}: denomination without a stated source")
+    by_type: dict[str, list[tuple[str, str, float | None, float | None]]] = {}
+    for r in rows:
+        by_type.setdefault(r.listing_type, []).append((str(r.id), r.dedupe_key, r.latitude, r.longitude))
+    for listing_type, items in by_type.items():
+        problems += [f"{listing_type} {p}" for p in same_place_duplicates(items, MOSQUE_DUPLICATE_RADIUS_KM if listing_type == "mosque" else 0.2)[:50]]
+    return problems[:200]
+
+
+async def manifest_record_counts(db: AsyncSession, manifest: dict) -> list[str]:
+    """The record count the manifest declares for a dataset must equal what is stored (no silent drift after an import or rollback)."""
+    stored = {d.dataset_key: d.record_count for d in (await db.scalars(select(DataSet))).all()}
+    return [f"dataset {e['id']}: manifest declares {e['records']} records, database holds {stored.get(e['id'], 0)}"
+            for e in manifest["datasets"] if "records" in e and stored.get(e["id"], 0) != e["records"]]
+
+
 async def validate_database(db: AsyncSession, manifest: dict) -> dict[str, list[str]]:
     return {
         "manifest": manifest_problems(manifest),
@@ -162,4 +282,8 @@ async def validate_database(db: AsyncSession, manifest: dict) -> dict[str, list[
         "directory_listings_have_metadata": await directory_metadata(db),
         "no_duplicate_identifiers": await duplicate_identifiers(db),
         "graph_relationships_have_provenance": await graph_provenance(db),
+        "manifest_record_counts_match": await manifest_record_counts(db, manifest),
+        "knowledge_references_resolve": await knowledge_reference_checks(db),
+        "no_duplicate_scholars_or_books": await duplicate_scholars_books(db),
+        "directory_fields_and_duplicates": await directory_integrity(db),
     }

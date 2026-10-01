@@ -7,10 +7,10 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 | Status | Count | Meaning |
 |---|---|---|
 | IMPLEMENTED | 34 | Built, tested, and backed by real data or on-device logic that was checked. |
-| PARTIALLY_IMPLEMENTED | 12 | Works, with a stated gap (limited data, an approximation, or a missing layer). |
+| PARTIALLY_IMPLEMENTED | 15 | Works, with a stated gap (limited data, an approximation, or a missing layer). |
 | NOT_VERIFIED | 3 | Built, but its correctness has not been verified against an authority. |
 | DATA_SOURCE_REQUIRED | 13 | Built; needs a licensed/verified dataset or the owner's rights confirmation before it can show content. |
-| ARCHITECTURE_READY | 51 | Backend, data contract and UI framework exist; nothing is loaded yet. |
+| ARCHITECTURE_READY | 48 | Backend, data contract and UI framework exist; nothing is loaded yet. |
 | NOT_IMPLEMENTED | 62 | Nothing built. |
 
 ## Ibadah (العبادة)
@@ -48,7 +48,7 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 |---|---|---|
 | Qur'an | IMPLEMENTED | See Ibadah - the reader lives in one place. |
 | Tafsir | DATA_SOURCE_REQUIRED | The reader is built and verified for 45 Arabic and 9 English editions. They are hidden until the digital editions' rights are confirmed. |
-| Hadith | PARTIALLY_IMPLEMENTED | Sahih al-Bukhari and Sahih Muslim in Arabic, with search and bookmarks. English translations stay hidden until their rights are confirmed; no hadith grading data is loaded. |
+| Hadith | PARTIALLY_IMPLEMENTED | Sahih al-Bukhari and Sahih Muslim in Arabic, with search and bookmarks. English translations stay hidden until their rights are confirmed; imported hadith gradings stay hidden until their rights are confirmed. |
 | Fiqh | ARCHITECTURE_READY | Contract, importer, admin workflow and empty-state page exist; no licensed fiqh dataset is loaded. |
 | Aqeedah | ARCHITECTURE_READY | As Fiqh: ready for a licensed dataset. |
 | Seerah | ARCHITECTURE_READY | As Fiqh: ready for a licensed dataset. |
@@ -70,7 +70,7 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 | Source explorer | IMPLEMENTED | Every source's registry status, licence, and review state - what backs the whole platform's evidence claims. |
 | Evidence | IMPLEMENTED | Every assistant answer separates primary sources, scholarly explanation and secondary sources, with exact quoted text. |
 | Citations | IMPLEMENTED | Every sentence of an answer carries a citation to a stored passage; AI summaries that cite a non-existent source are rejected. |
-| Hadith grading | DATA_SOURCE_REQUIRED | A grade is accepted only with a named grader and a citable source. No such dataset is loaded. |
+| Hadith grading | DATA_SOURCE_REQUIRED | 21,185 per-grader gradings are imported but hidden until the right to publish them is confirmed. A grade is accepted only with a named grader and a citable source. |
 | Narrator information | DATA_SOURCE_REQUIRED | The isnad viewer is built; no narrator/isnad dataset is loaded. |
 | Schools of fiqh | DATA_SOURCE_REQUIRED | Requires sourced fiqh data. |
 | Scholarly differences | PARTIALLY_IMPLEMENTED | When several scholars comment on a reference, the assistant lists each attributed view separately; it never merges or ranks them. Broader fiqh differences need data. |
@@ -141,7 +141,7 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 
 | Capability | Status | Note |
 |---|---|---|
-| Mosque Directory | ARCHITECTURE_READY | Directory engine (search, filters, location, verification, reporting, moderation) is built; no listings are loaded. Suggest one or supply an authorised dataset. |
+| Mosque Directory | PARTIALLY_IMPLEMENTED | 19,776 mosques in Algeria from OpenStreetMap and Wikidata (open licences), each shown as not verified. Other regions have no data yet: run the OpenStreetMap importer or supply an authorised dataset. |
 | Social Community | NOT_IMPLEMENTED | Backend policy logic exists; there is no user interface yet. |
 | Ummah | NOT_IMPLEMENTED | Backend policy logic exists; there is no user interface yet. |
 | Muslim organizations | IMPLEMENTED | Organisation workspaces (tenant-scoped) are live today. |
@@ -180,7 +180,7 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 | Moon | IMPLEMENTED | See Ibadah world - moon phase and dates. |
 | Islamic Astronomy | IMPLEMENTED | See Ibadah tools. |
 | Muslim Travel | NOT_IMPLEMENTED | Not built yet. |
-| Mosque discovery | ARCHITECTURE_READY | Directory engine (search, filters, location, verification, reporting, moderation) is built; no listings are loaded. Suggest one or supply an authorised dataset. |
+| Mosque discovery | PARTIALLY_IMPLEMENTED | 19,776 mosques in Algeria from OpenStreetMap and Wikidata (open licences), each shown as not verified. Other regions have no data yet: run the OpenStreetMap importer or supply an authorised dataset. |
 | Pilgrimage preparation | NOT_IMPLEMENTED | Not built yet. |
 | Hajj education | NOT_IMPLEMENTED | Not built yet. |
 | Umrah education | NOT_IMPLEMENTED | Not built yet. |
@@ -236,7 +236,7 @@ Generated from `apps/web/src/lib/worlds.ts` by `apps/web/scripts/export-feature-
 |---|---|---|
 | Countries | ARCHITECTURE_READY | Data contract, importer and admin workflow are ready; no licensed dataset is loaded. |
 | Cities | ARCHITECTURE_READY | Data contract, importer and admin workflow are ready; no licensed dataset is loaded. |
-| Mosques | ARCHITECTURE_READY | Directory engine (search, filters, location, verification, reporting, moderation) is built; no listings are loaded. Suggest one or supply an authorised dataset. |
+| Mosques | PARTIALLY_IMPLEMENTED | 19,776 mosques in Algeria from OpenStreetMap and Wikidata (open licences), each shown as not verified. Other regions have no data yet: run the OpenStreetMap importer or supply an authorised dataset. |
 | Scholars | ARCHITECTURE_READY | Data contract, importer and admin workflow are ready; no licensed dataset is loaded. |
 | Institutions | ARCHITECTURE_READY | Data contract, importer and admin workflow are ready; no licensed dataset is loaded. |
 | Universities | ARCHITECTURE_READY | Data contract, importer and admin workflow are ready; no licensed dataset is loaded. |

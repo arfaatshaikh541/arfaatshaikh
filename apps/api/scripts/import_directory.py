@@ -4,7 +4,8 @@
     uv run python scripts/import_directory.py --dataset <dataset-id> --file data.json --dry-run
     uv run python scripts/import_directory.py --dataset <dataset-id> --rollback <import-id>
 
-Rows are validated one by one; failed rows are reported (never silently dropped) and the rest are imported.
+Rows are validated one by one and failures are reported. The import is all-or-nothing: one invalid row rejects the whole
+file (nothing is written) unless --allow-partial is given. Duplicates and broken fields are never silently repaired.
 Importing the same file twice changes nothing. Importing never publishes: a person verifies the dataset and,
 if its licence is not clearly open, records the owner's permission (admin API or this repo's manifest).
 """
@@ -32,6 +33,7 @@ async def main() -> int:
     ap.add_argument("--file")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--rollback")
+    ap.add_argument("--allow-partial", action="store_true", help="import the valid rows even if some rows fail validation")
     args = ap.parse_args()
     db = Database(get_settings())
     async with db.session_factory() as session:
@@ -47,7 +49,7 @@ async def main() -> int:
             if not args.file:
                 raise SystemExit("--file is required")
             rows = load_rows(args.file)
-            imp = await (service.import_listings if LISTINGS else service.import_records)(args.dataset, rows, None)
+            imp = await (service.import_listings if LISTINGS else service.import_records)(args.dataset, rows, None, strict=not args.allow_partial)
         print(json.dumps({"import": str(imp.id), "status": imp.status, "created": imp.created_count, "updated": imp.updated_count,
                           "unchanged": imp.unchanged_count, "failed": imp.failed_count, "failures": imp.failures[:20]}, indent=1))
         if args.dry_run:
@@ -56,7 +58,7 @@ async def main() -> int:
         else:
             await session.commit()
     await db.dispose()
-    return 0
+    return 1 if imp.status == "failed" else 0
 
 
 if __name__ == "__main__":

@@ -712,37 +712,39 @@
   {
    "id": "hadith-grading",
    "name": "Hadith grading",
-   "purpose": "Grade labels with the grader and source.",
+   "purpose": "Hadith grades with the grader and the grading source, one entry per grader; differing grades are kept side by side.",
    "category": "knowledge",
    "entity_type": "hadith_grading",
    "source": {
-    "name": "No source acquired",
-    "url": null,
-    "version": null
+    "name": "fawazahmed0/hadith-api (info.json, git tag 1)",
+    "url": "https://github.com/fawazahmed0/hadith-api/tree/1",
+    "version": "1"
    },
    "license": {
-    "name": "Not applicable (no data)",
-    "status": "UNKNOWN",
-    "notes": ""
+    "name": "Unlicense (repository). Rights in the grades compiled from the graders' works are not established.",
+    "status": "LICENSE_REQUIRED",
+    "notes": "LICENSE of the repository dedicates the author's own work to the public domain; References.md shows the grades were taken from al-maktaba.org books and zubairalizai.com, whose terms were not accessible."
    },
-   "provenance": "No dataset is loaded; nothing is generated from model memory.",
-   "transformation": "None.",
-   "importer": "scripts/import_knowledge_records.py (data contract importer, ready)",
+   "provenance": "info.json of fawazahmed0/hadith-api tag 1, fetched from raw.githubusercontent.com 2026-10-01. Grades for Abu Dawud, Ibn Majah, Malik, al-Nasa'i and al-Tirmidhi, each attributed to a named grader (Al-Albani, Zubair Ali Zai, Shuaib Al Arnaut, Ahmad Muhammad Shakir, Bashar Awad Maarouf, Abu Ghuddah, Muhammad Fouad Abd al-Baqi, Muhammad Muhyi Al-Din Abdul Hamid, Salim al-Hilali) with the repository's own reference to the source page. Bukhari and Muslim carry no grades in the file and none are added.",
+   "transformation": "scripts/build_hadith_grading_records.py: one record per hadith, grades copied verbatim in separate entries per grader; 35 placeholder grades ('-') are dropped; no grade is inferred or reconciled.",
+   "importer": "scripts/build_hadith_grading_records.py + scripts/import_knowledge_records.py",
    "importer_version": "1.0",
-   "date_acquired": null,
-   "validation_status": "NOT_RUN",
-   "validation_notes": "No data to validate.",
+   "date_acquired": "2026-10-01",
+   "validation_status": "NEEDS_REVIEW",
+   "validation_notes": "Contract validation 0 failures. The grades were NOT checked against the graders' printed works.",
    "publication_status": "staged",
    "readiness": "LICENSE_REQUIRED",
    "public": false,
-   "import_method": "admin upload or scripts/import_knowledge_records.py",
+   "import_method": "scripts/build_hadith_grading_records.py --out FILE; scripts/import_knowledge_records.py --dataset hadith-grading --file FILE.N.json",
    "last_checked": "2026-10-01",
-   "remaining_action": "Supply a grading dataset with each grade attributed to a named grader and a citable source, with permission to publish.",
+   "remaining_action": "Confirm the right to redistribute these grades (or replace them with grades from a source whose terms allow it), spot-check against the graders' printed works, then mark verified and publish in Data & trust. The five collections are not loaded in the reader, so these records cite the collection and number without linking to hadith text.",
    "targets": [],
    "alternatives_investigated": [
-    "fawazahmed0/hadith-api (Unlicense for the aggregation; includes per-hadith grades attributed to named graders such as al-Albani). Not imported: the Unlicense does not cover third-party grades, and a grade without a verifiable grader and source is refused by the contract.",
-    "sunnah.com API: requires an API key and has its own terms; not accessed."
-   ]
+    "sunnah.com API requires a key and has its own terms; not accessed (host not reachable from the build environment).",
+    "Packages sunan-abi-dawud, sunan-al-nasai, sunan-ibn-majah (AGPL-3.0 declared): see docs/SOURCE_VERIFICATION.md."
+   ],
+   "checksum_sha256": "cf1ced267ada8f606f95eb84e2b6ddfa87bfa2a6a9dd4cb2a5d9a8c1734f10fb",
+   "records": 21185
   },
   {
    "id": "fiqh-rulings",
@@ -775,8 +777,10 @@
    "remaining_action": "Supply licensed fiqh text/data with author, school and citation. The assistant never invents rulings.",
    "targets": [],
    "alternatives_investigated": [
-    "No openly licensed, verifiable fiqh dataset was found reachable from this environment."
-   ]
+    "npm @al-mabsut/muslimah (Hanafi guidance on women's issues, ISC declared for the package): not imported. The content has no cited work, edition or page, and no content licence file in the repository; the contract refuses fiqh without a traceable source.",
+    "No other openly licensed, verifiable fiqh dataset was reachable from this environment."
+   ],
+   "records": 0
   },
   {
    "id": "aqeedah",
@@ -810,7 +814,8 @@
    "targets": [],
    "alternatives_investigated": [
     "No verifiable open dataset found."
-   ]
+   ],
+   "records": 0
   },
   {
    "id": "seerah",
@@ -844,7 +849,8 @@
    "targets": [],
    "alternatives_investigated": [
     "OpenITI (Open Islamicate Texts Initiative) hosts classical Arabic texts. Its licence could not be read from the files reachable here, so it was not used; the owner should check its terms (it is understood to carry a non-commercial restriction) before importing anything."
-   ]
+   ],
+   "records": 0
   },
   {
    "id": "terminology",
@@ -875,7 +881,8 @@
    "import_method": "admin upload or scripts/import_knowledge_records.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply a licensed glossary with a source per term.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "library-works",
@@ -908,8 +915,10 @@
    "remaining_action": "Supply a catalogue with edition/licence per work, or a public-domain corpus whose licence has been verified.",
    "targets": [],
    "alternatives_investigated": [
-    "OpenITI: see seerah entry."
-   ]
+    "OpenITI (classical Arabic corpus and metadata): licence files and metadata could not be retrieved, so the licence is not established; not used.",
+    "npm finding-islamic-books / islamic-books: random book-name lists without author, edition or licence; not a catalogue."
+   ],
+   "records": 0
   },
   {
    "id": "history",
@@ -940,7 +949,8 @@
    "import_method": "admin upload or scripts/import_knowledge_records.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply licensed history sources.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "civilization",
@@ -971,7 +981,8 @@
    "import_method": "admin upload or scripts/import_knowledge_records.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply licensed sources.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "scholar-biographies",
@@ -1005,41 +1016,45 @@
    "targets": [],
    "alternatives_investigated": [
     "Wikidata (CC0) and Wikipedia (CC BY-SA) are legitimate candidates but were unreachable here; use the data-contract importer on a machine that can reach them, keeping the per-record source URL."
-   ]
+   ],
+   "records": 0
   },
   {
    "id": "directory-mosques",
    "name": "Mosques",
-   "purpose": "Mosques directory.",
+   "purpose": "Mosques directory (Algeria, from an open composite of Wikidata and OpenStreetMap).",
    "category": "directory",
    "entity_type": "mosque",
    "source": {
-    "name": "No source acquired",
-    "url": null,
-    "version": null
+    "name": "GeoAlgeria @geoalgeria/mosquees (composite of Wikidata and OpenStreetMap)",
+    "url": "https://www.npmjs.com/package/@geoalgeria/mosquees",
+    "version": "2.0.4"
    },
    "license": {
-    "name": "Not applicable (no data)",
-    "status": "UNKNOWN",
-    "notes": ""
+    "name": "Data: ODbL 1.0 (© OpenStreetMap contributors) and CC0-1.0 (Wikidata); package code: MIT",
+    "status": "VERIFIED_OPEN",
+    "notes": "LICENSE file of the package, dataset-metadata.json (license https://opendatacommons.org/licenses/odbl/1-0/) and README state the terms. ODbL requires attribution and share-alike for a derived database; every listing carries its attribution."
    },
-   "provenance": "No dataset is loaded; nothing is generated from model memory.",
-   "transformation": "None.",
-   "importer": "scripts/import_osm_mosques.py (OpenStreetMap importer, ready) and scripts/import_directory.py",
+   "provenance": "npm package @geoalgeria/mosquees 2.0.4 (sha512 integrity verified on download), built 2026-06-25 from Wikidata SPARQL (instances of mosque in Algeria with coordinates) and OpenStreetMap Overpass (amenity=place_of_worship, religion=muslim), merged within ~150 m. Community-maintained composite, not an official registry; the commune is derived by nearest-centroid join. Each listing keeps its Wikidata or OSM reference.",
+   "transformation": "scripts/build_geoalgeria_mosques.py maps fields 1:1 to the directory contract; 978 records with no name are skipped (no name is invented); denomination is kept only where the package took it from an OpenStreetMap tag, with that source stated; nothing is verified per listing (verification_status stays 'unverified').",
+   "importer": "scripts/build_geoalgeria_mosques.py + scripts/import_directory.py",
    "importer_version": "1.0",
-   "date_acquired": null,
-   "validation_status": "NOT_RUN",
-   "validation_notes": "No data to validate.",
-   "publication_status": "staged",
-   "readiness": "UNAVAILABLE",
-   "public": false,
-   "import_method": "scripts/import_osm_mosques.py --bbox ... (run on a machine that can reach the Overpass API) or admin upload",
+   "date_acquired": "2026-10-01",
+   "validation_status": "VERIFIED",
+   "validation_notes": "Automated checks only: licence text read; all coordinates inside Algeria's bounding box; no duplicate ids; every row has source, licence and provenance; contract validation 0 failures; scripts/validate_data.py passes. Individual mosques are NOT verified in person; listings show 'Not verified'.",
+   "publication_status": "published",
+   "readiness": "VERIFIED",
+   "public": true,
+   "import_method": "scripts/build_geoalgeria_mosques.py --out FILE; scripts/import_directory.py --dataset directory-mosques --file FILE.N.json (one import per chunk)",
    "last_checked": "2026-10-01",
-   "remaining_action": "Run scripts/import_osm_mosques.py for your region on your server, or upload an authorised dataset.",
+   "remaining_action": "Covers Algeria only. Other regions: run scripts/import_osm_mosques.py for your area on a machine that can reach the Overpass API, or upload an authorised national dataset. Individual listings become 'Verified' only through admin moderation.",
    "targets": [],
    "alternatives_investigated": [
-    "OpenStreetMap (ODbL 1.0, attribution '© OpenStreetMap contributors', share-alike for derived databases) is a legitimate source for mosque locations via the Overpass API. scripts/import_osm_mosques.py is provided; the Overpass endpoint was not reachable from this environment, so it has NOT been run against live data."
-   ]
+    "OpenStreetMap via Overpass (ODbL) is the best open source for other regions; scripts/import_osm_mosques.py is ready but Overpass is not reachable from the build environment (checked 2026-10-01).",
+    "Wikidata SPARQL (CC0) is not reachable from the build environment (checked 2026-10-01)."
+   ],
+   "checksum_sha256": "5705920a697b8fd75b4f5d2ee18a99a276f9c7cc4d21fe4024a7745c87dadfb5",
+   "records": 19781
   },
   {
    "id": "directory-businesses",
@@ -1070,7 +1085,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply an authorised business dataset or partner API.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-charities",
@@ -1101,7 +1117,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply an authorised dataset, e.g. a national charity register published under an open government licence (verify the licence per country).",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-jobs",
@@ -1132,7 +1149,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply listings or an employer partnership.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-professionals",
@@ -1163,7 +1181,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Professionals register themselves via 'suggest a listing' and are verified by moderators; or upload a dataset.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-organisations",
@@ -1194,7 +1213,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply an authorised dataset or use 'suggest a listing'.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-events",
@@ -1225,7 +1245,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply an events feed or use 'suggest a listing'.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-volunteering",
@@ -1256,7 +1277,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply opportunities or partner feed.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "directory-health",
@@ -1287,7 +1309,8 @@
    "import_method": "admin upload or scripts/import_directory.py",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply an authorised dataset.",
-   "targets": []
+   "targets": [],
+   "records": 0
   },
   {
    "id": "audio-quran-recitations",
@@ -1318,7 +1341,8 @@
    "import_method": "owner upload",
    "last_checked": "2026-10-01",
    "remaining_action": "Supply recitation files with the reciter's/publisher's permission and a checksum per file.",
-   "targets": []
+   "targets": [],
+   "records": 0
   }
  ]
 }

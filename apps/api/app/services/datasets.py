@@ -18,7 +18,7 @@ from app.services.data_contracts import IMPORTER_VERSION, DirectoryListingInput,
 MAX_RECORDS_PER_UPLOAD = 5000
 MAX_ERRORS_REPORTED = 200
 
-ACTIONS = {"publish", "stage", "disable", "enable", "reject", "mark_verified"}
+ACTIONS = {"publish", "unpublish", "stage", "disable", "enable", "reject", "mark_verified"}
 
 
 def sha256_json(value: object) -> str:
@@ -91,7 +91,7 @@ class DatasetService:
             if not note or len(note.strip()) < 10:
                 raise ApplicationError("note_required", "Explain what was checked (at least 10 characters).", 422)
             dataset.validation_status = "VERIFIED"
-        elif action == "stage":
+        elif action in {"stage", "unpublish"}:  # unpublish withdraws a published dataset from every reader without deleting it
             dataset.publication_status = "staged"
         elif action == "disable":
             dataset.enabled = False
@@ -103,7 +103,40 @@ class DatasetService:
         return dataset
 
     # -------------------------------------------------------------- knowledge records
-    async def import_records(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION) -> DataSetImport:
+    async def _failed_import(self, dataset: DataSet, file_sha: str, failures: list[dict], importer_version: str, actor: User | None, total: int) -> DataSetImport:
+        """A strict import with any invalid row changes nothing; the attempt and its errors are still recorded for review."""
+        imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, status="failed",
+                            failed_count=len(failures), failures=failures[:MAX_ERRORS_REPORTED], imported_by_user_id=actor.id if actor else None)
+        self.session.add(imp)
+        await self.session.flush()
+        await self.audit(actor, "dataset.import_failed", "data_set_import", imp.id, {"key": dataset.dataset_key, "rows": total, "failed": len(failures)})
+        return imp
+
+    async def preview_records(self, key: str, rows: Sequence[object]) -> dict:
+        """Validate and diff a file against the database without writing anything."""
+        dataset = await self.by_key(key)
+        batch = validate_record_batch(rows, expected_type=dataset.entity_type if dataset.entity_type != "unspecified" else None)
+        existing = {r.record_key: r.content_sha256 for r in (await self.session.execute(select(KnowledgeRecord.record_key, KnowledgeRecord.content_sha256).where(KnowledgeRecord.dataset_id == dataset.id)))}
+        create = update = same = 0
+        for record in batch.valid:
+            if record.id not in existing:
+                create += 1
+            elif existing[record.id] == record.content_hash():
+                same += 1
+            else:
+                update += 1
+        return {"rows": len(rows), "valid": len(batch.valid), "would_create": create, "would_update": update, "unchanged": same,
+                "failed": len(batch.failures), "failures": batch.failures[:MAX_ERRORS_REPORTED]}
+
+    async def preview_listings(self, key: str, rows: Sequence[object]) -> dict:
+        dataset = await self.by_key(key)
+        valid, failures = _validate_listings(rows)
+        existing = {l.external_key for l in (await self.session.scalars(select(DirectoryListing).where(DirectoryListing.dataset_id == dataset.id, DirectoryListing.external_key.is_not(None)))).all()}
+        create = sum(1 for item in valid if item.external_key not in existing)
+        return {"rows": len(rows), "valid": len(valid), "would_create": create, "would_update_or_unchanged": len(valid) - create,
+                "failed": len(failures), "failures": failures[:MAX_ERRORS_REPORTED]}
+
+    async def import_records(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True) -> DataSetImport:
         dataset = await self.by_key(key)
         if len(rows) > MAX_RECORDS_PER_UPLOAD:
             raise ApplicationError("too_many_records", f"At most {MAX_RECORDS_PER_UPLOAD} records per upload.", 413)
@@ -113,6 +146,8 @@ class DatasetService:
         if previous is not None:
             return previous  # idempotent: the same file applied twice changes nothing
         batch = validate_record_batch(rows, expected_type=dataset.entity_type if dataset.entity_type != "unspecified" else None)
+        if strict and batch.failures:
+            return await self._failed_import(dataset, file_sha, batch.failures, importer_version, actor, len(rows))
         imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None)
         self.session.add(imp)
         await self.session.flush()
@@ -127,7 +162,9 @@ class DatasetService:
                 source=record.source, source_url=record.source_url, author=record.author, record_date=record.date, license=record.license,
                 provenance=record.provenance, scholarly_status=record.scholarly_status, confidence=record.confidence,
                 last_verified=record.last_verified, tags=record.tags, relationships=[r.model_dump() for r in record.relationships],
-                content_sha256=digest)
+                source_work=record.source_work, edition=record.edition, volume=record.volume, page=record.page, chapter=record.chapter,
+                language=record.language, publication_status=record.publication_status, license_status=record.license_status,
+                provenance_status=record.provenance_status, attributes=record.attributes, content_sha256=digest)
             if current is None:
                 self.session.add(KnowledgeRecord(dataset_id=dataset.id, import_id=imp.id, record_key=record.id, **values))
                 created += 1
@@ -175,7 +212,7 @@ class DatasetService:
         return imp
 
     # -------------------------------------------------------------- directory listings
-    async def import_listings(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION) -> DataSetImport:
+    async def import_listings(self, key: str, rows: Sequence[object], actor: User | None, *, importer_version: str = IMPORTER_VERSION, strict: bool = True) -> DataSetImport:
         dataset = await self.by_key(key)
         if len(rows) > MAX_RECORDS_PER_UPLOAD:
             raise ApplicationError("too_many_records", f"At most {MAX_RECORDS_PER_UPLOAD} records per upload.", 413)
@@ -184,26 +221,16 @@ class DatasetService:
             DataSetImport.dataset_id == dataset.id, DataSetImport.file_sha256 == file_sha, DataSetImport.status == "applied"))
         if previous is not None:
             return previous
+        valid, failures = _validate_listings(rows)
+        if strict and failures:
+            return await self._failed_import(dataset, file_sha, failures, importer_version, actor, len(rows))
         imp = DataSetImport(dataset_id=dataset.id, file_sha256=file_sha, importer_version=importer_version, imported_by_user_id=actor.id if actor else None)
         self.session.add(imp)
         await self.session.flush()
-        failures: list[dict] = []
         created = updated = unchanged = 0
-        seen: set[str] = set()
         existing = {l.external_key: l for l in (await self.session.scalars(select(DirectoryListing).where(
             DirectoryListing.dataset_id == dataset.id, DirectoryListing.external_key.is_not(None)))).all()}
-        for position, row in enumerate(rows):
-            try:
-                item = DirectoryListingInput.model_validate(row)
-            except Exception as exc:
-                errors = [f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg')}" for e in getattr(exc, "errors", lambda: [])()] or [str(exc)]
-                failures.append({"index": position, "id": row.get("external_key") if isinstance(row, dict) else None, "errors": errors})
-                continue
-            identity = item.external_key or item.key
-            if identity in seen:
-                failures.append({"index": position, "id": identity, "errors": ["duplicate listing in file"]})
-                continue
-            seen.add(identity)
+        for item in valid:
             values = item.model_dump(exclude={"external_key"})
             current = existing.get(item.external_key) if item.external_key else None
             if current is None:
@@ -224,9 +251,32 @@ class DatasetService:
         imp.failed_count, imp.failures = len(failures), failures[:MAX_ERRORS_REPORTED]
         await self.session.flush()
         dataset.record_count = await self.session.scalar(select(func.count()).select_from(DirectoryListing).where(DirectoryListing.dataset_id == dataset.id)) or 0
+        if created or updated:
+            dataset.validation_status = "NEEDS_REVIEW"
         dataset.checksum_sha256, dataset.importer_version = file_sha, importer_version
         await self.audit(actor, "dataset.import_listings", "data_set_import", imp.id, {"key": key, "created": created, "updated": updated, "failed": len(failures)})
         return imp
+
+
+def _validate_listings(rows: Sequence[object]) -> tuple[list[DirectoryListingInput], list[dict]]:
+    """Validate every row independently; duplicates inside the file are reported, never silently merged."""
+    valid: list[DirectoryListingInput] = []
+    failures: list[dict] = []
+    seen: set[str] = set()
+    for position, row in enumerate(rows):
+        try:
+            item = DirectoryListingInput.model_validate(row)
+        except Exception as exc:
+            errors = [f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg')}" for e in getattr(exc, "errors", lambda: [])()] or [str(exc)]
+            failures.append({"index": position, "id": row.get("external_key") if isinstance(row, dict) else None, "errors": errors})
+            continue
+        identity = item.external_key or item.key
+        if identity in seen:
+            failures.append({"index": position, "id": identity, "errors": ["duplicate listing in file"]})
+            continue
+        seen.add(identity)
+        valid.append(item)
+    return valid, failures
 
 
 def _date(value: str | None) -> date | None:

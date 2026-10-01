@@ -176,6 +176,104 @@
    "maxItems": 100,
    "title": "Relationships",
    "type": "array"
+  },
+  "source_work": {
+   "anyOf": [
+    {
+     "maxLength": 500,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Source Work"
+  },
+  "edition": {
+   "anyOf": [
+    {
+     "maxLength": 300,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Edition"
+  },
+  "volume": {
+   "anyOf": [
+    {
+     "maxLength": 80,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Volume"
+  },
+  "page": {
+   "anyOf": [
+    {
+     "maxLength": 80,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Page"
+  },
+  "chapter": {
+   "anyOf": [
+    {
+     "maxLength": 300,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Chapter"
+  },
+  "language": {
+   "anyOf": [
+    {
+     "maxLength": 24,
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "title": "Language"
+  },
+  "publication_status": {
+   "default": "unspecified",
+   "title": "Publication Status",
+   "type": "string"
+  },
+  "license_status": {
+   "default": "UNKNOWN",
+   "title": "License Status",
+   "type": "string"
+  },
+  "provenance_status": {
+   "default": "unclear",
+   "title": "Provenance Status",
+   "type": "string"
+  },
+  "attributes": {
+   "additionalProperties": true,
+   "title": "Attributes",
+   "type": "object"
   }
  },
  "required": [

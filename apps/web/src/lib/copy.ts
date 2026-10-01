@@ -53,3 +53,28 @@ export const SEARCH_TYPES = [
   { id: "directory", en: "Directory", ar: "الدليل" },
   ...KNOWLEDGE_TYPES.map((t) => ({ id: t.id, en: t.en, ar: t.ar })),
 ] as const;
+
+// Honest empty states, shown only while a domain has no verified, publishable records.
+export const KNOWLEDGE_EMPTY: Record<string, { en: string; ar: string }> = {
+  fiqh: { en: "Verified Fiqh sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر فقهية موثّقة." },
+  aqeedah: { en: "Verified Aqeedah sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر عقدية موثّقة." },
+  seerah: { en: "Verified Seerah sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر موثّقة للسيرة النبوية." },
+  hadith_grading: { en: "Verified hadith gradings have not yet been imported.", ar: "لم تُستورد بعدُ درجات حديثية موثّقة." },
+  terminology: { en: "Verified terminology sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر موثّقة للمصطلحات." },
+  library_work: { en: "Verified library records have not yet been imported.", ar: "لم تُستورد بعدُ سجلات موثّقة للمكتبة." },
+  history: { en: "Verified history sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر موثّقة للتاريخ." },
+  civilization: { en: "Verified civilization sources have not yet been imported.", ar: "لم تُستورد بعدُ مصادر موثّقة للحضارة." },
+  scholar: { en: "Verified scholar biographies have not yet been imported.", ar: "لم تُستورد بعدُ تراجم موثّقة للعلماء." },
+};
+export const LISTING_EMPTY: Record<string, { en: string; ar: string }> = {
+  mosque: { en: "No verified mosque data is currently available for this region.", ar: "لا تتوفر حاليًا بيانات موثّقة للمساجد في هذه المنطقة." },
+  business: { en: "No verified business listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للأعمال." },
+  charity: { en: "No verified charity listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للجمعيات الخيرية." },
+  job: { en: "No verified job listings are currently available.", ar: "لا تتوفر حاليًا وظائف موثّقة." },
+  professional: { en: "No verified professional listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للمهنيين." },
+  organisation: { en: "No verified organisation listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للمنظمات." },
+  event: { en: "No upcoming verified events are currently available.", ar: "لا تتوفر حاليًا فعاليات قادمة موثّقة." },
+  volunteering: { en: "No verified volunteering opportunities are currently available.", ar: "لا تتوفر حاليًا فرص تطوع موثّقة." },
+  health: { en: "No verified health listings are currently available.", ar: "لا تتوفر حاليًا قوائم موثّقة للخدمات الصحية." },
+};
+export const AUDIO_NOT_AVAILABLE = { en: "Recitation audio is not currently available for redistribution.", ar: "التلاوات الصوتية غير متاحة حاليًا لإعادة النشر." };

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.dependencies.auth import DbSession, require_csrf
 from app.api.dependencies.platform_admin import require_platform_administrator
@@ -63,7 +63,7 @@ async def manifest_sync(db: DbSession, admin: Admin, _: Csrf):
 
 
 class ActionPayload(BaseModel):
-    action: str = Field(pattern=r"^(publish|stage|disable|enable|reject|mark_verified)$")
+    action: str = Field(pattern=r"^(publish|unpublish|stage|disable|enable|reject|mark_verified)$")
     note: str | None = Field(default=None, max_length=1000)
     confirmed_by: str | None = Field(default=None, max_length=200)
     confirmed_on: str | None = Field(default=None, max_length=40)
@@ -87,6 +87,7 @@ async def dataset_action(key: str, payload: ActionPayload, db: DbSession, admin:
 
 class UploadPayload(BaseModel):
     records: list[dict] = Field(min_length=1, max_length=MAX_RECORDS_PER_UPLOAD)
+    allow_partial: bool = False  # default is all-or-nothing: one invalid row rejects the whole file
 
 
 def import_view(imp: DataSetImport) -> dict:
@@ -94,18 +95,42 @@ def import_view(imp: DataSetImport) -> dict:
             "failed": imp.failed_count, "failures": imp.failures, "file_sha256": imp.file_sha256, "importer_version": imp.importer_version}
 
 
+@router.post("/{key}/preview")
+async def preview_records(key: str, payload: UploadPayload, db: DbSession, _: Admin, __: Csrf):
+    """Validate a knowledge-record file and show what an import would do, without writing anything."""
+    return await DatasetService(db).preview_records(key, payload.records)
+
+
+@router.post("/{key}/preview-listings")
+async def preview_listings(key: str, payload: UploadPayload, db: DbSession, _: Admin, __: Csrf):
+    return await DatasetService(db).preview_listings(key, payload.records)
+
+
 @router.post("/{key}/import")
 async def import_records(key: str, payload: UploadPayload, db: DbSession, admin: Admin, _: Csrf):
-    imp = await DatasetService(db).import_records(key, payload.records, admin)
+    imp = await DatasetService(db).import_records(key, payload.records, admin, strict=not payload.allow_partial)
     await db.commit()
     return import_view(imp)
 
 
 @router.post("/{key}/import-listings")
 async def import_listings(key: str, payload: UploadPayload, db: DbSession, admin: Admin, _: Csrf):
-    imp = await DatasetService(db).import_listings(key, payload.records, admin)
+    imp = await DatasetService(db).import_listings(key, payload.records, admin, strict=not payload.allow_partial)
     await db.commit()
     return import_view(imp)
+
+
+@router.get("/{key}/provenance")
+async def provenance(key: str, db: DbSession, _: Admin):
+    """Everything an administrator needs to judge a dataset: source, licence, provenance, rights decision, import history."""
+    service = DatasetService(db)
+    dataset = await service.by_key(key)
+    rows = (await db.scalars(select(DataSetImport).where(DataSetImport.dataset_id == dataset.id).order_by(DataSetImport.created_at.desc()).limit(20))).all()
+    import_ids = select(DataSetImport.id).where(DataSetImport.dataset_id == dataset.id)
+    events = (await db.scalars(select(PlatformAuditEvent).where(or_(PlatformAuditEvent.target_id == dataset.id, PlatformAuditEvent.target_id.in_(import_ids)))
+                               .order_by(PlatformAuditEvent.created_at.desc()).limit(50))).all()
+    return {"dataset": dataset_view(dataset), "imports": [import_view(r) for r in rows],
+            "events": [{"action": e.action, "at": e.created_at.isoformat(), "metadata": e.metadata_json} for e in events]}
 
 
 @router.get("/{key}/imports")

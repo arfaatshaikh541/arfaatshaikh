@@ -28,27 +28,82 @@ Machine-readable schemas: `data/contracts/knowledge-record.schema.json`, `data/c
 | `tags` | no | lower-cased, de-duplicated |
 | `relationships` | no | `[{relation_type, target_id, source, source_url?}]` - every relationship needs a source |
 
-A hadith grade (`hadith_grading`) is a scholarly judgement: its `author` is the grader and its `source` must be citable.
+### Source-level provenance (religious content)
+
+For `fiqh aqeedah seerah hadith_grading terminology library_work history civilization scholar` a record must also say
+exactly where it comes from: `source_work` (the named work, required), `language` (required), and where known `edition`,
+`volume`, `page`, `chapter`. `provenance_status` is `source_and_page_cited` (needs `page` or `chapter`), `source_cited` or
+`unclear`; `publication_status` is `published_edition manuscript online_resource dataset unspecified`; `license_status`
+uses the dataset licence vocabulary. `attributes` holds the type-specific structure:
+
+| Type | Required `attributes` | Rules |
+|---|---|---|
+| `fiqh` | `madhhab`, `topic`, `question`, `ruling`; optional `evidence` `[{type, reference or text}]`, `reasoning` | needs `page` or `chapter`. One record per madhhab position: disagreement is kept as separate records, never merged |
+| `aqeedah` | `school`, `topic`, `statement`; optional `historical_context`, `evidence` | needs `page` or `chapter` |
+| `seerah` | `reliability`: `established`, `well_known_disputed` or `weak_reports` | the category is never inferred |
+| `hadith_grading` | `collection`, `hadith_number`, `grades` `[{grader, grade, grading_source}]` | one entry per grader, grades copied verbatim, no grade is ever inferred; the same grader twice is rejected |
+| `terminology` | one of `definition`, `technical_meaning`, `linguistic_meaning` | |
+| `library_work` | `availability`: `metadata_only`, `external_link` (+ `external_url`) or `owner_file` | `owner_file` needs a licence status that permits redistribution; `isbn` is validated; no copyrighted file is ever stored |
+
+Any type may carry `quran_refs` (`2:255`, `2:255-257`) and `hadith_refs` (`[{collection, number}]`); they are validated for
+form on import and against the loaded Qur'an and hadith text by `scripts/validate_data.py`.
+
+A hadith grade (`hadith_grading`) is a scholarly judgement: every grade needs a named grader and a citable `grading_source`.
 
 ## Directory listing
 
 `listing_type` (`mosque business charity job professional organisation event volunteering health`), `name`,
 optional `arabic_name`, `description`, `category`, `tags`, `address`, `city`, `region`, `country` (ISO-3166 alpha-2),
-`latitude`+`longitude` (together), `phone`, `email`, `website`, `starts_at`/`ends_at` (events), and the mandatory
-`source`, `license`, `provenance`, optionally `source_url`, `source_updated_at`, `external_key` (for in-place updates).
+`latitude`+`longitude` (together), `phone`, `email`, `website`, `starts_at`/`ends_at`/`expires_at`/`posted_at`, `last_verified`,
+and the mandatory `source`, `license`, `provenance`, optionally `source_url`, `source_updated_at`, `external_key` (for in-place
+updates). Times without a zone are read as UTC.
+
+Type-specific `attributes` (anything else is rejected):
+
+| Type | Allowed attributes | Rules |
+|---|---|---|
+| `job` | `employer`, `employment_type` (`full_time part_time contract internship volunteer temporary`), `salary`, `salary_currency`, `salary_period`, `application_url`, `requirements`, `remote` | `employer`, `application_url` and `expires_at` are required; salary only as the employer gave it |
+| `event` | `organizer`, `registration_url`, `online`, `recurrence` | `starts_at` required; `ends_at` not before it. An event disappears when it ends (6 hours after it starts if no end is given) |
+| `volunteering` | `organization`, `requirements`, `application_url`, `commitment`, `remote` | `organization` required |
+| `mosque` | `denomination` + `denomination_source`, `facilities`, `hours`, `commune`, `commune_code`, `wilaya_code`, source references | a denomination is kept only with its stated source |
+| `charity`, `organisation` | `legal_name`, `registration_number`, `registration_body`, `mission`, `services`, ... | `donation_url` is refused: no unverified donation links |
+| `business`, `professional`, `health` | `hours`, `halal_certification`, `organization`, `specialization`, `registration_number`, `registration_body`, `languages` | no ratings, no medical claims |
+
+Expired jobs (`expires_at` passed) and finished events are filtered from every public read (`public_filter`), so they vanish
+without a background task. Possible duplicates (same normalised name and city within 200 m, or without coordinates) are
+linked by `scripts/scan_directory_duplicates.py` and drop out of public results; nothing is deleted.
 
 ## Lifecycle
 
 1. The dataset is declared in `data/source-manifest.json` (source, licence status, provenance, version, importer).
 2. Import: `scripts/import_knowledge_records.py` / `scripts/import_directory.py` / `scripts/import_osm_mosques.py`, or the
-   admin API (`POST /api/v1/admin/datasets/{id}/import`, `/import-listings`). Invalid rows are reported with reasons,
-   valid rows are imported, the same file twice changes nothing, and any import can be rolled back
-   (`.../imports/{id}/rollback`).
-3. An administrator reviews and marks the dataset verified (`mark_verified`, with a note).
+   admin API (`POST /api/v1/admin/datasets/{id}/import`, `/import-listings`). **Imports are all-or-nothing**: one invalid
+   row rejects the whole file (the attempt and its errors are recorded, nothing is written) unless `--allow-partial` /
+   `allow_partial` is given. `POST .../preview` and `.../preview-listings` validate and diff a file without writing. The
+   same file twice changes nothing, and any import can be rolled back (`.../imports/{id}/rollback`). An import never
+   publishes and never verifies itself.
+3. An administrator reviews (`GET .../provenance` shows source, licence, rights decision, import history and events) and
+   marks the dataset verified (`mark_verified`, with a note).
 4. The owner publishes it. If its licence is not clearly open, the publish call must carry `confirmed_by`,
    `confirmed_on` and `basis`; this is stored and audited.
 5. Only then do records appear in the knowledge API, unified search, the assistant's retrieval and the knowledge graph.
-   Disabling or un-publishing hides them immediately; every step writes a platform audit event.
+   Disabling or unpublishing (`unpublish`) hides them immediately; every step writes a platform audit event.
+   `scripts/dataset_action.py` offers the same verify / publish / unpublish actions on the command line.
+
+## Validation
+
+`scripts/validate_data.py` runs 13 rules and must print PASS for each before a release: manifest consistency, Qur'an text
+sources and checksums, hadith grades have sources, published content traces to an approved source, hidden datasets are
+hidden, knowledge records and listings carry source/licence/provenance, no duplicate identifiers, graph provenance, manifest
+record counts match the database, Qur'an/hadith references and relationship targets resolve (no orphans), no duplicate
+scholars or books, and listing URLs, coordinates, dates, job fields and duplicate mosque/organisation locations.
+
+## Assistant
+
+`app/services/knowledge_retrieval.py` lets the assistant cite published knowledge records as `[K1]`, `[K2]`... with their
+work, edition, page, licence and madhhab/school/grader. Positions stay separate, uncertainty is stated (not the only
+position, graders differ, report not established, unreviewed), and when nothing is published nothing is returned. A ruling
+is still never produced without a primary source: the assistant abstains as before.
 
 No frontend change is needed when a dataset arrives: the pages read `/api/v1/knowledge/*`, `/api/v1/directory/*` and
 `/api/v1/search`, and switch from the empty state to results automatically.
