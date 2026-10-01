@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { Newsreader, Noto_Naskh_Arabic } from "next/font/google";
 import "./globals.css";
 
@@ -18,9 +19,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const locale = (await headers()).get("x-woi-locale") === "ar" ? "ar" : "en";
   return (
-    <html lang="en" className={`${displaySerif.variable} ${arabicSerif.variable}`}>
+    <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} className={`${displaySerif.variable} ${arabicSerif.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -66,7 +66,7 @@ export function OfflineManager({ locale }: { locale: "en" | "ar" }) {
           <button disabled={have.length === 0 || !!busy} onClick={async () => { await clearSurahs(); await refresh(); }}>{ar ? "احذف النسخة المنزَّلة" : "Delete downloaded copy"}</button>
         </div>
         {error && <p role="alert">{error}</p>}
-        <div className="knowledge-types" aria-label={ar ? "السور" : "Surahs"}>
+        <div className="knowledge-types" role="group" aria-label={ar ? "السور" : "Surahs"}>
           {surahs.map((s) => <button key={s.surah_number} className={have.includes(s.surah_number) ? "chip chip-active" : "chip"} disabled={!!busy || (!online && !have.includes(s.surah_number))} onClick={() => !have.includes(s.surah_number) && download([s.surah_number])} aria-label={`${s.transliterated_name} ${have.includes(s.surah_number) ? (ar ? "منزَّلة" : "downloaded") : ""}`}>{s.surah_number}. {ar ? s.arabic_name : s.transliterated_name}</button>)}
         </div>
         {surahs.length === 0 && <p className="tool-note">{ar ? "قائمة السور تتطلب اتصالاً أو نشر نص القرآن." : "The surah list needs a connection, or the Qur'an text is not published."}</p>}
