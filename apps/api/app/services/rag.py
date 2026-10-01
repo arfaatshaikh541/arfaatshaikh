@@ -31,6 +31,17 @@ _QUOTED = re.compile(r"[﴿“\"«]([^﴾”\"»]{12,})[﴾”\"»]")
 _LABEL = re.compile(r"\[(\d{1,3})\]")
 
 
+_QURAN_KEY = re.compile(r"^(?:[\w\-]+:)?(\d{1,3}):(\d{1,3})$")
+
+
+def display_reference(evidence: EvidenceContract) -> str:
+    """Readable reference for a passage key such as 'eng-mohammedmarmadu:46:35' -> "Qur'an 46:35"."""
+    match = _QURAN_KEY.match(evidence.canonical_reference)
+    if evidence.corpus_type == "quran" and match:
+        return f"Qur'an {match.group(1)}:{match.group(2)}"
+    return evidence.canonical_reference
+
+
 def layer_of(evidence: EvidenceContract) -> str:
     return LAYER_BY_CORPUS.get(evidence.corpus_type, "secondary_source")
 
@@ -132,7 +143,7 @@ def build_sections(ranked: Sequence[Ranked]) -> dict[str, list[dict]]:
     sections: dict[str, list[dict]] = {layer: [] for layer in LAYER_ORDER}
     for index, r in enumerate(ranked):
         sections[r.layer].append({
-            "label": f"[{index + 1}]", "reference": r.evidence.canonical_reference, "attribution": r.evidence.attribution, "text": r.evidence.exact_text,
+            "label": f"[{index + 1}]", "reference": display_reference(r.evidence), "attribution": r.evidence.attribution, "text": r.evidence.exact_text,
             "source_edition_id": r.evidence.source_edition_id, "source_passage_id": r.evidence.source_passage_id, "text_sha256": r.evidence.text_sha256,
             "license": r.evidence.licence, "relevance": round(r.coverage, 2)})
     return sections

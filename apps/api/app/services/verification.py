@@ -6,13 +6,20 @@ It never guesses, paraphrases, or grades authenticity.
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _SUBSTITUTIONS = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي"})
-_cache: dict[str, list[tuple[str, str, str]]] = {}
+_cache: dict[str, tuple[float, list[tuple[str, str, str]]]] = {}
+CACHE_SECONDS = 60.0  # short on purpose: publication changes must take effect quickly
+
+
+def clear_cache() -> None:
+    """Forget the cached corpus (called whenever a dataset is published, hidden or re-synced)."""
+    _cache.clear()
 
 
 def normalise(text: str) -> str:
@@ -25,8 +32,9 @@ async def _corpus(db: AsyncSession) -> list[tuple[str, str, str]]:
     from app.models.hadith import HadithCollection, HadithNarration
     from app.models.quran import QuranAyah
 
-    if "all" in _cache:
-        return _cache["all"]
+    cached = _cache.get("all")
+    if cached and time.monotonic() - cached[0] < CACHE_SECONDS:
+        return cached[1]
     rows: list[tuple[str, str, str]] = []
     for ref, text in (await db.execute(select(QuranAyah.canonical_reference, QuranAyah.arabic_text).where(QuranAyah.published.is_(True)))).all():
         rows.append(("quran", f"Qur'an {ref}", normalise(text)))
@@ -35,7 +43,7 @@ async def _corpus(db: AsyncSession) -> list[tuple[str, str, str]]:
              .where(HadithNarration.published.is_(True), HadithCollection.published.is_(True)))
     for title, ref, text in (await db.execute(query)).all():
         rows.append(("hadith", f"{title}, {ref}", normalise(text)))
-    _cache["all"] = rows
+    _cache["all"] = (time.monotonic(), rows)
     return rows
 
 

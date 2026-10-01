@@ -18,7 +18,7 @@ _STOPWORDS = frozenset({
     "what", "why", "how", "who", "whom", "when", "where", "which", "does", "do", "did",
     "say", "says", "said", "about", "with", "that", "this", "these", "those", "it", "its",
     "be", "been", "being", "can", "could", "should", "would", "will", "shall", "teach",
-    "teaching", "teachings", "islam", "islamic", "quran", "hadith",
+    "teaching", "teachings", "islam", "islamic", "quran", "hadith", "qur'an", "qur’an", "tell", "me", "give", "explain", "please",
 })
 
 
@@ -30,7 +30,7 @@ def extract_search_terms(question: str) -> list[str]:
     short ayah or hadith translation. Terms are still matched as exact substrings -
     this never invents or paraphrases anything, it only finds where to look.
     """
-    words = re.findall(r"[A-Za-z؀-ۿ]+", question)
+    words = re.findall(r"[A-Za-z؀-ۿ]+(?:['’][A-Za-z]+)?", question)
     terms = [w for w in words if len(w) >= 3 and w.lower() not in _STOPWORDS]
     return terms or [w for w in words if len(w) >= 3]
 

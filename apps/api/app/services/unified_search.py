@@ -23,6 +23,11 @@ ALL_TYPES = ("quran", "hadith", "tafsir", "topic", "course", "directory", *RECOR
 PER_TYPE_LIMIT = 8
 
 
+def ar_match(column, query: str):
+    """Index-backed, diacritic-insensitive word match (see migration 20261001_0085)."""
+    return func.to_tsvector("simple", func.woi_ar_norm(column)).op("@@")(func.plainto_tsquery("simple", func.woi_ar_norm(query)))
+
+
 def snippet(text: str, terms: Sequence[str], width: int = 240) -> str:
     flat = " ".join(text.split())
     lowered = flat.lower()
@@ -53,7 +58,7 @@ async def unified_search(db: AsyncSession, q: str, types: Sequence[str] | None =
     async def quran() -> list[dict]:
         out: list[dict] = []
         ar = (await db.execute(select(QuranAyah, QuranSurah).join(QuranSurah, QuranSurah.id == QuranAyah.surah_id)
-                               .where(QuranAyah.arabic_text.ilike(needle)).order_by(QuranSurah.surah_number, QuranAyah.ayah_number).limit(limit))).all()
+                               .where(ar_match(QuranAyah.arabic_text, q)).order_by(QuranSurah.surah_number, QuranAyah.ayah_number).limit(limit))).all()
         for ayah, surah in ar:
             out.append(_item("quran", title=f"Qur'an {ayah.canonical_reference}", text=ayah.arabic_text, reference=ayah.canonical_reference,
                              source="Qur'an, Uthmani text (Hafs)", licence="CC BY 4.0", path=f"/quran/{surah.surah_number}", terms=terms, extra={"language": "ar", "layer": "primary_source"}))
@@ -70,7 +75,7 @@ async def unified_search(db: AsyncSession, q: str, types: Sequence[str] | None =
     async def hadith() -> list[dict]:
         out: list[dict] = []
         rows = (await db.execute(select(HadithNarration, HadithCollection).join(HadithCollection, HadithCollection.id == HadithNarration.collection_id)
-                                 .where(HadithNarration.published.is_(True), HadithCollection.published.is_(True), HadithNarration.arabic_matn.ilike(needle)).limit(limit))).all()
+                                 .where(HadithNarration.published.is_(True), HadithCollection.published.is_(True), ar_match(HadithNarration.arabic_matn, q)).limit(limit))).all()
         for n, c in rows:
             out.append(_item("hadith", title=f"{c.display_title} {n.collection_hadith_number}", text=n.arabic_matn, reference=n.canonical_reference,
                              source=c.display_title, licence=None, path=f"/hadith/{c.collection_key}", terms=terms, extra={"language": "ar", "layer": "primary_source"}))
@@ -89,7 +94,7 @@ async def unified_search(db: AsyncSession, q: str, types: Sequence[str] | None =
                                  .join(TafsirEdition, TafsirEdition.id == TafsirEntry.edition_id).join(TafsirCollection, TafsirCollection.id == TafsirEdition.collection_id)
                                  .join(TafsirAuthor, TafsirAuthor.id == TafsirCollection.author_id)
                                  .where(TafsirEntry.published.is_(True), TafsirEdition.published.is_(True), TafsirCollection.published.is_(True), TafsirAuthor.published.is_(True),
-                                        TafsirEntry.arabic_text.ilike(needle)).order_by(TafsirEntry.surah_number, TafsirEntry.start_ayah_number).limit(limit))).all()
+                                        ar_match(TafsirEntry.arabic_text, q)).order_by(TafsirEntry.surah_number, TafsirEntry.start_ayah_number).limit(limit))).all()
         return [_item("tafsir", title=f"{c.display_title} {e.canonical_reference}", text=e.arabic_text, reference=e.canonical_reference,
                       source=f"{c.display_title} - {a.canonical_name}", licence=None, path=f"/tafsir/{e.surah_number}/{e.start_ayah_number}", terms=terms,
                       extra={"language": ed.language, "layer": "scholarly_explanation"}) for e, ed, c, a in rows]

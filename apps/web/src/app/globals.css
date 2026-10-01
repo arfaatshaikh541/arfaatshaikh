@@ -182,3 +182,7 @@ html[dir=rtl] .hero h1,html[dir=rtl] .auth-intro h1,html[dir=rtl] .quran-hero h1
 .answer-section h3{margin:0 0 .4rem;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold-strong)}
 .answer-section.scholarly{border-color:#7e9cc4}.answer-section.secondary{border-color:var(--muted)}.answer-section.ai{border-color:#c48e7e;background:rgba(196,142,126,.06);padding-block:.6rem}
 @media (max-width:640px){.provenance div{grid-template-columns:1fr}}
+.knowledge-page input:not([type=checkbox]):not([type=radio]):not([type=file]),.knowledge-page select,.knowledge-page textarea{min-height:2.5rem;padding:.45rem .7rem;border-radius:.6rem;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ivory);font:inherit}
+.knowledge-page form[role=search] input{width:100%}.knowledge-page textarea{min-height:5rem}
+.knowledge-page button:not(.chip):not(.linklike){min-height:2.5rem;padding:.4rem 1rem;border-radius:.6rem;border:1px solid rgba(179,146,90,.5);background:rgba(179,146,90,.12);color:var(--gold-strong);font-weight:650;cursor:pointer}
+.knowledge-page button:disabled{opacity:.5;cursor:not-allowed}

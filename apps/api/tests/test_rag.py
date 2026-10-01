@@ -92,3 +92,10 @@ def test_ruling_or_grade_not_in_sources_is_rejected():
 
 def test_abstention_text_is_always_valid():
     assert validate_synthesis(INSUFFICIENT, _ranked()).ok
+
+
+def test_translation_passage_keys_are_shown_as_readable_references():
+    ranked = rank_evidence("patience", [ev("quran", "eng-mohammedmarmadu:46:35", "Then have patience as the stout of heart", "Pickthall")], 3)
+    assert build_sections(ranked)["primary_source"][0]["reference"] == "Qur'an 46:35"
+    ranked = rank_evidence("patience", [ev("hadith", "muslim:356", "patience is light", "Sahih Muslim")], 3)
+    assert build_sections(ranked)["primary_source"][0]["reference"] == "muslim:356"

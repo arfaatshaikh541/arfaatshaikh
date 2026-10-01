@@ -184,3 +184,63 @@ async def test_assistant_abstains_when_there_is_no_evidence(app_client):
     assert body["status"] == "insufficient" and body["message"] == "Insufficient verified sources."
     assert body["evidence"] == [] and body["claims"] == [] and body["ai_synthesis"]["text"] is None
     assert body["confidence"]["abstained"] is True
+
+
+class _StubProvider:
+    def __init__(self, text, available=True):
+        self.text, self.available = text, available
+
+    async def generate(self, prompt):
+        from app.services.ai_provider import AIGenerationResult
+        return AIGenerationResult(available=self.available, provider="stub", text=self.text if self.available else None, error=None if self.available else "down")
+
+
+def _fixture_evidence():
+    from app.services.retrieval import EvidenceContract, sha256_text
+    texts = [("quran", "eng-x:94:6", "Lo! with hardship goeth ease", "Pickthall"), ("quran", "eng-x:2:153", "Seek help in patience and prayer; truly Allah is with the patient", "Pickthall")]
+    return [EvidenceContract(chunk_id=str(uuid.uuid4()), document_id=str(uuid.uuid4()), corpus_type=c, canonical_reference=r, source_edition_id="e", source_passage_id=f"p-{r}",
+                             exact_text=t, text_sha256=sha256_text(t), attribution=a, licence="Public domain") for c, r, t, a in texts]
+
+
+async def _ask(app_client, monkeypatch, provider, include=True):
+    from app.api.routes import assistant as route
+    evidence = _fixture_evidence()
+
+    async def fake_search(db, corpora, question, limit):
+        return evidence
+    monkeypatch.setattr(route, "search_evidence", fake_search)
+    monkeypatch.setattr(route, "get_ai_provider", lambda settings: provider)
+    client, headers, _ = await make_user(app_client)
+    r = await client.post("/api/v1/assistant/query", headers=headers, json={"question": "What does the Qur'an say about patience in hardship?", "include_synthesis": include})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_assistant_sections_and_validated_synthesis(app_client, monkeypatch):
+    body = await _ask(app_client, monkeypatch, _StubProvider("Patience is described as a means of help [1]. Hardship is described as accompanied by ease [2]."))
+    assert body["status"] == "assembled" and body["confidence"]["abstained"] is False
+    assert len(body["sections"]["primary_source"]) == 2 and body["sections"]["scholarly_explanation"] == []
+    assert body["ai_synthesis"]["status"] == "validated" and body["ai_synthesis"]["label"] == "AI SYNTHESIS"
+
+
+async def test_synthesis_with_fabricated_citation_is_rejected_not_shown(app_client, monkeypatch):
+    body = await _ask(app_client, monkeypatch, _StubProvider("Patience is rewarded in the hereafter [7]."))
+    assert body["ai_synthesis"]["status"] == "rejected" and body["ai_synthesis"]["text"] is None
+    assert body["sections"]["primary_source"]  # the verified sources are still shown
+
+
+async def test_synthesis_is_unavailable_when_no_local_model(app_client, monkeypatch):
+    body = await _ask(app_client, monkeypatch, _StubProvider(None, available=False))
+    assert body["ai_synthesis"]["status"] == "unavailable" and body["ai_synthesis"]["text"] is None
+
+
+async def test_synthesis_not_requested_by_default(app_client, monkeypatch):
+    body = await _ask(app_client, monkeypatch, _StubProvider("never called"), include=False)
+    assert body["ai_synthesis"]["status"] == "not_requested"
+
+
+async def test_admin_can_review_which_sources_an_answer_cited(app_client, monkeypatch):
+    await _ask(app_client, monkeypatch, _StubProvider("Patience helps [1]."))
+    admin, _, _ = await make_user(app_client, admin=True)
+    runs = (await admin.get("/api/v1/assistant/admin/runs?limit=5")).json()["runs"]
+    assert runs and runs[0]["status"] in {"assembled", "insufficient"}

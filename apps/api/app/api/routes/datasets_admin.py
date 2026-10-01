@@ -16,6 +16,7 @@ from app.services.data_contracts import can_publish
 from app.services.datasets import MAX_RECORDS_PER_UPLOAD, DatasetService
 from app.services.manifest import load_manifest, validate_manifest
 from app.services.publication_policy import apply_manifest_policy
+from app.services.verification import clear_cache as clear_verification_cache
 
 router = APIRouter(prefix="/admin/datasets", tags=["admin-datasets"])
 Admin = Annotated[User, Depends(require_platform_administrator)]
@@ -57,6 +58,7 @@ async def manifest_sync(db: DbSession, admin: Admin, _: Csrf):
     report = await apply_manifest_policy(db, manifest)
     await service.audit(admin, "dataset.manifest_synced", "data_set", None, {"datasets": len(manifest["datasets"])})
     await db.commit()
+    clear_verification_cache()
     return {"applied": True, "report": report}
 
 
@@ -79,6 +81,7 @@ async def dataset_action(key: str, payload: ActionPayload, db: DbSession, admin:
     await db.flush()
     await apply_manifest_policy(db, load_manifest())
     await db.commit()
+    clear_verification_cache()
     return dataset_view(dataset)
 
 

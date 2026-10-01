@@ -27,7 +27,7 @@ export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
           <button className={filter === "ALL" ? "chip chip-active" : "chip"} onClick={() => setFilter("ALL")}>{ar ? "الكل" : "All"} ({counts.total})</button>
           {STATUS_ORDER.map((s) => <button key={s} className={filter === s ? "chip chip-active" : "chip"} onClick={() => setFilter(s)}>{STATUS_TEXT[s][ar ? "ar" : "en"]} ({counts.byStatus[s]})</button>)}
         </div>
-        <ul className="feature-list">{features.map((f) => <li key={f.id} className="feature-item"><div className="feature-list-head"><h2>{f.name}</h2><span className={`status-pill status-${f.status.toLowerCase().replaceAll("_", "-")}`}>{STATUS_TEXT[f.status][ar ? "ar" : "en"]}</span></div><p>{f.note}</p></li>)}</ul>
+        <ul className="feature-list">{features.map((f, i) => <li key={`${f.id}-${i}`} className="feature-item"><div className="feature-list-head"><h2>{f.name}</h2><span className={`status-pill status-${f.status.toLowerCase().replaceAll("_", "-")}`}>{STATUS_TEXT[f.status][ar ? "ar" : "en"]}</span></div><p>{f.note}</p></li>)}</ul>
       </section>
       <section aria-label={ar ? "المصادر" : "Sources"}>
         <h2>{ar ? "المصادر والتراخيص" : "Sources and licences"}</h2>
