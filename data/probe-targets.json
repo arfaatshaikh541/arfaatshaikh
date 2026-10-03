@@ -573,6 +573,40 @@
     "main": "https://waqfeya.net/"
    },
    "importer": null
+  },
+  {
+   "source_id": "quay-io-minio",
+   "domain": "infrastructure (MinIO image)",
+   "urls": {
+    "main": "https://quay.io/v2/",
+    "data": "https://quay.io/v2/minio/minio/manifests/RELEASE.2025-07-23T15-54-02Z"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "ollama-registry",
+   "domain": "infrastructure (AI model registry)",
+   "urls": {
+    "main": "https://registry.ollama.ai/v2/",
+    "data": "https://registry.ollama.ai/v2/library/llama3.1/manifests/latest"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "app-arfaat-com",
+   "domain": "infrastructure (the deployment's own public URL)",
+   "urls": {
+    "main": "https://app.arfaat.com/worldofislam"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "docker-hub-registry",
+   "domain": "infrastructure (container base images)",
+   "urls": {
+    "main": "https://registry-1.docker.io/v2/"
+   },
+   "importer": null
   }
  ]
 }

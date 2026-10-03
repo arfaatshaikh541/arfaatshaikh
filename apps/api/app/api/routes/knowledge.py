@@ -156,6 +156,6 @@ async def coverage_by_domain(db: DbSession):
 
     domains = (await domain_readiness(db))["domains"]
     rows = (await db.execute(
-        select(DirectoryListing.listing_type, DirectoryListing.country, func.count(), func.count(DirectoryListing.city), func.count(func.distinct(DirectoryListing.region)))
+        select(DirectoryListing.listing_type, DirectoryListing.country, func.count(), func.count(DirectoryListing.city), func.count(func.distinct(DirectoryListing.region)), func.count().filter(DirectoryListing.verification_status == "verified"))
         .where(public_filter(), DirectoryListing.country.is_not(None)).group_by(DirectoryListing.listing_type, DirectoryListing.country))).all()
-    return build_coverage(domains, [{"type": t, "country": c, "published": int(n), "city_known": int(ck), "regions": int(rg)} for t, c, n, ck, rg in rows])
+    return build_coverage(domains, [{"type": t, "country": c, "published": int(n), "city_known": int(ck), "regions": int(rg), "verified": int(vf)} for t, c, n, ck, rg, vf in rows])

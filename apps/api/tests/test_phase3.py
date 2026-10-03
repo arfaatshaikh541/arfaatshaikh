@@ -216,3 +216,12 @@ def test_importers_accept_the_approved_sources():
     from app.importers.acquire import check_url
     for url in ("https://registry.npmjs.org/@geoalgeria%2Fmosquees/2.0.4", "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json", "https://overpass-api.de/api/interpreter"):
         assert check_url(url) == url
+
+
+def test_mosque_coverage_states_community_data_and_that_no_listing_is_individually_verified():
+    domain = {"domain": "mosques", "label": "Mosques", "status": "PUBLISHED", "records": {"published": 10, "hidden": 0}, "scope": "x", "coverage": "x"}
+    out = build_coverage([domain], [{"type": "mosque", "country": "DZ", "published": 10, "city_known": 10, "regions": 0, "verified": 0}])["domains"][0]
+    assert out["coverage_status"] == "ALGERIA_ONLY" and out["data_class"] == "COMMUNITY_DATA" and out["verification"] == "NOT_INDIVIDUALLY_VERIFIED"
+    part = build_coverage([domain], [{"type": "mosque", "country": "DZ", "published": 10, "city_known": 10, "regions": 0, "verified": 4}])["domains"][0]
+    assert part["verification"] == "PARTLY_VERIFIED" and part["verified_listings"] == 4
+    assert "data_class" not in build_coverage([{**domain, "domain": "events"}], [])["domains"][0]

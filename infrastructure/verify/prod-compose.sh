@@ -17,14 +17,17 @@ FILES=(-f docker-compose.prod.yml)
   echo "services:"
   if [ "${MINIO_BLOCKED:-0}" = 1 ]; then
     echo '  minio: {profiles: ["blocked"]}'; echo '  minio-init: {profiles: ["blocked"]}'
-    echo '  api: {depends_on: !override {migrate: {condition: service_completed_successfully}, redis: {condition: service_healthy}}}'
   fi
+  # one mapping per service (YAML forbids repeating a key)
+  API_BUILD=""; [ -n "${TLS_PROXY_CA:-}" ] && API_BUILD='build: {dockerfile: .verify-build/api.Dockerfile}'
+  API_DEPS=""; [ "${MINIO_BLOCKED:-0}" = 1 ] && API_DEPS='depends_on: !override {migrate: {condition: service_completed_successfully}, redis: {condition: service_healthy}}'
+  [ -n "$API_BUILD$API_DEPS" ] && echo "  api: {${API_BUILD}${API_BUILD:+${API_DEPS:+, }}${API_DEPS}}"
   if [ -n "${TLS_PROXY_CA:-}" ]; then
     mkdir -p .verify-build; cp "$TLS_PROXY_CA" .verify-ca.crt
     for n in api worker web; do
       awk 'NR==1{print; print "COPY .verify-ca.crt /tmp/proxy-ca.crt"; print "ENV NODE_EXTRA_CA_CERTS=/tmp/proxy-ca.crt SSL_CERT_FILE=/tmp/proxy-ca.crt REQUESTS_CA_BUNDLE=/tmp/proxy-ca.crt PIP_CERT=/tmp/proxy-ca.crt UV_NATIVE_TLS=1"; next} {print}' "apps/$n/Dockerfile" > ".verify-build/$n.Dockerfile"
     done
-    for n in migrate api; do echo "  $n: {build: {dockerfile: .verify-build/api.Dockerfile}}"; done
+    echo "  migrate: {build: {dockerfile: .verify-build/api.Dockerfile}}"
     echo "  worker: {build: {dockerfile: .verify-build/worker.Dockerfile}}"; echo "  web: {build: {dockerfile: .verify-build/web.Dockerfile}}"
   fi
 } > "$WORK/override.yml"

@@ -503,3 +503,13 @@ async def test_coverage_never_claims_global_without_published_content(app_client
         assert by[key]["coverage_status"] in {"NO_VERIFIED_DATA", "HIDDEN_PENDING_RIGHTS"}
     assert all(d["coverage_status"] != "GLOBAL" or d["published"] > 0 for d in body["domains"])
     assert all(isinstance(d.get("countries", []), list) for d in body["domains"] if d["geographic"])
+
+
+async def test_assistant_response_identifies_local_ai_and_model_and_abstains_without_sources(app_client):
+    client, csrf, _ = await make_user(app_client)
+    r = await client.post("/api/v1/assistant/query", headers=csrf, json={"question": "What do the sources say about quantum entanglement in blockchain mining?", "include_synthesis": True, "locale": "en"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    synthesis = body["ai_synthesis"]
+    assert synthesis["provider_label"] == "LOCAL AI" and synthesis["mode"] == "local" and synthesis["model"], synthesis
+    assert body["status"] != "assembled" and synthesis["status"] == "not_requested" and synthesis["text"] is None, "no sources -> no answer and no model text"

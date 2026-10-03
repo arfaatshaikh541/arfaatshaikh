@@ -15,7 +15,7 @@ type DomainRow = { domain: string; label: string; tier: number; status: string; 
   records: { total: number; published: number; hidden: number }; validation_status: string; blockers: string[]; verified_by: string; last_verified: string;
   why_not_ready: { kind: string; text?: string; gate?: string; evidence?: string }[] };
 type Domains = { as_of: string; summary: Record<string, number>; domains: DomainRow[] };
-type CoverageRow = { domain: string; coverage_status: string; geographic: boolean; countries?: { code: string; name: string; published: number }[]; statement: string };
+type CoverageRow = { domain: string; coverage_status: string; geographic: boolean; countries?: { code: string; name: string; published: number }[]; statement: string; data_class?: string; verification?: string };
 type Coverage = { domains: CoverageRow[]; statement: string };
 
 function coverageText(c: CoverageRow | undefined, ar: boolean): string {
@@ -25,7 +25,9 @@ function coverageText(c: CoverageRow | undefined, ar: boolean): string {
   if (c.coverage_status === "NO_VERIFIED_DATA") return ar ? "لا بيانات موثقة" : "No verified data";
   if (c.coverage_status === "HIDDEN_PENDING_RIGHTS") return ar ? "مستورد ومخفي حتى تثبت الحقوق" : "Imported, hidden until rights are established";
   if (c.coverage_status === "REGIONAL") return (ar ? "دول محددة فقط: " : "Only these countries: ") + names;
-  return (ar ? "بلد واحد فقط: " : "One country only: ") + names;
+  const place = (ar ? "بلد واحد فقط: " : "One country only: ") + names;
+  const notes = [c.data_class === "COMMUNITY_DATA" ? (ar ? "بيانات مجتمعية" : "Community data") : "", c.verification === "NOT_INDIVIDUALLY_VERIFIED" ? (ar ? "لم يُتحقق من كل سجل على حدة" : "Not individually verified") : ""].filter(Boolean);
+  return notes.length ? `${place}. ${notes.join(" · ")}` : place;
 }
 
 export function StatusOverview({ locale }: { locale: "en" | "ar" }) {

@@ -39,14 +39,14 @@ def arabic_seed_path():
 
 def _upsert(rows: list[dict]):
     stmt = insert(ReviewItem).values(rows)
-    # an existing row keeps its status, note and reviewer: only the flagged payload may be refreshed
-    return stmt.on_conflict_do_update(constraint="uq_review_items_queue_key", set_={"payload": stmt.excluded.payload, "group_name": stmt.excluded.group_name, "updated_at": func.now()})
+    # an existing row keeps its status, note, reviewer and any recorded suggestion: the flagged fields are merged into the payload, never replacing it
+    return stmt.on_conflict_do_update(constraint="uq_review_items_queue_key", set_={"payload": ReviewItem.payload.op("||")(stmt.excluded.payload), "group_name": stmt.excluded.group_name, "updated_at": func.now()})
 
 
 async def sync_arabic(db: AsyncSession) -> dict:
     seed = json.loads(arabic_seed_path().read_text(encoding="utf-8"))["strings"]
     rows = [{"queue": ARABIC_QUEUE, "item_key": s["key"], "group_name": s["group"], "status": "NEEDS_NATIVE_REVIEW",
-             "payload": {"arabic": s["arabic"], "english": s.get("english"), "file": s["file"], "religious_term": s["religious_term"]}} for s in seed]
+             "payload": {"arabic": s["arabic"], "english": s.get("english"), "file": s["file"], "context": s.get("context"), "religious_term": s["religious_term"]}} for s in seed]
     before = await db.scalar(select(func.count()).select_from(ReviewItem).where(ReviewItem.queue == ARABIC_QUEUE))
     for i in range(0, len(rows), 200):
         await db.execute(_upsert(rows[i:i + 200]))
@@ -85,6 +85,29 @@ async def summary(db: AsyncSession) -> dict:
     return {"queues": out, "statuses": list(REVIEW_STATUSES)}
 
 
+async def _reviewer_names(db: AsyncSession, ids: set) -> dict:
+    if not ids:
+        return {}
+    return {u.id: u.display_name for u in (await db.scalars(select(User).where(User.id.in_(ids)))).all()}
+
+
+async def export_rows(db: AsyncSession, queue: str, status: str | None, group: str | None) -> list[dict]:
+    """Every item of a queue (no paging) as flat rows for a CSV hand-off to a reviewer. Decisions are still recorded in the application."""
+    if queue not in QUEUES:
+        raise ApplicationError("unknown_queue", "Unknown review queue.", 404)
+    stmt = select(ReviewItem).where(ReviewItem.queue == queue)
+    if status:
+        stmt = stmt.where(ReviewItem.status == status)
+    if group:
+        stmt = stmt.where(ReviewItem.group_name == group)
+    rows = (await db.scalars(stmt.order_by(ReviewItem.group_name, ReviewItem.item_key))).all()
+    names = await _reviewer_names(db, {r.reviewed_by_user_id for r in rows if r.reviewed_by_user_id})
+    return [{"key": r.item_key, "category": r.group_name or "", "file": r.payload.get("file", ""), "context": r.payload.get("context", ""), "english_source": r.payload.get("english") or "",
+             "arabic": r.payload.get("arabic", ""), "religious_term": "yes" if r.payload.get("religious_term") else "", "status": r.status,
+             "reviewer": names.get(r.reviewed_by_user_id, ""), "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else "",
+             "suggested_text": r.payload.get("suggested_text", ""), "note": r.note or ""} for r in rows]
+
+
 async def list_items(db: AsyncSession, queue: str, status: str | None, group: str | None, page: int, page_size: int = 50) -> dict:
     if queue not in QUEUES:
         raise ApplicationError("unknown_queue", "Unknown review queue.", 404)
@@ -95,10 +118,11 @@ async def list_items(db: AsyncSession, queue: str, status: str | None, group: st
         stmt = stmt.where(ReviewItem.group_name == group)
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = (await db.scalars(stmt.order_by(ReviewItem.group_name, ReviewItem.item_key).limit(page_size).offset((page - 1) * page_size))).all()
+    names = await _reviewer_names(db, {r.reviewed_by_user_id for r in rows if r.reviewed_by_user_id})
     by_group = Counter(r.group_name for r in rows)
     return {"queue": queue, "total": int(total or 0), "page": page, "by_group_on_page": dict(by_group),
             "items": [{"id": str(r.id), "key": r.item_key, "group": r.group_name, "status": r.status, "note": r.note, "payload": r.payload,
-                       "reviewed_by": str(r.reviewed_by_user_id) if r.reviewed_by_user_id else None, "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None} for r in rows]}
+                       "reviewed_by": str(r.reviewed_by_user_id) if r.reviewed_by_user_id else None, "reviewed_by_name": names.get(r.reviewed_by_user_id), "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None} for r in rows]}
 
 
 async def decide(db: AsyncSession, item_id: UUID, status: str, note: str | None, suggested_text: str | None, attest_native_reader: bool, actor: User) -> ReviewItem:

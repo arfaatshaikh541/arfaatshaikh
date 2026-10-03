@@ -1,0 +1,86 @@
+{
+ "date": "2026-10-03",
+ "script": "infrastructure/verify/backup-restore.sh",
+ "real_components": [
+  "postgres:17-alpine from docker-compose.prod.yml",
+  "the backup service (infrastructure/scripts/backup-loop.sh)",
+  "infrastructure/scripts/restore.sh",
+  "infrastructure/postgres/10-app-role.sh and assign-ownership.sql",
+  "the migrate and api images from the compose file"
+ ],
+ "stages": [
+  {
+   "stage": "before",
+   "postgres": "17.11",
+   "alembic": "20261003_0088",
+   "database_bytes": 397170355,
+   "tables": 369,
+   "rows": 543946,
+   "ayah_md5": "7a79967769489ba3a3a517184b3dd884"
+  },
+  {
+   "stage": "backup",
+   "file": "woi-20261003T161342Z.sql.gz",
+   "bytes": 72817232,
+   "sha256": "96a4661d9416ed2df2c2179de37b3b0f70d1c26b16b1fccac13bab183b69c019",
+   "gzip_integrity": "ok",
+   "seconds": 30
+  },
+  {
+   "stage": "restore",
+   "fresh_database_tables_before": 0,
+   "seconds": 22,
+   "row_counts": "identical",
+   "tables": 369,
+   "rows": 543946,
+   "alembic": "20261003_0088",
+   "ayah_md5": "7a79967769489ba3a3a517184b3dd884"
+  },
+  {
+   "stage": "ownership",
+   "table_owner": "world_of_islam",
+   "app_role_is_superuser": "f"
+  },
+  {
+   "stage": "migrations",
+   "result": "alembic upgrade head exits 0 on the restored database"
+  },
+  {
+   "stage": "validation",
+   "as_role": "world_of_islam",
+   "passed": 12,
+   "failed": 2
+  },
+  {
+   "stage": "application",
+   "health": "healthy",
+   "reads": {
+    "surahs": 114,
+    "mosques_visible": 19776,
+    "mosque_coverage": "ALGERIA_ONLY"
+   }
+  }
+ ],
+ "validation_checks": [
+  "PASS manifest",
+  "PASS quran_text_has_verified_source",
+  "PASS hadith_grades_have_sources",
+  "PASS published_content_traces_to_approved_source",
+  "PASS hidden_datasets_are_hidden",
+  "PASS knowledge_records_have_metadata",
+  "PASS directory_listings_have_metadata",
+  "PASS no_duplicate_identifiers",
+  "FAIL graph_relationships_have_provenance",
+  "PASS manifest_record_counts_match",
+  "FAIL domain_registry_matches_database",
+  "PASS knowledge_references_resolve",
+  "PASS no_duplicate_scholars_or_books",
+  "PASS directory_fields_and_duplicates"
+ ],
+ "limits": [
+  "The populated database is a COPY of the development data without the three bulk tables' unpublished rows (tafsir_entries empty; source_passages and quran_ayah_translations hold only the published subset) because the VM has about 3 GB of free disk and the full database is 5.5 GB. The backup size and restore time are therefore those of a 397 MB database, not of the 5.5 GB one.",
+  "validation 12/14: graph_relationships_have_provenance and domain_registry_matches_database fail ONLY because of that subset (no tafsir rows, filtered passages). The same checks pass 14/14 on the full development database.",
+  "MinIO is not part of the backup design: backups are written to ./backups on the host and nothing uploads them to object storage. No upload/download of backups to MinIO was tested because MinIO could not be started (quay.io is refused).",
+  "Run on this build VM, not on the production host; the production host's disk, PostgreSQL volume and off-machine copy of ./backups are untested."
+ ]
+}

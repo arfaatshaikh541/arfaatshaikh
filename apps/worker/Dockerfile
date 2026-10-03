@@ -13,4 +13,5 @@ COPY --from=builder /app/.venv /app/.venv
 COPY apps/api/app ./app
 COPY apps/worker/worker ./worker
 USER app
-CMD ["celery", "-A", "worker.celery_app:celery_app", "worker", "--loglevel=INFO", "--without-gossip", "--without-mingle"]
+# --beat runs the schedule inside this single worker (one worker process group; do not scale this service past 1 replica).
+CMD ["celery", "-A", "worker.celery_app:celery_app", "worker", "--beat", "--loglevel=INFO", "--without-gossip", "--without-mingle"]

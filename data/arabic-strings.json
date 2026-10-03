@@ -7,6 +7,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "أخطاء",
    "english": "errors",
+   "context": "<p>{runResult.preview.rows} {ar ? \"صفوف\" : \"rows\"} · {runResult.preview.valid} {ar ? \"صالحة\" : \"valid\"} · {runResult.preview.would_create} {ar ? \"جديدة\" : \"new\"} · {runResult.preview.failed} {ar ? \"أخطاء\" : \"errors\"} · {ar ? \"متجاوَز\" : \"sk",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -15,6 +16,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "أُنشئ",
    "english": "Created",
+   "context": "setMsg(r.status === \"failed\" ? (ar ? \"رُفض الملف كله: لم يُكتب شيء.\" : \"The whole file was rejected; nothing was written.\") : `${ar ? \"أُنشئ\" : \"Created\"} ${r.created}, ${ar ? \"حُدّث\" : \"updated\"} ${r.updated}`);",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -23,6 +25,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "إجابات الذكاء الاصطناعي",
    "english": "AI answers",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -31,6 +34,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "إغلاق",
    "english": "Close",
+   "context": "<div className=\"reader-actions\"><button onClick={() => setConflicts(null)}>{ar ? \"إغلاق\" : \"Close\"}</button></div>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -39,6 +43,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "إلغاء",
    "english": "Cancel",
+   "context": "<div className=\"reader-actions\"><button disabled={staged.preview.failed > 0} onClick={confirmImport}>{ar ? \"استيراد\" : \"Import\"}</button><button onClick={() => setStaged(null)}>{ar ? \"إلغاء\" : \"Cancel\"}</button></div>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -47,6 +52,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "إلغاء النشر",
    "english": "Unpublish",
+   "context": "<button onClick={() => datasetAction(d, \"unpublish\")}>{ar ? \"إلغاء النشر\" : \"Unpublish\"}</button>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -55,6 +61,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "استيراد",
    "english": "Import",
+   "context": "<div className=\"reader-actions\"><button disabled={staged.preview.failed > 0} onClick={confirmImport}>{ar ? \"استيراد\" : \"Import\"}</button><button onClick={() => setStaged(null)}>{ar ? \"إلغاء\" : \"Cancel\"}</button></div>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -63,6 +70,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "الأحداث",
    "english": "Events",
+   "context": "<h3>{ar ? \"الأحداث\" : \"Events\"}</h3>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -71,6 +79,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "الاستيراد كل شيء أو لا شيء، ولا ينشر أي بيانات: النشر خطوة منفصلة.",
    "english": "Importing is all-or-nothing and never publishes: publishing is a separate step.",
+   "context": "<p className=\"tool-note\">{ar ? \"الاستيراد كل شيء أو لا شيء، ولا ينشر أي بيانات: النشر خطوة منفصلة.\" : \"Importing is all-or-nothing and never publishes: publishing is a separate step.\"}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -79,6 +88,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "البلاغات",
    "english": "Reports",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -87,6 +97,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "التكرار والتعارض",
    "english": "Duplicates and conflicts",
+   "context": "<section className=\"record-card\" role=\"region\" aria-label={ar ? \"التكرار والتعارض\" : \"Duplicates and conflicts\"} data-testid=\"conflicts-panel\">",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -95,6 +106,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "الجاهزية",
    "english": "Readiness",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -103,6 +115,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المراجعة البشرية",
    "english": "Human review",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -111,6 +124,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المستوردات",
    "english": "Importers",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -119,6 +133,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المستوردات تعمل كلها أو لا شيء، ولا تنشر ولا توثّق. إعادة التشغيل آمنة.",
    "english": "Importers are all-or-nothing, never publish and never verify. Re-running is safe: an unchanged source changes nothing.",
+   "context": "<p className=\"tool-note\">{ar ? \"المستوردات تعمل كلها أو لا شيء، ولا تنشر ولا توثّق. إعادة التشغيل آمنة.\" : \"Importers are all-or-nothing, never publish and never verify. Re-running is safe: an unchanged source changes nothing.\"}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -127,6 +142,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المصدر غير متاح من هذا الخادم.",
    "english": "The source is NOT reachable from this server.",
+   "context": "setImporters(r.importers); setMsg(r.importers.find((i) => i.id === id)?.probe?.all_reachable ? (ar ? \"المصدر متاح من هذا الخادم.\" : \"The source is reachable from this server.\") : (ar ? \"المصدر غير متاح من هذا الخادم.\" : \"The source is NOT r",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -135,6 +151,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المصدر متاح من هذا الخادم.",
    "english": "The source is reachable from this server.",
+   "context": "setImporters(r.importers); setMsg(r.importers.find((i) => i.id === id)?.probe?.all_reachable ? (ar ? \"المصدر متاح من هذا الخادم.\" : \"The source is reachable from this server.\") : (ar ? \"المصدر غير متاح من هذا الخادم.\" : \"The source is NOT r",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -143,6 +160,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "المنشأ والسجل",
    "english": "provenance and history",
+   "context": "<h2>{history.dataset.name}: {ar ? \"المنشأ والسجل\" : \"provenance and history\"}</h2>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -151,6 +169,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "تراجع",
    "english": "Roll back",
+   "context": "<ul>{history.imports.map((i) => <li key={i.id}>{i.at} · {i.adapter_id ?? \"manual upload\"} · {i.source_version ?? \"\"} · {i.status} · +{i.created} / ~{i.updated} / ={i.unchanged} / !{i.failed} · <code>{i.file_sha256.slice(0, 12)}…</code>{i.st",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -159,6 +178,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "تشغيل",
    "english": "Run import",
+   "context": "<button onClick={() => runImporter(i, true)}>{ar ? \"تشغيل\" : \"Run import\"}</button>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -167,6 +187,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "جديدة",
    "english": "new",
+   "context": "<p>{runResult.preview.rows} {ar ? \"صفوف\" : \"rows\"} · {runResult.preview.valid} {ar ? \"صالحة\" : \"valid\"} · {runResult.preview.would_create} {ar ? \"جديدة\" : \"new\"} · {runResult.preview.failed} {ar ? \"أخطاء\" : \"errors\"} · {ar ? \"متجاوَز\" : \"sk",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -175,6 +196,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "حُدّث",
    "english": "updated",
+   "context": "setMsg(r.status === \"failed\" ? (ar ? \"رُفض الملف كله: لم يُكتب شيء.\" : \"The whole file was rejected; nothing was written.\") : `${ar ? \"أُنشئ\" : \"Created\"} ${r.created}, ${ar ? \"حُدّث\" : \"updated\"} ${r.updated}`);",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -183,6 +205,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "رُفض الملف كله: لم يُكتب شيء.",
    "english": "The whole file was rejected; nothing was written.",
+   "context": "setMsg(r.status === \"failed\" ? (ar ? \"رُفض الملف كله: لم يُكتب شيء.\" : \"The whole file was rejected; nothing was written.\") : `${ar ? \"أُنشئ\" : \"Created\"} ${r.created}, ${ar ? \"حُدّث\" : \"updated\"} ${r.updated}`);",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -191,6 +214,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "سجل التدقيق",
    "english": "Audit log",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -199,6 +223,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "سجل المجموعة",
    "english": "Dataset history",
+   "context": "<section className=\"record-card\" role=\"region\" aria-label={ar ? \"سجل المجموعة\" : \"Dataset history\"}>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -207,6 +232,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "صالحة",
    "english": "valid",
+   "context": "<p>{runResult.preview.rows} {ar ? \"صفوف\" : \"rows\"} · {runResult.preview.valid} {ar ? \"صالحة\" : \"valid\"} · {runResult.preview.would_create} {ar ? \"جديدة\" : \"new\"} · {runResult.preview.failed} {ar ? \"أخطاء\" : \"errors\"} · {ar ? \"متجاوَز\" : \"sk",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -215,6 +241,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "صفوف",
    "english": "rows",
+   "context": "<p>{runResult.preview.rows} {ar ? \"صفوف\" : \"rows\"} · {runResult.preview.valid} {ar ? \"صالحة\" : \"valid\"} · {runResult.preview.would_create} {ar ? \"جديدة\" : \"new\"} · {runResult.preview.failed} {ar ? \"أخطاء\" : \"errors\"} · {ar ? \"متجاوَز\" : \"sk",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -223,6 +250,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "طُبِّق",
    "english": "applied",
+   "context": "<h2>{runResult.adapter}: {runResult.applied ? (ar ? \"طُبِّق\" : \"applied\") : (runResult.status ?? (ar ? \"معاينة\" : \"preview\"))}</h2>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -231,6 +259,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "عمليات الاستيراد",
    "english": "Imports",
+   "context": "<h3>{ar ? \"عمليات الاستيراد\" : \"Imports\"}</h3>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -239,6 +268,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "فحص التوفر",
    "english": "Check reachability",
+   "context": "<button onClick={() => probe(i.id)}>{ar ? \"فحص التوفر\" : \"Check reachability\"}</button>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -247,6 +277,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "لماذا ليس جاهزاً",
    "english": "Why this is not READY",
+   "context": "<details><summary>{ar ? \"لماذا ليس جاهزاً\" : \"Why this is not READY\"} ({d.why_not_ready.length})</summary>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -255,6 +286,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "متجاوَز",
    "english": "skipped",
+   "context": "<p>{runResult.preview.rows} {ar ? \"صفوف\" : \"rows\"} · {runResult.preview.valid} {ar ? \"صالحة\" : \"valid\"} · {runResult.preview.would_create} {ar ? \"جديدة\" : \"new\"} · {runResult.preview.failed} {ar ? \"أخطاء\" : \"errors\"} · {ar ? \"متجاوَز\" : \"sk",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -263,6 +295,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "مجموعات البيانات",
    "english": "Datasets",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -271,6 +304,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "مراجعة الدليل",
    "english": "Directory queue",
+   "context": "const tabs: [Tab, string][] = [[\"readiness\", ar ? \"الجاهزية\" : \"Readiness\"], [\"importers\", ar ? \"المستوردات\" : \"Importers\"], [\"datasets\", ar ? \"مجموعات البيانات\" : \"Datasets\"], [\"review\", ar ? \"المراجعة البشرية\" : \"Human review\"], [\"directo",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -279,6 +313,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "معاينة",
    "english": "preview",
+   "context": "<h2>{runResult.adapter}: {runResult.applied ? (ar ? \"طُبِّق\" : \"applied\") : (runResult.status ?? (ar ? \"معاينة\" : \"preview\"))}</h2>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -287,6 +322,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "معاينة الاستيراد",
    "english": "Import preview",
+   "context": "<section className=\"record-card\" role=\"region\" aria-label={ar ? \"معاينة الاستيراد\" : \"Import preview\"}>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -295,6 +331,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "معاينة ملف (JSON)",
    "english": "Preview a JSON file",
+   "context": "<label className=\"upload\">{ar ? \"معاينة ملف (JSON)\" : \"Preview a JSON file\"}<input type=\"file\" accept=\".json,application/json\" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(d, f, d.id.startsWith(\"directory-\")); e.targ",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -303,6 +340,7 @@
    "file": "components/admin-data-panel.tsx",
    "arabic": "معروض",
    "english": "shown",
+   "context": "{Object.entries(conflicts.items).map(([k, list]) => list.length > 0 && <details key={k}><summary>{k.replace(/_/g, \" \")} ({list.length} {ar ? \"معروض\" : \"shown\"})</summary><ul>{list.slice(0, 10).map((x, i) => <li key={i}><code>{JSON.stringify",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -311,6 +349,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "آخر موعد",
    "english": "Closes",
+   "context": "{item.expires_at && <li>{ar ? \"آخر موعد\" : \"Closes\"}: {when(item.expires_at)}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -319,6 +358,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "التقديم",
    "english": "Apply",
+   "context": "{typeof a.application_url === \"string\" && <li><a href={a.application_url} rel=\"noopener noreferrer nofollow\">{ar ? \"التقديم\" : \"Apply\"}</a></li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -327,6 +367,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "الجهة",
    "english": "Organisation",
+   "context": "{typeof a.organization === \"string\" && <li>{ar ? \"الجهة\" : \"Organisation\"}: {a.organization}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -335,6 +376,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "الدول التي لها بيانات لهذا النوع",
    "english": "Countries with data for this type",
+   "context": "? `${ar ? \"الدول التي لها بيانات لهذا النوع\" : \"Countries with data for this type\"}: ${coverage.countries_by_type[type].join(\", \")}. ${ar ? \"لا تعني قلة القوائم في أي مكان آخر غياب الخدمات هناك.\" : \"No data yet for any other country; a miss",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -343,6 +385,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "الدولة (رمزان)",
    "english": "Country (2-letter)",
+   "context": "<label>{ar ? \"الدولة (رمزان)\" : \"Country (2-letter)\"}<input value={country} maxLength={2} onChange={(e) => { setCountry(e.target.value); setPage(1); }} /></label>",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -351,6 +394,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "المذهب (كما ورد في المصدر)",
    "english": "Denomination (as stated by the source)",
+   "context": "{typeof a.denomination === \"string\" && <li>{ar ? \"المذهب (كما ورد في المصدر)\" : \"Denomination (as stated by the source)\"}: {a.denomination}{typeof a.denomination_source === \"string\" ? ` — ${a.denomination_source}` : \"\"}</li>}",
    "group": "FIQH",
    "religious_term": true
   },
@@ -359,6 +403,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "المنظّم",
    "english": "Organiser",
+   "context": "{typeof a.organizer === \"string\" && <li>{ar ? \"المنظّم\" : \"Organiser\"}: {a.organizer}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -367,6 +412,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "بيانات المساجد: © مساهمو OpenStreetMap (رخصة ODbL) وWikidata (CC0)، عبر GeoAlgeria. بيانات مجتمعية وليست سجلاً رسمياً، وقد تحتوي أخطاء.",
    "english": "Mosque data: © OpenStreetMap contributors (ODbL) and Wikidata (CC0), via GeoAlgeria. Community-sourced, not an official registry, and may contain errors.",
+   "context": "{ar ? \"بيانات المساجد: © مساهمو OpenStreetMap (رخصة ODbL) وWikidata (CC0)، عبر GeoAlgeria. بيانات مجتمعية وليست سجلاً رسمياً، وقد تحتوي أخطاء.\" : \"Mosque data: © OpenStreetMap contributors (ODbL) and Wikidata (CC0), via GeoAlgeria. Communit",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -375,6 +421,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "جهة العمل",
    "english": "Employer",
+   "context": "{typeof a.employer === \"string\" && <li>{ar ? \"جهة العمل\" : \"Employer\"}: {a.employer}{typeof a.employment_type === \"string\" ? ` · ${a.employment_type.replace(/_/g, \" \")}` : \"\"}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -383,6 +430,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "حقوق النشر",
    "english": "Copyright",
+   "context": "{\" \"}<a href=\"https://www.openstreetmap.org/copyright\" rel=\"noopener noreferrer nofollow\">{ar ? \"حقوق النشر\" : \"Copyright\"}</a>",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -391,6 +439,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "لا تعني قلة القوائم في أي مكان آخر غياب الخدمات هناك.",
    "english": "No data yet for any other country; a missing listing does not mean a missing place.",
+   "context": "? `${ar ? \"الدول التي لها بيانات لهذا النوع\" : \"Countries with data for this type\"}: ${coverage.countries_by_type[type].join(\", \")}. ${ar ? \"لا تعني قلة القوائم في أي مكان آخر غياب الخدمات هناك.\" : \"No data yet for any other country; a miss",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -399,6 +448,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "لا توجد بيانات لهذا النوع في أي دولة بعد.",
    "english": "No country has data for this type yet.",
+   "context": ": (ar ? \"لا توجد بيانات لهذا النوع في أي دولة بعد.\" : \"No country has data for this type yet.\")}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -407,6 +457,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "لا توجد قوائم منشورة لهذا النوع بعد.",
    "english": "No listings are published for this type yet.",
+   "context": "<h2>{LISTING_EMPTY[type]?.[ar ? \"ar\" : \"en\"] ?? (ar ? \"لا توجد قوائم منشورة لهذا النوع بعد.\" : \"No listings are published for this type yet.\")}</h2>",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -415,6 +466,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "يبدأ",
    "english": "Starts",
+   "context": "{item.starts_at && <li>{ar ? \"يبدأ\" : \"Starts\"}: {when(item.starts_at)}{item.ends_at ? ` · ${ar ? \"ينتهي\" : \"ends\"} ${when(item.ends_at)}` : \"\"}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -423,6 +475,7 @@
    "file": "components/directory-browser.tsx",
    "arabic": "ينتهي",
    "english": "ends",
+   "context": "{item.starts_at && <li>{ar ? \"يبدأ\" : \"Starts\"}: {when(item.starts_at)}{item.ends_at ? ` · ${ar ? \"ينتهي\" : \"ends\"} ${when(item.ends_at)}` : \"\"}</li>}",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -431,6 +484,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "الترخيص المسجّل يتيح إعادة النشر",
    "english": "Recorded licence permits redistribution",
+   "context": "{\" · \"}{item.trust.rights_status === \"REDISTRIBUTION_NOT_ESTABLISHED\" ? (rtl ? \"حقوق إعادة النشر غير مثبتة\" : \"Redistribution rights not established\") : (rtl ? \"الترخيص المسجّل يتيح إعادة النشر\" : \"Recorded licence permits redistribution\")}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -439,6 +493,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "المصدر",
    "english": "source",
+   "context": "<small>{k.source_title}{k.author ? ` · ${k.author}` : \"\"}{k.edition ? ` · ${k.edition}` : \"\"} · {k.locator} · {k.license}{k.publisher ? ` · ${k.publisher}` : \"\"}{k.rights_status ? ` · ${k.rights_status}` : \"\"}{k.retrieved_at ? ` · ${k.retri",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -447,6 +502,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "تُعرض المواقف العلمية المختلفة منفصلة، دون دمج أو ترجيح.",
    "english": "Different scholarly positions are listed separately; they are not merged or ranked.",
+   "context": "<p className=\"tool-note\">{rtl ? \"تُعرض المواقف العلمية المختلفة منفصلة، دون دمج أو ترجيح.\" : \"Different scholarly positions are listed separately; they are not merged or ranked.\"}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -455,6 +511,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "جرّب صياغة أخرى أو موضوعاً أعم.",
    "english": "Try rephrasing, or a broader topic.",
+   "context": "{answer?.status === \"insufficient\" && <p role=\"status\"><strong>{INSUFFICIENT[rtl ? \"ar\" : \"en\"]}</strong> {AUTHORITY_LABEL.unavailable[rtl ? \"ar\" : \"en\"]}. {rtl ? \"جرّب صياغة أخرى أو موضوعاً أعم.\" : \"Try rephrasing, or a broader topic.\"}</p",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -463,6 +520,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "حقوق إعادة النشر غير مثبتة",
    "english": "Redistribution rights not established",
+   "context": "{\" · \"}{item.trust.rights_status === \"REDISTRIBUTION_NOT_ESTABLISHED\" ? (rtl ? \"حقوق إعادة النشر غير مثبتة\" : \"Redistribution rights not established\") : (rtl ? \"الترخيص المسجّل يتيح إعادة النشر\" : \"Recorded licence permits redistribution\")}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -471,6 +529,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "سجلات موثّقة ذات صلة",
    "english": "Related sourced records",
+   "context": "<section className=\"answer-section\" aria-label={rtl ? \"سجلات موثّقة ذات صلة\" : \"Related sourced records\"}>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -479,6 +538,7 @@
    "file": "components/islamic-assistant.tsx",
    "arabic": "لا تفاصيل مسجلة عن الطبعة",
    "english": "No edition details recorded",
+   "context": "{item.trust && <p className=\"tool-note\"><small>{[item.trust.source_title, item.trust.author, item.trust.edition, item.trust.publisher].filter(Boolean).join(\" · \") || (rtl ? \"لا تفاصيل مسجلة عن الطبعة\" : \"No edition details recorded\")}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -487,6 +547,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "التعليل",
    "english": "Reasoning",
+   "context": "{a.reasoning && <p><strong>{ar ? \"التعليل\" : \"Reasoning\"}:</strong> {a.reasoning}</p>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -495,6 +556,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "الحاكم",
    "english": "Grader",
+   "context": "<thead><tr><th scope=\"col\">{ar ? \"الحاكم\" : \"Grader\"}</th><th scope=\"col\">{ar ? \"الدرجة\" : \"Grade\"}</th><th scope=\"col\">{ar ? \"مصدر الحكم\" : \"Grading source\"}</th></tr></thead>",
    "group": "GENERAL_UI",
    "religious_term": true
   },
@@ -503,6 +565,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "الحكم",
    "english": "Ruling",
+   "context": "{a.ruling && <p><strong>{ar ? \"الحكم\" : \"Ruling\"}:</strong> {a.ruling}</p>}",
    "group": "FIQH",
    "religious_term": true
   },
@@ -511,6 +574,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "الدرجة",
    "english": "Grade",
+   "context": "<thead><tr><th scope=\"col\">{ar ? \"الحاكم\" : \"Grader\"}</th><th scope=\"col\">{ar ? \"الدرجة\" : \"Grade\"}</th><th scope=\"col\">{ar ? \"مصدر الحكم\" : \"Grading source\"}</th></tr></thead>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -519,6 +583,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "العمل",
    "english": "Work",
+   "context": "{r.source_work && <div><dt>{ar ? \"العمل\" : \"Work\"}</dt><dd>{[r.source_work, r.edition, r.volume && `${ar ? \"مج\" : \"vol.\"} ${r.volume}`, r.chapter, r.page && `${ar ? \"ص\" : \"p.\"} ${r.page}`].filter(Boolean).join(\" · \")}</dd></div>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -527,6 +592,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "القول",
    "english": "Statement",
+   "context": "{a.statement && <p><strong>{ar ? \"القول\" : \"Statement\"}:</strong> {a.statement}</p>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -535,6 +601,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "اللغة",
    "english": "Language",
+   "context": "{r.language && <div><dt>{ar ? \"اللغة\" : \"Language\"}</dt><dd>{r.language}</dd></div>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -543,6 +610,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "المدرسة",
    "english": "School",
+   "context": "<label>{type === \"aqeedah\" ? (ar ? \"المدرسة\" : \"School\") : (ar ? \"المذهب\" : \"Madhhab\")}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -551,6 +619,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "المذهب",
    "english": "Madhhab",
+   "context": "<label>{type === \"aqeedah\" ? (ar ? \"المدرسة\" : \"School\") : (ar ? \"المذهب\" : \"Madhhab\")}",
    "group": "FIQH",
    "religious_term": true
   },
@@ -559,6 +628,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "المسألة",
    "english": "Question",
+   "context": "{a.question && <p><strong>{ar ? \"المسألة\" : \"Question\"}:</strong> {a.question}</p>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -567,6 +637,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "المصدر الخارجي",
    "english": "External resource",
+   "context": "{a.external_url && <p><a href={String(a.external_url)} rel=\"noopener noreferrer nofollow\">{ar ? \"المصدر الخارجي\" : \"External resource\"}</a></p>}",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -575,6 +646,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "درجات الحكم على الحديث، لكل حاكم على حدة",
    "english": "Gradings, one row per grader (graders are not combined)",
+   "context": "<caption>{ar ? \"درجات الحكم على الحديث، لكل حاكم على حدة\" : \"Gradings, one row per grader (graders are not combined)\"}</caption>",
    "group": "HADITH",
    "religious_term": true
   },
@@ -583,6 +655,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "درجة الثبوت",
    "english": "Reliability of the report",
+   "context": "{a.reliability && <p><strong>{ar ? \"درجة الثبوت\" : \"Reliability of the report\"}:</strong> {a.reliability.replace(/_/g, \" \")}</p>}",
    "group": "HADITH",
    "religious_term": true
   },
@@ -591,6 +664,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "ص",
    "english": "p.",
+   "context": "{r.source_work && <div><dt>{ar ? \"العمل\" : \"Work\"}</dt><dd>{[r.source_work, r.edition, r.volume && `${ar ? \"مج\" : \"vol.\"} ${r.volume}`, r.chapter, r.page && `${ar ? \"ص\" : \"p.\"} ${r.page}`].filter(Boolean).join(\" · \")}</dd></div>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -599,6 +673,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "مج",
    "english": "vol.",
+   "context": "{r.source_work && <div><dt>{ar ? \"العمل\" : \"Work\"}</dt><dd>{[r.source_work, r.edition, r.volume && `${ar ? \"مج\" : \"vol.\"} ${r.volume}`, r.chapter, r.page && `${ar ? \"ص\" : \"p.\"} ${r.page}`].filter(Boolean).join(\" · \")}</dd></div>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -607,6 +682,7 @@
    "file": "components/knowledge-browser.tsx",
    "arabic": "مصدر الحكم",
    "english": "Grading source",
+   "context": "<thead><tr><th scope=\"col\">{ar ? \"الحاكم\" : \"Grader\"}</th><th scope=\"col\">{ar ? \"الدرجة\" : \"Grade\"}</th><th scope=\"col\">{ar ? \"مصدر الحكم\" : \"Grading source\"}</th></tr></thead>",
    "group": "FIQH",
    "religious_term": true
   },
@@ -615,6 +691,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "إيقاف",
    "english": "Off",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -623,6 +700,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "الآية",
    "english": "Ayah",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "QURAN",
    "religious_term": false
   },
@@ -631,6 +709,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "الترجمة",
    "english": "Translation",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -639,6 +718,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "التكرار",
    "english": "Repeat",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -647,6 +727,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "السورة",
    "english": "Surah",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "QURAN",
    "religious_term": false
   },
@@ -655,6 +736,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "القارئ",
    "english": "Reciter",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "QURAN",
    "religious_term": true
   },
@@ -663,6 +745,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "المصدر الأصلي للتلاوة",
    "english": "Recitation provided by its rights holder",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "QURAN",
    "religious_term": true
   },
@@ -671,6 +754,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "بدون ترجمة",
    "english": "Arabic only",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -679,6 +763,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "بدون صوت",
    "english": "No audio",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -687,6 +772,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "حجم الخط",
    "english": "Arabic size",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -695,6 +781,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "حجم الخط العربي",
    "english": "Arabic font size",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -703,6 +790,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "حفظ التفضيلات",
    "english": "Save preferences",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -711,6 +799,7 @@
    "file": "components/quran-reader.tsx",
    "arabic": "علاماتي",
    "english": "My bookmarks",
+   "context": "<label>{arabic?\"الترجمة\":\"Translation\"}<select value={selected} onChange={e=>setSelected(e.target.value)}><option value=\"\">{arabic?\"بدون ترجمة\":\"Arabic only\"}</option>{translationGroups.map(([label,items])=><optgroup key={label} label={labe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -719,6 +808,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "أسماء متقاربة جدًا",
    "english": "Near-identical names",
+   "context": "mosque_near_identical: { en: \"Near-identical names\", ar: \"أسماء متقاربة جدًا\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -727,6 +817,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "أسماء مساجد تحتاج مراجعة",
    "english": "Mosque name anomalies",
+   "context": "mosque_name_anomaly: { en: \"Mosque name anomalies\", ar: \"أسماء مساجد تحتاج مراجعة\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -735,6 +826,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "أقرّ بأنني أقرأ العربية بوصفها لغتي الأم وراجعت هذا النص",
    "english": "I read Arabic natively and have reviewed this text",
+   "context": "<label><input type=\"checkbox\" checked={!!attest[item.id]} onChange={(e) => setAttest({ ...attest, [item.id]: e.target.checked })} /> {ar ? \"أقرّ بأنني أقرأ العربية بوصفها لغتي الأم وراجعت هذا النص\" : \"I read Arabic natively and have reviewe",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -743,6 +835,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "إبقاء كما هو",
    "english": "Keep as is",
+   "context": "{\" \"}<button className=\"chip\" onClick={() => void decide(item, \"KEEP_AS_IS\")}>{ar ? \"إبقاء كما هو\" : \"Keep as is\"}</button>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -751,6 +844,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "احتمالات تكرار",
    "english": "Duplicate candidates",
+   "context": "mosque_duplicate_candidate: { en: \"Duplicate candidates\", ar: \"احتمالات تكرار\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -759,6 +853,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "اعتماد",
    "english": "Approve",
+   "context": "{\" \"}<button className=\"chip\" onClick={() => void decide(item, \"NATIVE_REVIEW_APPROVED\")}>{ar ? \"اعتماد\" : \"Approve\"}</button>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -767,6 +862,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "الحالة",
    "english": "State",
+   "context": "{\" \"}<label>{ar ? \"الحالة\" : \"State\"} <select value={status} onChange={(e) => setStatus(e.target.value)}><option value=\"\">{ar ? \"الكل\" : \"All\"}</option>{Object.keys(STATUS_LABEL).filter((s) => s.startsWith(\"NEEDS_NATIVE\") || s.startsWith(\"N",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -775,6 +871,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "الطابور",
    "english": "Queue",
+   "context": "<nav className=\"knowledge-types\" aria-label={ar ? \"الطابور\" : \"Queue\"}>{Object.keys(QUEUE_LABEL).map((q) => (",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -783,6 +880,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "الكل",
    "english": "All",
+   "context": "{isArabic && <p><label>{ar ? \"المجموعة\" : \"Group\"} <select value={group} onChange={(e) => setGroup(e.target.value)}><option value=\"\">{ar ? \"الكل\" : \"All\"}</option>{summary?.arabic_groups.map((g) => <option key={g}>{g}</option>)}</select></l",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -791,6 +889,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "المجموعة",
    "english": "Group",
+   "context": "{isArabic && <p><label>{ar ? \"المجموعة\" : \"Group\"} <select value={group} onChange={(e) => setGroup(e.target.value)}><option value=\"\">{ar ? \"الكل\" : \"All\"}</option>{summary?.arabic_groups.map((g) => <option key={g}>{g}</option>)}</select></l",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -799,6 +898,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "تحميل العناصر المُعلَّمة",
    "english": "Load flagged items",
+   "context": "{\" \"}<button className=\"chip\" onClick={() => void sync()}>{ar ? \"تحميل العناصر المُعلَّمة\" : \"Load flagged items\"}</button></p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -807,6 +907,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "تكرار مؤكد",
    "english": "Confirmed duplicate",
+   "context": "{queue !== \"mosque_name_anomaly\" && <>{\" \"}<button className=\"chip\" onClick={() => void decide(item, \"CONFIRMED_DUPLICATE\")}>{ar ? \"تكرار مؤكد\" : \"Confirmed duplicate\"}</button></>}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -815,6 +916,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "حُمّلت العناصر.",
    "english": "Flagged items loaded.",
+   "context": "try { await apiFetch(`/admin/review/sync/${queue === \"arabic_ui\" ? \"arabic_ui\" : \"mosques\"}`, { method: \"POST\" }); setMsg(ar ? \"حُمّلت العناصر.\" : \"Flagged items loaded.\"); await load(); }",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -823,6 +925,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "طلب تعديل",
    "english": "Request change",
+   "context": "{\" \"}<button className=\"chip\" onClick={() => void decide(item, \"NATIVE_REVIEW_CHANGES_REQUESTED\")}>{ar ? \"طلب تعديل\" : \"Request change\"}</button></p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -831,6 +934,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "طوابير المراجعة",
    "english": "Review queues",
+   "context": "<section aria-label={ar ? \"طوابير المراجعة\" : \"Review queues\"} data-testid=\"review-queues\">",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -839,6 +943,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "عنصرًا",
    "english": "items",
+   "context": "<p>{page ? `${page.total}` : \"…\"} {ar ? \"عنصرًا\" : \"items\"}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -847,6 +952,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "لا عناصر محمّلة بعد.",
    "english": "Nothing loaded yet.",
+   "context": "<p>{Object.entries(counts).map(([k, v]) => `${STATUS_LABEL[k] ?? k}: ${v}`).join(\" · \") || (ar ? \"لا عناصر محمّلة بعد.\" : \"Nothing loaded yet.\")}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -855,6 +961,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "ملاحظة",
    "english": "Note",
+   "context": "<p><input aria-label=\"note\" value={text[item.id] ?? \"\"} onChange={(e) => setText({ ...text, [item.id]: e.target.value })} placeholder={ar ? \"ملاحظة\" : \"Note\"} />",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -863,6 +970,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "مواقع متطابقة بأسماء مختلفة",
    "english": "Co-located, different names",
+   "context": "mosque_colocated: { en: \"Co-located, different names\", ar: \"مواقع متطابقة بأسماء مختلفة\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -871,6 +979,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "نص مقترح أو ملاحظة",
    "english": "Suggested text or note",
+   "context": "<p><input aria-label=\"suggested text or note\" value={text[item.id] ?? \"\"} onChange={(e) => setText({ ...text, [item.id]: e.target.value })} placeholder={ar ? \"نص مقترح أو ملاحظة\" : \"Suggested text or note\"} />",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -879,6 +988,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "نصوص الواجهة العربية",
    "english": "Arabic interface text",
+   "context": "arabic_ui: { en: \"Arabic interface text\", ar: \"نصوص الواجهة العربية\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -887,6 +997,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "يحتاج مراجعة المصدر",
    "english": "Needs source check",
+   "context": "{\" \"}<button className=\"chip\" onClick={() => void decide(item, \"NEEDS_SOURCE_CHECK\")}>{ar ? \"يحتاج مراجعة المصدر\" : \"Needs source check\"}</button>",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -895,6 +1006,7 @@
    "file": "components/review-queues.tsx",
    "arabic": "يحتوي مصطلحًا شرعيًا: لا يُعاد صوغه إلا على يد مختص.",
    "english": "Contains religious terminology: only someone qualified should reword it.",
+   "context": "{Boolean(p.religious_term) && <p className=\"tool-note\">{ar ? \"يحتوي مصطلحًا شرعيًا: لا يُعاد صوغه إلا على يد مختص.\" : \"Contains religious terminology: only someone qualified should reword it.\"}</p>}",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -903,6 +1015,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "الترخيص",
    "english": "Licence",
+   "context": "<div className=\"table-scroll\" tabIndex={0} role=\"region\" aria-label={ar ? \"جدول المصادر\" : \"Sources table\"}><table className=\"audit-table\"><thead><tr><th>{ar ? \"المصدر\" : \"Source\"}</th><th>{ar ? \"الترخيص\" : \"Licence\"}</th><th>{ar ? \"الحالة\"",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -911,6 +1024,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "السجلات",
    "english": "Records",
+   "context": "<thead><tr><th>{ar ? \"المجال\" : \"Domain\"}</th><th>{ar ? \"الحالة\" : \"Status\"}</th><th>{ar ? \"السجلات\" : \"Records\"}</th><th>{ar ? \"المصدر والترخيص\" : \"Source and licence\"}</th><th>{ar ? \"لماذا ليس جاهزاً\" : \"Why not ready\"}</th></tr></thead>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -919,6 +1033,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "المجال",
    "english": "Domain",
+   "context": "<thead><tr><th>{ar ? \"المجال\" : \"Domain\"}</th><th>{ar ? \"الحالة\" : \"Status\"}</th><th>{ar ? \"السجلات\" : \"Records\"}</th><th>{ar ? \"المصدر والترخيص\" : \"Source and licence\"}</th><th>{ar ? \"لماذا ليس جاهزاً\" : \"Why not ready\"}</th></tr></thead>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -927,6 +1042,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "المصدر والترخيص",
    "english": "Source and licence",
+   "context": "<thead><tr><th>{ar ? \"المجال\" : \"Domain\"}</th><th>{ar ? \"الحالة\" : \"Status\"}</th><th>{ar ? \"السجلات\" : \"Records\"}</th><th>{ar ? \"المصدر والترخيص\" : \"Source and licence\"}</th><th>{ar ? \"لماذا ليس جاهزاً\" : \"Why not ready\"}</th></tr></thead>",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -935,6 +1051,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "بلد واحد فقط: ",
    "english": "One country only: ",
+   "context": "return (ar ? \"بلد واحد فقط: \" : \"One country only: \") + names;",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -943,6 +1060,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "تحقّقٌ آلي فقط؛ لم تتم مراجعة بشرية علمية أو قانونية.",
    "english": "Automated checks only; no human scholarly or legal review has taken place.",
+   "context": "<p className=\"tool-note\">{ar ? \"تحقّقٌ آلي فقط؛ لم تتم مراجعة بشرية علمية أو قانونية.\" : \"Automated checks only; no human scholarly or legal review has taken place.\"} {domains.as_of}</p>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -951,6 +1069,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "جاهزية البيانات حسب المجال",
    "english": "Data readiness by domain",
+   "context": "<section aria-label={ar ? \"جاهزية البيانات حسب المجال\" : \"Data readiness by domain\"}>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -959,6 +1078,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "جدول المصادر",
    "english": "Sources table",
+   "context": "<div className=\"table-scroll\" tabIndex={0} role=\"region\" aria-label={ar ? \"جدول المصادر\" : \"Sources table\"}><table className=\"audit-table\"><thead><tr><th>{ar ? \"المصدر\" : \"Source\"}</th><th>{ar ? \"الترخيص\" : \"Licence\"}</th><th>{ar ? \"الحالة\"",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -967,6 +1087,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "جدول جاهزية المجالات",
    "english": "Domain readiness table",
+   "context": "<div className=\"table-scroll\" tabIndex={0} role=\"region\" aria-label={ar ? \"جدول جاهزية المجالات\" : \"Domain readiness table\"}><table className=\"audit-table\" data-testid=\"domain-dashboard\">",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -975,6 +1096,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "دول محددة فقط: ",
    "english": "Only these countries: ",
+   "context": "if (c.coverage_status === \"REGIONAL\") return (ar ? \"دول محددة فقط: \" : \"Only these countries: \") + names;",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -983,6 +1105,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "عام",
    "english": "Public",
+   "context": "<div className=\"table-scroll\" tabIndex={0} role=\"region\" aria-label={ar ? \"جدول المصادر\" : \"Sources table\"}><table className=\"audit-table\"><thead><tr><th>{ar ? \"المصدر\" : \"Source\"}</th><th>{ar ? \"الترخيص\" : \"Licence\"}</th><th>{ar ? \"الحالة\"",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -991,6 +1114,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "لا",
    "english": "No",
+   "context": "<tbody>{manifest.datasets.map((d) => <tr key={d.id}><td><strong>{d.name}</strong><br /><small>{d.source.name}{d.source.version ? ` ${d.source.version}` : \"\"}</small></td><td>{d.license.name}<br /><small>{d.license.status}</small></td><td>{R",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -999,6 +1123,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "لا بيانات موثقة",
    "english": "No verified data",
+   "context": "if (c.coverage_status === \"NO_VERIFIED_DATA\") return ar ? \"لا بيانات موثقة\" : \"No verified data\";",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1007,6 +1132,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "لا يُعرض «جاهز» إلا إذا استوفى المجال كل شروط الجاهزية. وجود أداة استيراد أو بيانات لا يكفي.",
    "english": "A domain shows Ready only when every readiness gate is met. An importer, or data being present, is not enough.",
+   "context": "<p className=\"tool-note\">{ar ? \"لا يُعرض «جاهز» إلا إذا استوفى المجال كل شروط الجاهزية. وجود أداة استيراد أو بيانات لا يكفي.\" : \"A domain shows Ready only when every readiness gate is met. An importer, or data being present, is not enough.\"",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1015,6 +1141,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "مستورد ومخفي حتى تثبت الحقوق",
    "english": "Imported, hidden until rights are established",
+   "context": "if (c.coverage_status === \"HIDDEN_PENDING_RIGHTS\") return ar ? \"مستورد ومخفي حتى تثبت الحقوق\" : \"Imported, hidden until rights are established\";",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1023,6 +1150,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "منشور / الكل",
    "english": "published / total",
+   "context": "<td>{d.records.published} / {d.records.total}<br /><small>{ar ? \"منشور / الكل\" : \"published / total\"}</small></td>",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1031,6 +1159,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "منشور، غير مرتبط بمكان",
    "english": "Published; not tied to a place",
+   "context": "if (c.coverage_status === \"GLOBAL\") return ar ? \"منشور، غير مرتبط بمكان\" : \"Published; not tied to a place\";",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1039,6 +1168,7 @@
    "file": "components/status-overview.tsx",
    "arabic": "نعم",
    "english": "Yes",
+   "context": "<tbody>{manifest.datasets.map((d) => <tr key={d.id}><td><strong>{d.name}</strong><br /><small>{d.source.name}{d.source.version ? ` ${d.source.version}` : \"\"}</small></td><td>{d.license.name}<br /><small>{d.license.status}</small></td><td>{R",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1047,6 +1177,7 @@
    "file": "lib/copy.ts",
    "arabic": "التلاوات الصوتية غير متاحة حاليًا لإعادة النشر.",
    "english": "Recitation audio is not currently available for redistribution.",
+   "context": "export const AUDIO_NOT_AVAILABLE = { en: \"Recitation audio is not currently available for redistribution.\", ar: \"التلاوات الصوتية غير متاحة حاليًا لإعادة النشر.\" };",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1055,6 +1186,7 @@
    "file": "lib/copy.ts",
    "arabic": "الحقوق غير مؤكَّدة",
    "english": "Rights unverified",
+   "context": "RIGHTS_UNVERIFIED: { en: \"Rights unverified\", ar: \"الحقوق غير مؤكَّدة\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1063,6 +1195,7 @@
    "file": "lib/copy.ts",
    "arabic": "المصدر غير مؤكَّد",
    "english": "Source unverified",
+   "context": "SOURCE_UNVERIFIED: { en: \"Source unverified\", ar: \"المصدر غير مؤكَّد\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1071,6 +1204,7 @@
    "file": "lib/copy.ts",
    "arabic": "المصدر غير متاح",
    "english": "Source blocked",
+   "context": "SOURCE_BLOCKED: { en: \"Source blocked\", ar: \"المصدر غير متاح\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1079,6 +1213,7 @@
    "file": "lib/copy.ts",
    "arabic": "بلا تغطية",
    "english": "No coverage",
+   "context": "NONE: { en: \"No coverage\", ar: \"بلا تغطية\" }, PARTIAL: { en: \"Partial coverage\", ar: \"تغطية جزئية\" }, FULL: { en: \"Full coverage of the stated scope\", ar: \"تغطية كاملة للنطاق المذكور\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1087,6 +1222,7 @@
    "file": "lib/copy.ts",
    "arabic": "تغطية جزئية",
    "english": "Partial coverage",
+   "context": "NONE: { en: \"No coverage\", ar: \"بلا تغطية\" }, PARTIAL: { en: \"Partial coverage\", ar: \"تغطية جزئية\" }, FULL: { en: \"Full coverage of the stated scope\", ar: \"تغطية كاملة للنطاق المذكور\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1095,6 +1231,7 @@
    "file": "lib/copy.ts",
    "arabic": "تغطية كاملة للنطاق المذكور",
    "english": "Full coverage of the stated scope",
+   "context": "NONE: { en: \"No coverage\", ar: \"بلا تغطية\" }, PARTIAL: { en: \"Partial coverage\", ar: \"تغطية جزئية\" }, FULL: { en: \"Full coverage of the stated scope\", ar: \"تغطية كاملة للنطاق المذكور\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1103,6 +1240,7 @@
    "file": "lib/copy.ts",
    "arabic": "تم التحقق (غير منشور)",
    "english": "Validated (not published)",
+   "context": "VALIDATED: { en: \"Validated (not published)\", ar: \"تم التحقق (غير منشور)\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1111,6 +1249,7 @@
    "file": "lib/copy.ts",
    "arabic": "جاهز",
    "english": "Ready",
+   "context": "READY: { en: \"Ready\", ar: \"جاهز\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1119,6 +1258,7 @@
    "file": "lib/copy.ts",
    "arabic": "جاهز للاستيراد",
    "english": "Ready to import",
+   "context": "IMPORT_READY: { en: \"Ready to import\", ar: \"جاهز للاستيراد\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1127,6 +1267,7 @@
    "file": "lib/copy.ts",
    "arabic": "غير موثَّق",
    "english": "Unverified",
+   "context": "unverified: { en: \"Unverified\", ar: \"غير موثَّق\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1135,6 +1276,7 @@
    "file": "lib/copy.ts",
    "arabic": "فارغ: لا توجد بيانات",
    "english": "Empty: no data",
+   "context": "EMPTY: { en: \"Empty: no data\", ar: \"فارغ: لا توجد بيانات\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1143,6 +1285,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا بيانات موثّقة للمساجد في هذه المنطقة.",
    "english": "No verified mosque data is currently available for this region.",
+   "context": "mosque: { en: \"No verified mosque data is currently available for this region.\", ar: \"لا تتوفر حاليًا بيانات موثّقة للمساجد في هذه المنطقة.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1151,6 +1294,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا فرص تطوع موثّقة.",
    "english": "No verified volunteering opportunities are currently available.",
+   "context": "volunteering: { en: \"No verified volunteering opportunities are currently available.\", ar: \"لا تتوفر حاليًا فرص تطوع موثّقة.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1159,6 +1303,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا فعاليات قادمة موثّقة.",
    "english": "No upcoming verified events are currently available.",
+   "context": "event: { en: \"No upcoming verified events are currently available.\", ar: \"لا تتوفر حاليًا فعاليات قادمة موثّقة.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1167,6 +1312,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا قوائم موثّقة للأعمال.",
    "english": "No verified business listings are currently available.",
+   "context": "business: { en: \"No verified business listings are currently available.\", ar: \"لا تتوفر حاليًا قوائم موثّقة للأعمال.\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1175,6 +1321,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا قوائم موثّقة للجمعيات الخيرية.",
    "english": "No verified charity listings are currently available.",
+   "context": "charity: { en: \"No verified charity listings are currently available.\", ar: \"لا تتوفر حاليًا قوائم موثّقة للجمعيات الخيرية.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1183,6 +1330,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا قوائم موثّقة للخدمات الصحية.",
    "english": "No verified health listings are currently available.",
+   "context": "health: { en: \"No verified health listings are currently available.\", ar: \"لا تتوفر حاليًا قوائم موثّقة للخدمات الصحية.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1191,6 +1339,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا قوائم موثّقة للمنظمات.",
    "english": "No verified organisation listings are currently available.",
+   "context": "organisation: { en: \"No verified organisation listings are currently available.\", ar: \"لا تتوفر حاليًا قوائم موثّقة للمنظمات.\" },",
    "group": "DIRECTORY",
    "religious_term": false
   },
@@ -1199,6 +1348,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا قوائم موثّقة للمهنيين.",
    "english": "No verified professional listings are currently available.",
+   "context": "professional: { en: \"No verified professional listings are currently available.\", ar: \"لا تتوفر حاليًا قوائم موثّقة للمهنيين.\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1207,6 +1357,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا تتوفر حاليًا وظائف موثّقة.",
    "english": "No verified job listings are currently available.",
+   "context": "job: { en: \"No verified job listings are currently available.\", ar: \"لا تتوفر حاليًا وظائف موثّقة.\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1215,6 +1366,7 @@
    "file": "lib/copy.ts",
    "arabic": "لا يتوفر مصدر موثوق كافٍ",
    "english": "No sufficiently reliable source is available",
+   "context": "unavailable: { en: \"No sufficiently reliable source is available\", ar: \"لا يتوفر مصدر موثوق كافٍ\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1223,6 +1375,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ تراجم موثّقة للعلماء.",
    "english": "Verified scholar biographies have not yet been imported.",
+   "context": "scholar: { en: \"Verified scholar biographies have not yet been imported.\", ar: \"لم تُستورد بعدُ تراجم موثّقة للعلماء.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": true
   },
@@ -1231,6 +1384,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ درجات حديثية موثّقة.",
    "english": "Verified hadith gradings have not yet been imported.",
+   "context": "hadith_grading: { en: \"Verified hadith gradings have not yet been imported.\", ar: \"لم تُستورد بعدُ درجات حديثية موثّقة.\" },",
    "group": "HADITH",
    "religious_term": true
   },
@@ -1239,6 +1393,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ سجلات موثّقة للمكتبة.",
    "english": "Verified library records have not yet been imported.",
+   "context": "library_work: { en: \"Verified library records have not yet been imported.\", ar: \"لم تُستورد بعدُ سجلات موثّقة للمكتبة.\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1247,6 +1402,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر عقدية موثّقة.",
    "english": "Verified Aqeedah sources have not yet been imported.",
+   "context": "aqeedah: { en: \"Verified Aqeedah sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر عقدية موثّقة.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1255,6 +1411,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر فقهية موثّقة.",
    "english": "Verified Fiqh sources have not yet been imported.",
+   "context": "fiqh: { en: \"Verified Fiqh sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر فقهية موثّقة.\" },",
    "group": "FIQH",
    "religious_term": true
   },
@@ -1263,6 +1420,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر موثّقة للتاريخ.",
    "english": "Verified history sources have not yet been imported.",
+   "context": "history: { en: \"Verified history sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر موثّقة للتاريخ.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1271,6 +1429,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر موثّقة للحضارة.",
    "english": "Verified civilization sources have not yet been imported.",
+   "context": "civilization: { en: \"Verified civilization sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر موثّقة للحضارة.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1279,6 +1438,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر موثّقة للسيرة النبوية.",
    "english": "Verified Seerah sources have not yet been imported.",
+   "context": "seerah: { en: \"Verified Seerah sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر موثّقة للسيرة النبوية.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1287,6 +1447,7 @@
    "file": "lib/copy.ts",
    "arabic": "لم تُستورد بعدُ مصادر موثّقة للمصطلحات.",
    "english": "Verified terminology sources have not yet been imported.",
+   "context": "terminology: { en: \"Verified terminology sources have not yet been imported.\", ar: \"لم تُستورد بعدُ مصادر موثّقة للمصطلحات.\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1295,6 +1456,7 @@
    "file": "lib/copy.ts",
    "arabic": "مجموعة بيانات مجتمعية",
    "english": "Community dataset",
+   "context": "community_dataset: { en: \"Community dataset\", ar: \"مجموعة بيانات مجتمعية\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1303,6 +1465,7 @@
    "file": "lib/copy.ts",
    "arabic": "محل خلاف",
    "english": "Disputed",
+   "context": "disputed: { en: \"Disputed\", ar: \"محل خلاف\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1311,6 +1474,7 @@
    "file": "lib/copy.ts",
    "arabic": "مستنتَج",
    "english": "Inferred",
+   "context": "inferred: { en: \"Inferred\", ar: \"مستنتَج\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1319,6 +1483,7 @@
    "file": "lib/copy.ts",
    "arabic": "مستورد (مخفي)",
    "english": "Imported (hidden)",
+   "context": "IMPORTED: { en: \"Imported (hidden)\", ar: \"مستورد (مخفي)\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   },
@@ -1327,6 +1492,7 @@
    "file": "lib/copy.ts",
    "arabic": "مصدر أصلي",
    "english": "Primary source",
+   "context": "primary_source: { en: \"Primary source\", ar: \"مصدر أصلي\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1335,6 +1501,7 @@
    "file": "lib/copy.ts",
    "arabic": "مصدر ثانوي",
    "english": "Secondary source",
+   "context": "secondary_source: { en: \"Secondary source\", ar: \"مصدر ثانوي\" },",
    "group": "SCHOLARSHIP",
    "religious_term": false
   },
@@ -1343,6 +1510,7 @@
    "file": "lib/copy.ts",
    "arabic": "منشور مع بنود غير مستوفاة",
    "english": "Published, gates open",
+   "context": "PUBLISHED: { en: \"Published, gates open\", ar: \"منشور مع بنود غير مستوفاة\" },",
    "group": "GENERAL_UI",
    "religious_term": false
   }

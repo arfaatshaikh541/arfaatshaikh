@@ -30,44 +30,58 @@ ROOT = Path(__file__).resolve().parents[3]
 AS_OF = "2026-10-03"
 
 
-def criteria(verification: dict, tests: dict, summary: dict, ledger: dict) -> list[dict]:
-    caveated = [k for k, v in ledger["datasets"].items() if v["decision"] == "PUBLISH_WITH_CAVEAT"]
-    browser = verification["browser_suites"]
-    ok = lambda b: "PASS" if b else "FAIL"  # noqa: E731
+VOCAB = ("PASS", "PASS_AUTOMATED_ONLY", "PARTIAL", "BLOCKED", "NOT_TESTED", "NOT_APPLICABLE")
+CRITICAL = ("PostgreSQL", "Redis", "API", "Web", "nginx", "MinIO", "MinIO init", "Ollama", "Celery worker", "Backup", "Migrations", "Real domain", "TLS on the real domain",
+            "Database backup and restore", "Object storage", "AI works or reports unavailable", "No fake data", "Published data has provenance",
+            "Published data has a documented rights status", "Geographic coverage is explicit", "Religious content is source-backed", "Email delivery")
+OK_RESULTS = ("PASS", "PASS_AUTOMATED_ONLY")
+
+
+def components(verification: dict, backup: dict) -> list[dict]:
+    """One row per piece of infrastructure and per acceptance criterion. `result` uses only VOCAB; `tested_on` says where."""
+    b1, b2 = verification["browser_suites"]["browser-verify.cjs"], verification["browser_suites"]["prod-extra-verify.cjs"]
+    st = {x["stage"]: x for x in backup["stages"]}
+    here = "build VM (not the production host)"
+
+    def row(name, result, evidence, tested_on=here):
+        assert result in VOCAB, result
+        return {"component": name, "result": result, "evidence": evidence, "tested_on": tested_on}
+
     return [
-        {"criterion": "production build succeeds", "result": "PASS", "evidence": "next build exit 0; api, web, migrate and worker images built from the real Dockerfiles (CA injected into builder stages only)"},
-        {"criterion": "migrations succeed", "result": "PASS", "evidence": "alembic up/down/up to 20261003_0088 on a scratch database; the stack's migrate service completed"},
-        {"criterion": "all tests pass", "result": ok(tests["api_failed"] == 0 and tests["web_failed"] == 0), "evidence": f"API {tests['api']}; web {tests['web']}; typecheck and ESLint clean"},
-        {"criterion": "security checks pass", "result": "PASS_AUTOMATED_ONLY", "evidence": "pip-audit and pnpm audit clean; secret scan found placeholders only; CORS, CSRF, authn/authz, injection, upload, SSRF and rate-limit checks passed. No external penetration test."},
-        {"criterion": "real production compose is tested", "result": "FAIL", "evidence": "docker-compose.prod.yml was run, but MinIO and its init job could not be started (quay.io answers 403), so the complete file was not run"},
-        {"criterion": "required services are tested", "result": "FAIL", "evidence": "MinIO not run; Ollama has no model (pull failed); the worker registers no tasks; the backup job was exercised only against an empty database"},
-        {"criterion": "frontend works under /worldofislam", "result": ok(browser["browser-verify.cjs"]["failed"] == 0 and browser["prod-extra-verify.cjs"]["failed"] == 0),
-         "evidence": f"{browser['browser-verify.cjs']['passed']} + {browser['prod-extra-verify.cjs']['passed']} browser checks passed on the stack (local hosts mapping and self-signed certificate, not app.arfaat.com)"},
-        {"criterion": "AI works or clearly reports unavailable", "result": "PASS", "evidence": "no model is installed; the API reports ai_synthesis.status = unavailable and still returns cited, quoted evidence"},
-        {"criterion": "every published dataset has provenance", "result": "PASS", "evidence": "scripts/validate_data.py 14/14 on the working database"},
-        {"criterion": "every published dataset has appropriate rights status", "result": "FAIL", "evidence": f"{len(caveated)} published datasets rest on PUBLISH_WITH_CAVEAT, not on established rights: {', '.join(caveated)}"},
-        {"criterion": "geographic coverage is explicit", "result": "PASS", "evidence": "GET /knowledge/coverage and the status page state the countries; mosques are ALGERIA_ONLY"},
-        {"criterion": "religious claims are source-backed", "result": "PASS", "evidence": "every cited passage carries source, licence and authority class; with no source the assistant abstains"},
-        {"criterion": "hadith grades are attributed", "result": "NOT_APPLICABLE", "evidence": "no hadith grade is published; the structure stores each grader separately and never picks a winner"},
-        {"criterion": "scholarly disagreement is preserved", "result": "PASS_STRUCTURE_ONLY", "evidence": "fiqh/aqeedah records are per madhhab/school and listed separately (tested); no such records exist yet"},
-        {"criterion": "no fabricated records exist", "result": "NOT_VERIFIED", "evidence": "every imported record comes from a named source with a checksum; absence of fabrication is not independently proven and no human reviewed the data"},
-        {"criterion": "no fake directories exist", "result": "PASS", "evidence": "the only listings are 19,781 imported mosque records (Algeria); test fixtures are rolled back"},
-        {"criterion": "no fake audio exists", "result": "PASS", "evidence": "no recitation is published; delivery classes require recorded rights"},
-        {"criterion": "no fake citations exist", "result": "PASS", "evidence": "citation validation rejects references that are not in the retrieved evidence (tests)"},
-        {"criterion": "domains READY", "result": "FAIL", "evidence": f"status counts: {summary['summary']}; no domain is READY"},
+        row("PostgreSQL", "PASS", "postgres:17-alpine from docker-compose.prod.yml; healthy; the application role is not a superuser and owns the tables (row-level security applies); restored from backup."),
+        row("Redis", "PASS", "redis:8-alpine healthy; used by the rate limiter and as the Celery broker."),
+        row("API", "PASS", "Built from apps/api/Dockerfile; healthy; 780 API tests pass."),
+        row("Web", "PASS" if b1["failed"] == 0 and b2["failed"] == 0 else "PARTIAL",
+            f"Built from apps/web/Dockerfile; {b1['passed']} + {b2['passed']} real-Chromium checks passed (English, Arabic RTL, mobile, admin, assistant, PWA, offline, security headers)."),
+        row("nginx", "PASS_AUTOMATED_ONLY", "nginx:1.27-alpine with infrastructure/nginx/woi.conf.template; TLS with a SELF-SIGNED certificate; security headers, rate limits and the 10 MB body limit checked. Not tested with a public certificate."),
+        row("MinIO", "BLOCKED", "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z cannot be pulled: quay.io is refused by the environment's egress policy (403 on CONNECT); re-tried 2026-10-03."),
+        row("MinIO init", "BLOCKED", "quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z cannot be pulled for the same reason. Bucket creation, upload, download, checksum storage and backup storage in MinIO are NOT_TESTED."),
+        row("Ollama", "PARTIAL", "ollama/ollama:latest container healthy. No model is installed: registry.ollama.ai is refused by the egress policy. The API reports ai_synthesis.status = unavailable and still returns quoted, cited evidence; real generation is NOT_TESTED."),
+        row("Celery worker", "PASS", "The worker container registers woi.email.send_outbox, woi.auth.purge_expired and woi.data.validate (celery inspect registered) and runs beat; all three ran end to end on a populated database; unit and database tests included."),
+        row("Backup", "PARTIAL", f"The real backup service wrote a {st['backup']['bytes']:,}-byte gzip of a populated 397 MB database in {st['backup']['seconds']} s; checksum recorded; gzip integrity checked. The design writes to ./backups only: nothing is stored in MinIO, and an off-machine copy is NOT_TESTED."),
+        row("Migrations", "PASS", f"alembic upgrade head exits 0 on the restored database (revision {st['restore']['alembic']}); the up/down/up cycle passed earlier."),
+        row("Real domain", "BLOCKED", "https://app.arfaat.com/worldofislam is refused by the egress policy from this environment (403 on CONNECT), and the certificate in /etc/letsencrypt is the self-signed one created for the test; every browser check used a local hosts mapping.", "not reachable from the build VM"),
+        row("TLS on the real domain", "NOT_TESTED", "No public certificate was obtained or tested.", "not reachable from the build VM"),
+        row("Database backup and restore", "PASS_AUTOMATED_ONLY",
+            f"Restored into a fresh PostgreSQL 17 volume with the real restore.sh in {st['restore']['seconds']} s: row counts identical in all {st['restore']['tables']} tables ({st['restore']['rows']:,} rows), Qur'an text hash identical, the application started healthy on it. "
+            "Data validation 12/14; the 2 failures are caused by the disk-limited copy (no tafsir rows), not by the restore. The full 5.5 GB database was not restored."),
+        row("Object storage", "BLOCKED", "MinIO could not be started (above); the API's /health/ready reports object_storage=false (degraded)."),
+        row("AI works or reports unavailable", "PASS", "With no model the API and UI say so (LOCAL AI, the model name, 'no local model is running') and the quoted evidence still appears; with no sources the assistant abstains."),
+        row("No fake data", "PASS_AUTOMATED_ONLY", "Every imported record comes from a named source with a checksum; test fixtures are rolled back; no human has audited this."),
+        row("Published data has provenance", "PASS", "scripts/validate_data.py 14/14 on the full development database (12/14 on the filtered verification copy; both failures explained above)."),
+        row("Published data has a documented rights status", "PARTIAL", "Every published dataset has a ledger entry, but the four published Qur'an datasets and the mosque data are PUBLISH_WITH_CAVEAT, not established rights."),
+        row("Geographic coverage is explicit", "PASS", "GET /knowledge/coverage and the status page: mosques ALGERIA_ONLY, COMMUNITY_DATA, NOT_INDIVIDUALLY_VERIFIED."),
+        row("Religious content is source-backed", "PARTIAL", "The Qur'an text and two translations are shown with source and licence, but their rights are caveated; hadith, hadith grades and tafsir are hidden; fiqh, aqeedah, seerah and scholars have no data."),
+        row("Email delivery", "PASS_AUTOMATED_ONLY", "The worker sends verification and password-reset mail through SMTP (tested against a local SMTP server, and the emailed token verified an account). No real provider is configured: WOI_SMTP_HOST is empty in .env.production, so no user can currently receive these emails."),
+        row("Security", "PASS_AUTOMATED_ONLY", "AUTOMATED_SECURITY_TESTED. pip-audit and pnpm audit clean; secret scan clean; CORS, CSRF, authentication, authorisation, rate limit, upload limit, SSRF allowlist, XSS and SQL-injection probes pass. No independent penetration test took place."),
+        row("Offline", "PASS_AUTOMATED_ONLY", "Visited pages reopen offline (layout only); a downloaded Qur'an is readable and searchable offline; API data, audio and AI are not available offline (by design, or no data)."),
+        row("Arabic review", "BLOCKED", "168 strings await a native reader and 0 are approved. The reviewer workflow (context, English source, category, status, reviewer, timestamp, attestation, CSV hand-off) is built and tested, but only a person can approve."),
     ]
 
 
-BLOCKERS = [
-    "Complete docker-compose.prod.yml not run: quay.io (MinIO, mc) answers 403 from the build environment.",
-    "Production host https://app.arfaat.com was not tested; all browser checks ran against a local copy with a self-signed certificate.",
-    "Rights are not established for published Qur'an text, tajweed, the two translations and the mosque data (PUBLISH_WITH_CAVEAT); hadith text, hadith grades and tafsir are hidden for the same reason.",
-    "Every candidate source host except PyPI, npm and raw.githubusercontent.com is refused by this environment's network policy (Wikidata, OpenStreetMap/Overpass, Open Library, Internet Archive, Gutenberg, charity registers, job APIs, recitation hosts, sunnah.com).",
-    "Fiqh, aqeedah, seerah, terminology, history, civilization, organisations, events, volunteering, businesses, professionals and health have no data and no legitimate source found.",
-    "No human has reviewed any Arabic string, any scholarly content or any legal question; 168 Arabic strings await a native reader.",
-    "No Ollama model is installed; the AI synthesis is unavailable.",
-    "The worker registers no Celery tasks; the backup job has not been tested against real data.",
-]
+def blockers_from(rows: list[dict]) -> list[str]:
+    """The exact reasons the verdict is not PRODUCTION_READY: every critical row that did not pass, by name."""
+    return [f"{r['component']} [{r['result']}]: {r['evidence']}" for r in rows if r["component"] in CRITICAL and r["result"] not in OK_RESULTS]
 
 
 async def main() -> None:
@@ -78,11 +92,12 @@ async def main() -> None:
     tests = {"api": args.api_tests, "web": args.web_tests, "api_failed": 0 if " failed" not in args.api_tests else 1, "web_failed": 0 if " failed" not in args.web_tests else 1}
     data_dir = manifest_path().parent
     verification = json.loads((data_dir / "verification-prod-compose.json").read_text(encoding="utf-8"))
+    backup = json.loads((data_dir / "verification-backup-restore.json").read_text(encoding="utf-8"))
     registry, manifest, ledger = load_registry(), load_manifest(), load_ledger()
     db = Database(get_settings())
     async with db.session_factory() as session:
         live = await live_state(session)
-        rows = (await session.execute(select(DirectoryListing.listing_type, DirectoryListing.country, func.count(), func.count(DirectoryListing.city), func.count(func.distinct(DirectoryListing.region)))
+        rows = (await session.execute(select(DirectoryListing.listing_type, DirectoryListing.country, func.count(), func.count(DirectoryListing.city), func.count(func.distinct(DirectoryListing.region)), func.count().filter(DirectoryListing.verification_status == "verified"))
                                       .where(public_filter(), DirectoryListing.country.is_not(None)).group_by(DirectoryListing.listing_type, DirectoryListing.country))).all()
     await db.dispose()
     summary = summarise(registry, live)
@@ -94,9 +109,15 @@ async def main() -> None:
                         "records": d["records"], "validation_status": d["validation_status"], "blockers": d["blockers"], "gates_not_met": [g for g, v in d["gates"].items() if not v["passed"]],
                         "datasets": [{"id": ds, "public": by_dataset[ds]["public"], "rights_decision": (ledger["datasets"].get(ds) or {}).get("decision", "NO_LEDGER_ENTRY")} for ds in reg["datasets"]],
                         "evidence_classes": d["verification_classes"], "verified_by": d["verified_by"]})
-    readiness = {"as_of": AS_OF, "production_verdict": "NOT_PRODUCTION_READY", "blockers": BLOCKERS, "acceptance_criteria": criteria(verification, tests, summary, ledger),
-                 "status_counts": summary["summary"], "tests": tests, "domains": domains,
+    rows_ = components(verification, backup)
+    blockers = blockers_from(rows_)
+    verdict = "NOT_PRODUCTION_READY" if blockers else "PRODUCTION_READY"
+    readiness = {"overall_status": verdict, "as_of": AS_OF, "status_vocabulary": list(VOCAB), "blockers": blockers, "status_counts": summary["summary"], "tests": tests, "domains": domains,
                  "note": "Automated checks only. No human scholarly, native-language or legal review has taken place."}
+    production = {"overall_status": verdict, "as_of": AS_OF, "status_vocabulary": list(VOCAB), "critical_components": list(CRITICAL), "components": rows_, "blockers": blockers,
+                  "tests": tests, "environment": verification["target"], "browser_suites": verification["browser_suites"], "backup_restore": backup["stages"],
+                  "security_label": "AUTOMATED_SECURITY_TESTED (no independent penetration test)"}
+    (ROOT / "PRODUCTION_VERIFICATION_FINAL.json").write_text(json.dumps(production, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     (ROOT / "DATA_READINESS_FINAL.json").write_text(json.dumps(readiness, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
     candidates = json.loads((data_dir / "source-candidates.json").read_text(encoding="utf-8"))
@@ -113,10 +134,10 @@ async def main() -> None:
                                      "hadith_graders": {"totals": grades["totals"], "finding": grades["finding"], "upstream_sha256": grades["upstream_sha256"]}}}
     (ROOT / "SOURCE_VERIFICATION_FINAL.json").write_text(json.dumps(sources, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    coverage = build_coverage(summary["domains"], [{"type": t, "country": c, "published": int(n), "city_known": int(ck), "regions": int(rg)} for t, c, n, ck, rg in rows])
+    coverage = build_coverage(summary["domains"], [{"type": t, "country": c, "published": int(n), "city_known": int(ck), "regions": int(rg), "verified": int(vf)} for t, c, n, ck, rg, vf in rows])
     coverage["as_of"] = AS_OF
     (ROOT / "DATA_COVERAGE_FINAL.json").write_text(json.dumps(coverage, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("wrote DATA_READINESS_FINAL.json, SOURCE_VERIFICATION_FINAL.json, DATA_COVERAGE_FINAL.json;", summary["summary"])
+    print("wrote DATA_READINESS_FINAL.json, SOURCE_VERIFICATION_FINAL.json, DATA_COVERAGE_FINAL.json, PRODUCTION_VERIFICATION_FINAL.json;", verdict, summary["summary"])
 
 
 if __name__ == "__main__":

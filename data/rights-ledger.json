@@ -185,13 +185,47 @@
      "claim": "Package licence read at import; not re-read against an upstream grant in this pass.",
      "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations",
      "retrieved": "2026-10-03"
+    },
+    {
+     "claim": "The licence file of the annotations package names Quranpedia as copyright holder and grants CC BY 4.0 (share and adapt, including commercially, with attribution).",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations (tarball package/LICENSE)",
+     "retrieved": "2026-10-03",
+     "quote": "Copyright (c) 2026 Quranpedia ... licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0)"
+    },
+    {
+     "claim": "The same licence file prescribes the credit line that must accompany redistribution.",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations (tarball package/LICENSE)",
+     "retrieved": "2026-10-03",
+     "quote": "Tajweed Rule Corpus, Quranpedia - https://github.com/quranpedia/tajweed-engine"
+    },
+    {
+     "claim": "The rules package carries the identical grant and notes that rules encode positions attributed to named scholars, so a modified rule must change its source attribution.",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-rules (tarball package/LICENSE)",
+     "retrieved": "2026-10-03",
+     "quote": "If you modify a rule's matching behaviour, change its `source` attribution as well"
+    },
+    {
+     "claim": "The annotations package contains offsets and rule ids only, no Qur'anic text, and pins the text it was measured against by a SHA-256 digest (edition uthmani-hafs, 6,236 ayahs).",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations (tarball package/README.md, package/uthmani-hafs.json)",
+     "retrieved": "2026-10-03",
+     "quote": "No Quranic text is distributed here ... edition.sha256 b5d29736bb3ef49d9d331c4e60a59d83fe899b921e9e8dc35911bd4a18ce55f3"
+    },
+    {
+     "claim": "The published package metadata: one version (0.1.0, created 2026-09-12), maintainer account 'quranws', repository github.com/quran-ws/quran-tajweed (not reachable from the verification environment).",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations",
+     "retrieved": "2026-10-03",
+     "quote": "maintainers: quranws <service@quran.ws>"
     }
    ],
    "open_questions": [
-    "Is the Quranpedia rule set itself openly licensed for reuse?"
+    "Is the Quranpedia rule set itself openly licensed for reuse, and is the 'quranws' publisher authorised by Quranpedia to redistribute it? The licence file names Quranpedia as holder but the package is published by a different account, and the repository named in the credit line (quranpedia/tajweed-engine) differs from the package repository (quran-ws/quran-tajweed). Neither repository was reachable.",
+    "The digest the annotations pin could not be reproduced from the Arabic text this platform publishes (24 plain serialisations tried on 2026-10-03; the serialisation is defined in the unreachable repository). The import therefore relies on the importer's own checks (every span within bounds, qalqalah spans on qalqalah letters), not on a digest match.",
+    "The rules encode positions of named scholars; no scholar has reviewed how the colouring is presented."
    ],
    "determined_on": "2026-10-03",
-   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review",
+   "attribution_required": "Tajweed Rule Corpus, Quranpedia - https://github.com/quranpedia/tajweed-engine (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). Shown beside the tajweed colours in the Qur'an reader.",
+   "last_reviewed": "2026-10-03"
   },
   "quran-translation-pickthall": {
    "original_work_public_domain": "NOT_APPLICABLE",

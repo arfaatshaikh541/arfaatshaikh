@@ -218,7 +218,7 @@ async def get_surah_tajweed(surah_number: int, db: DbSession):
              for r in await db.scalars(select(QuranTajweedRule).where(QuranTajweedRule.rule_id.in_(used)))} if used else {}
     return {
         "corpus_version": rows[0][3] if rows else None,
-        "attribution": "Tajweed rules and annotations: quran.ws (rules from Quranpedia Tajweed), CC BY 4.0",
+        "attribution": "Tajweed Rule Corpus, Quranpedia (https://github.com/quranpedia/tajweed-engine), distributed by quran.ws as @quran.ws/tajwid-rules and tajwid-annotations; licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). The colours are drawn from the annotations as published; the rules were not changed.",
         "rules": rules,
         "ayahs": [{"ayah_number": n, "text": t, "spans": json.loads(sp)} for n, t, sp, _ in rows],
     }

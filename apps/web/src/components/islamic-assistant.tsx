@@ -13,7 +13,7 @@ type Answer = {
   status: string; message?: string; insufficiency_reason?: string | null; requires_escalation?: boolean; response_text?: string | null;
   sections?: Sections; confidence?: { score: number; level: string; abstained: boolean; reasons: string[] };
   scholarly_views?: { reference: string; views: { attribution: string }[]; note: string }[];
-  ai_synthesis?: { status: string; text: string | null; notice?: string; reasons?: string[] };
+  ai_synthesis?: { status: string; text: string | null; notice?: string; reasons?: string[]; mode?: string; provider_label?: string; model?: string | null };
 };
 
 export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
@@ -26,14 +26,14 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
   const copy = rtl ? {
     title: "المساعد الإسلامي الموثّق", intro: "إجابات مبنية على مصادر منشورة ومعتمدة فقط. تُعرض النصوص حرفياً مع مصدرها، وإن لم تكفِ المصادر فلا إجابة.",
     placeholder: "اكتب سؤالك…", submit: "بحث وإجابة", sources: "المصادر",
-    primary: "مصدر أصلي", scholarly: "شرح علمي", secondary: "مصدر ثانوي", ai: "توليف الذكاء الاصطناعي",
+    evidence: "أدلة المصادر", localAi: "ذكاء اصطناعي محلي", model: "النموذج", primary: "مصدر أصلي", scholarly: "شرح علمي", secondary: "مصدر ثانوي", ai: "توليف الذكاء الاصطناعي",
     synthLabel: "أضف ملخصاً بالذكاء الاصطناعي (نموذج محلي، يُعرض فقط إن اجتاز التحقق من الاستشهادات)",
     aiNotice: "كتبه نموذج لغوي من المصادر أعلاه. ليس مصدراً بحد ذاته.", aiUnavailable: "الملخص غير متاح: لا يوجد نموذج محلي يعمل.", aiRejected: "رُفض الملخص لأنه لم يجتز التحقق من الاستشهادات.",
     confidence: "مستوى الثقة", views: "عدة علماء يعلّقون على", boundary: "هذه معلومات عامة قائمة على المصادر وليست فتوى شخصية.",
   } : {
     title: "Evidence-grounded Islamic assistant", intro: "Answers come only from published, approved sources. Texts are quoted verbatim with their source; if the sources are not enough, there is no answer.",
     placeholder: "Ask an Islamic question…", submit: "Find grounded answer", sources: "Sources",
-    primary: "Primary source", scholarly: "Scholarly explanation", secondary: "Secondary source", ai: "AI synthesis",
+    evidence: "SOURCE EVIDENCE", localAi: "LOCAL AI", model: "MODEL", primary: "Primary source", scholarly: "Scholarly explanation", secondary: "Secondary source", ai: "AI synthesis",
     synthLabel: "Add an AI summary (local model; shown only if every citation validates)",
     aiNotice: "Written by a language model from the sources above. It is not itself a source.", aiUnavailable: "Summary unavailable: no local model is running.", aiRejected: "The summary was rejected because it failed citation validation.",
     confidence: "Confidence", views: "Several scholars comment on", boundary: "This is general, source-based information, not a personal fatwa.",
@@ -95,6 +95,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
     <section aria-live="polite" aria-atomic="false">
       {answer?.status === "assembled" && <>
         {answer.confidence && <p className="tool-note">{copy.confidence}: {answer.confidence.level} ({answer.confidence.score})</p>}
+        <h2 className="answer-heading" data-testid="source-evidence-heading">{copy.evidence}</h2>
         {section("primary_source", copy.primary, "primary")}
         {section("scholarly_explanation", copy.scholarly, "scholarly")}
         {section("secondary_source", copy.secondary, "secondary")}
@@ -102,6 +103,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
         {answer.ai_synthesis && answer.ai_synthesis.status !== "not_requested" && (
           <section className="answer-section ai" aria-label={copy.ai}>
             <h3>{copy.ai}</h3>
+            <p className="tool-note" data-testid="ai-identity"><strong>{answer.ai_synthesis.mode === "external" ? "EXTERNAL AI" : copy.localAi}</strong>{answer.ai_synthesis.model ? <> · {copy.model}: <code>{answer.ai_synthesis.model}</code></> : null}</p>
             {answer.ai_synthesis.status === "validated" && <><p>{answer.ai_synthesis.text}</p><small>{copy.aiNotice}</small></>}
             {answer.ai_synthesis.status === "unavailable" && <p>{copy.aiUnavailable}</p>}
             {answer.ai_synthesis.status === "rejected" && <p>{copy.aiRejected}</p>}

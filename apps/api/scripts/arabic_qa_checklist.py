@@ -49,14 +49,14 @@ def collect(base: str) -> dict[str, dict]:
     for path, line in added_lines(base):
         found = False
         for en, ar in OBJECT_PAIR.findall(line):
-            entries.setdefault(ar, {"file": path, "en": en}); found = True
+            entries.setdefault(ar, {"file": path, "en": en, "context": line}); found = True
         for ar, en in PAIR.findall(line):
-            entries.setdefault(ar, {"file": path, "en": en}); found = True
+            entries.setdefault(ar, {"file": path, "en": en, "context": line}); found = True
         if not found:
             for a, b in LITERAL.findall(line):
                 text = a or b
                 if ARABIC.search(text):
-                    entries.setdefault(text, {"file": path, "en": ""})
+                    entries.setdefault(text, {"file": path, "en": "", "context": line})
     return entries
 
 
@@ -70,7 +70,7 @@ def main() -> None:
     if args.json:
         import hashlib
         import json
-        seed = [{"key": hashlib.sha1(f"{info['file']}|{ar}".encode()).hexdigest()[:16], "file": info["file"].replace("apps/web/src/", ""), "arabic": ar, "english": info["en"] or None,
+        seed = [{"key": hashlib.sha1(f"{info['file']}|{ar}".encode()).hexdigest()[:16], "file": info["file"].replace("apps/web/src/", ""), "arabic": ar, "english": info["en"] or None, "context": " ".join(info["context"].split())[:240],
                  "group": group_of(ar, info["file"]), "religious_term": bool(RELIGIOUS.search(ar))} for ar, info in sorted(entries.items(), key=lambda kv: (kv[1]["file"], kv[0]))]
         (ROOT / args.json).write_text(json.dumps({"base": args.base, "note": "Seed for the Arabic review queue. Every string starts NEEDS_NATIVE_REVIEW; no reviewer has approved any of it.", "strings": seed},
                                                   ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

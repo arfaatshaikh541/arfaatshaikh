@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, apiUrl, ApiError } from "@/lib/api";
 
 type Summary = { queues: Record<string, Record<string, number>>; arabic_groups: string[]; notice: string };
-type Item = { id: string; key: string; group: string | null; status: string; note: string | null; payload: Record<string, unknown>; reviewed_by: string | null; reviewed_at: string | null };
+type Item = { id: string; key: string; group: string | null; status: string; note: string | null; payload: Record<string, unknown>; reviewed_by: string | null; reviewed_by_name?: string | null; reviewed_at: string | null };
 type Page = { queue: string; total: number; page: number; items: Item[] };
 
 const QUEUE_LABEL: Record<string, { en: string; ar: string }> = {
@@ -22,7 +22,7 @@ export function ReviewQueues({ ar }: { ar: boolean }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [queue, setQueue] = useState("arabic_ui");
   const [group, setGroup] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("NEEDS_NATIVE_REVIEW");
   const [page, setPage] = useState<Page | null>(null);
   const [msg, setMsg] = useState("");
   const [attest, setAttest] = useState<Record<string, boolean>>({});
@@ -55,10 +55,13 @@ export function ReviewQueues({ ar }: { ar: boolean }) {
     <section aria-label={ar ? "طوابير المراجعة" : "Review queues"} data-testid="review-queues">
       {summary && <p className="tool-note">{summary.notice}</p>}
       <nav className="knowledge-types" aria-label={ar ? "الطابور" : "Queue"}>{Object.keys(QUEUE_LABEL).map((q) => (
-        <button key={q} className={queue === q ? "chip chip-active" : "chip"} onClick={() => { setQueue(q); setGroup(""); setStatus(""); }}>
+        <button key={q} className={queue === q ? "chip chip-active" : "chip"} onClick={() => { setQueue(q); setGroup(""); setStatus(q === "arabic_ui" ? "NEEDS_NATIVE_REVIEW" : ""); }}>
           {QUEUE_LABEL[q][ar ? "ar" : "en"]} ({Object.values(summary?.queues[q] ?? {}).reduce((a, b) => a + b, 0)})</button>))}</nav>
       <p>{Object.entries(counts).map(([k, v]) => `${STATUS_LABEL[k] ?? k}: ${v}`).join(" · ") || (ar ? "لا عناصر محمّلة بعد." : "Nothing loaded yet.")}
         {" "}<button className="chip" onClick={() => void sync()}>{ar ? "تحميل العناصر المُعلَّمة" : "Load flagged items"}</button></p>
+      {isArabic && (() => { const total = Object.values(counts).reduce((a, b) => a + b, 0); const done = counts.NATIVE_REVIEW_APPROVED ?? 0; return total ? (
+        <p data-testid="review-progress"><progress max={total} value={done} aria-label="progress" /> {done}/{total} {ar ? "معتمدة من قارئ أصلي" : "approved by a native reader"}
+          {" "}<a className="chip" href={apiUrl(`/admin/review/arabic_ui/export.csv${status ? `?status=${status}` : ""}`)}>{ar ? "تنزيل CSV للمراجِع" : "Download CSV for a reviewer"}</a></p>) : null; })()}
       {isArabic && <p><label>{ar ? "المجموعة" : "Group"} <select value={group} onChange={(e) => setGroup(e.target.value)}><option value="">{ar ? "الكل" : "All"}</option>{summary?.arabic_groups.map((g) => <option key={g}>{g}</option>)}</select></label>
         {" "}<label>{ar ? "الحالة" : "State"} <select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">{ar ? "الكل" : "All"}</option>{Object.keys(STATUS_LABEL).filter((s) => s.startsWith("NEEDS_NATIVE") || s.startsWith("NATIVE")).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select></label></p>}
       {msg && <p role="status">{msg}</p>}
@@ -69,9 +72,12 @@ export function ReviewQueues({ ar }: { ar: boolean }) {
           <li key={item.id} className="record-card" data-testid="review-item">
             {isArabic ? (<>
               <p lang="ar" dir="rtl" style={{ fontSize: "1.15rem" }}>{String(p.arabic)}</p>
-              <p><small>{String(p.english ?? "-")} · <code>{String(p.file)}</code> · {item.group}</small></p>
+              <p><small>{ar ? "المصدر الإنجليزي" : "English source"}: {String(p.english ?? "-")} · {ar ? "الفئة" : "Category"}: {item.group} · <code>{String(p.file)}</code></small></p>
+              {Boolean(p.context) && <p><small>{ar ? "السياق" : "Context"}: <code dir="ltr">{String(p.context)}</code></small></p>}
               {Boolean(p.religious_term) && <p className="tool-note">{ar ? "يحتوي مصطلحًا شرعيًا: لا يُعاد صوغه إلا على يد مختص." : "Contains religious terminology: only someone qualified should reword it."}</p>}
-              <p><span className={item.status === "NATIVE_REVIEW_APPROVED" ? "status-pill status-implemented" : "status-pill status-not-verified"}>{STATUS_LABEL[item.status] ?? item.status}</span></p>
+              <p><span className={item.status === "NATIVE_REVIEW_APPROVED" ? "status-pill status-implemented" : "status-pill status-not-verified"}>{STATUS_LABEL[item.status] ?? item.status}</span>
+                {item.reviewed_at && <small> {ar ? "المراجِع" : "Reviewer"}: {item.reviewed_by_name ?? "-"} · {new Date(item.reviewed_at).toLocaleString(ar ? "ar" : "en")}</small>}
+                {Boolean(p.suggested_text) && <small> · {ar ? "اقتراح" : "Suggested"}: <span lang="ar" dir="rtl">{String(p.suggested_text)}</span></small>}</p>
               <label><input type="checkbox" checked={!!attest[item.id]} onChange={(e) => setAttest({ ...attest, [item.id]: e.target.checked })} /> {ar ? "أقرّ بأنني أقرأ العربية بوصفها لغتي الأم وراجعت هذا النص" : "I read Arabic natively and have reviewed this text"}</label>
               <p><input aria-label="suggested text or note" value={text[item.id] ?? ""} onChange={(e) => setText({ ...text, [item.id]: e.target.value })} placeholder={ar ? "نص مقترح أو ملاحظة" : "Suggested text or note"} />
                 {" "}<button className="chip" onClick={() => void decide(item, "NATIVE_REVIEW_APPROVED")}>{ar ? "اعتماد" : "Approve"}</button>

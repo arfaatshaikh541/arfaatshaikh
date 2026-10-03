@@ -18,3 +18,8 @@ redis-data/
 .test-ca.crt
 backups/
 *.zip
+
+# local verification helpers and a Redis dump (must never be committed)
+.verify-build/
+.verify-ca.crt
+dump.rdb

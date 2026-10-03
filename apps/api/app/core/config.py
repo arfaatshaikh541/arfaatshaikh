@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     # before forwarding to this service (the documented default).
     root_path: str = ""
 
+    # --- Outbound email (worker task woi.email.send_outbox). Leave smtp_host empty to keep mail queued without sending. ---
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    smtp_timeout_seconds: float = 20.0
+    # Absolute URL the links in emails point to (for example https://app.arfaat.com/worldofislam). Falls back to the first allowed origin + cookie_path.
+    public_base_url: str = ""
+
     # --- AI provider (see app/services/ai_provider.py) ---
     # "local" (default) only ever talks to a self-hosted Ollama instance.
     # "external" is a hard opt-in: it does nothing unless external_ai_enabled

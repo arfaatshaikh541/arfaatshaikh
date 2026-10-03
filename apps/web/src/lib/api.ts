@@ -9,6 +9,8 @@ import type { ApiErrorBody } from "@world-of-islam/shared-types";
 // (see next.config.ts), so this fallback can never be baked into a production bundle.
 const API_ORIGIN = process.env.NEXT_PUBLIC_WOI_API_ORIGIN ?? (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000");
 const API_PREFIX = "/api/v1";
+/** Absolute URL of an API path, for plain links (downloads) that cannot go through apiFetch. */
+export const apiUrl = (path: string) => `${API_ORIGIN}${API_PREFIX}${path}`;
 let csrfToken: string | null = null;
 
 export class ApiError extends Error {

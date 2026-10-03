@@ -82,6 +82,8 @@ const api = (page, path, init) => page.evaluate(async ([p, i]) => { const r = aw
 
   // ---------------------------------------------------------- authentication and authorisation
   const anon = await api(page, "/admin/datasets");
+  const csvAnon = await api(page, "/admin/review/arabic_ui/export.csv");
+  record("an anonymous caller cannot export the Arabic review CSV (401)", csvAnon.status === 401, csvAnon.status);
   record("admin API refuses an anonymous caller (401)", anon.status === 401, anon.status);
   await page.goto(`${BASE}/en/admin/data`, { waitUntil: "networkidle" });
   record("admin page does not reveal data to an anonymous visitor", /administrators only|sign in|log in|for platform administrators/i.test(await page.innerText("body")) || /login/.test(page.url()), page.url());
@@ -98,6 +100,8 @@ const api = (page, path, init) => page.evaluate(async ([p, i]) => { const r = aw
   record("a signed-in non-administrator is refused on the admin API (403)", asUser.status === 403, asUser.status);
   const review = await api(page, "/admin/review");
   record("a non-administrator cannot read the review queues", review.status === 403, review.status);
+  const csvUser = await api(page, "/admin/review/arabic_ui/export.csv");
+  record("a non-administrator cannot export the Arabic review CSV", csvUser.status === 403, csvUser.status);
   await page.goto(`${BASE}/en/dashboard`, { waitUntil: "networkidle" });
   record("stored markup in a display name is shown as text, not executed", (await page.evaluate(() => window.__xss2)) === undefined);
   const cookies = await ctx.cookies();

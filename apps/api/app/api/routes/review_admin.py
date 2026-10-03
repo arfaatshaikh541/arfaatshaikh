@@ -4,7 +4,11 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
+import csv
+import io
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.api.dependencies.auth import DbSession, require_csrf
@@ -41,6 +45,16 @@ async def sync(queue: str, db: DbSession, admin: Admin, _: Csrf):
         raise ApplicationError("unknown_queue", "Sync 'arabic_ui' or 'mosques'.", 404)
     await db.commit()
     return result
+
+
+@router.get("/{queue}/export.csv")
+async def export_csv(queue: str, db: DbSession, _: Admin, status: Annotated[str | None, Query(max_length=32)] = None, group: Annotated[str | None, Query(max_length=40)] = None):
+    rows = await rq.export_rows(db, queue, status, group)
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=list(rows[0]) if rows else ["key"], quoting=csv.QUOTE_ALL)
+    writer.writeheader()
+    writer.writerows([{k: (("'" + v) if isinstance(v, str) and v[:1] in "=+-@\t\r" and v else v) for k, v in row.items()} for row in rows])  # no spreadsheet formula injection
+    return Response("\ufeff" + buffer.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="review-{queue}.csv"'})
 
 
 @router.get("/{queue}")

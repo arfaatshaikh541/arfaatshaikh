@@ -2,7 +2,7 @@
  "version": 1,
  "environment_note": "Probed from the build/verification container through the egress proxy; not from the production host.",
  "summary": {
-  "total": 58,
+  "total": 62,
   "accessible": 2,
   "data_accessible": 5,
   "blocked_or_unreachable": [
@@ -61,7 +61,11 @@
    "hijri-aladhan-api",
    "kiwix-library",
    "shamela-ws",
-   "waqfeya"
+   "waqfeya",
+   "quay-io-minio",
+   "ollama-registry",
+   "app-arfaat-com",
+   "docker-hub-registry"
   ]
  },
  "records": [
@@ -69,7 +73,7 @@
    "source_id": "wikidata",
    "domain": "scholar, library_work, history, civilization, organisation, mosque",
    "host": "www.wikidata.org",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -96,7 +100,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 734,
+     "ms": 570,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -107,7 +111,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 651,
+     "ms": 486,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -118,7 +122,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 324,
+     "ms": 319,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -129,7 +133,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 319,
+     "ms": 341,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -140,7 +144,7 @@
    "source_id": "wikidata-sparql",
    "domain": "scholar, library_work, history, civilization, organisation, mosque",
    "host": "query.wikidata.org",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -167,7 +171,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 651,
+     "ms": 512,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -178,7 +182,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 470,
+     "ms": 458,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -189,7 +193,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 316,
+     "ms": 309,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -200,7 +204,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 427,
+     "ms": 318,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -211,7 +215,7 @@
    "source_id": "wikidata-api",
    "domain": "scholar",
    "host": "www.wikidata.org",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -238,7 +242,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 641,
+     "ms": 529,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -249,7 +253,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 329,
+     "ms": 621,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -260,7 +264,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 505,
+     "ms": 293,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -271,7 +275,7 @@
    "source_id": "openstreetmap-overpass",
    "domain": "mosque, organisation, charity, health, business",
    "host": "overpass-api.de",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -300,7 +304,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 725,
+     "ms": 500,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -311,7 +315,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 703,
+     "ms": 448,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -322,7 +326,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 487,
+     "ms": 293,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -333,7 +337,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 445,
+     "ms": 121,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -344,7 +348,7 @@
    "source_id": "overpass-mirror-overpass.kumi.systems",
    "domain": "mosque",
    "host": "overpass.kumi.systems",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -371,7 +375,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 685,
+     "ms": 444,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -382,7 +386,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 650,
+     "ms": 127,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -393,7 +397,7 @@
    "source_id": "overpass-mirror-lz4.overpass-api.de",
    "domain": "mosque",
    "host": "lz4.overpass-api.de",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -420,7 +424,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 684,
+     "ms": 510,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -431,7 +435,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 646,
+     "ms": 419,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -442,7 +446,7 @@
    "source_id": "overpass-mirror-overpass.private.coffee",
    "domain": "mosque",
    "host": "overpass.private.coffee",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -469,7 +473,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 720,
+     "ms": 549,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -480,7 +484,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 483,
+     "ms": 457,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -491,7 +495,7 @@
    "source_id": "openstreetmap-org",
    "domain": "mosque",
    "host": "www.openstreetmap.org",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:23+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -519,7 +523,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 676,
+     "ms": 635,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -530,7 +534,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 743,
+     "ms": 336,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -541,7 +545,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 455,
+     "ms": 327,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -552,7 +556,7 @@
    "source_id": "openstreetmap-planet",
    "domain": "mosque",
    "host": "planet.openstreetmap.org",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -579,7 +583,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 704,
+     "ms": 285,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -590,7 +594,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 558,
+     "ms": 386,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -601,7 +605,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 209,
+     "ms": 295,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -612,7 +616,7 @@
    "source_id": "geofabrik-extracts",
    "domain": "mosque",
    "host": "download.geofabrik.de",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -641,7 +645,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 730,
+     "ms": 297,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -652,7 +656,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 665,
+     "ms": 297,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -663,7 +667,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 470,
+     "ms": 307,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -674,7 +678,7 @@
    "source_id": "nominatim",
    "domain": "mosque",
    "host": "nominatim.openstreetmap.org",
-   "last_checked": "2026-10-03T07:45:22+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -702,7 +706,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 694,
+     "ms": 268,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -713,7 +717,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 641,
+     "ms": 251,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -724,7 +728,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 323,
+     "ms": 129,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -735,7 +739,7 @@
    "source_id": "open-library",
    "domain": "library_work",
    "host": "openlibrary.org",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -761,7 +765,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 691,
+     "ms": 366,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -772,7 +776,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 623,
+     "ms": 310,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -783,7 +787,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 329,
+     "ms": 366,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -794,7 +798,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 258,
+     "ms": 281,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -805,7 +809,7 @@
    "source_id": "open-library-dumps",
    "domain": "library_work",
    "host": "openlibrary.org",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:24+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -831,7 +835,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 423,
+     "ms": 320,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -842,7 +846,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 412,
+     "ms": 118,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -853,7 +857,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 398,
+     "ms": 421,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -864,7 +868,7 @@
    "source_id": "internet-archive",
    "domain": "library_work",
    "host": "archive.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -890,7 +894,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 355,
+     "ms": 308,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -901,7 +905,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 404,
+     "ms": 386,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -912,7 +916,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 586,
+     "ms": 417,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -923,7 +927,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 233,
+     "ms": 260,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -934,7 +938,7 @@
    "source_id": "project-gutenberg",
    "domain": "library_work",
    "host": "www.gutenberg.org",
-   "last_checked": "2026-10-03T07:45:23+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -960,7 +964,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 287,
+     "ms": 244,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -971,7 +975,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 397,
+     "ms": 319,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -982,7 +986,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 404,
+     "ms": 348,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -993,7 +997,7 @@
    "source_id": "gutendex",
    "domain": "library_work",
    "host": "gutendex.com",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1022,7 +1026,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 356,
+     "ms": 304,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1033,7 +1037,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 348,
+     "ms": 302,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1044,7 +1048,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 406,
+     "ms": 363,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1055,7 +1059,7 @@
    "source_id": "hathitrust",
    "domain": "library_work",
    "host": "www.hathitrust.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1084,7 +1088,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 354,
+     "ms": 380,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1095,7 +1099,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 468,
+     "ms": 439,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1117,7 +1121,7 @@
    "source_id": "wikisource-ar",
    "domain": "library_work",
    "host": "ar.wikisource.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1144,7 +1148,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 501,
+     "ms": 345,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1155,7 +1159,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 258,
+     "ms": 103,
      "tls": null,
      "error": "network_error: ordinal not in range(128)"
     },
@@ -1166,7 +1170,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 264,
+     "ms": 283,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1177,7 +1181,7 @@
    "source_id": "wikimedia-dumps",
    "domain": "history, scholar",
    "host": "dumps.wikimedia.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1204,7 +1208,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 476,
+     "ms": 146,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1215,7 +1219,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 437,
+     "ms": 364,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1226,7 +1230,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 279,
+     "ms": 336,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1237,7 +1241,7 @@
    "source_id": "wikipedia-rest",
    "domain": "history, civilization",
    "host": "en.wikipedia.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1264,7 +1268,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 473,
+     "ms": 333,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1275,7 +1279,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 412,
+     "ms": 332,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1286,7 +1290,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 488,
+     "ms": 134,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1297,7 +1301,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 131,
+     "ms": 294,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1308,7 +1312,7 @@
    "source_id": "wikimedia-commons",
    "domain": "civilization",
    "host": "commons.wikimedia.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:25+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1335,7 +1339,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 394,
+     "ms": 137,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1346,7 +1350,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 384,
+     "ms": 197,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1357,7 +1361,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 126,
+     "ms": 253,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1368,7 +1372,7 @@
    "source_id": "openiti-raw",
    "domain": "library_work, scholar, history",
    "host": "github.com",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1394,7 +1398,7 @@
      "final_url": "https://github.com/OpenITI/RELEASE",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 0,
-     "ms": 522,
+     "ms": 325,
      "tls": true,
      "error": "HTTP 403 Forbidden"
     },
@@ -1405,7 +1409,7 @@
      "final_url": "https://github.com/OpenITI/RELEASE",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 0,
-     "ms": 343,
+     "ms": 297,
      "tls": true,
      "error": "HTTP 403 Forbidden"
     },
@@ -1416,7 +1420,7 @@
      "final_url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
      "content_type": "text/plain; charset=utf-8",
      "bytes_read": 2048,
-     "ms": 575,
+     "ms": 470,
      "tls": true,
      "error": null
     }
@@ -1427,7 +1431,7 @@
    "source_id": "loc-gov",
    "domain": "library_work",
    "host": "www.loc.gov",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1456,7 +1460,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 416,
+     "ms": 284,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1467,7 +1471,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 367,
+     "ms": 320,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1478,7 +1482,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 331,
+     "ms": 93,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1489,7 +1493,7 @@
    "source_id": "europeana",
    "domain": "library_work, civilization",
    "host": "www.europeana.eu",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1517,7 +1521,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 360,
+     "ms": 328,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1528,7 +1532,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 287,
+     "ms": 265,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1539,7 +1543,7 @@
    "source_id": "zenodo",
    "domain": "all domains",
    "host": "zenodo.org",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1568,7 +1572,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 242,
+     "ms": 154,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1579,7 +1583,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 512,
+     "ms": 193,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1590,7 +1594,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 366,
+     "ms": 279,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1601,14 +1605,14 @@
    "source_id": "huggingface-datasets",
    "domain": "all domains",
    "host": "huggingface.co",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "13.226.251.112",
-     "13.226.251.20",
-     "13.226.251.66",
-     "13.226.251.81"
+     "2600:9000:20e2:2000:17:b174:6d00:93a1",
+     "2600:9000:20e2:2a00:17:b174:6d00:93a1",
+     "2600:9000:20e2:3c00:17:b174:6d00:93a1",
+     "2600:9000:20e2:4400:17:b174:6d00:93a1"
     ]
    },
    "accessible": false,
@@ -1630,7 +1634,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 281,
+     "ms": 283,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1641,7 +1645,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 490,
+     "ms": 243,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1652,7 +1656,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 173,
+     "ms": 278,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1663,11 +1667,11 @@
    "source_id": "github-api",
    "domain": "all domains",
    "host": "github.com",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "140.82.114.3"
+     "140.82.113.3"
     ]
    },
    "accessible": false,
@@ -1689,7 +1693,7 @@
      "final_url": "https://github.com/",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 0,
-     "ms": 380,
+     "ms": 323,
      "tls": true,
      "error": "HTTP 400 Bad Request"
     },
@@ -1700,7 +1704,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 189,
+     "ms": 123,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1711,7 +1715,7 @@
      "final_url": "https://api.github.com/rate_limit",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 1238,
-     "ms": 588,
+     "ms": 490,
      "tls": true,
      "error": null
     }
@@ -1722,7 +1726,7 @@
    "source_id": "raw-githubusercontent",
    "domain": "all domains",
    "host": "raw.githubusercontent.com",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1751,7 +1755,7 @@
      "final_url": "https://raw.githubusercontent.com/",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 0,
-     "ms": 737,
+     "ms": 484,
      "tls": true,
      "error": "HTTP 400 Bad Request"
     },
@@ -1762,7 +1766,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 265,
+     "ms": 293,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1773,7 +1777,7 @@
      "final_url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
      "content_type": "text/plain; charset=utf-8",
      "bytes_read": 2048,
-     "ms": 404,
+     "ms": 716,
      "tls": true,
      "error": null
     }
@@ -1784,7 +1788,7 @@
    "source_id": "pypi",
    "domain": "all domains",
    "host": "pypi.org",
-   "last_checked": "2026-10-03T07:45:24+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1812,7 +1816,7 @@
      "final_url": "https://pypi.org/",
      "content_type": "text/html; charset=UTF-8",
      "bytes_read": 2048,
-     "ms": 323,
+     "ms": 80,
      "tls": true,
      "error": null
     },
@@ -1823,7 +1827,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 200,
+     "ms": 664,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1834,7 +1838,7 @@
      "final_url": "https://pypi.org/pypi/sahih-al-bukhari/json",
      "content_type": "application/json",
      "bytes_read": 2048,
-     "ms": 199,
+     "ms": 139,
      "tls": true,
      "error": null
     }
@@ -1845,7 +1849,7 @@
    "source_id": "npm-registry",
    "domain": "all domains",
    "host": "registry.npmjs.org",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:26+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1873,7 +1877,7 @@
      "final_url": "https://registry.npmjs.org/",
      "content_type": "application/json",
      "bytes_read": 2,
-     "ms": 188,
+     "ms": 177,
      "tls": true,
      "error": null
     },
@@ -1884,7 +1888,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 134,
+     "ms": 166,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1895,7 +1899,7 @@
      "final_url": "https://registry.npmjs.org/@quran.ws%2ftajwid-hafs",
      "content_type": "application/json",
      "bytes_read": 0,
-     "ms": 387,
+     "ms": 219,
      "tls": true,
      "error": "HTTP 404 Not Found"
     }
@@ -1906,7 +1910,7 @@
    "source_id": "sunnah-com-api",
    "domain": "hadith, hadith_grading",
    "host": "sunnah.com",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -1934,7 +1938,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 369,
+     "ms": 392,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1945,7 +1949,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 351,
+     "ms": 273,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -1956,7 +1960,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 200,
+     "ms": 279,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -1967,13 +1971,13 @@
    "source_id": "sunnah-com-api-host",
    "domain": "hadith",
    "host": "api.sunnah.com",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "184.32.202.175",
-     "32.187.178.220",
-     "35.82.179.150"
+     "35.83.190.28",
+     "35.86.8.247",
+     "54.69.194.101"
     ]
    },
    "accessible": false,
@@ -1995,7 +1999,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 391,
+     "ms": 152,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2006,7 +2010,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 408,
+     "ms": 69,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2017,7 +2021,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 283,
+     "ms": 432,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2028,11 +2032,11 @@
    "source_id": "hadith-api-fawazahmed0",
    "domain": "hadith, hadith_grading",
    "host": "github.com",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "140.82.114.3"
+     "140.82.113.3"
     ]
    },
    "accessible": false,
@@ -2054,7 +2058,7 @@
      "final_url": "https://github.com/fawazahmed0/hadith-api",
      "content_type": "application/json; charset=utf-8",
      "bytes_read": 0,
-     "ms": 363,
+     "ms": 338,
      "tls": true,
      "error": "HTTP 403 Forbidden"
     },
@@ -2065,7 +2069,7 @@
      "final_url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
      "content_type": "text/plain; charset=utf-8",
      "bytes_read": 1211,
-     "ms": 603,
+     "ms": 600,
      "tls": true,
      "error": null
     },
@@ -2076,7 +2080,7 @@
      "final_url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json",
      "content_type": "text/plain; charset=utf-8",
      "bytes_read": 2048,
-     "ms": 686,
+     "ms": 745,
      "tls": true,
      "error": null
     }
@@ -2087,7 +2091,7 @@
    "source_id": "tanzil",
    "domain": "quran",
    "host": "tanzil.net",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2112,7 +2116,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 198,
+     "ms": 355,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2123,7 +2127,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 373,
+     "ms": 318,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2134,7 +2138,7 @@
    "source_id": "quranenc",
    "domain": "quran, tafsir",
    "host": "quranenc.com",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2163,7 +2167,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 278,
+     "ms": 275,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2174,7 +2178,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 274,
+     "ms": 330,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2185,7 +2189,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 215,
+     "ms": 366,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2196,7 +2200,7 @@
    "source_id": "quran-com-api",
    "domain": "quran, recitation audio",
    "host": "quran.com",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2225,7 +2229,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 354,
+     "ms": 390,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2236,7 +2240,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 298,
+     "ms": 120,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2247,7 +2251,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 541,
+     "ms": 374,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2258,7 +2262,7 @@
    "source_id": "alquran-cloud",
    "domain": "quran, recitation audio",
    "host": "alquran.cloud",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2285,7 +2289,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 291,
+     "ms": 336,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2296,7 +2300,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 199,
+     "ms": 709,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2307,7 +2311,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 488,
+     "ms": 341,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2318,12 +2322,12 @@
    "source_id": "everyayah",
    "domain": "recitation audio",
    "host": "everyayah.com",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "169.150.247.39",
-     "2400:52e0:1e00::1049:1"
+     "185.111.111.160",
+     "2400:52e0:1e00::755:1"
     ]
    },
    "accessible": false,
@@ -2344,7 +2348,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 327,
+     "ms": 352,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2355,7 +2359,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 435,
+     "ms": 249,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2366,7 +2370,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 553,
+     "ms": 169,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2377,7 +2381,7 @@
    "source_id": "mp3quran",
    "domain": "recitation audio",
    "host": "mp3quran.net",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2405,7 +2409,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 327,
+     "ms": 192,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2416,7 +2420,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 336,
+     "ms": 183,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2427,7 +2431,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 356,
+     "ms": 350,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2438,7 +2442,7 @@
    "source_id": "mp3quran-api",
    "domain": "recitation audio",
    "host": "mp3quran.net",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2467,7 +2471,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 162,
+     "ms": 117,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2478,7 +2482,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 507,
+     "ms": 254,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2489,7 +2493,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 612,
+     "ms": 307,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2500,7 +2504,7 @@
    "source_id": "islamic-network-cdn",
    "domain": "recitation audio",
    "host": "cdn.islamic.network",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:27+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2526,7 +2530,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 289,
+     "ms": 54,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2537,7 +2541,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 331,
+     "ms": 184,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2548,7 +2552,7 @@
    "source_id": "archive-org-audio",
    "domain": "recitation audio",
    "host": "archive.org",
-   "last_checked": "2026-10-03T07:45:25+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2573,7 +2577,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 82,
+     "ms": 281,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2584,7 +2588,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 361,
+     "ms": 248,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2595,7 +2599,7 @@
    "source_id": "charity-commission-ew",
    "domain": "charity, organisation",
    "host": "register-of-charities.charitycommission.gov.uk",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2621,7 +2625,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 390,
+     "ms": 281,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2632,7 +2636,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 261,
+     "ms": 175,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2643,7 +2647,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 343,
+     "ms": 125,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2654,7 +2658,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 671,
+     "ms": 381,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2665,7 +2669,7 @@
    "source_id": "charity-commission-api",
    "domain": "charity",
    "host": "api.charitycommission.gov.uk",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2690,7 +2694,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 152,
+     "ms": 235,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2701,7 +2705,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 458,
+     "ms": 150,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2712,7 +2716,7 @@
    "source_id": "oscr-scotland",
    "domain": "charity",
    "host": "www.oscr.org.uk",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2738,7 +2742,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 555,
+     "ms": 310,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2749,7 +2753,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 641,
+     "ms": 193,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2760,7 +2764,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 457,
+     "ms": 405,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2771,14 +2775,14 @@
    "source_id": "acnc-australia",
    "domain": "charity",
    "host": "www.acnc.gov.au",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "23.220.144.74",
-     "23.220.144.89",
-     "2600:1404:6400:34::172f:33a8",
-     "2600:1404:6400:34::172f:33b7"
+     "23.48.37.68",
+     "23.48.37.81",
+     "2600:1405:6400::17c3:5198",
+     "2600:1405:6400::17c3:51a9"
     ]
    },
    "accessible": false,
@@ -2800,7 +2804,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 497,
+     "ms": 315,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2811,7 +2815,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 650,
+     "ms": 256,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2822,7 +2826,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 455,
+     "ms": 150,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2833,14 +2837,14 @@
    "source_id": "irs-exempt-orgs",
    "domain": "charity",
    "host": "www.irs.gov",
-   "last_checked": "2026-10-03T07:45:26+00:00",
+   "last_checked": "2026-10-03T16:55:28+00:00",
    "dns": {
     "ok": true,
     "addresses": [
-     "23.213.53.52",
-     "23.213.53.83",
-     "2600:1404:6400:30::17dd:168c",
-     "2600:1404:6400:30::17dd:168e"
+     "23.62.33.166",
+     "23.62.33.172",
+     "2600:1405:6400::17c3:51b1",
+     "2600:1405:6400::17c3:51b2"
     ]
    },
    "accessible": false,
@@ -2861,7 +2865,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 478,
+     "ms": 86,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2872,7 +2876,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 324,
+     "ms": 531,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2883,7 +2887,7 @@
    "source_id": "data-gov-uk",
    "domain": "charity, organisation",
    "host": "www.data.gov.uk",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2912,7 +2916,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 509,
+     "ms": 152,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2923,7 +2927,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 555,
+     "ms": 282,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2934,7 +2938,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 376,
+     "ms": 350,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -2945,7 +2949,7 @@
    "source_id": "adzuna-api",
    "domain": "job",
    "host": "developer.adzuna.com",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -2972,7 +2976,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 414,
+     "ms": 312,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2983,7 +2987,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 667,
+     "ms": 251,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -2994,7 +2998,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 390,
+     "ms": 272,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3005,7 +3009,7 @@
    "source_id": "arbeitnow-api",
    "domain": "job",
    "host": "www.arbeitnow.com",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3034,7 +3038,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 276,
+     "ms": 380,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3045,7 +3049,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 514,
+     "ms": 310,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3056,7 +3060,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 328,
+     "ms": 402,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3067,7 +3071,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 327,
+     "ms": 283,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3078,7 +3082,7 @@
    "source_id": "remotive-api",
    "domain": "job",
    "host": "remotive.com",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3107,7 +3111,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 378,
+     "ms": 315,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3118,7 +3122,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 619,
+     "ms": 176,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3129,7 +3133,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 470,
+     "ms": 171,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3140,13 +3144,13 @@
    "source_id": "usajobs-api",
    "domain": "job",
    "host": "developer.usajobs.gov",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
      "23.62.83.12",
-     "2600:1404:6400:1994::1508",
-     "2600:1404:6400:1995::1508"
+     "2600:1405:6400:191::1508",
+     "2600:1405:6400:19b::1508"
     ]
    },
    "accessible": false,
@@ -3167,7 +3171,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 783,
+     "ms": 188,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3178,7 +3182,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 364,
+     "ms": 322,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3189,7 +3193,7 @@
    "source_id": "geonames",
    "domain": "geography",
    "host": "www.geonames.org",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:30+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3215,7 +3219,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 531,
+     "ms": 227,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3226,7 +3230,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 337,
+     "ms": 340,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3237,7 +3241,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 294,
+     "ms": 625,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3248,7 +3252,7 @@
    "source_id": "natural-earth",
    "domain": "geography",
    "host": "www.naturalearthdata.com",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3273,7 +3277,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 591,
+     "ms": 354,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3284,7 +3288,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 444,
+     "ms": 168,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3295,7 +3299,7 @@
    "source_id": "hijri-aladhan-api",
    "domain": "events",
    "host": "aladhan.com",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:30+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3322,7 +3326,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 427,
+     "ms": 541,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3333,7 +3337,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 475,
+     "ms": 351,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3344,7 +3348,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 133,
+     "ms": 142,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3355,7 +3359,7 @@
    "source_id": "kiwix-library",
    "domain": "library_work",
    "host": "library.kiwix.org",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3380,7 +3384,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 509,
+     "ms": 327,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     },
@@ -3391,7 +3395,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 266,
+     "ms": 290,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3402,7 +3406,7 @@
    "source_id": "shamela-ws",
    "domain": "library_work",
    "host": "shamela.ws",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3430,7 +3434,7 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 459,
+     "ms": 178,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
     }
@@ -3441,7 +3445,7 @@
    "source_id": "waqfeya",
    "domain": "library_work",
    "host": "waqfeya.net",
-   "last_checked": "2026-10-03T07:45:27+00:00",
+   "last_checked": "2026-10-03T16:55:29+00:00",
    "dns": {
     "ok": true,
     "addresses": [
@@ -3469,9 +3473,187 @@
      "final_url": null,
      "content_type": null,
      "bytes_read": 0,
-     "ms": 259,
+     "ms": 131,
      "tls": null,
      "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "quay-io-minio",
+   "domain": "infrastructure (MinIO image)",
+   "host": "quay.io",
+   "last_checked": "2026-10-03T16:55:30+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "100.48.180.101",
+     "100.51.58.124",
+     "2600:1f18:d77:9000:7d11:a2e0:bb73:11c1",
+     "2600:1f18:d77:9000:9da2:8a7:705a:4907"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://quay.io/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://quay.io/v2/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 170,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://quay.io/v2/minio/minio/manifests/RELEASE.2025-07-23T15-54-02Z",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 344,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "ollama-registry",
+   "domain": "infrastructure (AI model registry)",
+   "host": "registry.ollama.ai",
+   "last_checked": "2026-10-03T16:55:30+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.18.16.170",
+     "104.18.17.170",
+     "2606:4700::6812:10aa",
+     "2606:4700::6812:11aa"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://registry.ollama.ai/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://registry.ollama.ai/v2/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 296,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://registry.ollama.ai/v2/library/llama3.1/manifests/latest",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 123,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "app-arfaat-com",
+   "domain": "infrastructure (the deployment's own public URL)",
+   "host": "app.arfaat.com",
+   "last_checked": "2026-10-03T16:55:30+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2607:f1c0:100f:f000::200",
+     "74.208.236.123"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://app.arfaat.com/worldofislam",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 421,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "docker-hub-registry",
+   "domain": "infrastructure (container base images)",
+   "host": "registry-1.docker.io",
+   "last_checked": "2026-10-03T16:55:30+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "100.61.84.91",
+     "2600:1f18:2148:bc00:71c4:c9d9:d870:c94e",
+     "2600:1f18:2148:bc00:c7ad:f96d:3f48:4ac8",
+     "2600:1f18:2148:bc01:13ac:6f23:f20b:1e42"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://registry-1.docker.io/v2/",
+     "reachable": true,
+     "status": 401,
+     "final_url": "https://registry-1.docker.io/v2/",
+     "content_type": "application/json",
+     "bytes_read": 0,
+     "ms": 305,
+     "tls": true,
+     "error": "HTTP 401 Unauthorized"
     }
    },
    "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."

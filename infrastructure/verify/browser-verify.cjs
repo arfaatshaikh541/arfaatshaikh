@@ -39,7 +39,7 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   record("status page: statuses are honest (Qur'an and hadith rights unverified, fiqh empty, charities blocked, mosques published with gates open)",
     byName["Qur'an"] === "Rights unverified" && byName["Hadith"] === "Rights unverified" && byName["Hadith gradings"] === "Rights unverified" && byName["Fiqh"] === "Empty: no data" && byName["Charities"] === "Source blocked" && byName["Mosques"] === "Published, gates open", JSON.stringify(byName));
   const cov = await page.$$eval('[data-testid^="coverage-"]', (els) => Object.fromEntries(els.map((e) => [e.getAttribute("data-testid").slice(9), e.innerText])));
-  record("status page: geographic coverage is explicit (mosques one country only, jobs no verified data, Qur'an not tied to a place)", /One country only: Algeria/.test(cov.mosques || "") && /No verified data/.test(cov.jobs || "") && /not tied to a place/.test(cov.quran || "") && /hidden until rights/.test(cov.hadith || ""), JSON.stringify(cov));
+  record("status page: geographic coverage is explicit (mosques one country only, jobs no verified data, Qur'an not tied to a place)", /One country only: Algeria/.test(cov.mosques || "") && /Community data/.test(cov.mosques || "") && /Not individually verified/.test(cov.mosques || "") && /No verified data/.test(cov.jobs || "") && /not tied to a place/.test(cov.quran || "") && /hidden until rights/.test(cov.hadith || ""), JSON.stringify(cov));
   record("status page: states automated checks only", /Automated checks only/.test(await text(page)));
   await page.screenshot({ path: SHOTS + "/prod-status-en.png" });
 
@@ -222,6 +222,16 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   let at = await ask("What does the Qur'an say about patience in hardship?");
   record("assistant cites Qur'an passages as primary sources with verification state, source and licence", /Primary source/.test(at) && /source edition approved for retrieval/.test(at) && /Qur'an \d+:\d+/.test(at) && /Public domain|CC BY/i.test(at), (at.match(/Primary source[^\n]*/) || [""])[0]);
   await page.screenshot({ path: SHOTS + "/prod-assistant-cited.png" });
+  record("assistant labels the quoted passages SOURCE EVIDENCE", /SOURCE EVIDENCE/.test(at));
+  await page.goto(`${BASE}/en/assistant`, { waitUntil: "networkidle" });
+  await page.fill("#assistant-question", "What does the Qur'an say about patience in hardship?");
+  await page.getByLabel(/Add an AI summary/).check();
+  await page.getByRole("button", { name: "Find grounded answer" }).click();
+  await page.waitForSelector('[data-testid="ai-identity"]', { timeout: 60000 });
+  const aiText = await text(page);
+  record("AI summary requested with no model installed: shows LOCAL AI, the model name, and says it is unavailable; the quotes still appear",
+    /LOCAL AI/.test(aiText) && /MODEL:\s*llama3\.1/i.test(aiText) && /no local model is running/i.test(aiText) && /SOURCE EVIDENCE/.test(aiText) && /Qur'an \d+:\d+/.test(aiText), aiText.slice(aiText.indexOf("LOCAL AI") - 20, aiText.indexOf("LOCAL AI") + 160).replace(/\n/g, " "));
+  await page.screenshot({ path: SHOTS + "/prod-assistant-local-ai.png" });
   at = await ask("What do the sources say about quantum entanglement in blockchain mining?");
   record("assistant abstains and says no sufficiently reliable source is available", /Insufficient verified sources/.test(at) && /No sufficiently reliable source is available/.test(at), at.slice(0, 200).replace(/\n/g, " "));
 

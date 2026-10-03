@@ -13,6 +13,16 @@ import re
 
 GEOGRAPHIC = {"mosques": "mosque", "organisations": "organisation", "events": "event", "charities": "charity", "volunteering": "volunteering", "businesses": "business",
               "professionals": "professional", "health": "health", "jobs": "job"}
+# Where a directory's data comes from, as a class: community-contributed map data is not an authority's register. Only mosques have published data today.
+DATA_CLASS = {"mosques": "COMMUNITY_DATA"}
+
+
+def verification_token(published: int, verified: int) -> str:
+    if published <= 0 or verified <= 0:
+        return "NOT_INDIVIDUALLY_VERIFIED"
+    return "FULLY_VERIFIED" if verified >= published else "PARTLY_VERIFIED"
+
+
 # English names for ISO 3166-1 alpha-2 codes; a code missing here is shown as the bare code, never guessed.
 COUNTRY_NAMES = {
     "AE": "United Arab Emirates", "AF": "Afghanistan", "AL": "Albania", "AU": "Australia", "AZ": "Azerbaijan", "BA": "Bosnia and Herzegovina", "BD": "Bangladesh", "BH": "Bahrain",
@@ -46,6 +56,12 @@ def build_coverage(domains: list[dict], listing_rows: list[dict]) -> dict:
             countries = [{"code": r["country"], "name": country_label(r["country"]), "published": r["published"], "listings_with_city": r["city_known"], "listings_without_city": r["published"] - r["city_known"],
                           "regions": r["regions"]} for r in rows]
             item["countries"] = countries
+            published_total, verified_total = sum(r["published"] for r in rows), sum(r.get("verified", 0) for r in rows)
+            if rows:
+                item["verification"] = verification_token(published_total, verified_total)
+                item["verified_listings"] = verified_total
+                if d["domain"] in DATA_CLASS:
+                    item["data_class"] = DATA_CLASS[d["domain"]]
             if len(countries) == 1:
                 item["coverage_status"] = status_token(countries[0]["code"])
             elif countries:
