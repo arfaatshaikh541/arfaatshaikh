@@ -53,7 +53,7 @@ async def export_csv(queue: str, db: DbSession, _: Admin, status: Annotated[str 
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=list(rows[0]) if rows else ["key"], quoting=csv.QUOTE_ALL)
     writer.writeheader()
-    writer.writerows([{k: (("'" + v) if isinstance(v, str) and v[:1] in "=+-@\t\r" and v else v) for k, v in row.items()} for row in rows])  # no spreadsheet formula injection
+    writer.writerows([{k: rq.csv_safe(v) for k, v in row.items()} for row in rows])
     return Response("\ufeff" + buffer.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="review-{queue}.csv"'})
 
 

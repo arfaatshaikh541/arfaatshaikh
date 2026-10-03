@@ -85,6 +85,11 @@ async def summary(db: AsyncSession) -> dict:
     return {"queues": out, "statuses": list(REVIEW_STATUSES)}
 
 
+def csv_safe(value):
+    """A spreadsheet runs a cell that starts with = + - @ (or a tab/return) as a formula; prefix it so it is shown as text."""
+    return ("'" + value) if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+
 async def _reviewer_names(db: AsyncSession, ids: set) -> dict:
     if not ids:
         return {}

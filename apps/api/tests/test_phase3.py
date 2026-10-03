@@ -225,3 +225,10 @@ def test_mosque_coverage_states_community_data_and_that_no_listing_is_individual
     part = build_coverage([domain], [{"type": "mosque", "country": "DZ", "published": 10, "city_known": 10, "regions": 0, "verified": 4}])["domains"][0]
     assert part["verification"] == "PARTLY_VERIFIED" and part["verified_listings"] == 4
     assert "data_class" not in build_coverage([{**domain, "domain": "events"}], [])["domains"][0]
+
+
+@pytest.mark.parametrize("cell,expected", [("=HYPERLINK(\"http://x\")", "'=HYPERLINK(\"http://x\")"), ("+1+1", "'+1+1"), ("-2", "'-2"), ("@SUM(A1)", "'@SUM(A1)"), ("\tcmd", "'\tcmd"),
+                                           ("normal text", "normal text"), ("الحالة", "الحالة"), ("", ""), (None, None)])
+def test_csv_cells_cannot_be_run_as_spreadsheet_formulas(cell, expected):
+    from app.services.review_queue import csv_safe
+    assert csv_safe(cell) == expected
