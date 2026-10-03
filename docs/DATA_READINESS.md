@@ -110,7 +110,7 @@ Generated from `data/domain-readiness.json` (validated against the manifest by `
 
 **Scholar biographies** (SOURCE_BLOCKED): scope - Biographies from verified sources with teachers, students and works.
 
-- Blocker: Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).
+- Blocker: Wikidata (CC0) is the intended open source but is unreachable from the build environment (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).
 - Blocker: OpenITI licence not established.
 - Gates not met: `real_source`, `provenance_documented`, `rights_established`, `retrievable_or_present`, `schema_maps_without_invention`, `validation_passes`, `duplicates_conflicts_deterministic`, `record_level_provenance`, `ui_shows_verification_status`, `assistant_can_cite`, `lifecycle_tests`, `actually_verified`
 
@@ -131,7 +131,7 @@ Generated from `data/domain-readiness.json` (validated against the manifest by `
 
 **Libraries, books and catalogues** (SOURCE_BLOCKED): scope - Metadata-only or external-link records for works; no copyrighted files.
 
-- Blocker: Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).
+- Blocker: Open Library, Internet Archive, Gutenberg, Wikidata unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).
 - Blocker: OpenITI licence not established.
 - Blocker: PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear.
 - Gates not met: `real_source`, `provenance_documented`, `rights_established`, `retrievable_or_present`, `schema_maps_without_invention`, `validation_passes`, `duplicates_conflicts_deterministic`, `record_level_provenance`, `ui_shows_verification_status`, `assistant_can_cite`, `lifecycle_tests`, `actually_verified`
@@ -157,7 +157,7 @@ Generated from `data/domain-readiness.json` (validated against the manifest by `
 
 **Charities** (SOURCE_BLOCKED): scope - Registered charities with registration and source; no donation links.
 
-- Blocker: National charity registers unreachable (2026-10-01).
+- Blocker: National charity registers unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).
 - Blocker: A register does not say whether a charity is Muslim.
 - Gates not met: `real_source`, `provenance_documented`, `rights_established`, `retrievable_or_present`, `schema_maps_without_invention`, `validation_passes`, `duplicates_conflicts_deterministic`, `record_level_provenance`, `ui_shows_verification_status`, `assistant_can_cite`, `lifecycle_tests`, `actually_verified`
 
@@ -183,13 +183,14 @@ Generated from `data/domain-readiness.json` (validated against the manifest by `
 
 **Jobs** (SOURCE_BLOCKED): scope - Employer-supplied jobs with application URL and expiry.
 
-- Blocker: Job APIs unreachable and need keys and terms acceptance (2026-10-01).
+- Blocker: Job APIs unreachable and need keys and terms acceptance (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).
 - Gates not met: `real_source`, `provenance_documented`, `rights_established`, `retrievable_or_present`, `schema_maps_without_invention`, `validation_passes`, `duplicates_conflicts_deterministic`, `record_level_provenance`, `ui_shows_verification_status`, `assistant_can_cite`, `lifecycle_tests`, `actually_verified`
 
 **Recitation audio** (SOURCE_BLOCKED): scope - Per-ayah or per-surah recitation, hosted with checksum or as an external link.
 
 - Blocker: Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).
 - Blocker: Reciter and publisher redistribution terms not documented in an accessible form.
+- Blocker: Re-probed 2026-10-03 (data/source-probes.json): every candidate host except PyPI, npm and raw.githubusercontent.com is refused by this environment's network policy. A reachable host would still need its licence and terms read before any import.
 - Gates not met: `real_source`, `provenance_documented`, `rights_established`, `retrievable_or_present`, `schema_maps_without_invention`, `validation_passes`, `duplicates_conflicts_deterministic`, `record_level_provenance`, `ui_shows_verification_status`, `assistant_can_cite`, `lifecycle_tests`, `actually_verified`
 
 

@@ -337,6 +337,14 @@ LISTING_ATTRIBUTES: dict[str, frozenset[str]] = {
     "health": frozenset({"organization", "specialization", "registration_number", "registration_body", "languages"}),
 }
 URL_ATTRIBUTES = ("application_url", "registration_url")
+# Whether an organisation, business, charity or professional is Muslim, Muslim-owned or halal is a claim that needs its own evidence: a name that sounds
+# Islamic is not evidence, and a legal registration says nothing about affiliation. The two are stored separately.
+AFFILIATION_BASIS = ("owner_submitted", "official_registration", "official_website", "authorized_directory")
+AFFILIATION_TYPES = ("business", "charity", "organisation", "professional", "health", "volunteering", "event")
+for _kind in AFFILIATION_TYPES:
+    LISTING_ATTRIBUTES[_kind] = LISTING_ATTRIBUTES[_kind] | {"muslim_affiliation"}
+for _kind in ("professional", "health"):
+    LISTING_ATTRIBUTES[_kind] = LISTING_ATTRIBUTES[_kind] | {"specialization_source"}
 
 
 def check_listing_structure(item: "DirectoryListingInput") -> list[str]:
@@ -367,6 +375,25 @@ def check_listing_structure(item: "DirectoryListingInput") -> list[str]:
             problems.append("salary must be a number or text exactly as the employer gave it")
     if item.listing_type == "event" and item.starts_at is None:
         problems.append("an event needs starts_at")
+    if item.listing_type == "event" and not (_text(attrs.get("organizer")) and (item.source_url or item.website or attrs.get("registration_url"))):
+        problems.append("an event needs attributes.organizer and a page (source_url, website or registration_url) a moderator can check")
+    affiliation = attrs.get("muslim_affiliation")
+    if affiliation is not None:
+        if not (isinstance(affiliation, dict) and affiliation.get("basis") in AFFILIATION_BASIS):
+            problems.append(f"muslim_affiliation needs basis, one of {', '.join(AFFILIATION_BASIS)} (a name is not evidence)")
+        else:
+            if not (_text(affiliation.get("evidence_url")) or _text(affiliation.get("evidence_note"))):
+                problems.append("muslim_affiliation needs evidence_url or evidence_note")
+            if affiliation.get("evidence_url"):
+                try:
+                    _https_or_none(str(affiliation["evidence_url"]))
+                except ValueError as exc:
+                    problems.append(f"muslim_affiliation.evidence_url {exc}")
+    if item.listing_type in {"professional", "health"} and _text(attrs.get("specialization")) and not (
+            _text(attrs.get("specialization_source")) or (_text(attrs.get("registration_body")) and _text(attrs.get("registration_number")))):
+        problems.append("a specialization is only kept with its evidence (specialization_source, or registration_body and registration_number)")
+    if item.listing_type == "business" and attrs.get("halal_certification") and not _text(attrs.get("halal_certifier")):
+        problems.append("a halal claim is only kept with the certifier that issued it (halal_certifier)")
     if item.listing_type == "volunteering":
         if not _text(attrs.get("organization")):
             problems.append("a volunteering opportunity needs attributes.organization")

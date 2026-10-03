@@ -146,7 +146,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 0 records (0 published, 0 hidden)
 - **CURRENT_SOURCE**: none acquired
 - **LICENCE**: not applicable
-- **BLOCKER**: Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).; OpenITI licence not established.
+- **BLOCKER**: Wikidata (CC0) is the intended open source but is unreachable from the build environment (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).; OpenITI licence not established.
 - **CANDIDATES EXAMINED**: wikidata, openiti, owner-supplied
 - **NEXT_ACTION**: Resolve the blockers above.
 
@@ -206,7 +206,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 0 records (0 published, 0 hidden)
 - **CURRENT_SOURCE**: none acquired
 - **LICENCE**: not applicable
-- **BLOCKER**: Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).; OpenITI licence not established.; PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear.
+- **BLOCKER**: Open Library, Internet Archive, Gutenberg, Wikidata unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).; OpenITI licence not established.; PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear.
 - **CANDIDATES EXAMINED**: open-library-catalogues, wikidata, openiti, pypi-hadith-umma1
 - **NEXT_ACTION**: Resolve the blockers above.
 
@@ -266,7 +266,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 0 listings (0 published, 0 hidden)
 - **CURRENT_SOURCE**: none acquired
 - **LICENCE**: not applicable
-- **BLOCKER**: National charity registers unreachable (2026-10-01).; A register does not say whether a charity is Muslim.
+- **BLOCKER**: National charity registers unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).; A register does not say whether a charity is Muslim.
 - **CANDIDATES EXAMINED**: official-charity-registers, owner-supplied
 - **NEXT_ACTION**: Resolve the blockers above.
 
@@ -341,7 +341,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 0 listings (0 published, 0 hidden)
 - **CURRENT_SOURCE**: none acquired
 - **LICENCE**: not applicable
-- **BLOCKER**: Job APIs unreachable and need keys and terms acceptance (2026-10-01).
+- **BLOCKER**: Job APIs unreachable and need keys and terms acceptance (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).
 - **CANDIDATES EXAMINED**: job-feeds, owner-supplied
 - **NEXT_ACTION**: Resolve the blockers above.
 
@@ -356,7 +356,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 0 recordings (0 published, 0 hidden)
 - **CURRENT_SOURCE**: none acquired
 - **LICENCE**: not applicable
-- **BLOCKER**: Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).; Reciter and publisher redistribution terms not documented in an accessible form.
+- **BLOCKER**: Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).; Reciter and publisher redistribution terms not documented in an accessible form.; Re-probed 2026-10-03 (data/source-probes.json): every candidate host except PyPI, npm and raw.githubusercontent.com is refused by this environment's network policy. A reachable host would still need its licence and terms read before any import.
 - **CANDIDATES EXAMINED**: quran-recitation-sources, npm-mp3quran-wrappers
 - **NEXT_ACTION**: Resolve the blockers above.
 

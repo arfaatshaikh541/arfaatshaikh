@@ -56,6 +56,9 @@ server {
         add_header X-Content-Type-Options nosniff always;
         add_header Referrer-Policy no-referrer always;
         add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+        proxy_hide_header X-Content-Type-Options;   # the API sets these too; send each once
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
         rewrite ^${WOI_BASE_PATH}/api/(.*)$ /api/$1 break;
         proxy_pass http://api:8000;
     }
@@ -66,6 +69,9 @@ server {
         add_header X-Content-Type-Options nosniff always;
         add_header Referrer-Policy no-referrer always;
         add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+        proxy_hide_header X-Content-Type-Options;   # the API sets these too; send each once
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Strict-Transport-Security;
         proxy_pass http://api:8000/api/;
     }
 

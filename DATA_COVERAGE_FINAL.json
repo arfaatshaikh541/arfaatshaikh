@@ -1,0 +1,267 @@
+{
+ "domains": [
+  {
+   "domain": "quran",
+   "label": "Qur'an",
+   "status": "RIGHTS_UNVERIFIED",
+   "published": 6236,
+   "hidden": 0,
+   "scope": "Arabic text (Uthmani, Hafs 'an 'Asim), tajweed rules and spans, and two public-domain English translations (Pickthall 1930, Yusuf Ali 1934 edition).",
+   "geographic": false,
+   "coverage_status": "GLOBAL",
+   "content_scope": "FULL",
+   "statement": "Published content is not tied to a place. Scope: Arabic text (Uthmani, Hafs 'an 'Asim), tajweed rules and spans, and two public-domain English translations (Pickthall 1930, Yusuf Ali 1934 edition)."
+  },
+  {
+   "domain": "hadith",
+   "label": "Hadith",
+   "status": "RIGHTS_UNVERIFIED",
+   "published": 0,
+   "hidden": 15110,
+   "scope": "Arabic text of Sahih al-Bukhari (7,277), Sahih Muslim (7,459) and Forty Hadith of al-Nawawi (42) is published; English translations, Hisn al-Muslim and adhkar (332) are imported but hidden.",
+   "geographic": false,
+   "coverage_status": "HIDDEN_PENDING_RIGHTS",
+   "statement": "Records are imported but hidden until rights and validation are established."
+  },
+  {
+   "domain": "hadith_gradings",
+   "label": "Hadith gradings",
+   "status": "RIGHTS_UNVERIFIED",
+   "published": 0,
+   "hidden": 21185,
+   "scope": "Per-grader grades for Abu Dawud, Ibn Majah, Malik, al-Nasa'i and al-Tirmidhi (collection and number only; the texts are not loaded). Imported and hidden.",
+   "geographic": false,
+   "coverage_status": "HIDDEN_PENDING_RIGHTS",
+   "statement": "Records are imported but hidden until rights and validation are established."
+  },
+  {
+   "domain": "tafsir",
+   "label": "Tafsir",
+   "status": "RIGHTS_UNVERIFIED",
+   "published": 0,
+   "hidden": 182320,
+   "scope": "54 editions (Arabic classical and modern, English) imported with 182,320 entries; all hidden.",
+   "geographic": false,
+   "coverage_status": "HIDDEN_PENDING_RIGHTS",
+   "statement": "Records are imported but hidden until rights and validation are established."
+  },
+  {
+   "domain": "fiqh",
+   "label": "Fiqh",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Per-madhhab positions with question, ruling, evidence and a page-level citation.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "aqeedah",
+   "label": "Aqeedah",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Statements per school with work and page citations.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "seerah",
+   "label": "Seerah",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Chronology with reliability categories (established, well-known but disputed, weak reports).",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "scholars",
+   "label": "Scholar biographies",
+   "status": "SOURCE_BLOCKED",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Biographies from verified sources with teachers, students and works.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "terminology",
+   "label": "Islamic terminology",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Terms with Arabic, transliteration, definition and sources.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "history",
+   "label": "Islamic history",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Source-backed timeline with historians' disagreements preserved.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "civilization",
+   "label": "Islamic civilization",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Source-backed contributions, institutions, manuscripts.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "libraries",
+   "label": "Libraries, books and catalogues",
+   "status": "SOURCE_BLOCKED",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Metadata-only or external-link records for works; no copyrighted files.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  },
+  {
+   "domain": "mosques",
+   "label": "Mosques",
+   "status": "PUBLISHED",
+   "published": 19776,
+   "hidden": 5,
+   "scope": "Algeria only: 19,781 listings (19,776 visible after 5 probable duplicates were linked). Every listing is 'Not verified'.",
+   "geographic": true,
+   "countries": [
+    {
+     "code": "DZ",
+     "name": "Algeria",
+     "published": 19776,
+     "listings_with_city": 19776,
+     "listings_without_city": 0,
+     "regions": 0
+    }
+   ],
+   "coverage_status": "ALGERIA_ONLY",
+   "statement": "Listings exist only for: Algeria. Absence of a listing elsewhere does not mean absence of a mosque or service."
+  },
+  {
+   "domain": "organisations",
+   "label": "Organisations",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Islamic organisations and institutions with registration and source.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "events",
+   "label": "Events",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Organiser-supplied events with start/end; expired events disappear.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "charities",
+   "label": "Charities",
+   "status": "SOURCE_BLOCKED",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Registered charities with registration and source; no donation links.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "volunteering",
+   "label": "Volunteering",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Opportunities with organisation, application URL and source.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "businesses",
+   "label": "Businesses",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Businesses with category, location and source; no ratings.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "professionals",
+   "label": "Professionals",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Professionals with registration where legitimate.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "health",
+   "label": "Health services",
+   "status": "EMPTY",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Health services without medical claims.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "jobs",
+   "label": "Jobs",
+   "status": "SOURCE_BLOCKED",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Employer-supplied jobs with application URL and expiry.",
+   "geographic": true,
+   "countries": [],
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "No verified listings are published for this domain."
+  },
+  {
+   "domain": "recitation_audio",
+   "label": "Recitation audio",
+   "status": "SOURCE_BLOCKED",
+   "published": 0,
+   "hidden": 0,
+   "scope": "Per-ayah or per-surah recitation, hosted with checksum or as an external link.",
+   "geographic": false,
+   "coverage_status": "NO_VERIFIED_DATA",
+   "statement": "Nothing is imported for this domain."
+  }
+ ],
+ "statement": "Geographic coverage is exactly the countries listed per domain. No domain is described as worldwide unless it is published, non-geographic content.",
+ "as_of": "2026-10-03"
+}

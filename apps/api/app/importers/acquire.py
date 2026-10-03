@@ -11,8 +11,31 @@ REGISTRY = "https://registry.npmjs.org"
 UA = {"User-Agent": "WorldOfIslam-importer/1.0 (+https://app.arfaat.com/worldofislam)"}
 
 
+# Importers may only contact these hosts, over HTTPS. A URL that arrives inside downloaded metadata (an npm tarball link, a redirect) is checked
+# against the same list, so a hostile registry entry cannot make the server fetch an internal address (SSRF).
+ALLOWED_HOSTS = frozenset({"registry.npmjs.org", "raw.githubusercontent.com", "pypi.org", "files.pythonhosted.org", "overpass-api.de", "query.wikidata.org",
+                           "www.wikidata.org", "openlibrary.org", "archive.org"})
+
+
+def check_url(url: str) -> str:
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if parts.scheme != "https" or (parts.hostname or "") not in ALLOWED_HOSTS or parts.username or parts.port not in (None, 443):
+        raise ValueError(f"importers may only fetch https URLs on an approved host; refused: {parts.scheme}://{parts.hostname}")
+    return url
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # a redirect target is checked like any other URL
+        check_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def fetch(url: str, timeout: int = 120) -> bytes:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as response:
+    check_url(url)
+    opener = urllib.request.build_opener(_NoRedirect)
+    with opener.open(urllib.request.Request(url, headers=UA), timeout=timeout) as response:
         return response.read()
 
 

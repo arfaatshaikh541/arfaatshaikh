@@ -61,6 +61,7 @@ clean for `ruff --select F,B` and `mypy` (see the audit for the exact scope).
 ## Documentation map
 
 - `docs/DATA_READINESS.md`, `docs/data-sources.md`, `docs/data-contracts.md` - data governance.
+- `WORLD_OF_ISLAM_FINAL_REPORT.md` (+ `DATA_READINESS_FINAL.json`, `SOURCE_VERIFICATION_FINAL.json`, `DATA_COVERAGE_FINAL.json`) - the current honest status: **NOT_PRODUCTION_READY**, with every blocker. `data/rights-ledger*.json` records what each source says about its rights; `data/source-probes.json` what could be reached; `data/verification-prod-compose.json` how the production stack was verified (and what was not).
 - `docs/FEATURE_STATUS.md` - capability status (generated from `apps/web/src/lib/worlds.ts`).
 - `docs/deployment/` - production Docker, base path, local development, offline.
 - `docs/architecture/ARCHITECTURE.md` - architecture decisions and the milestone -> module inventory.

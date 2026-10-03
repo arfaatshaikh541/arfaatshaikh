@@ -43,8 +43,18 @@ def public_filter(now: datetime | None = None):
     )
 
 
+NOTICES = {
+    "health": "Directory information only. Listing a service is not a medical endorsement, and its specialties are shown only where evidence is recorded.",
+    "business": "Listing a business is not a statement that it is Muslim-owned or halal; those are shown only where evidence is recorded.",
+    "charity": "A legal registration does not state an Islamic affiliation. Check the charity yourself before giving.",
+    "professional": "Listed qualifications are shown only where evidence is recorded; check them yourself.",
+    "job": "Posted by the employer or a source named on the listing; apply only through the application link and check the employer.",
+}
+
+
 def listing_view(listing: DirectoryListing, distance_km: float | None = None) -> dict:
     return {
+        "notice": NOTICES.get(listing.listing_type),
         "id": str(listing.id), "type": listing.listing_type, "name": listing.name, "arabic_name": listing.arabic_name,
         "description": listing.description, "category": listing.category, "tags": listing.tags, "address": listing.address,
         "city": listing.city, "region": listing.region, "country": listing.country, "latitude": listing.latitude, "longitude": listing.longitude,

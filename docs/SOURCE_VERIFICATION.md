@@ -78,7 +78,7 @@ Last verified 2026-10-01. Hosts marked TECHNICALLY_UNAVAILABLE returned no respo
 - **VERIFICATION_STATUS**: NEEDS_MANUAL_REVIEW
 - **EVIDENCE**: /tmp scan outputs reviewed 2026-10-01; tarballs of @geoalgeria/mosquees, @al-mabsut/muslimah, sacred_texts, arabic-dictionary, @qivam/client, @trydaleel/domain-islamic-hadith read
 - **UNRESOLVED_QUESTIONS**: Packages published after 2026-10-01 are not covered.
-- **NOTES**: Only @geoalgeria/mosquees (used) and the already-held @quran.ws and @kazishariar packages qualified; the rest were API wrappers, UI kits or calendar/prayer-time libraries.
+- **NOTES**: Only @geoalgeria/mosquees (used) and the already-held @quran.ws and @kazishariar packages qualified; the rest were API wrappers, UI kits or calendar/prayer-time libraries. Re-scanned 2026-10-03 with 23 search terms (fiqh, sirah, aqeedah, glossary, terminology, scholars, history, calendar events, masjid, halal, waqf, charities, zakat, recitation ...): 156 packages; none is a source-backed dataset for the empty domains. Hits were calculators, API clients, MCP servers over third-party sites (turath.io, Shamela-derived), UI kits and fonts.
 
 ### npm @trydaleel/domain-islamic-hadith 0.1.4 - NEEDS_MANUAL_REVIEW
 
@@ -338,7 +338,7 @@ Last verified 2026-10-01. Hosts marked TECHNICALLY_UNAVAILABLE returned no respo
 - **VERIFICATION_STATUS**: PROVENANCE_UNCLEAR
 - **EVIDENCE**: RELEASE repository README (master) read: cites Zenodo doi 10.5281/zenodo.3082463; states no licence; LICENSE, LICENSE.md, license.txt return 404 on master and main; PyPI package 'openiti' 0.1.6: MIT for the Python code; its METADATA says nothing about corpus licensing; Zenodo, GitHub tree and metadata CSV unreachable from the build environment
 - **UNRESOLVED_QUESTIONS**: The corpus and metadata licence (read the Zenodo record or the project's own statement).; Whether non-commercial or share-alike terms apply.
-- **NOTES**: Not used. A catalogue of authors, works and death dates would fill several domains; it needs its licence confirmed first.
+- **NOTES**: Not used. A catalogue of authors, works and death dates would fill several domains; it needs its licence confirmed first. 2026-10-03: the RELEASE README was read (raw.githubusercontent.com): it states no licence and points to Zenodo and the KITAB site, which are unreachable here. No licence evidence, so the corpus stays PROVENANCE_UNCLEAR.
 
 ### PyPI hadith 0.0.2a1 (Umma Open Source) - PROVENANCE_UNCLEAR
 

@@ -199,3 +199,20 @@ def test_companion_ledgers_record_every_row_as_not_established():
     assert all(r["licence"] == "NOT_DOCUMENTED" and r["publisher"] == "NOT_DOCUMENTED" for r in tafsir["editions"])
     assert grades["totals"]["grades"] > 60000 and all(r["grading_rights"] == "NOT_ESTABLISHED" and r["page"] == "NOT_DOCUMENTED" for r in grades["graders"])
     assert "cannot grant rights" in grades["finding"] or "not the graders' published gradings" in grades["finding"]
+
+
+# ---------------------------------------------------------------- importer fetches (SSRF)
+@pytest.mark.parametrize("url", ["http://registry.npmjs.org/x", "https://169.254.169.254/latest/meta-data", "https://localhost/admin", "https://registry.npmjs.org.evil.example/x",
+                                  "https://user@registry.npmjs.org/x", "https://registry.npmjs.org:8443/x", "file:///etc/passwd", "https://10.0.0.5/x"])
+def test_importers_refuse_unapproved_urls(url):
+    from app.importers.acquire import check_url, fetch
+    with pytest.raises(ValueError):
+        check_url(url)
+    with pytest.raises(ValueError):
+        fetch(url)
+
+
+def test_importers_accept_the_approved_sources():
+    from app.importers.acquire import check_url
+    for url in ("https://registry.npmjs.org/@geoalgeria%2Fmosquees/2.0.4", "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json", "https://overpass-api.de/api/interpreter"):
+        assert check_url(url) == url

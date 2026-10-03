@@ -3,6 +3,8 @@
 // Needs Playwright and /opt/pw-browsers/chromium. Prints one JSON report; exit code 1 if any check fails.
 const { chromium } = require("playwright");
 const BASE = process.env.BASE || "https://woi.test/worldofislam";
+const HOST = new URL(BASE).hostname;
+const SHOTS = process.env.SHOTS || "/tmp/shots";
 const EMAIL = process.env.ADMIN_EMAIL, PASSWORD = process.env.ADMIN_PASSWORD;
 const results = []; const problems = { console: [], failedRequests: [], badResponses: [] };
 const record = (name, ok, detail) => results.push({ name, ok: !!ok, detail: detail === undefined ? "" : String(detail).slice(0, 300) });
@@ -23,7 +25,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 async function api(page, path, init) { return page.evaluate(async ([p, i]) => { const r = await fetch(p, { credentials: "include", ...(i || {}) }); let b = null; try { b = await r.json(); } catch {} return { status: r.status, body: b }; }, [BASE + "/api/v1" + path, init]); }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--proxy-server=direct://", "--host-resolver-rules=MAP woi.test 127.0.0.1"] });
+  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--proxy-server=direct://", `--host-resolver-rules=MAP ${HOST} 127.0.0.1`] });
 
   // ------------------------------------------------------------ public pages (anonymous)
   let ctx = await newContext(browser); let page = await ctx.newPage();
@@ -32,18 +34,20 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   let rows = await page.$$eval('[data-testid="domain-dashboard"] tbody tr', (trs) => trs.map((tr) => [tr.children[0].innerText.split("\n")[0], tr.children[1].innerText.split("\n")[0]]));
   record("status page: honest domain dashboard lists 22 domains", rows.length === 22, rows.length);
   const ready = rows.filter(([, s]) => s === "Ready").map(([d]) => d);
-  record("status page: only the Qur'an domain is shown as Ready", ready.length === 1 && ready[0] === "Qur'an", JSON.stringify(ready));
+  record("status page: no domain is shown as Ready (the Qur'an's rights are caveated)", ready.length === 0, JSON.stringify(ready));
   const byName = Object.fromEntries(rows);
-  record("status page: statuses are honest (hadith gradings rights unverified, fiqh empty, charities blocked, mosques published with gates open)",
-    byName["Hadith gradings"] === "Rights unverified" && byName["Fiqh"] === "Empty: no data" && byName["Charities"] === "Source blocked" && byName["Mosques"] === "Published, gates open", JSON.stringify(byName));
+  record("status page: statuses are honest (Qur'an and hadith rights unverified, fiqh empty, charities blocked, mosques published with gates open)",
+    byName["Qur'an"] === "Rights unverified" && byName["Hadith"] === "Rights unverified" && byName["Hadith gradings"] === "Rights unverified" && byName["Fiqh"] === "Empty: no data" && byName["Charities"] === "Source blocked" && byName["Mosques"] === "Published, gates open", JSON.stringify(byName));
+  const cov = await page.$$eval('[data-testid^="coverage-"]', (els) => Object.fromEntries(els.map((e) => [e.getAttribute("data-testid").slice(9), e.innerText])));
+  record("status page: geographic coverage is explicit (mosques one country only, jobs no verified data, Qur'an not tied to a place)", /One country only: Algeria/.test(cov.mosques || "") && /No verified data/.test(cov.jobs || "") && /not tied to a place/.test(cov.quran || "") && /hidden until rights/.test(cov.hadith || ""), JSON.stringify(cov));
   record("status page: states automated checks only", /Automated checks only/.test(await text(page)));
-  await page.screenshot({ path: "/tmp/shots/prod-status-en.png" });
+  await page.screenshot({ path: SHOTS + "/prod-status-en.png" });
 
   await page.goto(`${BASE}/en/directory?type=mosque`, { waitUntil: "networkidle", timeout: 120000 });
   let t = await text(page);
   record("directory: mosques shown with licence attribution and 'Not verified'", /ODbL|CC0/.test(t) && /Not verified/.test(t) && /OpenStreetMap contributors/.test(t));
   record("directory: coverage note names the country and denies global coverage", /Countries with data for this type: DZ/.test(t) && /No data yet for any other country/.test(t), (t.match(/Countries with data[^\n]*/) || [""])[0]);
-  await page.screenshot({ path: "/tmp/shots/prod-directory-en.png" });
+  await page.screenshot({ path: SHOTS + "/prod-directory-en.png" });
   const summary = await api(page, "/directory/summary");
   record("directory API: only mosques have visible listings before the admin test", summary.body.types.filter((x) => x.count > 0).map((x) => x.type).join() === "mosque", JSON.stringify(summary.body.types.filter((x) => x.count > 0)));
 
@@ -66,7 +70,12 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   t = await text(page);
   record("quran reader: Arabic text from the database and the audio notice", (t.match(/Copy citation/g) || []).length >= 7 && /[\u0600-\u06FF]{4,}/.test(t) && t.includes("Recitation audio is not currently available for redistribution."));
   await page.goto(`${BASE}/en/hadith`, { waitUntil: "networkidle" });
-  record("hadith reader loads published collections", /Bukhari|Muslim/i.test(await text(page)));
+  t = await text(page);
+  record("hadith reader shows no hadith text while rights are unresolved", !/[\u0600-\u06FF]{20,}/.test(t), t.slice(0, 160).replace(/\n/g, " "));
+  const hadithApi = await api(page, "/hadith/collections");
+  record("hadith API publishes no collection", hadithApi.status === 200 && JSON.stringify(hadithApi.body).length < 5 || (Array.isArray(hadithApi.body) && hadithApi.body.length === 0), JSON.stringify(hadithApi.body).slice(0, 120));
+  const covApi = await api(page, "/knowledge/coverage");
+  record("coverage API: mosques ALGERIA_ONLY, nothing GLOBAL without published content", covApi.body.domains.find((d) => d.domain === "mosques").coverage_status === "ALGERIA_ONLY" && covApi.body.domains.every((d) => d.coverage_status !== "GLOBAL" || d.published > 0));
   await ctx.close();
 
   // ------------------------------------------------------------ Arabic RTL and mobile
@@ -79,7 +88,7 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   await page.goto(`${BASE}/ar/status`, { waitUntil: "networkidle" });
   await page.waitForSelector('[data-testid="domain-dashboard"] tbody tr');
   record("arabic status: dashboard renders in Arabic", /جاهز|فارغ/.test(await text(page)));
-  await page.screenshot({ path: "/tmp/shots/prod-status-ar-mobile.png" });
+  await page.screenshot({ path: SHOTS + "/prod-status-ar-mobile.png" });
   await page.goto(`${BASE}/ar/knowledge/fiqh`, { waitUntil: "networkidle" });
   record("arabic fiqh empty state", (await text(page)).includes("لم تُستورد بعدُ مصادر فقهية موثّقة."));
   await ctx.close();
@@ -88,7 +97,7 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
     await page.goto(BASE + path, { waitUntil: "networkidle", timeout: 120000 });
     record(`english mobile ${path}: no horizontal scroll`, !(await overflow(page)));
   }
-  await page.screenshot({ path: "/tmp/shots/prod-status-en-mobile.png" });
+  await page.screenshot({ path: SHOTS + "/prod-status-en-mobile.png" });
   await ctx.close();
 
   // ------------------------------------------------------------ admin: real clicks
@@ -106,10 +115,23 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   record("admin readiness tab lists domains", (await page.$$('[data-testid^="readiness-"]')).length === 22);
   await page.click('[data-testid="readiness-hadith"] summary');
   const why = await page.innerText('[data-testid="readiness-hadith"]');
-  record("admin sees exactly why hadith is not READY (blockers and failing gates)", /AGPL/.test(why) && /rights_established/.test(why), why.slice(0, 160));
+  record("admin sees exactly why hadith is not READY (blockers and failing gates)", /KEEP_HIDDEN|hidden/.test(why) && /rights_established/.test(why), why.slice(0, 160));
   await page.click('[data-testid="readiness-hadith_gradings"] summary');
   record("admin sees why gradings are not READY", /Unlicense covers only/.test(await page.innerText('[data-testid="readiness-hadith_gradings"]')));
-  await page.screenshot({ path: "/tmp/shots/prod-admin-readiness.png" });
+  await page.screenshot({ path: SHOTS + "/prod-admin-readiness.png" });
+
+  // human review queues: Arabic strings and mosque anomalies
+  await page.click('role=tab[name="Human review"]');
+  await page.waitForSelector('[data-testid="review-queues"]');
+  await page.getByRole("button", { name: "Load flagged items" }).click();
+  await page.waitForSelector('[data-testid="review-item"]', { timeout: 30000 });
+  const rv = await page.innerText('[data-testid="review-queues"]');
+  record("review queue lists Arabic strings awaiting native review (none approved)", /Needs native review: \d+/.test(rv) && !/Approved by a native reader: \d/.test(rv), rv.slice(0, 200).replace(/\n/g, " "));
+  await page.getByRole("button", { name: /Mosque name anomalies/ }).click();
+  await page.getByRole("button", { name: "Load flagged items" }).click();
+  await page.waitForTimeout(6000);
+  record("mosque review queues show the flagged names without altering them", /Mosque name anomalies \(8\)/.test(await page.innerText('[data-testid="review-queues"]')));
+  await page.screenshot({ path: SHOTS + "/prod-admin-review.png" });
 
   // importers: reachability, preview of a source that cannot be reached from the container (honest failure)
   await page.click('role=tab[name="Importers"]');
@@ -160,7 +182,7 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   await pageJob.goto(`${BASE}/en/directory?type=job`, { waitUntil: "networkidle" });
   const jt = await text(pageJob);
   record("public jobs page shows the open job with employer and apply link, not the closed one", /Fixture Job Open/.test(jt) && /Fixture Employer/.test(jt) && /Apply/.test(jt) && !/Fixture Job Closed/.test(jt));
-  await pageJob.screenshot({ path: "/tmp/shots/prod-jobs-public.png" }); await pageJob.close();
+  await pageJob.screenshot({ path: SHOTS + "/prod-jobs-public.png" }); await pageJob.close();
   await jobs.getByRole("button", { name: "Duplicates & conflicts" }).click();
   await page.waitForSelector('[data-testid="conflicts-panel"]');
   record("duplicates and conflicts panel opens", /nothing is merged|reported for review/i.test(await page.innerText('[data-testid="conflicts-panel"]')) || true);
@@ -175,29 +197,31 @@ async function api(page, path, init) { return page.evaluate(async ([p, i]) => { 
   record("provenance and import history show the import (manual upload) and its counts", /manual upload/.test(hist) && /applied/.test(hist), hist.replace(/\n/g, " ").slice(0, 220));
   await page.getByRole("button", { name: "Roll back" }).first().click();
   await page.waitForSelector("text=Done.");
-  await page.screenshot({ path: "/tmp/shots/prod-admin-history.png" });
+  await page.screenshot({ path: SHOTS + "/prod-admin-history.png" });
   const after = await api(page, "/admin/datasets");
   record("rollback removes what the import created", after.body.datasets.find((d) => d.id === "directory-jobs").record_count === 0);
 
   // events: a finished event must stay excluded
   const events = page.locator("li.record-card", { hasText: "directory-events" }).first();
-  const ev = (key, name, startDays, endDays) => ({ external_key: key, listing_type: "event", name, country: "GB", city: "Fixture City", source: "Browser test fixture", license: "Test fixture (not real)", provenance: "Written by the browser verification script; not a real event.", starts_at: iso(startDays), ends_at: iso(endDays), attributes: { organizer: "Fixture Organiser" } });
+  const ev = (key, name, startDays, endDays) => ({ external_key: key, listing_type: "event", name, country: "GB", city: "Fixture City", source: "Browser test fixture", license: "Test fixture (not real)", provenance: "Written by the browser verification script; not a real event.", source_url: "https://example.org/fixture-event", starts_at: iso(startDays), ends_at: iso(endDays), attributes: { organizer: "Fixture Organiser" } });
   await upload(events, [ev("fx:past", "Fixture Event Finished", -3, -2), ev("fx:future", "Fixture Event Upcoming", 10, 11)]);
   await page.waitForSelector('[aria-label="Import preview"]');
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page.waitForSelector("text=Created 2");
+  await page.waitForTimeout(6000);  // re-runnable: a previous run may have left the same two events, so the message may differ
+  const evMsg = (await text(page)).match(/(Created|Updated|Unchanged|Nothing)[^\n]{0,80}/i);
+  record("event import applied (created, or unchanged when re-run)", !!evMsg, evMsg && evMsg[0]);
   await events.getByRole("button", { name: "Mark verified" }).click(); await page.waitForSelector("text=Done.");
   await events.getByRole("button", { name: "Publish", exact: true }).click(); await page.waitForTimeout(2500);
   const evPub = await api(page, "/directory/listings?type=event");
   record("completed events stay excluded; upcoming event is shown", evPub.body.total === 1 && evPub.body.items[0].name === "Fixture Event Upcoming", JSON.stringify(evPub.body.items.map((i) => i.name)));
   await events.getByRole("button", { name: "Unpublish" }).click(); await page.waitForTimeout(1500);
-  await page.screenshot({ path: "/tmp/shots/prod-admin-datasets.png" });
+  await page.screenshot({ path: SHOTS + "/prod-admin-datasets.png" });
 
   // assistant: cites primary sources with authority labels; abstains when nothing sufficient exists
   const ask = async (q) => { await page.goto(`${BASE}/en/assistant`, { waitUntil: "networkidle" }); await page.fill("#assistant-question", q); await page.getByRole("button", { name: "Find grounded answer" }).click(); await page.waitForTimeout(6000); return text(page); };
   let at = await ask("What does the Qur'an say about patience in hardship?");
   record("assistant cites Qur'an passages as primary sources with verification state, source and licence", /Primary source/.test(at) && /source edition approved for retrieval/.test(at) && /Qur'an \d+:\d+/.test(at) && /Public domain|CC BY/i.test(at), (at.match(/Primary source[^\n]*/) || [""])[0]);
-  await page.screenshot({ path: "/tmp/shots/prod-assistant-cited.png" });
+  await page.screenshot({ path: SHOTS + "/prod-assistant-cited.png" });
   at = await ask("What do the sources say about quantum entanglement in blockchain mining?");
   record("assistant abstains and says no sufficiently reliable source is available", /Insufficient verified sources/.test(at) && /No sufficiently reliable source is available/.test(at), at.slice(0, 200).replace(/\n/g, " "));
 

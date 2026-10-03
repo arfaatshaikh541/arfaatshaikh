@@ -102,8 +102,11 @@ def test_job_needs_employer_application_url_and_expiry():
 
 
 def test_event_and_volunteering_rules():
-    event = dict(listing_type="event", name="Open day", source="Organiser", license="Organiser terms", provenance="Posted by the organiser", starts_at="2030-01-01T10:00:00Z")
+    event = dict(listing_type="event", name="Open day", source="Organiser", license="Organiser terms", provenance="Posted by the organiser", starts_at="2030-01-01T10:00:00Z",
+                 source_url="https://organiser.example/open-day", attributes={"organizer": "Example Society"})
     assert not listing_errors(event)
+    assert listing_errors({**event, "attributes": {}})                                                 # no organiser named
+    assert listing_errors({k: v for k, v in event.items() if k != "source_url"})                      # nothing a moderator can check
     assert listing_errors({k: v for k, v in event.items() if k != "starts_at"})
     assert listing_errors({**event, "ends_at": "2029-12-31T10:00:00Z"})
     assert listing_errors({**event, "listing_type": "volunteering"})                                   # needs organization
@@ -193,3 +196,32 @@ def test_knowledge_hits_keep_positions_apart_and_flag_uncertainty():
     assert any("weak reports" in n for n in uncertainty_of("seerah", "reviewed", {"reliability": "weak_reports"}))
     assert not uncertainty_of("seerah", "reviewed", {"reliability": "established"})
     assert any("unreviewed" in n for n in uncertainty_of("history", "unreviewed", {}))
+
+
+BUSINESS = dict(listing_type="business", name="Example Cafe", source="Owner", license="Owner terms", provenance="Registered by the owner")
+
+
+def test_muslim_affiliation_needs_a_stated_basis_and_evidence_not_a_name():
+    ok = {"muslim_affiliation": {"basis": "owner_submitted", "evidence_note": "Stated by the owner at registration"}}
+    assert not listing_errors({**BUSINESS, "attributes": ok})
+    assert listing_errors({**BUSINESS, "attributes": {"muslim_affiliation": {"basis": "name_sounds_islamic", "evidence_note": "x"}}})
+    assert listing_errors({**BUSINESS, "attributes": {"muslim_affiliation": {"basis": "official_website"}}})
+    assert listing_errors({**BUSINESS, "attributes": {"muslim_affiliation": {"basis": "official_website", "evidence_url": "not a url"}}})
+    assert listing_errors({**BUSINESS, "attributes": {"muslim_affiliation": True}})
+
+
+def test_halal_specialty_and_qualification_claims_are_kept_only_with_evidence():
+    assert listing_errors({**BUSINESS, "attributes": {"halal_certification": "yes"}})
+    assert not listing_errors({**BUSINESS, "attributes": {"halal_certification": "yes", "halal_certifier": "Example Certifier"}})
+    clinic = dict(listing_type="health", name="Example Clinic", source="Owner", license="Owner terms", provenance="Registered by the owner")
+    assert listing_errors({**clinic, "attributes": {"specialization": "cardiology"}})
+    assert not listing_errors({**clinic, "attributes": {"specialization": "cardiology", "specialization_source": "Clinic's own page"}})
+    assert not listing_errors({**clinic, "attributes": {"specialization": "cardiology", "registration_body": "Medical Council", "registration_number": "123"}})
+    assert not listing_errors(clinic)
+
+
+def test_a_legal_registration_is_not_an_islamic_affiliation():
+    charity = dict(listing_type="charity", name="Example Trust", source="Register", license="OGL", provenance="From the register",
+                   attributes={"registration_number": "1234567", "registration_body": "A national register"})
+    assert not listing_errors(charity)
+    assert "muslim_affiliation" not in charity["attributes"]

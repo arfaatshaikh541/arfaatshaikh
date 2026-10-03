@@ -4,9 +4,10 @@ import { FormEvent, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { AUTHORITY_LABEL, INSUFFICIENT } from "@/lib/copy";
 
-type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number; authority_class?: string; verification_state?: string };
+type Trust = { source_title: string | null; author: string | null; edition: string | null; publisher: string | null; source_url: string | null; rights_status: string; retrieved_at: string | null };
+type Item = { label: string; reference: string; attribution: string; text: string; license: string; relevance: number; authority_class?: string; verification_state?: string; record_id?: string; trust?: Trust };
 type Sections = { primary_source: Item[]; scholarly_explanation: Item[]; secondary_source: Item[] };
-type KnowledgeSource = { authority_class: string; verification_state: string; source_title: string; author: string | null; edition: string | null; url: string | null; record: { dataset: string; id: string }; label: string; kind: string; title: string; text: string; position: string | null; source: string; source_work: string | null; locator: string; license: string; scholarly_status: string; uncertainty: string[] };
+type KnowledgeSource = { authority_class: string; verification_state: string; source_title: string; author: string | null; edition: string | null; url: string | null; record: { dataset: string; id: string }; label: string; kind: string; title: string; text: string; position: string | null; source: string; source_work: string | null; locator: string; license: string; scholarly_status: string; uncertainty: string[]; record_id?: string; publisher?: string | null; rights_status?: string; retrieved_at?: string | null; source_url?: string | null };
 type Answer = {
   knowledge_sources?: KnowledgeSource[];
   status: string; message?: string; insufficiency_reason?: string | null; requires_escalation?: boolean; response_text?: string | null;
@@ -55,6 +56,9 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
             <p><strong>{item.label}</strong> {item.reference} · {item.attribution}</p>
             <blockquote lang={/[؀-ۿ]/.test(item.text) ? "ar" : undefined} dir={/[؀-ۿ]/.test(item.text) ? "rtl" : undefined}>{item.text}</blockquote>
             <small>{item.license}</small>
+            {item.trust && <p className="tool-note"><small>{[item.trust.source_title, item.trust.author, item.trust.edition, item.trust.publisher].filter(Boolean).join(" · ") || (rtl ? "لا تفاصيل مسجلة عن الطبعة" : "No edition details recorded")}
+              {" · "}{item.trust.rights_status === "REDISTRIBUTION_NOT_ESTABLISHED" ? (rtl ? "حقوق إعادة النشر غير مثبتة" : "Redistribution rights not established") : (rtl ? "الترخيص المسجّل يتيح إعادة النشر" : "Recorded licence permits redistribution")}
+              {item.trust.retrieved_at ? ` · ${item.trust.retrieved_at.slice(0, 10)}` : ""}{item.record_id ? <> · <code>{item.record_id}</code></> : null}</small></p>}
             {item.authority_class && <p className="tool-note"><span className="status-pill status-implemented">{AUTHORITY_LABEL[item.authority_class]?.[rtl ? "ar" : "en"]}</span> <small>{item.verification_state}</small></p>}
           </article>
         ))}
@@ -72,7 +76,7 @@ export function IslamicAssistant({ locale }: { locale: "en" | "ar" }) {
           <strong>{k.label} {k.title}</strong>{k.position ? ` · ${k.position}` : ""}
           {" "}<span className={k.authority_class === "secondary_source" || k.authority_class === "primary_source" ? "status-pill status-implemented" : "status-pill status-not-verified"}>{AUTHORITY_LABEL[k.authority_class]?.[rtl ? "ar" : "en"]}</span>
           <p style={{ whiteSpace: "pre-line" }}>{k.text}</p>
-          <small>{k.source_title}{k.author ? ` · ${k.author}` : ""}{k.edition ? ` · ${k.edition}` : ""} · {k.locator} · {k.license} · <code>{k.record.dataset}/{k.record.id}</code>{k.url ? <> · <a href={k.url} rel="noopener noreferrer nofollow">{rtl ? "المصدر" : "source"}</a></> : null}</small>
+          <small>{k.source_title}{k.author ? ` · ${k.author}` : ""}{k.edition ? ` · ${k.edition}` : ""} · {k.locator} · {k.license}{k.publisher ? ` · ${k.publisher}` : ""}{k.rights_status ? ` · ${k.rights_status}` : ""}{k.retrieved_at ? ` · ${k.retrieved_at}` : ""} · <code>{k.record.dataset}/{k.record.id}</code>{k.url ? <> · <a href={k.url} rel="noopener noreferrer nofollow">{rtl ? "المصدر" : "source"}</a></> : null}</small>
           <p className="tool-note">{k.verification_state}</p>
           {k.uncertainty.length > 0 && <p role="note" className="tool-note">{k.uncertainty.join("; ")}</p>}
         </li>))}

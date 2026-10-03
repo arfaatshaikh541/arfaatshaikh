@@ -1,9 +1,8 @@
 {
  "generated_for": "World of Islam",
- "as_of": "2026-10-01",
+ "as_of": "2026-10-03",
  "status_counts": {
-  "READY": 1,
-  "RIGHTS_UNVERIFIED": 3,
+  "RIGHTS_UNVERIFIED": 4,
   "EMPTY": 12,
   "SOURCE_BLOCKED": 5,
   "PUBLISHED": 1
@@ -11,7 +10,7 @@
  "domains": [
   {
    "DOMAIN": "Qur'an",
-   "STATUS": "READY",
+   "STATUS": "RIGHTS_UNVERIFIED",
    "COVERAGE": "FULL",
    "SOURCE": "PyPI quran-text (quran.ws, KFGQPC text) 0.1.0; fawazahmed0/quran-api for the two translations; npm @quran.ws/tajwid-* 0.1.0",
    "LICENCE": "CC BY 4.0 (text, tajweed); public domain (Pickthall, d. 1936; Yusuf Ali 1934 edition, d. 1953)",
@@ -20,9 +19,14 @@
    "HIDDEN": 0,
    "VALIDATION": "VERIFIED",
    "PROVENANCE": "confidence high; recorded per record",
-   "BLOCKER": [],
+   "BLOCKER": [
+    "Rights in the KFGQPC source text are not independently established: the package's CC BY 4.0 declaration is the packager's, the main text package has no recorded source URL, and no KFGQPC grant for the text file (as opposed to the typeface) was found. Written confirmation from KFGQPC, or re-obtaining and comparing the official package, would close this.",
+    "Public-domain status of the two translations is term-based reasoning, differs by country, and has had no legal review."
+   ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
-   "GATES_NOT_MET": [],
+   "GATES_NOT_MET": [
+    "rights_established"
+   ],
    "EVIDENCE": {
     "verified": [
      "Every ayah's text matches its recorded sha256 and traces to an approved source edition (validate_data.py)",
@@ -37,13 +41,16 @@
     ],
     "unverified": [
      "Arabic wording against a printed mushaf by a person",
-     "Translation accuracy"
+     "Translation accuracy",
+     "Rights in the KFGQPC text file (packager declaration only)"
     ],
     "assumed": [
      "Public-domain status of the two translations in every jurisdiction",
      "Fidelity of the upstream text beyond sha256 consistency"
     ],
-    "blocked": []
+    "blocked": [
+     "Rights confirmation from KFGQPC (or comparison with the official package)"
+    ]
    }
   },
   {
@@ -53,15 +60,14 @@
    "SOURCE": "PyPI sahih-al-bukhari 3.1.7, sahih-muslim 1.1.2; npm @kazishariar/nawawi-40-hadith-data 1.0.3",
    "LICENCE": "Packagers declare AGPL-3.0 (Bukhari, Muslim) and CC BY 4.0 (Nawawi); the classical Arabic works are public domain",
    "RECORD_COUNT": 15110,
-   "PUBLISHED": 14778,
-   "HIDDEN": 332,
+   "PUBLISHED": 0,
+   "HIDDEN": 15110,
    "VALIDATION": "NEEDS_REVIEW",
    "PROVENANCE": "confidence medium; recorded per record",
    "BLOCKER": [
-    "Owner must confirm the AGPL-3.0 position for redistributing the packaged Arabic text (does not affect the public-domain status of the original work).",
-    "Nawawi-40 upstream compilation is undocumented; 41 of 42 entries cross-checked verbatim against Bukhari/Muslim.",
-    "English translations: translator and publisher permission not documented.",
-    "Hisn al-Muslim and adhkar: upstream not documented."
+    "Arabic text of Bukhari, Muslim and Nawawi-40 is hidden (KEEP_HIDDEN, 2026-10-03): the packages declare AGPL-3.0 / CC BY 4.0 but name no edition, editor, publisher or upstream source, so rights in these digital editions are not established. The data is kept; nothing is deleted.",
+    "English translations: translator and publisher permission not documented (hidden).",
+    "Hisn al-Muslim and adhkar: upstream not documented (hidden)."
    ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
    "GATES_NOT_MET": [
@@ -72,17 +78,18 @@
    "EVIDENCE": {
     "verified": [
      "Bukhari and Muslim hadith 1 wording matches the expected text",
-     "Counts: 15,110 narrations, 14,778 published (database)",
-     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim"
+     "Counts: 15,110 narrations imported, 0 published (database)",
+     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim",
+     "Package metadata and READMEs re-read 2026-10-03: no upstream edition named (data/rights-ledger.json)"
     ],
     "imported": [
      "Bukhari 7,277",
      "Muslim 7,459",
      "Nawawi-40 42",
-     "Hisn al-Muslim and adhkar 332 (hidden)"
+     "Hisn al-Muslim and adhkar 332 (all hidden)"
     ],
     "unverified": [
-     "Redistribution rights of the packaged Arabic text (AGPL-3.0 declared)",
+     "Redistribution rights of the packaged Arabic text (AGPL-3.0 / CC BY 4.0 declared by packagers; digital edition unidentified)",
      "English translations' rights",
      "Nawawi-40 upstream"
     ],
@@ -91,7 +98,7 @@
      "Numbering and diacritics of the packaged editions"
     ],
     "blocked": [
-     "Rights decision by the owner"
+     "Identification of the digital edition and evidence of its terms"
     ]
    }
   },
@@ -322,7 +329,7 @@
    "VALIDATION": "NOT_RUN",
    "PROVENANCE": "confidence none; no records",
    "BLOCKER": [
-    "Wikidata (CC0) is the intended open source but is unreachable from the build environment (2026-10-01).",
+    "Wikidata (CC0) is the intended open source but is unreachable from the build environment (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).",
     "OpenITI licence not established."
    ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
@@ -488,7 +495,7 @@
    "VALIDATION": "NOT_RUN",
    "PROVENANCE": "confidence none; no records",
    "BLOCKER": [
-    "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (2026-10-01).",
+    "Open Library, Internet Archive, Gutenberg, Wikidata unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).",
     "OpenITI licence not established.",
     "PyPI 'hadith' (Umma1) bundles unattributed Arabic collections: provenance unclear."
    ],
@@ -660,7 +667,7 @@
    "VALIDATION": "NOT_RUN",
    "PROVENANCE": "confidence none; no records",
    "BLOCKER": [
-    "National charity registers unreachable (2026-10-01).",
+    "National charity registers unreachable (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json).",
     "A register does not say whether a charity is Muslim."
    ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
@@ -867,7 +874,7 @@
    "VALIDATION": "NOT_RUN",
    "PROVENANCE": "confidence none; no records",
    "BLOCKER": [
-    "Job APIs unreachable and need keys and terms acceptance (2026-10-01)."
+    "Job APIs unreachable and need keys and terms acceptance (re-probed 2026-10-03: the hosts are refused by this environment's network policy, 403 on CONNECT; see data/source-probes.json)."
    ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
    "GATES_NOT_MET": [
@@ -909,7 +916,8 @@
    "PROVENANCE": "confidence none; no records",
    "BLOCKER": [
     "Recitation hosts unreachable from the build environment (everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network; 2026-10-01).",
-    "Reciter and publisher redistribution terms not documented in an accessible form."
+    "Reciter and publisher redistribution terms not documented in an accessible form.",
+    "Re-probed 2026-10-03 (data/source-probes.json): every candidate host except PyPI, npm and raw.githubusercontent.com is refused by this environment's network policy. A reachable host would still need its licence and terms read before any import."
    ],
    "VERIFIED_BY": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
    "GATES_NOT_MET": [

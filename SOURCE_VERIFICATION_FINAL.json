@@ -1,0 +1,2555 @@
+{
+ "as_of": "2026-10-03",
+ "datasets": [
+  {
+   "id": "quran-arabic-uthmani-hafs",
+   "name": "Qur'an, Arabic text (Uthmani, Hafs 'an 'Asim)",
+   "source": {
+    "name": "PyPI package quran-text (quran.ws, KFGQPC text)",
+    "url": "https://pypi.org/project/quran-text/0.1.0/",
+    "version": "0.1.0"
+   },
+   "licence": {
+    "name": "CC BY 4.0",
+    "status": "VERIFIED_OPEN",
+    "notes": "Licence read from the package metadata; attribution recorded in the source registry."
+   },
+   "validation_status": "VERIFIED",
+   "public": true,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "PARTLY_DOCUMENTED: the package's own data file names KFGQPC (King Fahd Glorious Quran Printing Complex) as the publisher of the source files and records their SHA-256, but states that no source URL is recorded for the main text package and that it cannot be checked against the publisher. KFGQPC's own end-user licence, embedded in the bundled typeface, grants free use, copy and distribution of the typeface and retains KFGQPC's title.",
+    "packager_rights": "CC-BY-4.0 declared by quran-ws for its dataset",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "CAVEATED",
+    "decision": "PUBLISH_WITH_CAVEAT",
+    "evidence": [
+     {
+      "claim": "PyPI metadata and the bundled LICENSE file declare CC-BY-4.0.",
+      "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+      "retrieved": "2026-10-03",
+      "quote": "License: CC-BY-4.0"
+     },
+     {
+      "claim": "The dataset's provenance block says the main text package has no recorded source URL and cannot be checked against the publisher.",
+      "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+      "retrieved": "2026-10-03",
+      "quote": "No source URL is recorded for this package"
+     },
+     {
+      "claim": "The bundled KFGQPC typeface carries KFGQPC's own end-user licence (not CC BY): free use, copy and distribution, KFGQPC retains title and ownership. The application does not ship the typeface.",
+      "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+      "retrieved": "2026-10-03",
+      "quote": "KFGQPC retains full title and ownership of this Typeface both as artwork and font software"
+     }
+    ],
+    "open_questions": [
+     "Does KFGQPC permit redistribution of the text file itself (not only the typeface)? Written confirmation from KFGQPC would establish this.",
+     "Can the main text package be re-obtained from KFGQPC and compared byte for byte?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "None."
+  },
+  {
+   "id": "quran-tajweed-quranws",
+   "name": "Tajweed rules and per-ayah spans",
+   "source": {
+    "name": "npm @quran.ws/tajwid-rules and @quran.ws/tajwid-annotations (rules from Quranpedia)",
+    "url": "https://www.npmjs.com/package/@quran.ws/tajwid-annotations",
+    "version": "0.1.0"
+   },
+   "licence": {
+    "name": "CC BY 4.0",
+    "status": "VERIFIED_OPEN",
+    "notes": "Licence read from the npm package metadata."
+   },
+   "validation_status": "VERIFIED",
+   "public": true,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "Tajweed annotation layer produced by quran.ws from published rules (Quranpedia)",
+    "packager_rights": "CC-BY-4.0 declared on the npm packages",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "CAVEATED",
+    "decision": "PUBLISH_WITH_CAVEAT",
+    "evidence": [
+     {
+      "claim": "Package licence read at import; not re-read against an upstream grant in this pass.",
+      "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Is the Quranpedia rule set itself openly licensed for reuse?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "None."
+  },
+  {
+   "id": "hadith-bukhari-arabic",
+   "name": "Sahih al-Bukhari, Arabic text",
+   "source": {
+    "name": "PyPI sahih-al-bukhari",
+    "url": "https://pypi.org/project/sahih-al-bukhari/3.1.7/",
+    "version": "3.1.7"
+   },
+   "licence": {
+    "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+    "digital_edition_rights": "UNDOCUMENTED: neither the package metadata nor its README names an edition, editor, publisher or upstream source",
+    "packager_rights": "AGPL-3.0 declared by the packager (muhammadsaadamin / SENODROOM)",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "Package metadata declares AGPL-3.0 and the README's acknowledgments say only 'Source - Sahih al-Bukhari' and 'Translations - By reputable Islamic scholars'.",
+      "url": "https://pypi.org/pypi/sahih-al-bukhari/3.1.7/json",
+      "retrieved": "2026-10-03",
+      "quote": "Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0)"
+     }
+    ],
+    "open_questions": [
+     "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+     "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?",
+     "What does the packager's CDN serve and from where was it taken?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust."
+  },
+  {
+   "id": "hadith-muslim-arabic",
+   "name": "Sahih Muslim, Arabic text",
+   "source": {
+    "name": "PyPI sahih-muslim",
+    "url": "https://pypi.org/project/sahih-muslim/1.1.2/",
+    "version": "1.1.2"
+   },
+   "licence": {
+    "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+    "digital_edition_rights": "UNDOCUMENTED: neither the package metadata nor its README names an edition, editor, publisher or upstream source",
+    "packager_rights": "AGPL-3.0 declared by the packager (muhammadsaadamin / SENODROOM)",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "Package metadata declares AGPL-3.0 and the README's acknowledgments say only 'Source - Sahih Muslim' and 'Translations - By reputable Islamic scholars'.",
+      "url": "https://pypi.org/pypi/sahih-muslim/1.1.2/json",
+      "retrieved": "2026-10-03",
+      "quote": "Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0)"
+     }
+    ],
+    "open_questions": [
+     "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+     "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?",
+     "What does the packager's CDN serve and from where was it taken?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust."
+  },
+  {
+   "id": "hadith-bukhari-english",
+   "name": "Sahih al-Bukhari, English translation",
+   "source": {
+    "name": "PyPI sahih-al-bukhari 3.1.7 (translation bundled in the package)",
+    "url": "https://pypi.org/project/sahih-al-bukhari/",
+    "version": "3.1.7"
+   },
+   "licence": {
+    "name": "Commercially published translation; redistribution rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The package licence does not grant rights in the translation itself."
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "UNDOCUMENTED",
+    "packager_rights": "AGPL-3.0 declared by the packager",
+    "translation_rights": "NOT_ESTABLISHED: the database records a traditional attribution to a named translator; the package README says only 'By reputable Islamic scholars'",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The package names no translator or publisher for its English text.",
+      "url": "https://pypi.org/pypi/sahih-al-bukhari/3.1.7/json",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Which translation is this, who holds the rights and has the holder permitted redistribution?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Obtain permission from the translation's rights holder, then publish with scripts/apply_publication_policy.py after recording rights_confirmation in this entry."
+  },
+  {
+   "id": "hadith-muslim-english",
+   "name": "Sahih Muslim, English translation",
+   "source": {
+    "name": "PyPI sahih-muslim 1.1.2 (translation bundled in the package)",
+    "url": "https://pypi.org/project/sahih-muslim/",
+    "version": "1.1.2"
+   },
+   "licence": {
+    "name": "Commercially published translation; redistribution rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The package licence does not grant rights in the translation itself."
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "UNDOCUMENTED",
+    "packager_rights": "AGPL-3.0 declared by the packager",
+    "translation_rights": "NOT_ESTABLISHED: the database records a traditional attribution to a named translator; the package README says only 'By reputable Islamic scholars'",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The package names no translator or publisher for its English text.",
+      "url": "https://pypi.org/pypi/sahih-muslim/1.1.2/json",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Which translation is this, who holds the rights and has the holder permitted redistribution?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Obtain permission from the translation's rights holder, then publish with scripts/apply_publication_policy.py after recording rights_confirmation in this entry."
+  },
+  {
+   "id": "hadith-nawawi40-arabic",
+   "name": "Forty Hadith of al-Nawawi, Arabic text",
+   "source": {
+    "name": "npm @kazishariar/nawawi-40-hadith-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/nawawi-40-hadith-data",
+    "version": "1.0.3"
+   },
+   "licence": {
+    "name": "Package declares CC BY 4.0; upstream source not documented. Original text is public domain.",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+    "digital_edition_rights": "UNDOCUMENTED: the package describes itself only as 'sanitized data'; its repository is a speed-reader application",
+    "packager_rights": "CC-BY-4.0 declared by an individual author (Shariar Kazi)",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "npm metadata declares CC-BY-4.0, names an individual author and the repository 'dua-speed-reader'; no README, edition or upstream source is published with the package.",
+      "url": "https://registry.npmjs.org/@kazishariar%2fnawawi-40-hadith-data/1.0.3",
+      "retrieved": "2026-10-03",
+      "quote": "Highest-calibre sanitized data for nawawi 40 hadith"
+     }
+    ],
+    "open_questions": [
+     "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+     "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust."
+  },
+  {
+   "id": "hadith-nawawi40-english",
+   "name": "Forty Hadith of al-Nawawi, English",
+   "source": {
+    "name": "npm @kazishariar/nawawi-40-hadith-data (bundled translation)",
+    "url": "https://www.npmjs.com/package/@kazishariar/nawawi-40-hadith-data",
+    "version": "1.0.3"
+   },
+   "licence": {
+    "name": "Translator and upstream not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "No translator is named in the package."
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "UNDOCUMENTED",
+    "packager_rights": "CC-BY-4.0 declared by an individual author",
+    "translation_rights": "UNDOCUMENTED: translator not named",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The package names no translator.",
+      "url": "https://registry.npmjs.org/@kazishariar%2fnawawi-40-hadith-data/1.0.3",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Who translated this text and under what terms?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Identify the translator and obtain permission, or supply an authorised translation."
+  },
+  {
+   "id": "devotional-hisn-almuslim-arabic",
+   "name": "Hisn al-Muslim (supplications), Arabic",
+   "source": {
+    "name": "npm @kazishariar/hisnul-muslim-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/hisnul-muslim-data",
+    "version": "1.0.3"
+   },
+   "licence": {
+    "name": "Package declares CC BY 4.0; upstream (selection, numbering, commentary) not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "The supplications are classical texts, but the compiled selection is another author's work."
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Identify the upstream compilation and confirm its terms, or supply a licensed source."
+  },
+  {
+   "id": "devotional-adhkar-arabic",
+   "name": "Morning and evening adhkar, Arabic",
+   "source": {
+    "name": "npm @kazishariar/morning-evening-adhkar-data",
+    "url": "https://www.npmjs.com/package/@kazishariar/morning-evening-adhkar-data",
+    "version": "1.0.3"
+   },
+   "licence": {
+    "name": "Package declares CC BY 4.0; upstream not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": ""
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Confirm upstream terms."
+  },
+  {
+   "id": "devotional-adhkar-english",
+   "name": "Morning and evening adhkar, English",
+   "source": {
+    "name": "npm @kazishariar/morning-evening-adhkar-data (bundled translation)",
+    "url": "https://www.npmjs.com/package/@kazishariar/morning-evening-adhkar-data",
+    "version": "1.0.3"
+   },
+   "licence": {
+    "name": "Translator not documented",
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": ""
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Identify the translator and obtain permission."
+  },
+  {
+   "id": "quran-translation-pickthall",
+   "name": "Qur'an translation: Marmaduke Pickthall (1930)",
+   "source": {
+    "name": "fawazahmed0/quran-api edition eng-mohammedmarmadu",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "Public domain (translator died 1936; first published 1930)",
+    "status": "PUBLIC_DOMAIN",
+    "notes": "The catalogue's own Unlicense covers the aggregation, not translations; the public-domain basis is the translator's date of death."
+   },
+   "validation_status": "VERIFIED",
+   "public": true,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "UNDOCUMENTED",
+    "packager_rights": "fawazahmed0/quran-api repository",
+    "translation_rights": "PUBLIC_DOMAIN_BY_TERM_REASONING: Marmaduke Pickthall, first published 1930; translator d. 1936. Terms differ by country and no legal review has taken place.",
+    "redistribution_allowed": "CAVEATED",
+    "decision": "PUBLISH_WITH_CAVEAT",
+    "evidence": [
+     {
+      "claim": "Edition identity and attribution come from the quran-api catalogue; the death date is the translator's, recorded in the manifest.",
+      "url": "https://github.com/fawazahmed0/quran-api",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Public-domain status depends on the country and edition (for example the 1934 edition's term in the United States). A lawyer should confirm for the countries served."
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "None (public-domain status can differ by jurisdiction; confirm for your audience)."
+  },
+  {
+   "id": "quran-translation-yusufali-1934",
+   "name": "Qur'an translation: Abdullah Yusuf Ali (1934 original edition)",
+   "source": {
+    "name": "fawazahmed0/quran-api edition eng-yusufaliorig",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "Public domain (translator died 1953; 1934 edition)",
+    "status": "PUBLIC_DOMAIN",
+    "notes": "Only the 1934 original text; later revised editions are in copyright."
+   },
+   "validation_status": "VERIFIED",
+   "public": true,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "UNDOCUMENTED",
+    "packager_rights": "fawazahmed0/quran-api repository",
+    "translation_rights": "PUBLIC_DOMAIN_BY_TERM_REASONING: Abdullah Yusuf Ali, 1934 edition; translator d. 1953. Terms differ by country and no legal review has taken place.",
+    "redistribution_allowed": "CAVEATED",
+    "decision": "PUBLISH_WITH_CAVEAT",
+    "evidence": [
+     {
+      "claim": "Edition identity and attribution come from the quran-api catalogue; the death date is the translator's, recorded in the manifest.",
+      "url": "https://github.com/fawazahmed0/quran-api",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "Public-domain status depends on the country and edition (for example the 1934 edition's term in the United States). A lawyer should confirm for the countries served."
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "None (jurisdiction note as above)."
+  },
+  {
+   "id": "quran-translations-catalogue",
+   "name": "Qur'an translations, 482 further editions in 97 languages",
+   "source": {
+    "name": "fawazahmed0/quran-api catalogue (editions.json)",
+    "url": "https://github.com/fawazahmed0/quran-api",
+    "version": "branch 1 (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "No per-edition licence in the catalogue",
+    "status": "LICENSE_REQUIRED",
+    "notes": "The repository's Unlicense does not cover third-party translations. Non-Muslim translators and groups outside mainstream Islam were excluded (not stored)."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "For each edition you want public: confirm the publisher's/translator's permission, record it, then publish (scripts/publish_staged.py or this manifest)."
+  },
+  {
+   "id": "tafsir-arabic-classical",
+   "name": "Arabic classical tafsirs (29 editions incl. al-Tabari, al-Qurtubi, al-Razi, Ibn Kathir, al-Jalalayn)",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "Original works are public domain; the digital editions' own rights are not stated (some carry modern editorial notes)",
+    "status": "LICENSE_REQUIRED",
+    "notes": "Example: the al-Tabari text includes a modern editor's footnotes."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "UNDOCUMENTED",
+    "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+    "packager_rights": "MIT covers the repository's software only",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+      "retrieved": "2026-10-03"
+     },
+     {
+      "claim": "The repository licence is the MIT licence for 'the Software'.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+      "retrieved": "2026-10-03",
+      "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+     }
+    ],
+    "open_questions": [
+     "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Confirm the terms of the digital editions (QUL / Quran.com compilations) and strip modern editorial matter if required; then publish."
+  },
+  {
+   "id": "tafsir-arabic-modern",
+   "name": "Arabic modern tafsirs (16 editions incl. Ibn Ashur, Tantawi, al-Muyassar)",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "Modern works; rights not cleared",
+    "status": "LICENSE_REQUIRED",
+    "notes": ""
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "UNDOCUMENTED",
+    "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+    "packager_rights": "MIT covers the repository's software only",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+      "retrieved": "2026-10-03"
+     },
+     {
+      "claim": "The repository licence is the MIT licence for 'the Software'.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+      "retrieved": "2026-10-03",
+      "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+     }
+    ],
+    "open_questions": [
+     "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Permission from each author's estate or publisher."
+  },
+  {
+   "id": "tafsir-english",
+   "name": "English tafsirs (9 editions incl. Ibn Kathir (abridged), Ma'ariful Qur'an, Jalalayn, Tazkirul Quran)",
+   "source": {
+    "name": "spa5k/tafsir_api (data from Quran.com / Tarteel QUL / altafsir.com)",
+    "url": "https://github.com/spa5k/tafsir_api",
+    "version": "branch main (retrieved 2026-09-30)"
+   },
+   "licence": {
+    "name": "Modern translations; rights not cleared",
+    "status": "LICENSE_REQUIRED",
+    "notes": "Jalalayn (English) is recorded upstream as non-commercial."
+   },
+   "validation_status": "VERIFIED",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "UNDOCUMENTED",
+    "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+    "packager_rights": "MIT covers the repository's software only",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+      "retrieved": "2026-10-03"
+     },
+     {
+      "claim": "The repository licence is the MIT licence for 'the Software'.",
+      "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+      "retrieved": "2026-10-03",
+      "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+     }
+    ],
+    "open_questions": [
+     "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Permission from each translator or publisher."
+  },
+  {
+   "id": "hadith-grading",
+   "name": "Hadith grading",
+   "source": {
+    "name": "fawazahmed0/hadith-api (info.json, git tag 1)",
+    "url": "https://github.com/fawazahmed0/hadith-api/tree/1",
+    "version": "1"
+   },
+   "licence": {
+    "name": "Unlicense (repository). Rights in the grades compiled from the graders' works are not established.",
+    "status": "LICENSE_REQUIRED",
+    "notes": "LICENSE of the repository dedicates the author's own work to the public domain; References.md shows the grades were taken from al-maktaba.org books and zubairalizai.com, whose terms were not accessible."
+   },
+   "validation_status": "NEEDS_REVIEW",
+   "public": false,
+   "rights_ledger": {
+    "original_work_public_domain": "NO_MODERN_GRADERS_WORK",
+    "digital_edition_rights": "See data/rights-ledger-hadith-gradings.json: each grade names a grader only; printed work, edition and page are not recorded",
+    "packager_rights": "Unlicense for the repository's own files",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "NOT_ESTABLISHED",
+    "decision": "KEEP_HIDDEN",
+    "evidence": [
+     {
+      "claim": "References.md says the grades were compiled from scans of printed editions on al-maktaba.org (and one archive.org item).",
+      "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/References.md",
+      "retrieved": "2026-10-03"
+     },
+     {
+      "claim": "The repository's licence is the Unlicense; it cannot grant rights in third parties' published gradings.",
+      "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+      "retrieved": "2026-10-03",
+      "quote": "This is free and unencumbered software released into the public domain."
+     }
+    ],
+    "open_questions": [
+     "Do the graders or their publishers permit redistribution of their gradings?",
+     "Which edition and page does each grade come from?"
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Confirm the right to redistribute these grades (or replace them with grades from a source whose terms allow it), spot-check against the graders' printed works, then mark verified and publish in Data & trust. The five collections are not loaded in the reader, so these records cite the collection and number without linking to hadith text."
+  },
+  {
+   "id": "fiqh-rulings",
+   "name": "Fiqh (rulings and madhhab positions)",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply licensed fiqh text/data with author, school and citation. The assistant never invents rulings."
+  },
+  {
+   "id": "aqeedah",
+   "name": "Aqeedah texts",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply licensed texts with authors and citations."
+  },
+  {
+   "id": "seerah",
+   "name": "Seerah",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply licensed seerah sources (e.g. a public-domain translation with provenance)."
+  },
+  {
+   "id": "terminology",
+   "name": "Islamic terminology",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply a licensed glossary with a source per term."
+  },
+  {
+   "id": "library-works",
+   "name": "Library (books and works)",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply a catalogue with edition/licence per work, or a public-domain corpus whose licence has been verified."
+  },
+  {
+   "id": "history",
+   "name": "Islamic history",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply licensed history sources."
+  },
+  {
+   "id": "civilization",
+   "name": "Civilization and heritage",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply licensed sources."
+  },
+  {
+   "id": "scholar-biographies",
+   "name": "Scholar biographies",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply biographies with sources and licence. Wikipedia/Wikidata could not be reached from this environment, so none was imported."
+  },
+  {
+   "id": "directory-mosques",
+   "name": "Mosques",
+   "source": {
+    "name": "GeoAlgeria @geoalgeria/mosquees (composite of Wikidata and OpenStreetMap)",
+    "url": "https://www.npmjs.com/package/@geoalgeria/mosquees",
+    "version": "2.0.4"
+   },
+   "licence": {
+    "name": "Data: ODbL 1.0 (© OpenStreetMap contributors) and CC0-1.0 (Wikidata); package code: MIT",
+    "status": "VERIFIED_OPEN",
+    "notes": "LICENSE file of the package, dataset-metadata.json (license https://opendatacommons.org/licenses/odbl/1-0/) and README state the terms. ODbL requires attribution and share-alike for a derived database; every listing carries its attribution."
+   },
+   "validation_status": "VERIFIED",
+   "public": true,
+   "rights_ledger": {
+    "original_work_public_domain": "NOT_APPLICABLE",
+    "digital_edition_rights": "Compiled by @geoalgeria/mosquees from Wikidata (CC0) and OpenStreetMap (ODbL); records keep their source references",
+    "packager_rights": "MIT (package code); ODbL 1.0 and CC0 for the data as declared in the package's LICENSE and dataset-metadata.json",
+    "translation_rights": "NOT_APPLICABLE",
+    "redistribution_allowed": "CAVEATED",
+    "decision": "PUBLISH_WITH_CAVEAT",
+    "evidence": [
+     {
+      "claim": "Package metadata and dataset-metadata.json state the data terms (read when imported, 2026-10-01).",
+      "url": "https://registry.npmjs.org/@geoalgeria%2fmosquees",
+      "retrieved": "2026-10-03"
+     }
+    ],
+    "open_questions": [
+     "ODbL share-alike: whether the platform's combined database triggers the share-alike obligation has not been decided.",
+     "The records are community data and are not individually verified."
+    ],
+    "determined_on": "2026-10-03",
+    "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+   },
+   "remaining_action": "Covers Algeria only. Other regions: run scripts/import_osm_mosques.py for your area on a machine that can reach the Overpass API, or upload an authorised national dataset. Individual listings become 'Verified' only through admin moderation."
+  },
+  {
+   "id": "directory-businesses",
+   "name": "Businesses",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply an authorised business dataset or partner API."
+  },
+  {
+   "id": "directory-charities",
+   "name": "Charities",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply an authorised dataset, e.g. a national charity register published under an open government licence (verify the licence per country)."
+  },
+  {
+   "id": "directory-jobs",
+   "name": "Jobs",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply listings or an employer partnership."
+  },
+  {
+   "id": "directory-professionals",
+   "name": "Professionals",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Professionals register themselves via 'suggest a listing' and are verified by moderators; or upload a dataset."
+  },
+  {
+   "id": "directory-organisations",
+   "name": "Organisations",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply an authorised dataset or use 'suggest a listing'."
+  },
+  {
+   "id": "directory-events",
+   "name": "Events",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply an events feed or use 'suggest a listing'."
+  },
+  {
+   "id": "directory-volunteering",
+   "name": "Volunteering",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply opportunities or partner feed."
+  },
+  {
+   "id": "directory-health",
+   "name": "Health services",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Not applicable (no data)",
+    "status": "UNKNOWN",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply an authorised dataset."
+  },
+  {
+   "id": "audio-quran-recitations",
+   "name": "Qur'an recitation audio",
+   "source": {
+    "name": "No source acquired",
+    "url": null,
+    "version": null
+   },
+   "licence": {
+    "name": "Reciter and publisher rights not established",
+    "status": "LICENSE_REQUIRED",
+    "notes": ""
+   },
+   "validation_status": "NOT_RUN",
+   "public": false,
+   "rights_ledger": null,
+   "remaining_action": "Supply recitation files with the reciter's/publisher's permission and a checksum per file."
+  }
+ ],
+ "candidate_sources": [
+  {
+   "SOURCE_ID": "geoalgeria-mosquees",
+   "SOURCE_NAME": "GeoAlgeria @geoalgeria/mosquees 2.0.4",
+   "SOURCE_URL": "https://www.npmjs.com/package/@geoalgeria/mosquees",
+   "DATA_DOMAIN": "mosque",
+   "LICENSE": "ODbL 1.0 for OpenStreetMap-derived records; CC0-1.0 for Wikidata records; MIT for package code",
+   "LICENSE_URL": "https://opendatacommons.org/licenses/odbl/1-0/",
+   "VERIFICATION_STATUS": "VERIFIED",
+   "REDISTRIBUTION_ALLOWED": "Yes, with attribution; share-alike for a derived database (ODbL)",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Algeria only. Wilaya/commune are derived by centroid, not from the sources. 978 of 20,759 records have no name and are skipped. Denomination kept only where the package took it from an OSM tag."
+  },
+  {
+   "SOURCE_ID": "hadith-api-grades",
+   "SOURCE_NAME": "fawazahmed0/hadith-api: per-grader hadith grades (info.json, tag 1)",
+   "SOURCE_URL": "https://github.com/fawazahmed0/hadith-api/tree/1",
+   "DATA_DOMAIN": "hadith_grading",
+   "LICENSE": "Unlicense (repository); rights in the compiled grades not established",
+   "LICENSE_URL": "https://github.com/fawazahmed0/hadith-api/blob/1/LICENSE",
+   "VERIFICATION_STATUS": "LICENSE_REQUIRED",
+   "REDISTRIBUTION_ALLOWED": "Unknown: the Unlicense covers only the repository author's own work",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Imported and STAGED (21,185 records, 67,681 grader entries); hidden from every public view until rights are confirmed in Data & trust. Five collections not loaded in the reader, so no link to hadith text."
+  },
+  {
+   "SOURCE_ID": "hadith-api-translations",
+   "SOURCE_NAME": "fawazahmed0/hadith-api: English/other hadith translations",
+   "SOURCE_URL": "https://github.com/fawazahmed0/hadith-api/tree/1",
+   "DATA_DOMAIN": "hadith translations",
+   "LICENSE": "Unlicense (repository); translators' rights not established",
+   "LICENSE_URL": "https://github.com/fawazahmed0/hadith-api/blob/1/LICENSE",
+   "VERIFICATION_STATUS": "LICENSE_REQUIRED",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Already held, staged and hidden (hadith-bukhari-english, hadith-muslim-english)."
+  },
+  {
+   "SOURCE_ID": "npm-sunan-packages",
+   "SOURCE_NAME": "npm sunan-abi-dawud, sunan-al-nasai, sunan-ibn-majah, sunnah (SENODROOM)",
+   "SOURCE_URL": "https://www.npmjs.com/package/sunan-abi-dawud",
+   "DATA_DOMAIN": "hadith",
+   "LICENSE": "AGPL-3.0 declared by the packager",
+   "LICENSE_URL": "https://github.com/SENODROOM/sunan-abi-dawud",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not imported. The Arabic text of these classical works would be public domain, but the edition and the English translation are unattributed."
+  },
+  {
+   "SOURCE_ID": "openiti",
+   "SOURCE_NAME": "OpenITI corpus and metadata (RELEASE repository)",
+   "SOURCE_URL": "https://github.com/OpenITI/RELEASE",
+   "DATA_DOMAIN": "library_work, scholar, history, civilization",
+   "LICENSE": "Not established",
+   "LICENSE_URL": "https://github.com/OpenITI/RELEASE",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": "main 403; HTTP 403 Forbidden; licence page accessible: False; data accessible: True (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Not used. A catalogue of authors, works and death dates would fill several domains; it needs its licence confirmed first. 2026-10-03: the RELEASE README was read (raw.githubusercontent.com): it states no licence and points to Zenodo and the KITAB site, which are unreachable here. No licence evidence, so the corpus stays PROVENANCE_UNCLEAR."
+  },
+  {
+   "SOURCE_ID": "npm-al-mabsut-muslimah",
+   "SOURCE_NAME": "npm @al-mabsut/muslimah 0.2.3",
+   "SOURCE_URL": "https://github.com/al-mabsut/muslimah",
+   "DATA_DOMAIN": "fiqh",
+   "LICENSE": "ISC declared in package.json; no licence file for the content",
+   "LICENSE_URL": "https://www.npmjs.com/package/@al-mabsut/muslimah",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "REDISTRIBUTION_ALLOWED": "Unknown for the content",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not imported: fiqh records must be traceable to a named work and page (data contract)."
+  },
+  {
+   "SOURCE_ID": "npm-trydaleel-hadith-domain",
+   "SOURCE_NAME": "npm @trydaleel/domain-islamic-hadith 0.1.4",
+   "SOURCE_URL": "https://www.npmjs.com/package/@trydaleel/domain-islamic-hadith",
+   "DATA_DOMAIN": "hadith_grading",
+   "LICENSE": "Apache-2.0 declared",
+   "LICENSE_URL": "https://www.npmjs.com/package/@trydaleel/domain-islamic-hadith",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "REDISTRIBUTION_ALLOWED": "Yes for the code",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not a dataset of gradings; the authority list has no stated provenance, so it is not used."
+  },
+  {
+   "SOURCE_ID": "npm-islamic-calendar-events",
+   "SOURCE_NAME": "npm islamic-utils / islamic-date (event lists)",
+   "SOURCE_URL": "https://www.npmjs.com/package/islamic-utils",
+   "DATA_DOMAIN": "directory events (occasions)",
+   "LICENSE": "MIT declared (code)",
+   "LICENSE_URL": "https://www.npmjs.com/package/islamic-utils",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "REDISTRIBUTION_ALLOWED": "Unknown for the data",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not imported. Community events come from organisers, not a calendar library."
+  },
+  {
+   "SOURCE_ID": "qivam-api",
+   "SOURCE_NAME": "Qivam API (mosque directory, prayer times) via @qivam/client",
+   "SOURCE_URL": "https://qivam.com",
+   "DATA_DOMAIN": "mosque",
+   "LICENSE": "All rights reserved (SDK licence); API terms not reviewed",
+   "LICENSE_URL": "https://www.npmjs.com/package/@qivam/client",
+   "VERIFICATION_STATUS": "NOT_ALLOWED_FOR_REDISTRIBUTION",
+   "REDISTRIBUTION_ALLOWED": "No: SDK licence forbids redistribution; data terms unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not used."
+  },
+  {
+   "SOURCE_ID": "openstreetmap-overpass",
+   "SOURCE_NAME": "OpenStreetMap via Overpass API",
+   "SOURCE_URL": "https://overpass-api.de",
+   "DATA_DOMAIN": "mosque, organisation, charity, health, business",
+   "LICENSE": "ODbL 1.0",
+   "LICENSE_URL": "https://www.openstreetmap.org/copyright",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Yes with attribution; share-alike",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: False (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Host unreachable from the build environment (HTTP 000, 2026-10-01). Run the importer on the production server for the regions you serve."
+  },
+  {
+   "SOURCE_ID": "wikidata",
+   "SOURCE_NAME": "Wikidata SPARQL",
+   "SOURCE_URL": "https://query.wikidata.org",
+   "DATA_DOMAIN": "scholar, library_work, history, civilization, organisation, mosque",
+   "LICENSE": "CC0-1.0",
+   "LICENSE_URL": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Yes",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: False (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Host unreachable from the build environment (2026-10-01). A good source of scholars, works and dates once reachable, with the Wikidata item cited per record."
+  },
+  {
+   "SOURCE_ID": "sunnah-com-api",
+   "SOURCE_NAME": "sunnah.com API",
+   "SOURCE_URL": "https://sunnah.com/developers",
+   "DATA_DOMAIN": "hadith, hadith_grading",
+   "LICENSE": "Terms not reviewed (API key required)",
+   "LICENSE_URL": "https://sunnah.com/developers",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: None (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Host unreachable and a key is required; owner would need to apply and accept the terms."
+  },
+  {
+   "SOURCE_ID": "quran-recitation-sources",
+   "SOURCE_NAME": "Recitation audio hosts: everyayah.com, mp3quran.net, api.quran.com, cdn.islamic.network",
+   "SOURCE_URL": "https://everyayah.com",
+   "DATA_DOMAIN": "recitation audio",
+   "LICENSE": "Redistribution rights not established for any of them",
+   "LICENSE_URL": "https://everyayah.com",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: None (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "No audio is copied. Link-only records need the host's stated permission; the schema (QuranRecitationEdition, QuranAyahAudio) and player exist."
+  },
+  {
+   "SOURCE_ID": "npm-mp3quran-wrappers",
+   "SOURCE_NAME": "npm quran-recitors / quran-mp3 (wrappers of mp3quran.net)",
+   "SOURCE_URL": "https://www.npmjs.com/package/quran-recitors",
+   "DATA_DOMAIN": "recitation audio",
+   "LICENSE": "MIT declared for the wrapper code only",
+   "LICENSE_URL": "https://www.npmjs.com/package/quran-recitors",
+   "VERIFICATION_STATUS": "LICENSE_REQUIRED",
+   "REDISTRIBUTION_ALLOWED": "Unknown for recordings",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not used."
+  },
+  {
+   "SOURCE_ID": "official-charity-registers",
+   "SOURCE_NAME": "National charity registers (e.g. Charity Commission for England and Wales, US IRS exempt-organisation data)",
+   "SOURCE_URL": "https://register-of-charities.charitycommission.gov.uk",
+   "DATA_DOMAIN": "charity, organisation",
+   "LICENSE": "Not verified from this environment",
+   "LICENSE_URL": "https://register-of-charities.charitycommission.gov.uk",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Unknown until read",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: False (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Hosts unreachable. Note that a register lists charities, not whether a charity is Muslim: a faith filter would need an explicit field."
+  },
+  {
+   "SOURCE_ID": "job-feeds",
+   "SOURCE_NAME": "Job APIs/feeds (e.g. Adzuna, USAJobs, employer feeds)",
+   "SOURCE_URL": "https://api.adzuna.com",
+   "DATA_DOMAIN": "job",
+   "LICENSE": "Per-provider API terms (keys required)",
+   "LICENSE_URL": "https://api.adzuna.com",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: None (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Needs owner credentials or employer submissions. Job listings require employer, application URL and expiry; none are invented."
+  },
+  {
+   "SOURCE_ID": "open-library-catalogues",
+   "SOURCE_NAME": "Open Library / Internet Archive / Project Gutenberg / HathiTrust catalogues",
+   "SOURCE_URL": "https://openlibrary.org/data",
+   "DATA_DOMAIN": "library_work",
+   "LICENSE": "Per-catalogue; not verified from this environment",
+   "LICENSE_URL": "https://openlibrary.org/developers/licensing",
+   "VERIFICATION_STATUS": "TECHNICALLY_UNAVAILABLE",
+   "REDISTRIBUTION_ALLOWED": "Unknown until read",
+   "PROBE_RESULT": "main no response; proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden; licence page accessible: False; data accessible: False (data/source-probes.json). Reachability is not permission.",
+   "LAST_PROBED": "2026-10-03",
+   "NOTES": "Hosts unreachable. Metadata-only records (no files) are the intended use."
+  },
+  {
+   "SOURCE_ID": "owner-supplied",
+   "SOURCE_NAME": "Owner-supplied datasets (scholars, organisations, institutions, employers)",
+   "SOURCE_URL": "(owner)",
+   "DATA_DOMAIN": "fiqh, aqeedah, seerah, terminology, history, civilization, scholar, business, charity, professional, organisation, event, volunteering, health",
+   "LICENSE": "Per dataset: owner must state rights",
+   "LICENSE_URL": "(owner)",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "REDISTRIBUTION_ALLOWED": "Per dataset",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "The pipeline is ready; each dataset enters as staged until rights are confirmed."
+  },
+  {
+   "SOURCE_ID": "pypi-hadith-umma1",
+   "SOURCE_NAME": "PyPI hadith 0.0.2a1 (Umma Open Source)",
+   "SOURCE_URL": "https://pypi.org/project/hadith/",
+   "DATA_DOMAIN": "hadith (Arabic collections)",
+   "LICENSE": "MIT classifier; metadata says 'License: UNKNOWN'",
+   "LICENSE_URL": "https://pypi.org/project/hadith/",
+   "VERIFICATION_STATUS": "PROVENANCE_UNCLEAR",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Not imported. The classical Arabic texts are public domain, but this digital edition has no stated origin."
+  },
+  {
+   "SOURCE_ID": "pypi-index-scan",
+   "SOURCE_NAME": "Systematic scan of the PyPI project index for Islamic datasets",
+   "SOURCE_URL": "https://pypi.org/simple/",
+   "DATA_DOMAIN": "all domains",
+   "LICENSE": "n/a",
+   "LICENSE_URL": "https://pypi.org/simple/",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Reviewed: ahadith (GPL, API wrapper), hadith (provenance unclear), isnad* (software), openiti (code only), pytafseer/quran/sunnah-api/widequran (API wrappers), kaeshur-quran (app data, Kashmiri), quran-text (already used). No new usable domain dataset was found."
+  },
+  {
+   "SOURCE_ID": "npm-registry-scan",
+   "SOURCE_NAME": "Keyword scan of the npm registry for Islamic datasets",
+   "SOURCE_URL": "https://registry.npmjs.org/",
+   "DATA_DOMAIN": "all domains",
+   "LICENSE": "n/a",
+   "LICENSE_URL": "https://registry.npmjs.org/",
+   "VERIFICATION_STATUS": "NEEDS_MANUAL_REVIEW",
+   "REDISTRIBUTION_ALLOWED": "Unknown",
+   "PROBE_RESULT": null,
+   "LAST_PROBED": null,
+   "NOTES": "Only @geoalgeria/mosquees (used) and the already-held @quran.ws and @kazishariar packages qualified; the rest were API wrappers, UI kits or calendar/prayer-time libraries. Re-scanned 2026-10-03 with 23 search terms (fiqh, sirah, aqeedah, glossary, terminology, scholars, history, calendar events, masjid, halal, waqf, charities, zakat, recitation ...): 156 packages; none is a source-backed dataset for the empty domains. Hits were calculators, API clients, MCP servers over third-party sites (turath.io, Shamela-derived), UI kits and fonts."
+  }
+ ],
+ "rejected_and_unresolved": [
+  "hadith-api-grades",
+  "hadith-api-translations",
+  "npm-sunan-packages",
+  "openiti",
+  "npm-al-mabsut-muslimah",
+  "npm-islamic-calendar-events",
+  "qivam-api",
+  "npm-mp3quran-wrappers",
+  "pypi-hadith-umma1"
+ ],
+ "probes": {
+  "environment_note": "Probed from the build/verification container through the egress proxy; not from the production host.",
+  "summary": {
+   "total": 58,
+   "accessible": 2,
+   "data_accessible": 5,
+   "blocked_or_unreachable": [
+    "wikidata",
+    "wikidata-sparql",
+    "wikidata-api",
+    "openstreetmap-overpass",
+    "overpass-mirror-overpass.kumi.systems",
+    "overpass-mirror-lz4.overpass-api.de",
+    "overpass-mirror-overpass.private.coffee",
+    "openstreetmap-org",
+    "openstreetmap-planet",
+    "geofabrik-extracts",
+    "nominatim",
+    "open-library",
+    "open-library-dumps",
+    "internet-archive",
+    "project-gutenberg",
+    "gutendex",
+    "hathitrust",
+    "wikisource-ar",
+    "wikimedia-dumps",
+    "wikipedia-rest",
+    "wikimedia-commons",
+    "openiti-raw",
+    "loc-gov",
+    "europeana",
+    "zenodo",
+    "huggingface-datasets",
+    "github-api",
+    "raw-githubusercontent",
+    "sunnah-com-api",
+    "sunnah-com-api-host",
+    "hadith-api-fawazahmed0",
+    "tanzil",
+    "quranenc",
+    "quran-com-api",
+    "alquran-cloud",
+    "everyayah",
+    "mp3quran",
+    "mp3quran-api",
+    "islamic-network-cdn",
+    "archive-org-audio",
+    "charity-commission-ew",
+    "charity-commission-api",
+    "oscr-scotland",
+    "acnc-australia",
+    "irs-exempt-orgs",
+    "data-gov-uk",
+    "adzuna-api",
+    "arbeitnow-api",
+    "remotive-api",
+    "usajobs-api",
+    "geonames",
+    "natural-earth",
+    "hijri-aladhan-api",
+    "kiwix-library",
+    "shamela-ws",
+    "waqfeya"
+   ]
+  },
+  "records": [
+   {
+    "source_id": "wikidata",
+    "domain": "scholar, library_work, history, civilization, organisation, mosque",
+    "host": "www.wikidata.org",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikidata-sparql",
+    "domain": "scholar, library_work, history, civilization, organisation, mosque",
+    "host": "query.wikidata.org",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikidata-api",
+    "domain": "scholar",
+    "host": "www.wikidata.org",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "openstreetmap-overpass",
+    "domain": "mosque, organisation, charity, health, business",
+    "host": "overpass-api.de",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "162.55.144.139",
+      "2a01:4f8:261:3c4f::2",
+      "2a01:4f9:3051:3e48::2",
+      "65.109.112.52"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": "osm-overpass-mosques",
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "overpass-mirror-overpass.kumi.systems",
+    "domain": "mosque",
+    "host": "overpass.kumi.systems",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "193.219.97.30",
+      "2a0d:f302:126:78ea::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": null,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": "osm-overpass-mosques",
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "overpass-mirror-lz4.overpass-api.de",
+    "domain": "mosque",
+    "host": "lz4.overpass-api.de",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2a01:4f8:261:3c4f::2",
+      "65.109.112.52"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": null,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": "osm-overpass-mosques",
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "overpass-mirror-overpass.private.coffee",
+    "domain": "mosque",
+    "host": "overpass.private.coffee",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "193.219.97.30",
+      "2a0d:f302:126:78ea::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": null,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": "osm-overpass-mosques",
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "openstreetmap-org",
+    "domain": "mosque",
+    "host": "www.openstreetmap.org",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "151.101.1.55",
+      "151.101.129.55",
+      "151.101.193.55",
+      "151.101.65.55"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "openstreetmap-planet",
+    "domain": "mosque",
+    "host": "planet.openstreetmap.org",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2001:4d78:500:5e3::11",
+      "82.199.86.113"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "geofabrik-extracts",
+    "domain": "mosque",
+    "host": "download.geofabrik.de",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2a01:4f9:2a:3182::2",
+      "2a01:4f9:2b:27d0::2",
+      "2a01:4f9:2b:2820::2",
+      "2a01:4f9:4a:1767::2"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "nominatim",
+    "domain": "mosque",
+    "host": "nominatim.openstreetmap.org",
+    "last_checked": "2026-10-03T07:45:22+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "151.101.1.91",
+      "151.101.129.91",
+      "151.101.193.91",
+      "151.101.65.91"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "open-library",
+    "domain": "library_work",
+    "host": "openlibrary.org",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "207.241.234.205"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "open-library-dumps",
+    "domain": "library_work",
+    "host": "openlibrary.org",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "207.241.234.205"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "internet-archive",
+    "domain": "library_work",
+    "host": "archive.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "207.241.224.2"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "project-gutenberg",
+    "domain": "library_work",
+    "host": "www.gutenberg.org",
+    "last_checked": "2026-10-03T07:45:23+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "152.19.134.47",
+      "2610:28:3090:3000:0:bad:cafe:47"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "gutendex",
+    "domain": "library_work",
+    "host": "gutendex.com",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.21.80.54",
+      "172.67.174.132",
+      "2606:4700:3031::ac43:ae84",
+      "2606:4700:3036::6815:5036"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "hathitrust",
+    "domain": "library_work",
+    "host": "www.hathitrust.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "162.159.140.37",
+      "172.66.0.37",
+      "2606:4700:7::25",
+      "2a06:98c1:58::25"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikisource-ar",
+    "domain": "library_work",
+    "host": "ar.wikisource.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikimedia-dumps",
+    "domain": "history, scholar",
+    "host": "dumps.wikimedia.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.154.242",
+      "2620:0:861:ed1a::3:242"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikipedia-rest",
+    "domain": "history, civilization",
+    "host": "en.wikipedia.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "wikimedia-commons",
+    "domain": "civilization",
+    "host": "commons.wikimedia.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "208.80.153.224",
+      "2620:0:860:ed1a::1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "openiti-raw",
+    "domain": "library_work, scholar, history",
+    "host": "github.com",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "140.82.114.4"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": true,
+    "importer_available": null,
+    "main_status": 403,
+    "main_error": "HTTP 403 Forbidden"
+   },
+   {
+    "source_id": "loc-gov",
+    "domain": "library_work",
+    "host": "www.loc.gov",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.17.6.58",
+      "104.18.64.82",
+      "2606:4700::6811:63a",
+      "2606:4700::6812:4052"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "europeana",
+    "domain": "library_work, civilization",
+    "host": "www.europeana.eu",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "172.66.136.97",
+      "172.66.137.231",
+      "2606:4700:10::ac42:8861",
+      "2606:4700:10::ac42:89e7"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "zenodo",
+    "domain": "all domains",
+    "host": "zenodo.org",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "137.138.153.219",
+      "137.138.52.235",
+      "188.184.103.118",
+      "188.184.98.114"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "huggingface-datasets",
+    "domain": "all domains",
+    "host": "huggingface.co",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "13.226.251.112",
+      "13.226.251.20",
+      "13.226.251.66",
+      "13.226.251.81"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "github-api",
+    "domain": "all domains",
+    "host": "github.com",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "140.82.114.3"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": true,
+    "importer_available": null,
+    "main_status": 400,
+    "main_error": "HTTP 400 Bad Request"
+   },
+   {
+    "source_id": "raw-githubusercontent",
+    "domain": "all domains",
+    "host": "raw.githubusercontent.com",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "185.199.108.133",
+      "185.199.109.133",
+      "185.199.110.133",
+      "185.199.111.133"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": true,
+    "importer_available": null,
+    "main_status": 400,
+    "main_error": "HTTP 400 Bad Request"
+   },
+   {
+    "source_id": "pypi",
+    "domain": "all domains",
+    "host": "pypi.org",
+    "last_checked": "2026-10-03T07:45:24+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "151.101.0.223",
+      "151.101.128.223",
+      "151.101.192.223",
+      "151.101.64.223"
+     ]
+    },
+    "accessible": true,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": true,
+    "importer_available": null,
+    "main_status": 200,
+    "main_error": null
+   },
+   {
+    "source_id": "npm-registry",
+    "domain": "all domains",
+    "host": "registry.npmjs.org",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.16.0.34",
+      "104.16.1.34",
+      "104.16.10.34",
+      "104.16.11.34"
+     ]
+    },
+    "accessible": true,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": 200,
+    "main_error": null
+   },
+   {
+    "source_id": "sunnah-com-api",
+    "domain": "hadith, hadith_grading",
+    "host": "sunnah.com",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.12.53",
+      "104.26.13.53",
+      "172.67.71.16",
+      "2606:4700:20::681a:c35"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "sunnah-com-api-host",
+    "domain": "hadith",
+    "host": "api.sunnah.com",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "184.32.202.175",
+      "32.187.178.220",
+      "35.82.179.150"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "hadith-api-fawazahmed0",
+    "domain": "hadith, hadith_grading",
+    "host": "github.com",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "140.82.114.3"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": true,
+    "terms_accessible": null,
+    "data_accessible": true,
+    "importer_available": "hadith-api-grades",
+    "main_status": 403,
+    "main_error": "HTTP 403 Forbidden"
+   },
+   {
+    "source_id": "tanzil",
+    "domain": "quran",
+    "host": "tanzil.net",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "136.243.149.84"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "quranenc",
+    "domain": "quran, tafsir",
+    "host": "quranenc.com",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.21.72.175",
+      "172.67.153.84",
+      "2606:4700:3030::ac43:9954",
+      "2606:4700:3037::6815:48af"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "quran-com-api",
+    "domain": "quran, recitation audio",
+    "host": "quran.com",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.10.250",
+      "104.26.11.250",
+      "172.67.68.105",
+      "2606:4700:20::681a:afa"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "alquran-cloud",
+    "domain": "quran, recitation audio",
+    "host": "alquran.cloud",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2a01:4f9:c012:d020::1",
+      "37.27.91.134"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "everyayah",
+    "domain": "recitation audio",
+    "host": "everyayah.com",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "169.150.247.39",
+      "2400:52e0:1e00::1049:1"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "mp3quran",
+    "domain": "recitation audio",
+    "host": "mp3quran.net",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.10.243",
+      "104.26.11.243",
+      "172.67.73.240",
+      "2606:4700:20::681a:af3"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "mp3quran-api",
+    "domain": "recitation audio",
+    "host": "mp3quran.net",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.10.243",
+      "104.26.11.243",
+      "172.67.73.240",
+      "2606:4700:20::681a:af3"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "islamic-network-cdn",
+    "domain": "recitation audio",
+    "host": "cdn.islamic.network",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2a01:4ff:f0:ab3::1",
+      "5.161.200.100"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "archive-org-audio",
+    "domain": "recitation audio",
+    "host": "archive.org",
+    "last_checked": "2026-10-03T07:45:25+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "207.241.224.2"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "charity-commission-ew",
+    "domain": "charity, organisation",
+    "host": "register-of-charities.charitycommission.gov.uk",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "51.104.236.20"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "charity-commission-api",
+    "domain": "charity",
+    "host": "api.charitycommission.gov.uk",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "51.104.198.247"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "oscr-scotland",
+    "domain": "charity",
+    "host": "www.oscr.org.uk",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "212.227.199.3"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "acnc-australia",
+    "domain": "charity",
+    "host": "www.acnc.gov.au",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "23.220.144.74",
+      "23.220.144.89",
+      "2600:1404:6400:34::172f:33a8",
+      "2600:1404:6400:34::172f:33b7"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "irs-exempt-orgs",
+    "domain": "charity",
+    "host": "www.irs.gov",
+    "last_checked": "2026-10-03T07:45:26+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "23.213.53.52",
+      "23.213.53.83",
+      "2600:1404:6400:30::17dd:168c",
+      "2600:1404:6400:30::17dd:168e"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "data-gov-uk",
+    "domain": "charity, organisation",
+    "host": "www.data.gov.uk",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "151.101.0.144",
+      "151.101.128.144",
+      "151.101.192.144",
+      "151.101.64.144"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "adzuna-api",
+    "domain": "job",
+    "host": "developer.adzuna.com",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "100.62.243.43",
+      "34.202.86.49",
+      "98.89.217.188"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "arbeitnow-api",
+    "domain": "job",
+    "host": "www.arbeitnow.com",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.8.32",
+      "104.26.9.32",
+      "172.67.71.251",
+      "2606:4700:20::681a:820"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": false,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "remotive-api",
+    "domain": "job",
+    "host": "remotive.com",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.26.10.89",
+      "104.26.11.89",
+      "172.67.69.96",
+      "2606:4700:20::681a:a59"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "usajobs-api",
+    "domain": "job",
+    "host": "developer.usajobs.gov",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "23.62.83.12",
+      "2600:1404:6400:1994::1508",
+      "2600:1404:6400:1995::1508"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "geonames",
+    "domain": "geography",
+    "host": "www.geonames.org",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "188.40.33.19"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "natural-earth",
+    "domain": "geography",
+    "host": "www.naturalearthdata.com",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "50.87.253.14"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "hijri-aladhan-api",
+    "domain": "events",
+    "host": "aladhan.com",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "2a01:4ff:f0:ab3::1",
+      "5.161.200.100"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": false,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "kiwix-library",
+    "domain": "library_work",
+    "host": "library.kiwix.org",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "51.159.97.236"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": false,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "shamela-ws",
+    "domain": "library_work",
+    "host": "shamela.ws",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.21.35.49",
+      "172.67.213.231",
+      "2606:4700:3034::6815:2331",
+      "2606:4700:3036::ac43:d5e7"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": null,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   },
+   {
+    "source_id": "waqfeya",
+    "domain": "library_work",
+    "host": "waqfeya.net",
+    "last_checked": "2026-10-03T07:45:27+00:00",
+    "dns": {
+     "ok": true,
+     "addresses": [
+      "104.21.56.211",
+      "172.67.155.242",
+      "2606:4700:3032::6815:38d3",
+      "2606:4700:3036::ac43:9bf2"
+     ]
+    },
+    "accessible": false,
+    "licence_page_accessible": null,
+    "terms_accessible": null,
+    "data_accessible": null,
+    "importer_available": null,
+    "main_status": null,
+    "main_error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+   }
+  ]
+ },
+ "companion_ledgers": {
+  "tafsir_editions": {
+   "count": 123,
+   "finding": "The catalogue lists author, name, language and the site each text was taken from (quran.com, qul.tarteel.ai or altafsir.com). It states no licence, publisher, editor, translator or year for any edition.",
+   "upstream_sha256": "f02c69bc447c7e1c6d388db27606ff83bc909cc269c22d565a109dfb9d747b06"
+  },
+  "hadith_graders": {
+   "totals": {
+    "grades": 67716,
+    "graders": 9,
+    "rows": 16
+   },
+   "finding": "Each grade names a grader but no printed work, edition or page. The upstream References.md says the grades come from scans of printed editions on al-maktaba.org (and one archive.org item); the repository's Unlicense covers its own files, not the graders' published gradings.",
+   "upstream_sha256": "cf1ced267ada8f606f95eb84e2b6ddfa87bfa2a6a9dd4cb2a5d9a8c1734f10fb"
+  }
+ }
+}

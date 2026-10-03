@@ -15,14 +15,28 @@ type DomainRow = { domain: string; label: string; tier: number; status: string; 
   records: { total: number; published: number; hidden: number }; validation_status: string; blockers: string[]; verified_by: string; last_verified: string;
   why_not_ready: { kind: string; text?: string; gate?: string; evidence?: string }[] };
 type Domains = { as_of: string; summary: Record<string, number>; domains: DomainRow[] };
+type CoverageRow = { domain: string; coverage_status: string; geographic: boolean; countries?: { code: string; name: string; published: number }[]; statement: string };
+type Coverage = { domains: CoverageRow[]; statement: string };
+
+function coverageText(c: CoverageRow | undefined, ar: boolean): string {
+  if (!c) return "";
+  const names = (c.countries ?? []).map((x) => x.name).join(", ");
+  if (c.coverage_status === "GLOBAL") return ar ? "منشور، غير مرتبط بمكان" : "Published; not tied to a place";
+  if (c.coverage_status === "NO_VERIFIED_DATA") return ar ? "لا بيانات موثقة" : "No verified data";
+  if (c.coverage_status === "HIDDEN_PENDING_RIGHTS") return ar ? "مستورد ومخفي حتى تثبت الحقوق" : "Imported, hidden until rights are established";
+  if (c.coverage_status === "REGIONAL") return (ar ? "دول محددة فقط: " : "Only these countries: ") + names;
+  return (ar ? "بلد واحد فقط: " : "One country only: ") + names;
+}
 
 export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
   const ar = locale === "ar";
   const counts = featureCounts();
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [domains, setDomains] = useState<Domains | null>(null);
+  const [coverage, setCoverage] = useState<Record<string, CoverageRow>>({});
   const [filter, setFilter] = useState<FeatureStatus | "ALL">("ALL");
   useEffect(() => { apiFetch<Domains>("/knowledge/domains").then(setDomains).catch(() => undefined); }, []);
+  useEffect(() => { apiFetch<Coverage>("/knowledge/coverage").then((c) => setCoverage(Object.fromEntries(c.domains.map((d) => [d.domain, d])))).catch(() => undefined); }, []);
   useEffect(() => { apiFetch<Manifest>("/knowledge/manifest").then(setManifest).catch(() => undefined); }, []);
   const features = allFeatures().filter((f) => filter === "ALL" || f.status === filter);
   return (
@@ -41,7 +55,7 @@ export function StatusOverview({ locale }: { locale: "en" | "ar" }) {
               <tbody>{domains.domains.map((d) => (
                 <tr key={d.domain}>
                   <td><strong>{d.label}</strong><br /><small>{d.scope}</small></td>
-                  <td><span className={`status-pill ${d.status === "READY" ? "status-implemented" : d.status === "PUBLISHED" ? "status-partially-implemented" : "status-not-verified"}`}>{DOMAIN_STATUS_LABEL[d.status]?.[ar ? "ar" : "en"] ?? d.status}</span><br /><small>{COVERAGE_LABEL[d.coverage]?.[ar ? "ar" : "en"]}</small></td>
+                  <td><span className={`status-pill ${d.status === "READY" ? "status-implemented" : d.status === "PUBLISHED" ? "status-partially-implemented" : "status-not-verified"}`}>{DOMAIN_STATUS_LABEL[d.status]?.[ar ? "ar" : "en"] ?? d.status}</span><br /><small>{COVERAGE_LABEL[d.coverage]?.[ar ? "ar" : "en"]}</small><br /><small data-testid={`coverage-${d.domain}`}>{coverageText(coverage[d.domain], ar)}</small></td>
                   <td>{d.records.published} / {d.records.total}<br /><small>{ar ? "منشور / الكل" : "published / total"}</small></td>
                   <td>{d.source ?? "—"}<br /><small>{d.licence ?? ""}</small></td>
                   <td>{d.status === "READY" ? "—" : <ul>{d.blockers.slice(0, 3).map((b, i) => <li key={i}><small>{b}</small></li>)}{d.blockers.length === 0 && <li><small>{d.why_not_ready.find((w) => w.kind === "gate")?.evidence}</small></li>}</ul>}</td>
