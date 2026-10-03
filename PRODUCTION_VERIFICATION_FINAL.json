@@ -1,0 +1,382 @@
+{
+ "overall_status": "NOT_PRODUCTION_READY",
+ "as_of": "2026-10-03",
+ "status_vocabulary": [
+  "PASS",
+  "PASS_AUTOMATED_ONLY",
+  "PARTIAL",
+  "BLOCKED",
+  "NOT_TESTED",
+  "NOT_APPLICABLE"
+ ],
+ "critical_components": [
+  "PostgreSQL",
+  "Redis",
+  "API",
+  "Web",
+  "nginx",
+  "MinIO",
+  "MinIO init",
+  "Ollama",
+  "Celery worker",
+  "Backup",
+  "Migrations",
+  "Real domain",
+  "TLS on the real domain",
+  "Database backup and restore",
+  "Object storage",
+  "AI works or reports unavailable",
+  "No fake data",
+  "Published data has provenance",
+  "Published data has a documented rights status",
+  "Geographic coverage is explicit",
+  "Religious content is source-backed",
+  "Email delivery"
+ ],
+ "components": [
+  {
+   "component": "PostgreSQL",
+   "result": "PASS",
+   "evidence": "postgres:17-alpine from docker-compose.prod.yml; healthy; the application role is not a superuser and owns the tables (row-level security applies); restored from backup.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Redis",
+   "result": "PASS",
+   "evidence": "redis:8-alpine healthy; used by the rate limiter and as the Celery broker.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "API",
+   "result": "PASS",
+   "evidence": "Built from apps/api/Dockerfile; healthy; 780 API tests pass.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Web",
+   "result": "PASS",
+   "evidence": "Built from apps/web/Dockerfile; 61 + 47 real-Chromium checks passed (English, Arabic RTL, mobile, admin, assistant, PWA, offline, security headers).",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "nginx",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "nginx:1.27-alpine with infrastructure/nginx/woi.conf.template; TLS with a SELF-SIGNED certificate; security headers, rate limits and the 10 MB body limit checked. Not tested with a public certificate.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "MinIO",
+   "result": "BLOCKED",
+   "evidence": "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z cannot be pulled: quay.io is refused by the environment's egress policy (403 on CONNECT); re-tried 2026-10-03.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "MinIO init",
+   "result": "BLOCKED",
+   "evidence": "quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z cannot be pulled for the same reason. Bucket creation, upload, download, checksum storage and backup storage in MinIO are NOT_TESTED.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Ollama",
+   "result": "PARTIAL",
+   "evidence": "ollama/ollama:latest container healthy. No model is installed: registry.ollama.ai is refused by the egress policy. The API reports ai_synthesis.status = unavailable and still returns quoted, cited evidence; real generation is NOT_TESTED.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Celery worker",
+   "result": "PASS",
+   "evidence": "The worker container registers woi.email.send_outbox, woi.auth.purge_expired and woi.data.validate (celery inspect registered) and runs beat; all three ran end to end on a populated database; unit and database tests included.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Backup",
+   "result": "PARTIAL",
+   "evidence": "The real backup service wrote a 72,817,232-byte gzip of a populated 397 MB database in 30 s; checksum recorded; gzip integrity checked. The design writes to ./backups only: nothing is stored in MinIO, and an off-machine copy is NOT_TESTED.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Migrations",
+   "result": "PASS",
+   "evidence": "alembic upgrade head exits 0 on the restored database (revision 20261003_0088); the up/down/up cycle passed earlier.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Real domain",
+   "result": "BLOCKED",
+   "evidence": "https://app.arfaat.com/worldofislam is refused by the egress policy from this environment (403 on CONNECT), and the certificate in /etc/letsencrypt is the self-signed one created for the test; every browser check used a local hosts mapping.",
+   "tested_on": "not reachable from the build VM"
+  },
+  {
+   "component": "TLS on the real domain",
+   "result": "NOT_TESTED",
+   "evidence": "No public certificate was obtained or tested.",
+   "tested_on": "not reachable from the build VM"
+  },
+  {
+   "component": "Database backup and restore",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "Restored into a fresh PostgreSQL 17 volume with the real restore.sh in 22 s: row counts identical in all 369 tables (543,946 rows), Qur'an text hash identical, the application started healthy on it. Data validation 12/14; the 2 failures are caused by the disk-limited copy (no tafsir rows), not by the restore. The full 5.5 GB database was not restored.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Object storage",
+   "result": "BLOCKED",
+   "evidence": "MinIO could not be started (above); the API's /health/ready reports object_storage=false (degraded).",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "AI works or reports unavailable",
+   "result": "PASS",
+   "evidence": "With no model the API and UI say so (LOCAL AI, the model name, 'no local model is running') and the quoted evidence still appears; with no sources the assistant abstains.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "No fake data",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "Every imported record comes from a named source with a checksum; test fixtures are rolled back; no human has audited this.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Published data has provenance",
+   "result": "PASS",
+   "evidence": "scripts/validate_data.py 14/14 on the full development database (12/14 on the filtered verification copy; both failures explained above).",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Published data has a documented rights status",
+   "result": "PARTIAL",
+   "evidence": "Every published dataset has a ledger entry, but the four published Qur'an datasets and the mosque data are PUBLISH_WITH_CAVEAT, not established rights.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Geographic coverage is explicit",
+   "result": "PASS",
+   "evidence": "GET /knowledge/coverage and the status page: mosques ALGERIA_ONLY, COMMUNITY_DATA, NOT_INDIVIDUALLY_VERIFIED.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Religious content is source-backed",
+   "result": "PARTIAL",
+   "evidence": "The Qur'an text and two translations are shown with source and licence, but their rights are caveated; hadith, hadith grades and tafsir are hidden; fiqh, aqeedah, seerah and scholars have no data.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Email delivery",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "The worker sends verification and password-reset mail through SMTP (tested against a local SMTP server, and the emailed token verified an account). No real provider is configured: WOI_SMTP_HOST is empty in .env.production, so no user can currently receive these emails.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Security",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "AUTOMATED_SECURITY_TESTED. pip-audit and pnpm audit clean; secret scan clean; CORS, CSRF, authentication, authorisation, rate limit, upload limit, SSRF allowlist, XSS and SQL-injection probes pass. No independent penetration test took place.",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Offline",
+   "result": "PASS_AUTOMATED_ONLY",
+   "evidence": "Visited pages reopen offline (layout only); a downloaded Qur'an is readable and searchable offline; API data, audio and AI are not available offline (by design, or no data).",
+   "tested_on": "build VM (not the production host)"
+  },
+  {
+   "component": "Arabic review",
+   "result": "BLOCKED",
+   "evidence": "168 strings await a native reader and 0 are approved. The reviewer workflow (context, English source, category, status, reviewer, timestamp, attestation, CSV hand-off) is built and tested, but only a person can approve.",
+   "tested_on": "build VM (not the production host)"
+  }
+ ],
+ "blockers": [
+  "MinIO [BLOCKED]: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z cannot be pulled: quay.io is refused by the environment's egress policy (403 on CONNECT); re-tried 2026-10-03.",
+  "MinIO init [BLOCKED]: quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z cannot be pulled for the same reason. Bucket creation, upload, download, checksum storage and backup storage in MinIO are NOT_TESTED.",
+  "Ollama [PARTIAL]: ollama/ollama:latest container healthy. No model is installed: registry.ollama.ai is refused by the egress policy. The API reports ai_synthesis.status = unavailable and still returns quoted, cited evidence; real generation is NOT_TESTED.",
+  "Backup [PARTIAL]: The real backup service wrote a 72,817,232-byte gzip of a populated 397 MB database in 30 s; checksum recorded; gzip integrity checked. The design writes to ./backups only: nothing is stored in MinIO, and an off-machine copy is NOT_TESTED.",
+  "Real domain [BLOCKED]: https://app.arfaat.com/worldofislam is refused by the egress policy from this environment (403 on CONNECT), and the certificate in /etc/letsencrypt is the self-signed one created for the test; every browser check used a local hosts mapping.",
+  "TLS on the real domain [NOT_TESTED]: No public certificate was obtained or tested.",
+  "Object storage [BLOCKED]: MinIO could not be started (above); the API's /health/ready reports object_storage=false (degraded).",
+  "Published data has a documented rights status [PARTIAL]: Every published dataset has a ledger entry, but the four published Qur'an datasets and the mosque data are PUBLISH_WITH_CAVEAT, not established rights.",
+  "Religious content is source-backed [PARTIAL]: The Qur'an text and two translations are shown with source and licence, but their rights are caveated; hadith, hadith grades and tafsir are hidden; fiqh, aqeedah, seerah and scholars have no data."
+ ],
+ "tests": {
+  "api": "789 passed",
+  "web": "43 passed (43)",
+  "api_failed": 0,
+  "web_failed": 0
+ },
+ "environment": "docker-compose.prod.yml on the build VM, reached at https://app.arfaat.com/worldofislam through a local hosts mapping and a SELF-SIGNED certificate. NOT the real production host: the real domain is refused by the egress policy from this VM.",
+ "browser_suites": {
+  "browser-verify.cjs": {
+   "passed": 61,
+   "failed": 0,
+   "checks": [
+    "status page: honest domain dashboard lists 22 domains",
+    "status page: no domain is shown as Ready (the Qur'an's rights are caveated)",
+    "status page: statuses are honest (Qur'an and hadith rights unverified, fiqh empty, charities blocked, mosques published with gates open)",
+    "status page: geographic coverage is explicit (mosques one country only, jobs no verified data, Qur'an not tied to a place)",
+    "status page: states automated checks only",
+    "directory: mosques shown with licence attribution and 'Not verified'",
+    "directory: coverage note names the country and denies global coverage",
+    "directory API: only mosques have visible listings before the admin test",
+    "public API hides/does not have hadith_grading records",
+    "public API hides/does not have fiqh records",
+    "public API hides/does not have aqeedah records",
+    "public API hides/does not have seerah records",
+    "public API hides/does not have terminology records",
+    "public API hides/does not have library_work records",
+    "public API hides/does not have history records",
+    "public API hides/does not have civilization records",
+    "public API hides/does not have scholar records",
+    "public search returns no tafsir (hidden dataset)",
+    "domains API: no domain claims READY without passing every gate",
+    "hadith grading page: staged data is not shown and the wording is accurate",
+    "fiqh page: exact empty-state wording",
+    "quran reader: Arabic text from the database and the audio notice",
+    "hadith reader shows no hadith text while rights are unresolved",
+    "hadith API publishes no collection",
+    "coverage API: mosques ALGERIA_ONLY, nothing GLOBAL without published content",
+    "arabic mobile /ar/status: RTL and no horizontal scroll",
+    "arabic mobile /ar/directory: RTL and no horizontal scroll",
+    "arabic mobile /ar/knowledge/fiqh: RTL and no horizontal scroll",
+    "arabic mobile /ar/quran/1: RTL and no horizontal scroll",
+    "arabic status: dashboard renders in Arabic",
+    "arabic fiqh empty state",
+    "english mobile /en/status: no horizontal scroll",
+    "english mobile /en/directory: no horizontal scroll",
+    "english mobile /en/knowledge/hadith_grading: no horizontal scroll",
+    "admin signs in through the login form",
+    "admin readiness tab lists domains",
+    "admin sees exactly why hadith is not READY (blockers and failing gates)",
+    "admin sees why gradings are not READY",
+    "review queue lists Arabic strings awaiting native review (none approved)",
+    "mosque review queues show the flagged names without altering them",
+    "admin importers tab lists the three adapters",
+    "admin can check source reachability from the server",
+    "importer preview from an unreachable source fails safely with a clear message (nothing written)",
+    "preview shows the validation failure and blocks the import button",
+    "preview of the corrected file: 2 valid rows, 2 new, 0 errors",
+    "import applied (created 2)",
+    "imported but unpublished jobs are not public",
+    "publishing before verification is refused with reasons",
+    "after verify+publish only the open job is public; the expired job is excluded",
+    "public jobs page shows the open job with employer and apply link, not the closed one",
+    "duplicates and conflicts panel opens",
+    "unpublish removes the jobs from public view at once",
+    "provenance and import history show the import (manual upload) and its counts",
+    "rollback removes what the import created",
+    "event import applied (created, or unchanged when re-run)",
+    "completed events stay excluded; upcoming event is shown",
+    "assistant cites Qur'an passages as primary sources with verification state, source and licence",
+    "assistant labels the quoted passages SOURCE EVIDENCE",
+    "AI summary requested with no model installed: shows LOCAL AI, the model name, and says it is unavailable; the quotes still appear",
+    "assistant abstains and says no sufficiently reliable source is available",
+    "audit log records import, verify, publish, unpublish and rollback"
+   ]
+  },
+  "prod-extra-verify.cjs": {
+   "passed": 47,
+   "failed": 0,
+   "checks": [
+    "security headers on the page: HSTS, nosniff, frame protection, referrer policy",
+    "no server version leaked (Server header carries no version)",
+    "x-powered-by is not exposed",
+    "API responses are JSON with nosniff",
+    "plain HTTP is not served as a site (redirect or refused)",
+    "unknown page returns a real 404 with a readable page",
+    "unknown API route returns a JSON 404, not a stack trace",
+    "invalid query parameters are rejected with 422, not 500",
+    "static file /robots.txt is served under the base path",
+    "static file /manifest.webmanifest is served under the base path",
+    "static file /sw.js is served under the base path",
+    "static file /icon.svg is served under the base path",
+    "/.env and similar files are not served",
+    "service worker is served as JavaScript with no long-lived cache",
+    "SQL-injection style input never causes a server error",
+    "database intact after injection probes",
+    "script in a query string is not executed",
+    "page links a web app manifest under the base path",
+    "service worker registers with the base-path scope",
+    "command palette opens with Ctrl+K",
+    "search page returns Qur'an results for 'patience' with their source",
+    "page /en/tafsir/1/1 loads without a server error",
+    "page /en/tafsir/study loads without a server error",
+    "page /en/topics loads without a server error",
+    "page /en/learning loads without a server error",
+    "page /en/source-registry loads without a server error",
+    "page /en/w loads without a server error",
+    "page /en/verify loads without a server error",
+    "tafsir page states plainly that tafsir is not available (hidden pending rights)",
+    "an anonymous caller cannot export the Arabic review CSV (401)",
+    "admin API refuses an anonymous caller (401)",
+    "admin page does not reveal data to an anonymous visitor",
+    "wrong password is refused without saying which part was wrong",
+    "an ordinary user can register and sign in",
+    "a state-changing request without the CSRF token is refused",
+    "a signed-in non-administrator is refused on the admin API (403)",
+    "a non-administrator cannot read the review queues",
+    "a non-administrator cannot export the Arabic review CSV",
+    "stored markup in a display name is shown as text, not executed",
+    "session cookie is HttpOnly, Secure and scoped to the base path",
+    "logout ends the session",
+    "repeated login attempts are rate limited (429)",
+    "OFFLINE_UI: a previously visited page reopens without a connection",
+    "OFFLINE_CACHED_DATA: API data is NOT available offline (by design: only the shell and an explicit Qur'an download are stored)",
+    "OFFLINE_QURAN: a downloaded surah (opened once while online) is readable with no connection",
+    "OFFLINE_SEARCH: Arabic search over the downloaded Qur'an returns verses with no connection",
+    "OFFLINE_AUDIO: no recitation is published, so there is nothing to take offline"
+   ]
+  }
+ },
+ "backup_restore": [
+  {
+   "stage": "before",
+   "postgres": "17.11",
+   "alembic": "20261003_0088",
+   "database_bytes": 397170355,
+   "tables": 369,
+   "rows": 543946,
+   "ayah_md5": "7a79967769489ba3a3a517184b3dd884"
+  },
+  {
+   "stage": "backup",
+   "file": "woi-20261003T161342Z.sql.gz",
+   "bytes": 72817232,
+   "sha256": "96a4661d9416ed2df2c2179de37b3b0f70d1c26b16b1fccac13bab183b69c019",
+   "gzip_integrity": "ok",
+   "seconds": 30
+  },
+  {
+   "stage": "restore",
+   "fresh_database_tables_before": 0,
+   "seconds": 22,
+   "row_counts": "identical",
+   "tables": 369,
+   "rows": 543946,
+   "alembic": "20261003_0088",
+   "ayah_md5": "7a79967769489ba3a3a517184b3dd884"
+  },
+  {
+   "stage": "ownership",
+   "table_owner": "world_of_islam",
+   "app_role_is_superuser": "f"
+  },
+  {
+   "stage": "migrations",
+   "result": "alembic upgrade head exits 0 on the restored database"
+  },
+  {
+   "stage": "validation",
+   "as_role": "world_of_islam",
+   "passed": 12,
+   "failed": 2
+  },
+  {
+   "stage": "application",
+   "health": "healthy",
+   "reads": {
+    "surahs": 114,
+    "mosques_visible": 19776,
+    "mosque_coverage": "ALGERIA_ONLY"
+   }
+  }
+ ],
+ "security_label": "AUTOMATED_SECURITY_TESTED (no independent penetration test)"
+}

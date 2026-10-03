@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 J = lambda name: json.loads((ROOT / name).read_text(encoding="utf-8"))  # noqa: E731
 ready, prod, cover, sources = J("DATA_READINESS_FINAL.json"), J("PRODUCTION_VERIFICATION_FINAL.json"), J("DATA_COVERAGE_FINAL.json"), J("SOURCE_VERIFICATION_FINAL.json")
 backup, comp, sec = J("data/verification-backup-restore.json"), J("data/verification-prod-compose.json"), J("data/verification-security.json")
-probes = {r["source_id"]: r for r in sources["probes"]["records"]}
+probes = {r["source_id"]: r for r in J("data/source-probes.json")["records"]}
 verdict = prod["overall_status"]
 n = lambda x: f"{x:,}"  # noqa: E731
 

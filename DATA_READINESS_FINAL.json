@@ -1,112 +1,24 @@
 {
+ "overall_status": "NOT_PRODUCTION_READY",
  "as_of": "2026-10-03",
- "production_verdict": "NOT_PRODUCTION_READY",
- "blockers": [
-  "Complete docker-compose.prod.yml not run: quay.io (MinIO, mc) answers 403 from the build environment.",
-  "Production host https://app.arfaat.com was not tested; all browser checks ran against a local copy with a self-signed certificate.",
-  "Rights are not established for published Qur'an text, tajweed, the two translations and the mosque data (PUBLISH_WITH_CAVEAT); hadith text, hadith grades and tafsir are hidden for the same reason.",
-  "Every candidate source host except PyPI, npm and raw.githubusercontent.com is refused by this environment's network policy (Wikidata, OpenStreetMap/Overpass, Open Library, Internet Archive, Gutenberg, charity registers, job APIs, recitation hosts, sunnah.com).",
-  "Fiqh, aqeedah, seerah, terminology, history, civilization, organisations, events, volunteering, businesses, professionals and health have no data and no legitimate source found.",
-  "No human has reviewed any Arabic string, any scholarly content or any legal question; 168 Arabic strings await a native reader.",
-  "No Ollama model is installed; the AI synthesis is unavailable.",
-  "The worker registers no Celery tasks; the backup job has not been tested against real data."
+ "status_vocabulary": [
+  "PASS",
+  "PASS_AUTOMATED_ONLY",
+  "PARTIAL",
+  "BLOCKED",
+  "NOT_TESTED",
+  "NOT_APPLICABLE"
  ],
- "acceptance_criteria": [
-  {
-   "criterion": "production build succeeds",
-   "result": "PASS",
-   "evidence": "next build exit 0; api, web, migrate and worker images built from the real Dockerfiles (CA injected into builder stages only)"
-  },
-  {
-   "criterion": "migrations succeed",
-   "result": "PASS",
-   "evidence": "alembic up/down/up to 20261003_0088 on a scratch database; the stack's migrate service completed"
-  },
-  {
-   "criterion": "all tests pass",
-   "result": "PASS",
-   "evidence": "API 757 passed (incl. 20 integration); web 43 passed; typecheck and ESLint clean"
-  },
-  {
-   "criterion": "security checks pass",
-   "result": "PASS_AUTOMATED_ONLY",
-   "evidence": "pip-audit and pnpm audit clean; secret scan found placeholders only; CORS, CSRF, authn/authz, injection, upload, SSRF and rate-limit checks passed. No external penetration test."
-  },
-  {
-   "criterion": "real production compose is tested",
-   "result": "FAIL",
-   "evidence": "docker-compose.prod.yml was run, but MinIO and its init job could not be started (quay.io answers 403), so the complete file was not run"
-  },
-  {
-   "criterion": "required services are tested",
-   "result": "FAIL",
-   "evidence": "MinIO not run; Ollama has no model (pull failed); the worker registers no tasks; the backup job was exercised only against an empty database"
-  },
-  {
-   "criterion": "frontend works under /worldofislam",
-   "result": "PASS",
-   "evidence": "59 + 45 browser checks passed on the stack (local hosts mapping and self-signed certificate, not app.arfaat.com)"
-  },
-  {
-   "criterion": "AI works or clearly reports unavailable",
-   "result": "PASS",
-   "evidence": "no model is installed; the API reports ai_synthesis.status = unavailable and still returns cited, quoted evidence"
-  },
-  {
-   "criterion": "every published dataset has provenance",
-   "result": "PASS",
-   "evidence": "scripts/validate_data.py 14/14 on the working database"
-  },
-  {
-   "criterion": "every published dataset has appropriate rights status",
-   "result": "FAIL",
-   "evidence": "5 published datasets rest on PUBLISH_WITH_CAVEAT, not on established rights: quran-arabic-uthmani-hafs, quran-tajweed-quranws, quran-translation-pickthall, quran-translation-yusufali-1934, directory-mosques"
-  },
-  {
-   "criterion": "geographic coverage is explicit",
-   "result": "PASS",
-   "evidence": "GET /knowledge/coverage and the status page state the countries; mosques are ALGERIA_ONLY"
-  },
-  {
-   "criterion": "religious claims are source-backed",
-   "result": "PASS",
-   "evidence": "every cited passage carries source, licence and authority class; with no source the assistant abstains"
-  },
-  {
-   "criterion": "hadith grades are attributed",
-   "result": "NOT_APPLICABLE",
-   "evidence": "no hadith grade is published; the structure stores each grader separately and never picks a winner"
-  },
-  {
-   "criterion": "scholarly disagreement is preserved",
-   "result": "PASS_STRUCTURE_ONLY",
-   "evidence": "fiqh/aqeedah records are per madhhab/school and listed separately (tested); no such records exist yet"
-  },
-  {
-   "criterion": "no fabricated records exist",
-   "result": "NOT_VERIFIED",
-   "evidence": "every imported record comes from a named source with a checksum; absence of fabrication is not independently proven and no human reviewed the data"
-  },
-  {
-   "criterion": "no fake directories exist",
-   "result": "PASS",
-   "evidence": "the only listings are 19,781 imported mosque records (Algeria); test fixtures are rolled back"
-  },
-  {
-   "criterion": "no fake audio exists",
-   "result": "PASS",
-   "evidence": "no recitation is published; delivery classes require recorded rights"
-  },
-  {
-   "criterion": "no fake citations exist",
-   "result": "PASS",
-   "evidence": "citation validation rejects references that are not in the retrieved evidence (tests)"
-  },
-  {
-   "criterion": "domains READY",
-   "result": "FAIL",
-   "evidence": "status counts: {'RIGHTS_UNVERIFIED': 4, 'EMPTY': 12, 'SOURCE_BLOCKED': 5, 'PUBLISHED': 1}; no domain is READY"
-  }
+ "blockers": [
+  "MinIO [BLOCKED]: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z cannot be pulled: quay.io is refused by the environment's egress policy (403 on CONNECT); re-tried 2026-10-03.",
+  "MinIO init [BLOCKED]: quay.io/minio/mc:RELEASE.2025-07-21T05-28-08Z cannot be pulled for the same reason. Bucket creation, upload, download, checksum storage and backup storage in MinIO are NOT_TESTED.",
+  "Ollama [PARTIAL]: ollama/ollama:latest container healthy. No model is installed: registry.ollama.ai is refused by the egress policy. The API reports ai_synthesis.status = unavailable and still returns quoted, cited evidence; real generation is NOT_TESTED.",
+  "Backup [PARTIAL]: The real backup service wrote a 72,817,232-byte gzip of a populated 397 MB database in 30 s; checksum recorded; gzip integrity checked. The design writes to ./backups only: nothing is stored in MinIO, and an off-machine copy is NOT_TESTED.",
+  "Real domain [BLOCKED]: https://app.arfaat.com/worldofislam is refused by the egress policy from this environment (403 on CONNECT), and the certificate in /etc/letsencrypt is the self-signed one created for the test; every browser check used a local hosts mapping.",
+  "TLS on the real domain [NOT_TESTED]: No public certificate was obtained or tested.",
+  "Object storage [BLOCKED]: MinIO could not be started (above); the API's /health/ready reports object_storage=false (degraded).",
+  "Published data has a documented rights status [PARTIAL]: Every published dataset has a ledger entry, but the four published Qur'an datasets and the mosque data are PUBLISH_WITH_CAVEAT, not established rights.",
+  "Religious content is source-backed [PARTIAL]: The Qur'an text and two translations are shown with source and licence, but their rights are caveated; hadith, hadith grades and tafsir are hidden; fiqh, aqeedah, seerah and scholars have no data."
  ],
  "status_counts": {
   "RIGHTS_UNVERIFIED": 4,
@@ -115,8 +27,8 @@
   "PUBLISHED": 1
  },
  "tests": {
-  "api": "757 passed (incl. 20 integration)",
-  "web": "43 passed",
+  "api": "789 passed",
+  "web": "43 passed (43)",
   "api_failed": 0,
   "web_failed": 0
  },
