@@ -253,6 +253,7 @@ class QuranRecitationEdition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("delivery_mode IN ('hosted','external_link')", name="ck_quran_recitation_editions_delivery_mode"),
         CheckConstraint("license_status IN ('VERIFIED_OPEN','PUBLIC_DOMAIN','PD_WORK_OPEN_EDITION_DECLARED','OWNER_PERMISSION_GRANTED','LICENSE_REQUIRED','PROVENANCE_UNCLEAR','UNKNOWN')", name="ck_quran_recitation_editions_license_status"),
         CheckConstraint("NOT offline_allowed OR caching_allowed", name="ck_quran_recitation_editions_offline_needs_cache"),
+        CheckConstraint("NOT offline_allowed OR download_allowed", name="ck_quran_recitation_editions_offline_needs_download"),
     )
 
     source_edition_id: Mapped[UUID] = mapped_column(ForeignKey("source_editions.id", ondelete="RESTRICT"), nullable=False)
@@ -271,6 +272,13 @@ class QuranRecitationEdition(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source_url: Mapped[str | None] = mapped_column(String(800), nullable=True)
     caching_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     offline_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # who owns the recording and what they have granted; every right defaults to "not granted" (see app/services/recitation_rights.py)
+    recording_owner: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    territory: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    streaming_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    download_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    redistribution_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    commercial_use_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
 
 class QuranAyahAudio(UUIDPrimaryKeyMixin, TimestampMixin, Base):

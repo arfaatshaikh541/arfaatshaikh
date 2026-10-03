@@ -68,6 +68,9 @@ class KnowledgeHit:
     scholarly_status: str
     uncertainty: tuple[str, ...]
     coverage: float
+    publisher: str | None = None
+    rights_status: str = "UNKNOWN"
+    retrieved_at: str | None = None
 
 
 def coverage(terms: Sequence[str], text: str) -> float:
@@ -135,7 +138,9 @@ async def search_knowledge(db: AsyncSession, question: str, limit: int = 6) -> l
             label=f"[K{index + 1}]", record_key=record.record_key, dataset=dataset.dataset_key, kind=record.entity_type, title=record.title,
             text=render_text(record), source=record.source, source_work=record.source_work, locator=locator_of(record), license=record.license,
             position=a.get("madhhab") or a.get("school"), scholarly_status=record.scholarly_status,
-            uncertainty=uncertainty_of(record.entity_type, record.scholarly_status, a), coverage=round(score, 2)))
+            uncertainty=uncertainty_of(record.entity_type, record.scholarly_status, a), coverage=round(score, 2),
+            publisher=a.get("publisher"), rights_status=record.license_status,
+            retrieved_at=dataset.date_acquired.isoformat() if dataset.date_acquired else None))
     return hits
 
 
@@ -143,7 +148,8 @@ def hits_view(hits: Sequence[KnowledgeHit]) -> list[dict]:
     return [{"label": h.label, "authority_class": h.authority_class, "verification_state": h.verification_state, "source_title": h.source_work or h.source, "author": h.author,
              "edition": h.edition, "url": h.url, "kind": h.kind, "title": h.title, "text": h.text, "position": h.position, "source": h.source, "source_work": h.source_work,
              "locator": h.locator, "license": h.license, "scholarly_status": h.scholarly_status, "uncertainty": list(h.uncertainty),
-             "record": {"dataset": h.dataset, "id": h.record_key}, "relevance": h.coverage} for h in hits]
+             "record": {"dataset": h.dataset, "id": h.record_key}, "record_id": h.record_key, "publisher": h.publisher, "rights_status": h.rights_status,
+             "retrieved_at": h.retrieved_at, "source_url": h.url, "relevance": h.coverage} for h in hits]
 
 
 def authority_summary(sections: dict, knowledge: Sequence[dict]) -> dict[str, int]:

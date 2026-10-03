@@ -169,7 +169,7 @@ class KnowledgeRecordInput(BaseModel):
 # ---------------------------------------------------------------- religious-content structure
 
 SOURCED_TYPES = frozenset({"fiqh", "aqeedah", "seerah", "hadith_grading", "terminology", "library_work", "history", "civilization", "scholar"})
-SEERAH_RELIABILITY = ("established", "well_known_disputed", "weak_reports")
+SEERAH_RELIABILITY = ("established", "well_known_disputed", "weak_reports", "unknown")  # unknown: the source does not say; never defaulted upward
 LIBRARY_AVAILABILITY = ("metadata_only", "external_link", "owner_file")
 # One grade entry: who graded, what they said and where the grading is published. Work, edition and page stay empty unless the source states them.
 GRADE_FIELDS = frozenset({"grader", "grade", "grading_source", "grading_work", "grading_edition", "page_reference", "source_reference_text", "provenance", "note", "rights_status", "verification_status"})

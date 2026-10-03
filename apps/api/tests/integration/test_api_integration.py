@@ -21,6 +21,22 @@ if TEST_DB:
 PASSWORD = "Str0ng-Passw0rd-xyz!"
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """The suite registers dozens of users from one address; with a live Redis that trips the real rate limiter. Clear only the limiter's own keys."""
+    import redis
+    from app.core.config import get_settings
+    client = redis.Redis.from_url(get_settings().redis_url)
+    try:
+        for key in client.scan_iter("rate:*"):
+            client.delete(key)
+    except redis.RedisError:
+        pass
+    finally:
+        client.close()
+    yield
+
+
 @pytest_asyncio.fixture(loop_scope="module", scope="module")
 async def app_client():
     """An anonymous client (no cookies) - signed-in users get their own client from make_user()."""
@@ -232,6 +248,9 @@ async def test_assistant_sections_and_validated_synthesis(app_client, monkeypatc
     assert body["status"] == "assembled" and body["confidence"]["abstained"] is False
     assert len(body["sections"]["primary_source"]) == 2 and body["sections"]["scholarly_explanation"] == []
     assert all(i["authority_class"] == "primary_source" and i["verification_state"] for i in body["sections"]["primary_source"]) and body["authority_summary"] == {"primary_source": 2}
+    # every cited record carries the trust fields; where the source edition is not a stored one nothing is invented
+    assert all(i["record_id"] and set(i["trust"]) >= {"source_title", "author", "edition", "publisher", "source_url", "rights_status", "retrieved_at"}
+               and i["trust"]["rights_status"] == "REDISTRIBUTION_NOT_ESTABLISHED" for i in body["sections"]["primary_source"])
     assert body["ai_synthesis"]["status"] == "validated" and body["ai_synthesis"]["label"] == "AI SYNTHESIS"
 
 
@@ -313,6 +332,7 @@ async def test_unpublish_withdraws_a_published_dataset_and_assistant_lists_sourc
     assert all(any("not the only one" in n for n in k["uncertainty"]) for k in labels.values())
     # an unreviewed record is labelled unverified, never as a source of authority; every item says where it is from and how verified it is
     assert all(k["authority_class"] == "unverified" and k["source_title"] == "Fixture work" and k["edition"] == "Fixture edition" and k["record"]["dataset"] == "aqeedah" and "unreviewed" in k["verification_state"] for k in labels.values())
+    assert all(k["record_id"] and "rights_status" in k and "publisher" in k and "retrieved_at" in k for k in labels.values())
     assert body["authority_summary"] == {"unverified": 2}
 
     assert (await admin.post("/api/v1/admin/datasets/aqeedah/action", headers=headers, json={"action": "unpublish"})).json()["publication_status"] == "staged"
@@ -358,8 +378,10 @@ async def test_domain_dashboard_is_honest_and_downgrades_without_live_data(app_c
     body = (await app_client.get("/api/v1/knowledge/domains")).json()
     by = {d["domain"]: d for d in body["domains"]}
     assert len(by) == 22 and set(body["statuses"]) >= {"READY", "EMPTY", "SOURCE_BLOCKED", "RIGHTS_UNVERIFIED"}
-    # this scratch database holds no Qur'an: the declared READY must not be shown
-    assert by["quran"]["declared_status"] == "READY" and by["quran"]["status"] != "READY" and by["quran"]["why_not_ready"]
+    # nothing is READY: the Qur'an's rights are caveated, and this scratch database holds no Qur'an in any case
+    assert not any(d["status"] == "READY" for d in body["domains"])
+    assert by["quran"]["declared_status"] == "RIGHTS_UNVERIFIED" and by["quran"]["why_not_ready"]
+    assert by["hadith"]["records"]["published"] == 0 or by["hadith"]["status"] != "READY"
     assert by["hadith_gradings"]["status"] == "RIGHTS_UNVERIFIED" and by["fiqh"]["status"] == "EMPTY"
     assert all(d["why_not_ready"] for d in body["domains"] if d["status"] != "READY")
     full = (await admin.get("/api/v1/admin/datasets/readiness")).json()
@@ -443,3 +465,41 @@ async def test_publication_policy_can_be_scoped_to_one_dataset(app_client):
         assert len(everything) > 5 and "quran-translation-pickthall" in {r["dataset"] for r in everything}
         await session.rollback()
     await db.dispose()
+
+
+async def test_review_queues_record_decisions_without_touching_the_data(app_client):
+    admin, headers, admin_id = await make_user(app_client, admin=True)
+    assert (await admin.post("/api/v1/admin/datasets/manifest/sync", headers=headers)).status_code == 200
+    assert (await app_client.get("/api/v1/admin/review")).status_code == 401
+    synced = (await admin.post("/api/v1/admin/review/sync/arabic_ui", headers=headers)).json()
+    assert synced["flagged"] >= 137
+    mosques = await admin.post("/api/v1/admin/review/sync/mosques", headers=headers)
+    assert mosques.status_code == 200 and "No listing was renamed" in mosques.json()["note"]
+    page = (await admin.get("/api/v1/admin/review/arabic_ui?group=GENERAL_UI&status=NEEDS_NATIVE_REVIEW")).json()
+    assert page["total"] > 0 and all(i["status"] == "NEEDS_NATIVE_REVIEW" and i["reviewed_by"] is None for i in page["items"])
+    item = page["items"][0]["id"]
+    no_attestation = await admin.post(f"/api/v1/admin/review/items/{item}/decide", headers=headers, json={"status": "NATIVE_REVIEW_APPROVED"})
+    assert no_attestation.status_code == 422 and no_attestation.json()["error"]["code"] == "attestation_required"
+    wrong_queue = await admin.post(f"/api/v1/admin/review/items/{item}/decide", headers=headers, json={"status": "KEEP_AS_IS"})
+    assert wrong_queue.status_code == 422
+    assert (await admin.post(f"/api/v1/admin/review/items/{item}/decide", headers=headers, json={"status": "NATIVE_REVIEW_CHANGES_REQUESTED"})).status_code == 422
+    done = await admin.post(f"/api/v1/admin/review/items/{item}/decide", headers=headers, json={"status": "NATIVE_REVIEW_CHANGES_REQUESTED", "suggested_text": "نص مقترح"})
+    assert done.status_code == 200
+    decided = (await admin.get("/api/v1/admin/review/arabic_ui?status=NATIVE_REVIEW_CHANGES_REQUESTED")).json()["items"]
+    again = next(i for i in decided if i["id"] == item)
+    assert again["reviewed_by"] == admin_id and again["payload"]["suggested_text"] == "نص مقترح" and again["payload"]["arabic"]
+    # a second sync never resets a recorded decision
+    await admin.post("/api/v1/admin/review/sync/arabic_ui", headers=headers)
+    assert (await admin.get("/api/v1/admin/review/arabic_ui?status=NATIVE_REVIEW_CHANGES_REQUESTED")).json()["total"] >= 1
+    summary = (await admin.get("/api/v1/admin/review")).json()
+    assert "mosque_name_anomaly" in summary["queues"] and "no Arabic string counts as reviewed" in summary["notice"]
+
+
+async def test_coverage_never_claims_global_without_published_content(app_client):
+    body = (await app_client.get("/api/v1/knowledge/coverage")).json()
+    by = {d["domain"]: d for d in body["domains"]}
+    assert len(by) == 22 and "worldwide" in body["statement"]
+    for key in ("jobs", "charities", "fiqh"):
+        assert by[key]["coverage_status"] in {"NO_VERIFIED_DATA", "HIDDEN_PENDING_RIGHTS"}
+    assert all(d["coverage_status"] != "GLOBAL" or d["published"] > 0 for d in body["domains"])
+    assert all(isinstance(d.get("countries", []), list) for d in body["domains"] if d["geographic"])

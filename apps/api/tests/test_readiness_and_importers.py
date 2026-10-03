@@ -14,13 +14,43 @@ from app.services.knowledge_retrieval import authority_of, authority_summary, ve
 from app.services.manifest import load_manifest
 from app.services.readiness import GATES, STATUSES, evaluate_domain, load_registry, summarise, validate_registry
 
+from app.services.rights_ledger import load_ledger
+
 MANIFEST = load_manifest()
 REGISTRY = load_registry()
+LEDGER = load_ledger()
+
+
+def hypothetical_ready_registry():
+    """No domain is READY today (the Qur'an's rights are caveated), so the READY rules are exercised on the Qur'an entry with every gate set to pass
+    and a ledger that unconditionally establishes redistribution. This is a fixture for the validator, not a statement about the data."""
+    reg, ledger = copy.deepcopy(REGISTRY), copy.deepcopy(LEDGER)
+    d = next(x for x in reg["domains"] if x["domain"] == "quran")
+    d["status"], d["blockers"] = "READY", []
+    for gate in d["gates"].values():
+        gate["passed"] = True
+    for ds in d["published_datasets"]:
+        ledger["datasets"][ds].update(decision="PUBLISH", redistribution_allowed="ESTABLISHED", open_questions=[])
+    return reg, ledger, d
 
 
 # ---------------------------------------------------------------- registry
 def test_registry_is_consistent_with_the_manifest():
     assert validate_registry(REGISTRY, MANIFEST) == []
+
+
+def test_no_domain_is_ready_while_a_published_dataset_has_only_caveated_rights():
+    for d in REGISTRY["domains"]:
+        if d["status"] == "READY":
+            assert all(LEDGER["datasets"][ds]["decision"] == "PUBLISH" for ds in d["published_datasets"]), d["domain"]
+    assert next(d for d in REGISTRY["domains"] if d["domain"] == "quran")["status"] != "READY"
+
+
+def test_the_validator_catches_a_ready_domain_with_caveated_rights():
+    reg, ledger, _ = hypothetical_ready_registry()
+    assert validate_registry(reg, MANIFEST, ledger) == []
+    ledger["datasets"]["quran-arabic-uthmani-hafs"].update(decision="PUBLISH_WITH_CAVEAT", redistribution_allowed="CAVEATED", open_questions=["x"])
+    assert any("not PUBLISH" in p for p in validate_registry(reg, MANIFEST, ledger))
 
 
 def test_all_requested_domains_are_present_with_all_fields():
@@ -76,12 +106,19 @@ def mutated(domain, **changes):
     ("scholars", {"blockers": [], "status": "SOURCE_BLOCKED"}, "must state its blockers"),
 ])
 def test_validator_rejects_overclaiming(domain, changes, fragment):
-    problems = validate_registry(mutated(domain, **changes), MANIFEST)
+    reg, ledger, _ = hypothetical_ready_registry()
+    d = next(x for x in reg["domains"] if x["domain"] == domain)
+    for key, value in changes.items():
+        if key == "gate_fail":
+            d["gates"][value]["passed"] = False
+        else:
+            d[key] = value
+    problems = validate_registry(reg, MANIFEST, ledger)
     assert any(fragment in p for p in problems), problems
 
 
 def test_a_domain_cannot_claim_ready_if_its_published_dataset_is_withdrawn():
-    quran = next(d for d in REGISTRY["domains"] if d["domain"] == "quran")
+    _, _, quran = hypothetical_ready_registry()
     live = {"datasets": {ds: {"publication_status": "published", "enabled": True, "validation_status": "VERIFIED", "license_status": "VERIFIED_OPEN"} for ds in quran["published_datasets"]}}
     assert evaluate_domain(quran, live)["status"] == "READY"
     live["datasets"]["quran-arabic-uthmani-hafs"]["publication_status"] = "staged"
@@ -92,7 +129,7 @@ def test_a_domain_cannot_claim_ready_if_its_published_dataset_is_withdrawn():
 
 
 def test_a_domain_with_no_published_records_in_the_database_is_never_shown_as_ready():
-    quran = next(d for d in REGISTRY["domains"] if d["domain"] == "quran")
+    _, _, quran = hypothetical_ready_registry()
     live = {"datasets": {ds: {"publication_status": "published", "enabled": True, "validation_status": "VERIFIED", "license_status": "VERIFIED_OPEN"} for ds in quran["published_datasets"]},
             "counts": {"quran_ayahs": {"total": 0, "published": 0, "hidden": 0}}}
     result = evaluate_domain(quran, live)

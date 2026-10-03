@@ -580,11 +580,11 @@ Last verified 2026-10-01. Hosts marked TECHNICALLY_UNAVAILABLE returned no respo
 |---|---|---|---|---|
 | `quran-arabic-uthmani-hafs` | PyPI package quran-text (quran.ws, KFGQPC text) | CC BY 4.0 (VERIFIED_OPEN) | VERIFIED | yes |
 | `quran-tajweed-quranws` | npm @quran.ws/tajwid-rules and @quran.ws/tajwid-annotations (rules from Quranpedia) | CC BY 4.0 (VERIFIED_OPEN) | VERIFIED | yes |
-| `hadith-bukhari-arabic` | PyPI sahih-al-bukhari | Package declares AGPL-3.0; the original classical text is in the public domain (PD_WORK_OPEN_EDITION_DECLARED) | NEEDS_MANUAL_REVIEW | yes |
-| `hadith-muslim-arabic` | PyPI sahih-muslim | Package declares AGPL-3.0; the original classical text is in the public domain (PD_WORK_OPEN_EDITION_DECLARED) | NEEDS_MANUAL_REVIEW | yes |
+| `hadith-bukhari-arabic` | PyPI sahih-al-bukhari | Package declares AGPL-3.0; the original classical text is in the public domain (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |
+| `hadith-muslim-arabic` | PyPI sahih-muslim | Package declares AGPL-3.0; the original classical text is in the public domain (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |
 | `hadith-bukhari-english` | PyPI sahih-al-bukhari 3.1.7 (translation bundled in the package) | Commercially published translation; redistribution rights not established (LICENSE_REQUIRED) | LICENSE_REQUIRED | no |
 | `hadith-muslim-english` | PyPI sahih-muslim 1.1.2 (translation bundled in the package) | Commercially published translation; redistribution rights not established (LICENSE_REQUIRED) | LICENSE_REQUIRED | no |
-| `hadith-nawawi40-arabic` | npm @kazishariar/nawawi-40-hadith-data | Package declares CC BY 4.0; upstream source not documented. Original text is public domain. (PD_WORK_OPEN_EDITION_DECLARED) | NEEDS_MANUAL_REVIEW | yes |
+| `hadith-nawawi40-arabic` | npm @kazishariar/nawawi-40-hadith-data | Package declares CC BY 4.0; upstream source not documented. Original text is public domain. (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |
 | `hadith-nawawi40-english` | npm @kazishariar/nawawi-40-hadith-data (bundled translation) | Translator and upstream not documented (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |
 | `devotional-hisn-almuslim-arabic` | npm @kazishariar/hisnul-muslim-data | Package declares CC BY 4.0; upstream (selection, numbering, commentary) not documented (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |
 | `devotional-adhkar-arabic` | npm @kazishariar/morning-evening-adhkar-data | Package declares CC BY 4.0; upstream not documented (PROVENANCE_UNCLEAR) | PROVENANCE_UNCLEAR | no |

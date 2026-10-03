@@ -225,3 +225,28 @@ class PlatformAuditEvent(UUIDPrimaryKeyMixin, Base):
     target_id: Mapped[UUID | None] = mapped_column(nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+REVIEW_STATUSES = ("OPEN", "KEEP_AS_IS", "NEEDS_SOURCE_CHECK", "CONFIRMED_DUPLICATE", "NEEDS_NATIVE_REVIEW", "NATIVE_REVIEW_APPROVED", "NATIVE_REVIEW_CHANGES_REQUESTED")
+
+
+class ReviewItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One thing a human has to look at (an Arabic string, a mosque name anomaly, a co-located pair ...).
+
+    Nothing here changes the reviewed data: a decision is recorded with who made it and when, and the data stays as imported.
+    """
+    __tablename__ = "review_items"
+    __table_args__ = (
+        UniqueConstraint("queue", "item_key", name="uq_review_items_queue_key"),
+        CheckConstraint(_in("status", REVIEW_STATUSES), name="status"),
+        Index("ix_review_items_queue_status", "queue", "status"),
+    )
+
+    queue: Mapped[str] = mapped_column(String(40), nullable=False)
+    item_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    group_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN", server_default="OPEN")
+    note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    reviewed_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

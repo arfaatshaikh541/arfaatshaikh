@@ -1,0 +1,3480 @@
+{
+ "version": 1,
+ "environment_note": "Probed from the build/verification container through the egress proxy; not from the production host.",
+ "summary": {
+  "total": 58,
+  "accessible": 2,
+  "data_accessible": 5,
+  "blocked_or_unreachable": [
+   "wikidata",
+   "wikidata-sparql",
+   "wikidata-api",
+   "openstreetmap-overpass",
+   "overpass-mirror-overpass.kumi.systems",
+   "overpass-mirror-lz4.overpass-api.de",
+   "overpass-mirror-overpass.private.coffee",
+   "openstreetmap-org",
+   "openstreetmap-planet",
+   "geofabrik-extracts",
+   "nominatim",
+   "open-library",
+   "open-library-dumps",
+   "internet-archive",
+   "project-gutenberg",
+   "gutendex",
+   "hathitrust",
+   "wikisource-ar",
+   "wikimedia-dumps",
+   "wikipedia-rest",
+   "wikimedia-commons",
+   "openiti-raw",
+   "loc-gov",
+   "europeana",
+   "zenodo",
+   "huggingface-datasets",
+   "github-api",
+   "raw-githubusercontent",
+   "sunnah-com-api",
+   "sunnah-com-api-host",
+   "hadith-api-fawazahmed0",
+   "tanzil",
+   "quranenc",
+   "quran-com-api",
+   "alquran-cloud",
+   "everyayah",
+   "mp3quran",
+   "mp3quran-api",
+   "islamic-network-cdn",
+   "archive-org-audio",
+   "charity-commission-ew",
+   "charity-commission-api",
+   "oscr-scotland",
+   "acnc-australia",
+   "irs-exempt-orgs",
+   "data-gov-uk",
+   "adzuna-api",
+   "arbeitnow-api",
+   "remotive-api",
+   "usajobs-api",
+   "geonames",
+   "natural-earth",
+   "hijri-aladhan-api",
+   "kiwix-library",
+   "shamela-ws",
+   "waqfeya"
+  ]
+ },
+ "records": [
+  {
+   "source_id": "wikidata",
+   "domain": "scholar, library_work, history, civilization, organisation, mosque",
+   "host": "www.wikidata.org",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://www.wikidata.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.wikidata.org/wiki/Wikidata:Main_Page",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 734,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 651,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 324,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://www.wikidata.org/wiki/Special:EntityData/Q9458.json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 319,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikidata-sparql",
+   "domain": "scholar, library_work, history, civilization, organisation, mosque",
+   "host": "query.wikidata.org",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://query.wikidata.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://query.wikidata.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 651,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 470,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 316,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://query.wikidata.org/sparql?format=json&query=ASK%7B%7D",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 427,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikidata-api",
+   "domain": "scholar",
+   "host": "www.wikidata.org",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://www.wikidata.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.wikidata.org/w/api.php",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 641,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 329,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q9458&props=labels&languages=en&format=json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 505,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "openstreetmap-overpass",
+   "domain": "mosque, organisation, charity, health, business",
+   "host": "overpass-api.de",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "162.55.144.139",
+     "2a01:4f8:261:3c4f::2",
+     "2a01:4f9:3051:3e48::2",
+     "65.109.112.52"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://overpass-api.de/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": "osm-overpass-mosques",
+   "requests": {
+    "main": {
+     "url": "https://overpass-api.de/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 725,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.openstreetmap.org/copyright",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 703,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://wiki.openstreetmap.org/wiki/Overpass_API",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 487,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://overpass-api.de/api/status",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 445,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "overpass-mirror-overpass.kumi.systems",
+   "domain": "mosque",
+   "host": "overpass.kumi.systems",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "193.219.97.30",
+     "2a0d:f302:126:78ea::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://overpass.kumi.systems/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": "osm-overpass-mosques",
+   "requests": {
+    "main": {
+     "url": "https://overpass.kumi.systems/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 685,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://overpass.kumi.systems/api/status",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 650,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "overpass-mirror-lz4.overpass-api.de",
+   "domain": "mosque",
+   "host": "lz4.overpass-api.de",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2a01:4f8:261:3c4f::2",
+     "65.109.112.52"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://lz4.overpass-api.de/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": "osm-overpass-mosques",
+   "requests": {
+    "main": {
+     "url": "https://lz4.overpass-api.de/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 684,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://lz4.overpass-api.de/api/status",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 646,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "overpass-mirror-overpass.private.coffee",
+   "domain": "mosque",
+   "host": "overpass.private.coffee",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "193.219.97.30",
+     "2a0d:f302:126:78ea::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://overpass.private.coffee/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": "osm-overpass-mosques",
+   "requests": {
+    "main": {
+     "url": "https://overpass.private.coffee/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 720,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://overpass.private.coffee/api/status",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 483,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "openstreetmap-org",
+   "domain": "mosque",
+   "host": "www.openstreetmap.org",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "151.101.1.55",
+     "151.101.129.55",
+     "151.101.193.55",
+     "151.101.65.55"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.openstreetmap.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 676,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.openstreetmap.org/copyright",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 743,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://wiki.osmfoundation.org/wiki/Terms_of_Use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 455,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "openstreetmap-planet",
+   "domain": "mosque",
+   "host": "planet.openstreetmap.org",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2001:4d78:500:5e3::11",
+     "82.199.86.113"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://planet.openstreetmap.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://planet.openstreetmap.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 704,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.openstreetmap.org/copyright",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 558,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://planet.openstreetmap.org/planet/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 209,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "geofabrik-extracts",
+   "domain": "mosque",
+   "host": "download.geofabrik.de",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2a01:4f9:2a:3182::2",
+     "2a01:4f9:2b:27d0::2",
+     "2a01:4f9:2b:2820::2",
+     "2a01:4f9:4a:1767::2"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://download.geofabrik.de/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://download.geofabrik.de/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 730,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.openstreetmap.org/copyright",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 665,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://download.geofabrik.de/africa/algeria.html",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 470,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "nominatim",
+   "domain": "mosque",
+   "host": "nominatim.openstreetmap.org",
+   "last_checked": "2026-10-03T07:45:22+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "151.101.1.91",
+     "151.101.129.91",
+     "151.101.193.91",
+     "151.101.65.91"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://nominatim.openstreetmap.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 694,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.openstreetmap.org/copyright",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 641,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://operations.osmfoundation.org/policies/nominatim/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 323,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "open-library",
+   "domain": "library_work",
+   "host": "openlibrary.org",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "207.241.234.205"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://openlibrary.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://openlibrary.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 691,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://openlibrary.org/developers/licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 623,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://openlibrary.org/developers/api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 329,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://openlibrary.org/search.json?q=al-ghazali&limit=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 258,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "open-library-dumps",
+   "domain": "library_work",
+   "host": "openlibrary.org",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "207.241.234.205"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://openlibrary.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://openlibrary.org/developers/dumps",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 423,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://openlibrary.org/developers/licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 412,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://openlibrary.org/data/ol_dump_authors_latest.txt.gz",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 398,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "internet-archive",
+   "domain": "library_work",
+   "host": "archive.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "207.241.224.2"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://archive.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://archive.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 355,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://archive.org/about/terms.php",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 404,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://archive.org/about/terms.php",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 586,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://archive.org/advancedsearch.php?q=subject%3Aislam+AND+mediatype%3Atexts&fl%5B%5D=identifier&fl%5B%5D=licenseurl&rows=1&output=json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 233,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "project-gutenberg",
+   "domain": "library_work",
+   "host": "www.gutenberg.org",
+   "last_checked": "2026-10-03T07:45:23+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "152.19.134.47",
+     "2610:28:3090:3000:0:bad:cafe:47"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.gutenberg.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 287,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.gutenberg.org/policy/license.html",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 397,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://www.gutenberg.org/policy/permission.html",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 404,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "gutendex",
+   "domain": "library_work",
+   "host": "gutendex.com",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.21.80.54",
+     "172.67.174.132",
+     "2606:4700:3031::ac43:ae84",
+     "2606:4700:3036::6815:5036"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://gutendex.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://gutendex.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 356,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.gutenberg.org/policy/license.html",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 348,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://gutendex.com/books/?search=quran",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 406,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "hathitrust",
+   "domain": "library_work",
+   "host": "www.hathitrust.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "162.159.140.37",
+     "172.66.0.37",
+     "2606:4700:7::25",
+     "2a06:98c1:58::25"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://catalog.hathitrust.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.hathitrust.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 354,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.hathitrust.org/terms-of-use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 468,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://catalog.hathitrust.org/api/volumes/brief/oclc/424023.json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 368,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikisource-ar",
+   "domain": "library_work",
+   "host": "ar.wikisource.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://ar.wikisource.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://ar.wikisource.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 501,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://ar.wikisource.org/wiki/ويكي_مصدر:حقوق_النشر",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 258,
+     "tls": null,
+     "error": "network_error: ordinal not in range(128)"
+    },
+    "data": {
+     "url": "https://ar.wikisource.org/w/api.php?action=query&meta=siteinfo&format=json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 264,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikimedia-dumps",
+   "domain": "history, scholar",
+   "host": "dumps.wikimedia.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.154.242",
+     "2620:0:861:ed1a::3:242"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://dumps.wikimedia.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://dumps.wikimedia.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 476,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://dumps.wikimedia.org/legal.html",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 437,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 279,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikipedia-rest",
+   "domain": "history, civilization",
+   "host": "en.wikipedia.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://en.wikipedia.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://en.wikipedia.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 473,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 412,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 488,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://en.wikipedia.org/api/rest_v1/page/summary/Ibn_Sina",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 131,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "wikimedia-commons",
+   "domain": "civilization",
+   "host": "commons.wikimedia.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "208.80.153.224",
+     "2620:0:860:ed1a::1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://commons.wikimedia.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://commons.wikimedia.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 394,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 384,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://commons.wikimedia.org/w/api.php?action=query&meta=siteinfo&format=json",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 126,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "openiti-raw",
+   "domain": "library_work, scholar, history",
+   "host": "github.com",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "140.82.114.4"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": true,
+   "robots": {
+    "checked": true,
+    "allowed": true,
+    "robots_url": "https://raw.githubusercontent.com/robots.txt",
+    "note": "HTTP 404"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://github.com/OpenITI/RELEASE",
+     "reachable": true,
+     "status": 403,
+     "final_url": "https://github.com/OpenITI/RELEASE",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 0,
+     "ms": 522,
+     "tls": true,
+     "error": "HTTP 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://github.com/OpenITI/RELEASE",
+     "reachable": true,
+     "status": 403,
+     "final_url": "https://github.com/OpenITI/RELEASE",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 0,
+     "ms": 343,
+     "tls": true,
+     "error": "HTTP 403 Forbidden"
+    },
+    "data": {
+     "url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
+     "content_type": "text/plain; charset=utf-8",
+     "bytes_read": 2048,
+     "ms": 575,
+     "tls": true,
+     "error": null
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "loc-gov",
+   "domain": "library_work",
+   "host": "www.loc.gov",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.17.6.58",
+     "104.18.64.82",
+     "2606:4700::6811:63a",
+     "2606:4700::6812:4052"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://www.loc.gov/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.loc.gov/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 416,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.loc.gov/legal/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 367,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://www.loc.gov/books/?q=ghazali&fo=json&c=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 331,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "europeana",
+   "domain": "library_work, civilization",
+   "host": "www.europeana.eu",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "172.66.136.97",
+     "172.66.137.231",
+     "2606:4700:10::ac42:8861",
+     "2606:4700:10::ac42:89e7"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.europeana.eu/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 360,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.europeana.eu/en/rights",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 287,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "zenodo",
+   "domain": "all domains",
+   "host": "zenodo.org",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "137.138.153.219",
+     "137.138.52.235",
+     "188.184.103.118",
+     "188.184.98.114"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://zenodo.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://zenodo.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 242,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://about.zenodo.org/terms/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 512,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://zenodo.org/api/records?q=hadith&size=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 366,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "huggingface-datasets",
+   "domain": "all domains",
+   "host": "huggingface.co",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "13.226.251.112",
+     "13.226.251.20",
+     "13.226.251.66",
+     "13.226.251.81"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://huggingface.co/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://huggingface.co/datasets",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 281,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://huggingface.co/terms-of-service",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 490,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://huggingface.co/api/datasets?search=hadith&limit=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 173,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "github-api",
+   "domain": "all domains",
+   "host": "github.com",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "140.82.114.3"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": true,
+   "robots": {
+    "checked": true,
+    "allowed": null,
+    "robots_url": "https://api.github.com/robots.txt",
+    "note": "HTTP 403"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://github.com/",
+     "reachable": true,
+     "status": 400,
+     "final_url": "https://github.com/",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 0,
+     "ms": 380,
+     "tls": true,
+     "error": "HTTP 400 Bad Request"
+    },
+    "licence": {
+     "url": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 189,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://api.github.com/rate_limit",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://api.github.com/rate_limit",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 1238,
+     "ms": 588,
+     "tls": true,
+     "error": null
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "raw-githubusercontent",
+   "domain": "all domains",
+   "host": "raw.githubusercontent.com",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "185.199.108.133",
+     "185.199.109.133",
+     "185.199.110.133",
+     "185.199.111.133"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": true,
+   "robots": {
+    "checked": true,
+    "allowed": true,
+    "robots_url": "https://raw.githubusercontent.com/robots.txt",
+    "note": "HTTP 404"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://raw.githubusercontent.com/",
+     "reachable": true,
+     "status": 400,
+     "final_url": "https://raw.githubusercontent.com/",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 0,
+     "ms": 737,
+     "tls": true,
+     "error": "HTTP 400 Bad Request"
+    },
+    "licence": {
+     "url": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 265,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md",
+     "content_type": "text/plain; charset=utf-8",
+     "bytes_read": 2048,
+     "ms": 404,
+     "tls": true,
+     "error": null
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "pypi",
+   "domain": "all domains",
+   "host": "pypi.org",
+   "last_checked": "2026-10-03T07:45:24+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "151.101.0.223",
+     "151.101.128.223",
+     "151.101.192.223",
+     "151.101.64.223"
+    ]
+   },
+   "accessible": true,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": true,
+   "robots": {
+    "checked": true,
+    "allowed": true,
+    "robots_url": "https://pypi.org/robots.txt"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://pypi.org/",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://pypi.org/",
+     "content_type": "text/html; charset=UTF-8",
+     "bytes_read": 2048,
+     "ms": 323,
+     "tls": true,
+     "error": null
+    },
+    "licence": {
+     "url": "https://pypi.org/policy/terms-of-use/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 200,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://pypi.org/pypi/sahih-al-bukhari/json",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://pypi.org/pypi/sahih-al-bukhari/json",
+     "content_type": "application/json",
+     "bytes_read": 2048,
+     "ms": 199,
+     "tls": true,
+     "error": null
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "npm-registry",
+   "domain": "all domains",
+   "host": "registry.npmjs.org",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.16.0.34",
+     "104.16.1.34",
+     "104.16.10.34",
+     "104.16.11.34"
+    ]
+   },
+   "accessible": true,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": true,
+    "allowed": true,
+    "robots_url": "https://registry.npmjs.org/robots.txt"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://registry.npmjs.org/",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://registry.npmjs.org/",
+     "content_type": "application/json",
+     "bytes_read": 2,
+     "ms": 188,
+     "tls": true,
+     "error": null
+    },
+    "licence": {
+     "url": "https://docs.npmjs.com/policies/terms",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 134,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-hafs",
+     "reachable": true,
+     "status": 404,
+     "final_url": "https://registry.npmjs.org/@quran.ws%2ftajwid-hafs",
+     "content_type": "application/json",
+     "bytes_read": 0,
+     "ms": 387,
+     "tls": true,
+     "error": "HTTP 404 Not Found"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "sunnah-com-api",
+   "domain": "hadith, hadith_grading",
+   "host": "sunnah.com",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.12.53",
+     "104.26.13.53",
+     "172.67.71.16",
+     "2606:4700:20::681a:c35"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://sunnah.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 369,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://sunnah.com/developers",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 351,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://sunnah.com/about",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 200,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "sunnah-com-api-host",
+   "domain": "hadith",
+   "host": "api.sunnah.com",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "184.32.202.175",
+     "32.187.178.220",
+     "35.82.179.150"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://api.sunnah.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://api.sunnah.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 391,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://sunnah.com/developers",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 408,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://api.sunnah.com/v1/collections",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 283,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "hadith-api-fawazahmed0",
+   "domain": "hadith, hadith_grading",
+   "host": "github.com",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "140.82.114.3"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": true,
+   "terms_accessible": null,
+   "data_accessible": true,
+   "robots": {
+    "checked": true,
+    "allowed": true,
+    "robots_url": "https://raw.githubusercontent.com/robots.txt",
+    "note": "HTTP 404"
+   },
+   "importer_available": "hadith-api-grades",
+   "requests": {
+    "main": {
+     "url": "https://github.com/fawazahmed0/hadith-api",
+     "reachable": true,
+     "status": 403,
+     "final_url": "https://github.com/fawazahmed0/hadith-api",
+     "content_type": "application/json; charset=utf-8",
+     "bytes_read": 0,
+     "ms": 363,
+     "tls": true,
+     "error": "HTTP 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+     "content_type": "text/plain; charset=utf-8",
+     "bytes_read": 1211,
+     "ms": 603,
+     "tls": true,
+     "error": null
+    },
+    "data": {
+     "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json",
+     "reachable": true,
+     "status": 200,
+     "final_url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json",
+     "content_type": "text/plain; charset=utf-8",
+     "bytes_read": 2048,
+     "ms": 686,
+     "tls": true,
+     "error": null
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "tanzil",
+   "domain": "quran",
+   "host": "tanzil.net",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "136.243.149.84"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://tanzil.net/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 198,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://tanzil.net/docs/Tanzil_Terms_of_Use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 373,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "quranenc",
+   "domain": "quran, tafsir",
+   "host": "quranenc.com",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.21.72.175",
+     "172.67.153.84",
+     "2606:4700:3030::ac43:9954",
+     "2606:4700:3037::6815:48af"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://quranenc.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://quranenc.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 278,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://quranenc.com/en/home/api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 274,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://quranenc.com/api/v1/translations/list",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 215,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "quran-com-api",
+   "domain": "quran, recitation audio",
+   "host": "quran.com",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.10.250",
+     "104.26.11.250",
+     "172.67.68.105",
+     "2606:4700:20::681a:afa"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://api.quran.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://quran.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 354,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://api-docs.quran.foundation/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 298,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://api.quran.com/api/v4/resources/recitations",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 541,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "alquran-cloud",
+   "domain": "quran, recitation audio",
+   "host": "alquran.cloud",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2a01:4f9:c012:d020::1",
+     "37.27.91.134"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://api.alquran.cloud/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://alquran.cloud/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 291,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://alquran.cloud/api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 199,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://api.alquran.cloud/v1/edition/format/audio",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 488,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "everyayah",
+   "domain": "recitation audio",
+   "host": "everyayah.com",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "169.150.247.39",
+     "2400:52e0:1e00::1049:1"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://everyayah.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 327,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://everyayah.com/data/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 435,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://everyayah.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 553,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "mp3quran",
+   "domain": "recitation audio",
+   "host": "mp3quran.net",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.10.243",
+     "104.26.11.243",
+     "172.67.73.240",
+     "2606:4700:20::681a:af3"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://mp3quran.net/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 327,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://mp3quran.net/api/v3",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 336,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://mp3quran.net/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 356,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "mp3quran-api",
+   "domain": "recitation audio",
+   "host": "mp3quran.net",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.10.243",
+     "104.26.11.243",
+     "172.67.73.240",
+     "2606:4700:20::681a:af3"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://mp3quran.net/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://mp3quran.net/api/v3/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 162,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://mp3quran.net/api/v3",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 507,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://mp3quran.net/api/v3/reciters?language=eng",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 612,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "islamic-network-cdn",
+   "domain": "recitation audio",
+   "host": "cdn.islamic.network",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2a01:4ff:f0:ab3::1",
+     "5.161.200.100"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://cdn.islamic.network/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 289,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://alquran.cloud/api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 331,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "archive-org-audio",
+   "domain": "recitation audio",
+   "host": "archive.org",
+   "last_checked": "2026-10-03T07:45:25+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "207.241.224.2"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://archive.org/details/audio",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 82,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://archive.org/about/terms.php",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 361,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "charity-commission-ew",
+   "domain": "charity, organisation",
+   "host": "register-of-charities.charitycommission.gov.uk",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "51.104.236.20"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://register-of-charities.charitycommission.gov.uk/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://register-of-charities.charitycommission.gov.uk/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 390,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 261,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://register-of-charities.charitycommission.gov.uk/terms-and-conditions",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 343,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://register-of-charities.charitycommission.gov.uk/register/full-register-download",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 671,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "charity-commission-api",
+   "domain": "charity",
+   "host": "api.charitycommission.gov.uk",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "51.104.198.247"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://api.charitycommission.gov.uk/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 152,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://api-portal.charitycommission.gov.uk/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 458,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "oscr-scotland",
+   "domain": "charity",
+   "host": "www.oscr.org.uk",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "212.227.199.3"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://www.oscr.org.uk/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.oscr.org.uk/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 555,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 641,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://www.oscr.org.uk/about-charities/search-the-register/charity-register-download/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 457,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "acnc-australia",
+   "domain": "charity",
+   "host": "www.acnc.gov.au",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "23.220.144.74",
+     "23.220.144.89",
+     "2600:1404:6400:34::172f:33a8",
+     "2600:1404:6400:34::172f:33b7"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://data.gov.au/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.acnc.gov.au/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 497,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://data.gov.au/data/dataset/acnc-register",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 650,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://data.gov.au/data/api/3/action/package_show?id=b050b242-4487-4306-abf5-07ca073e5594",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 455,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "irs-exempt-orgs",
+   "domain": "charity",
+   "host": "www.irs.gov",
+   "last_checked": "2026-10-03T07:45:26+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "23.213.53.52",
+     "23.213.53.83",
+     "2600:1404:6400:30::17dd:168c",
+     "2600:1404:6400:30::17dd:168e"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 478,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.irs.gov/privacy-disclosure/tax-code-regulations-and-official-guidance",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 324,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "data-gov-uk",
+   "domain": "charity, organisation",
+   "host": "www.data.gov.uk",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "151.101.0.144",
+     "151.101.128.144",
+     "151.101.192.144",
+     "151.101.64.144"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://data.gov.uk/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.data.gov.uk/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 509,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 555,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://data.gov.uk/api/3/action/package_search?q=charity&rows=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 376,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "adzuna-api",
+   "domain": "job",
+   "host": "developer.adzuna.com",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "100.62.243.43",
+     "34.202.86.49",
+     "98.89.217.188"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://developer.adzuna.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 414,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://developer.adzuna.com/overview",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 667,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://www.adzuna.com/terms",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 390,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "arbeitnow-api",
+   "domain": "job",
+   "host": "www.arbeitnow.com",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.8.32",
+     "104.26.9.32",
+     "172.67.71.251",
+     "2606:4700:20::681a:820"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": false,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://www.arbeitnow.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.arbeitnow.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 276,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.arbeitnow.com/blog/job-board-api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 514,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "terms": {
+     "url": "https://www.arbeitnow.com/terms-and-conditions",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 328,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://www.arbeitnow.com/api/job-board-api",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 327,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "remotive-api",
+   "domain": "job",
+   "host": "remotive.com",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.26.10.89",
+     "104.26.11.89",
+     "172.67.69.96",
+     "2606:4700:20::681a:a59"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://remotive.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://remotive.com/api-documentation",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 378,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://remotive.com/api-documentation",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 619,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://remotive.com/api/remote-jobs?limit=1",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 470,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "usajobs-api",
+   "domain": "job",
+   "host": "developer.usajobs.gov",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "23.62.83.12",
+     "2600:1404:6400:1994::1508",
+     "2600:1404:6400:1995::1508"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://developer.usajobs.gov/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 783,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://developer.usajobs.gov/general/terms-of-use",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 364,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "geonames",
+   "domain": "geography",
+   "host": "www.geonames.org",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "188.40.33.19"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://download.geonames.org/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.geonames.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 531,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://creativecommons.org/licenses/by/4.0/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 337,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://download.geonames.org/export/dump/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 294,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "natural-earth",
+   "domain": "geography",
+   "host": "www.naturalearthdata.com",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "50.87.253.14"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://www.naturalearthdata.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 591,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://www.naturalearthdata.com/about/terms-of-use/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 444,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "hijri-aladhan-api",
+   "domain": "events",
+   "host": "aladhan.com",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "2a01:4ff:f0:ab3::1",
+     "5.161.200.100"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": false,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "robots_url": "https://api.aladhan.com/robots.txt",
+    "note": "URLError"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://aladhan.com/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 427,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://aladhan.com/terms-and-conditions",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 475,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "data": {
+     "url": "https://api.aladhan.com/v1/gToH?date=01-10-2026",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 133,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "kiwix-library",
+   "domain": "library_work",
+   "host": "library.kiwix.org",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "51.159.97.236"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": false,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://library.kiwix.org/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 509,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    },
+    "licence": {
+     "url": "https://wiki.kiwix.org/wiki/Content_in_all_languages",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 266,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "shamela-ws",
+   "domain": "library_work",
+   "host": "shamela.ws",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.21.35.49",
+     "172.67.213.231",
+     "2606:4700:3034::6815:2331",
+     "2606:4700:3036::ac43:d5e7"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://shamela.ws/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 459,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  },
+  {
+   "source_id": "waqfeya",
+   "domain": "library_work",
+   "host": "waqfeya.net",
+   "last_checked": "2026-10-03T07:45:27+00:00",
+   "dns": {
+    "ok": true,
+    "addresses": [
+     "104.21.56.211",
+     "172.67.155.242",
+     "2606:4700:3032::6815:38d3",
+     "2606:4700:3036::ac43:9bf2"
+    ]
+   },
+   "accessible": false,
+   "licence_page_accessible": null,
+   "terms_accessible": null,
+   "data_accessible": null,
+   "robots": {
+    "checked": false,
+    "allowed": null,
+    "note": "no data URL"
+   },
+   "importer_available": null,
+   "requests": {
+    "main": {
+     "url": "https://waqfeya.net/",
+     "reachable": false,
+     "status": null,
+     "final_url": null,
+     "content_type": null,
+     "bytes_read": 0,
+     "ms": 259,
+     "tls": null,
+     "error": "proxy_or_policy_refusal: Tunnel connection failed: 403 Forbidden"
+    }
+   },
+   "rights_note": "Reachability is not permission: licence, terms and provenance must still be read and recorded before any import."
+  }
+ ]
+}

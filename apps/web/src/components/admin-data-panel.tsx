@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
 import { COVERAGE_LABEL, DOMAIN_STATUS_LABEL, READINESS_LABEL } from "@/lib/copy";
+import { ReviewQueues } from "@/components/review-queues";
 
 type Dataset = { id: string; name: string; type: string; source: { name: string; url: string | null; version: string | null }; license: { name: string; status: string }; provenance: string;
   validation_status: string; publication_status: string; enabled: boolean; readiness: string; remaining_action: string | null; record_count: number; can_publish: boolean; cannot_publish_because: string[];
@@ -22,7 +23,7 @@ type Importer = { id: string; dataset: string; title: string; licence: string; p
   last_run: { id: string; status: string; created: number; updated: number; unchanged: number; failed: number; source_version: string | null; source_checksum: string | null; source_retrieved_at: string | null; at: string } | null };
 type RunResult = { adapter: string; source_version: string; source_checksum: string; skipped: Record<string, number>; preview: Preview; applied: boolean; status?: string; created?: number; updated?: number; failed?: number };
 type Conflicts = { dataset: string; kind: string; totals: Record<string, number>; items: Record<string, Record<string, unknown>[]>; note: string };
-type Tab = "readiness" | "datasets" | "importers" | "directory" | "reports" | "answers" | "audit";
+type Tab = "readiness" | "datasets" | "importers" | "review" | "directory" | "reports" | "answers" | "audit";
 
 export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
   const ar = locale === "ar";
@@ -110,7 +111,7 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
     try { setHistory(await apiFetch<History>(`/admin/datasets/${d.id}/provenance`)); } catch (e) { setMsg(e instanceof ApiError ? e.message : "Error"); }
   }
   if (forbidden) return <main className="knowledge-page"><p role="alert">{ar ? "هذه الصفحة للمشرفين فقط." : "This page is for platform administrators."}</p></main>;
-  const tabs: [Tab, string][] = [["readiness", ar ? "الجاهزية" : "Readiness"], ["importers", ar ? "المستوردات" : "Importers"], ["datasets", ar ? "مجموعات البيانات" : "Datasets"], ["directory", ar ? "مراجعة الدليل" : "Directory queue"], ["reports", ar ? "البلاغات" : "Reports"], ["answers", ar ? "إجابات الذكاء الاصطناعي" : "AI answers"], ["audit", ar ? "سجل التدقيق" : "Audit log"]];
+  const tabs: [Tab, string][] = [["readiness", ar ? "الجاهزية" : "Readiness"], ["importers", ar ? "المستوردات" : "Importers"], ["datasets", ar ? "مجموعات البيانات" : "Datasets"], ["review", ar ? "المراجعة البشرية" : "Human review"], ["directory", ar ? "مراجعة الدليل" : "Directory queue"], ["reports", ar ? "البلاغات" : "Reports"], ["answers", ar ? "إجابات الذكاء الاصطناعي" : "AI answers"], ["audit", ar ? "سجل التدقيق" : "Audit log"]];
   return (
     <main className="knowledge-page admin-panel" dir={ar ? "rtl" : "ltr"}>
       <h1>{ar ? "الثقة والبيانات" : "Data & trust"}</h1>
@@ -138,6 +139,7 @@ export function AdminDataPanel({ locale }: { locale: "en" | "ar" }) {
           </ul>
         </>
       ))}
+      {tab === "review" && <ReviewQueues ar={ar} />}
       {tab === "importers" && (
         <>
           <p className="tool-note">{ar ? "المستوردات تعمل كلها أو لا شيء، ولا تنشر ولا توثّق. إعادة التشغيل آمنة." : "Importers are all-or-nothing, never publish and never verify. Re-running is safe: an unchanged source changes nothing."}</p>

@@ -1,0 +1,1102 @@
+{
+ "base": "6498b1f",
+ "note": "Seed for the Arabic review queue. Every string starts NEEDS_NATIVE_REVIEW; no reviewer has approved any of it.",
+ "strings": [
+  {
+   "key": "558b00a5c2c8c39e",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "أخطاء",
+   "english": "errors",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "8039efebb539744e",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "أُنشئ",
+   "english": "Created",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "010eae3f8d1254a9",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "إجابات الذكاء الاصطناعي",
+   "english": "AI answers",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "c1692a308ab85387",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "إغلاق",
+   "english": "Close",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "8e3ef0f4ea023531",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "إلغاء",
+   "english": "Cancel",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d75943df34fdfe24",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "إلغاء النشر",
+   "english": "Unpublish",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "ff57c4c56bdbbd98",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "استيراد",
+   "english": "Import",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "c26c0eacd22da4a2",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "الأحداث",
+   "english": "Events",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "7f8e46291488d934",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "الاستيراد كل شيء أو لا شيء، ولا ينشر أي بيانات: النشر خطوة منفصلة.",
+   "english": "Importing is all-or-nothing and never publishes: publishing is a separate step.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "43e7415a837208d5",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "البلاغات",
+   "english": "Reports",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d73b11293974846a",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "التكرار والتعارض",
+   "english": "Duplicates and conflicts",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "12ab15ab562dd8cf",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "الجاهزية",
+   "english": "Readiness",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e797913356a60c51",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "المستوردات",
+   "english": "Importers",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "65446287aef63f00",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "المستوردات تعمل كلها أو لا شيء، ولا تنشر ولا توثّق. إعادة التشغيل آمنة.",
+   "english": "Importers are all-or-nothing, never publish and never verify. Re-running is safe: an unchanged source changes nothing.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "328bc2f6f304bd02",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "المصدر غير متاح من هذا الخادم.",
+   "english": "The source is NOT reachable from this server.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "e8ca86feebf6a91f",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "المصدر متاح من هذا الخادم.",
+   "english": "The source is reachable from this server.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "ed84b8142d7b0db9",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "المنشأ والسجل",
+   "english": "provenance and history",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e85f0272f4df0260",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "تراجع",
+   "english": "Roll back",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "b2e961dcc1c5e6db",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "تشغيل",
+   "english": "Run import",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "a46aab8a0623ff73",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "جديدة",
+   "english": "new",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "680629914fa10122",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "حُدّث",
+   "english": "updated",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "8b776f31a0dd1f4f",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "رُفض الملف كله: لم يُكتب شيء.",
+   "english": "The whole file was rejected; nothing was written.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "ab2e756a7444d6b0",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "سجل التدقيق",
+   "english": "Audit log",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d63dd6c42d1b7197",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "سجل المجموعة",
+   "english": "Dataset history",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "735eb164ebc89b59",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "صالحة",
+   "english": "valid",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "602b7a38061be4a9",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "صفوف",
+   "english": "rows",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "0dcb06ce2c29f5db",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "طُبِّق",
+   "english": "applied",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "896eff799685e34d",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "عمليات الاستيراد",
+   "english": "Imports",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "6449181d0b9067f2",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "فحص التوفر",
+   "english": "Check reachability",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "6eb9a1d686219cb1",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "لماذا ليس جاهزاً",
+   "english": "Why this is not READY",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d70cc47539ba9555",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "متجاوَز",
+   "english": "skipped",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e148194b075334ec",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "مجموعات البيانات",
+   "english": "Datasets",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "9b60d293602d4da3",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "مراجعة الدليل",
+   "english": "Directory queue",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "31c254296da91af8",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "معاينة",
+   "english": "preview",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "bbde7fa3b081c482",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "معاينة الاستيراد",
+   "english": "Import preview",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "ab316abd9f0e12da",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "معاينة ملف (JSON)",
+   "english": "Preview a JSON file",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "89574ef63311f15b",
+   "file": "components/admin-data-panel.tsx",
+   "arabic": "معروض",
+   "english": "shown",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "36dbe66b0c6fdbd4",
+   "file": "components/directory-browser.tsx",
+   "arabic": "آخر موعد",
+   "english": "Closes",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "d6f2e3b7271d2ea6",
+   "file": "components/directory-browser.tsx",
+   "arabic": "التقديم",
+   "english": "Apply",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "5f3ef37114247744",
+   "file": "components/directory-browser.tsx",
+   "arabic": "الجهة",
+   "english": "Organisation",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "9d7d0cc7eefcb02a",
+   "file": "components/directory-browser.tsx",
+   "arabic": "الدول التي لها بيانات لهذا النوع",
+   "english": "Countries with data for this type",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "0ed3b3d67fa6536b",
+   "file": "components/directory-browser.tsx",
+   "arabic": "الدولة (رمزان)",
+   "english": "Country (2-letter)",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "c7b231f9d318bf4b",
+   "file": "components/directory-browser.tsx",
+   "arabic": "المذهب (كما ورد في المصدر)",
+   "english": "Denomination (as stated by the source)",
+   "group": "FIQH",
+   "religious_term": true
+  },
+  {
+   "key": "9038ba04c9a16c46",
+   "file": "components/directory-browser.tsx",
+   "arabic": "المنظّم",
+   "english": "Organiser",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "14bbd1e3fb05c27d",
+   "file": "components/directory-browser.tsx",
+   "arabic": "بيانات المساجد: © مساهمو OpenStreetMap (رخصة ODbL) وWikidata (CC0)، عبر GeoAlgeria. بيانات مجتمعية وليست سجلاً رسمياً، وقد تحتوي أخطاء.",
+   "english": "Mosque data: © OpenStreetMap contributors (ODbL) and Wikidata (CC0), via GeoAlgeria. Community-sourced, not an official registry, and may contain errors.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "e86f29391e4a189b",
+   "file": "components/directory-browser.tsx",
+   "arabic": "جهة العمل",
+   "english": "Employer",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "cff0a3f25c28b5a4",
+   "file": "components/directory-browser.tsx",
+   "arabic": "حقوق النشر",
+   "english": "Copyright",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "5acac6a95cf14a4c",
+   "file": "components/directory-browser.tsx",
+   "arabic": "لا تعني قلة القوائم في أي مكان آخر غياب الخدمات هناك.",
+   "english": "No data yet for any other country; a missing listing does not mean a missing place.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "01c632278ae462e6",
+   "file": "components/directory-browser.tsx",
+   "arabic": "لا توجد بيانات لهذا النوع في أي دولة بعد.",
+   "english": "No country has data for this type yet.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "4dafdd6adb34061a",
+   "file": "components/directory-browser.tsx",
+   "arabic": "لا توجد قوائم منشورة لهذا النوع بعد.",
+   "english": "No listings are published for this type yet.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "94246817d44a8018",
+   "file": "components/directory-browser.tsx",
+   "arabic": "يبدأ",
+   "english": "Starts",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "23566885bf03e5ab",
+   "file": "components/directory-browser.tsx",
+   "arabic": "ينتهي",
+   "english": "ends",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "f703fcaf22e9a7b4",
+   "file": "components/islamic-assistant.tsx",
+   "arabic": "المصدر",
+   "english": "source",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "73098c3afb43efa4",
+   "file": "components/islamic-assistant.tsx",
+   "arabic": "تُعرض المواقف العلمية المختلفة منفصلة، دون دمج أو ترجيح.",
+   "english": "Different scholarly positions are listed separately; they are not merged or ranked.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "33522fa362c5c863",
+   "file": "components/islamic-assistant.tsx",
+   "arabic": "جرّب صياغة أخرى أو موضوعاً أعم.",
+   "english": "Try rephrasing, or a broader topic.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "a3f0fb3ba84e37c7",
+   "file": "components/islamic-assistant.tsx",
+   "arabic": "سجلات موثّقة ذات صلة",
+   "english": "Related sourced records",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "7d89bf96c8035ccd",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "التعليل",
+   "english": "Reasoning",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e62e3dd39adba3fb",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "الحاكم",
+   "english": "Grader",
+   "group": "GENERAL_UI",
+   "religious_term": true
+  },
+  {
+   "key": "825aab18e15b8de8",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "الحكم",
+   "english": "Ruling",
+   "group": "FIQH",
+   "religious_term": true
+  },
+  {
+   "key": "49bd512b7c84a98a",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "الدرجة",
+   "english": "Grade",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "16639f80ab44fccd",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "العمل",
+   "english": "Work",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "2de878a8239856e7",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "القول",
+   "english": "Statement",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d65f9146896af42c",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "اللغة",
+   "english": "Language",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "f77148dd76a4b36a",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "المدرسة",
+   "english": "School",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "129a8d3842c6efda",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "المذهب",
+   "english": "Madhhab",
+   "group": "FIQH",
+   "religious_term": true
+  },
+  {
+   "key": "37560075b0bce8a2",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "المسألة",
+   "english": "Question",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "a8d38672b1a1ea99",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "المصدر الخارجي",
+   "english": "External resource",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "9fe3765ce9cc87e6",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "درجات الحكم على الحديث، لكل حاكم على حدة",
+   "english": "Gradings, one row per grader (graders are not combined)",
+   "group": "HADITH",
+   "religious_term": true
+  },
+  {
+   "key": "3928bf98f9ef7acf",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "درجة الثبوت",
+   "english": "Reliability of the report",
+   "group": "HADITH",
+   "religious_term": true
+  },
+  {
+   "key": "be50559267e6c7d2",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "ص",
+   "english": "p.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "42cd732dd499835d",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "مج",
+   "english": "vol.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "da32532491cc52b9",
+   "file": "components/knowledge-browser.tsx",
+   "arabic": "مصدر الحكم",
+   "english": "Grading source",
+   "group": "FIQH",
+   "religious_term": true
+  },
+  {
+   "key": "9131c719a265002e",
+   "file": "components/quran-reader.tsx",
+   "arabic": "إيقاف",
+   "english": "Off",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e8ba0b7e2651cb60",
+   "file": "components/quran-reader.tsx",
+   "arabic": "الآية",
+   "english": "Ayah",
+   "group": "QURAN",
+   "religious_term": false
+  },
+  {
+   "key": "76783e6765738e4f",
+   "file": "components/quran-reader.tsx",
+   "arabic": "الترجمة",
+   "english": "Translation",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "b010033166a0f578",
+   "file": "components/quran-reader.tsx",
+   "arabic": "التكرار",
+   "english": "Repeat",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d3832243c8278c67",
+   "file": "components/quran-reader.tsx",
+   "arabic": "السورة",
+   "english": "Surah",
+   "group": "QURAN",
+   "religious_term": false
+  },
+  {
+   "key": "e6d7f546ac214595",
+   "file": "components/quran-reader.tsx",
+   "arabic": "القارئ",
+   "english": "Reciter",
+   "group": "QURAN",
+   "religious_term": true
+  },
+  {
+   "key": "f3fd3d490db0ef14",
+   "file": "components/quran-reader.tsx",
+   "arabic": "المصدر الأصلي للتلاوة",
+   "english": "Recitation provided by its rights holder",
+   "group": "QURAN",
+   "religious_term": true
+  },
+  {
+   "key": "6a43b650bd7de061",
+   "file": "components/quran-reader.tsx",
+   "arabic": "بدون ترجمة",
+   "english": "Arabic only",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "6c95493e8b4456ea",
+   "file": "components/quran-reader.tsx",
+   "arabic": "بدون صوت",
+   "english": "No audio",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "13c2e77a8092b8b2",
+   "file": "components/quran-reader.tsx",
+   "arabic": "حجم الخط",
+   "english": "Arabic size",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "fc316321102738a2",
+   "file": "components/quran-reader.tsx",
+   "arabic": "حجم الخط العربي",
+   "english": "Arabic font size",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "b7fbc8c91335662b",
+   "file": "components/quran-reader.tsx",
+   "arabic": "حفظ التفضيلات",
+   "english": "Save preferences",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "701594b79fd0e210",
+   "file": "components/quran-reader.tsx",
+   "arabic": "علاماتي",
+   "english": "My bookmarks",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "530270c5c35d66a5",
+   "file": "components/status-overview.tsx",
+   "arabic": "الترخيص",
+   "english": "Licence",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "c08daec84922c5d2",
+   "file": "components/status-overview.tsx",
+   "arabic": "الحالة",
+   "english": "Status",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "7cb265be4555c120",
+   "file": "components/status-overview.tsx",
+   "arabic": "السجلات",
+   "english": "Records",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "95db5a9724b7a9da",
+   "file": "components/status-overview.tsx",
+   "arabic": "المجال",
+   "english": "Domain",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "9ac4288f70501174",
+   "file": "components/status-overview.tsx",
+   "arabic": "المصدر والترخيص",
+   "english": "Source and licence",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "f99d1a79680de564",
+   "file": "components/status-overview.tsx",
+   "arabic": "تحقّقٌ آلي فقط؛ لم تتم مراجعة بشرية علمية أو قانونية.",
+   "english": "Automated checks only; no human scholarly or legal review has taken place.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "b4b93bb65e0a9f62",
+   "file": "components/status-overview.tsx",
+   "arabic": "جاهزية البيانات حسب المجال",
+   "english": "Data readiness by domain",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "8eb35202cb1a0b27",
+   "file": "components/status-overview.tsx",
+   "arabic": "جدول المصادر",
+   "english": "Sources table",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "67881dd3c3ac5eca",
+   "file": "components/status-overview.tsx",
+   "arabic": "جدول جاهزية المجالات",
+   "english": "Domain readiness table",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "4e3763178862d5eb",
+   "file": "components/status-overview.tsx",
+   "arabic": "عام",
+   "english": "Public",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "f332d4ca77086943",
+   "file": "components/status-overview.tsx",
+   "arabic": "لا",
+   "english": "No",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "5bb197b25313d3ad",
+   "file": "components/status-overview.tsx",
+   "arabic": "لا يُعرض «جاهز» إلا إذا استوفى المجال كل شروط الجاهزية. وجود أداة استيراد أو بيانات لا يكفي.",
+   "english": "A domain shows Ready only when every readiness gate is met. An importer, or data being present, is not enough.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "36dd5bfd2cb2332b",
+   "file": "components/status-overview.tsx",
+   "arabic": "منشور / الكل",
+   "english": "published / total",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "42f3157c7a778dbd",
+   "file": "components/status-overview.tsx",
+   "arabic": "نعم",
+   "english": "Yes",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "5783d7650c6a162e",
+   "file": "lib/copy.ts",
+   "arabic": "التلاوات الصوتية غير متاحة حاليًا لإعادة النشر.",
+   "english": "Recitation audio is not currently available for redistribution.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "9d28488910d7bafc",
+   "file": "lib/copy.ts",
+   "arabic": "الحقوق غير مؤكَّدة",
+   "english": "Rights unverified",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "5acf7acecfa68e63",
+   "file": "lib/copy.ts",
+   "arabic": "المصدر غير مؤكَّد",
+   "english": "Source unverified",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "149a0d5e2e75cf79",
+   "file": "lib/copy.ts",
+   "arabic": "المصدر غير متاح",
+   "english": "Source blocked",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "8f64f19a817b91c9",
+   "file": "lib/copy.ts",
+   "arabic": "بلا تغطية",
+   "english": "No coverage",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "16321d70035118d5",
+   "file": "lib/copy.ts",
+   "arabic": "تغطية جزئية",
+   "english": "Partial coverage",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "1b0fa2c0ec142755",
+   "file": "lib/copy.ts",
+   "arabic": "تغطية كاملة للنطاق المذكور",
+   "english": "Full coverage of the stated scope",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "87a76cf08f7791e3",
+   "file": "lib/copy.ts",
+   "arabic": "تم التحقق (غير منشور)",
+   "english": "Validated (not published)",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "105ac66521553379",
+   "file": "lib/copy.ts",
+   "arabic": "جاهز",
+   "english": "Ready",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "d06fefe7c355feef",
+   "file": "lib/copy.ts",
+   "arabic": "جاهز للاستيراد",
+   "english": "Ready to import",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "28d84e537e43132e",
+   "file": "lib/copy.ts",
+   "arabic": "غير موثَّق",
+   "english": "Unverified",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "33ce69f0927cecd8",
+   "file": "lib/copy.ts",
+   "arabic": "فارغ: لا توجد بيانات",
+   "english": "Empty: no data",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "b3537a51b37ab929",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا بيانات موثّقة للمساجد في هذه المنطقة.",
+   "english": "No verified mosque data is currently available for this region.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "c2f055437af3b969",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا فرص تطوع موثّقة.",
+   "english": "No verified volunteering opportunities are currently available.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "b6597abe9f102d76",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا فعاليات قادمة موثّقة.",
+   "english": "No upcoming verified events are currently available.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "d73b7966e49ec60c",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا قوائم موثّقة للأعمال.",
+   "english": "No verified business listings are currently available.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "4e1c6932901dd0f1",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا قوائم موثّقة للجمعيات الخيرية.",
+   "english": "No verified charity listings are currently available.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "0044ba20e431550a",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا قوائم موثّقة للخدمات الصحية.",
+   "english": "No verified health listings are currently available.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "138653a6faf1dbb0",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا قوائم موثّقة للمنظمات.",
+   "english": "No verified organisation listings are currently available.",
+   "group": "DIRECTORY",
+   "religious_term": false
+  },
+  {
+   "key": "a2d64e7a46b6f918",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا قوائم موثّقة للمهنيين.",
+   "english": "No verified professional listings are currently available.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "6d9d7f71f4957def",
+   "file": "lib/copy.ts",
+   "arabic": "لا تتوفر حاليًا وظائف موثّقة.",
+   "english": "No verified job listings are currently available.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "e2952eb497c827d1",
+   "file": "lib/copy.ts",
+   "arabic": "لا يتوفر مصدر موثوق كافٍ",
+   "english": "No sufficiently reliable source is available",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "d136c911aff0ce80",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ تراجم موثّقة للعلماء.",
+   "english": "Verified scholar biographies have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": true
+  },
+  {
+   "key": "718f116819925d3c",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ درجات حديثية موثّقة.",
+   "english": "Verified hadith gradings have not yet been imported.",
+   "group": "HADITH",
+   "religious_term": true
+  },
+  {
+   "key": "bccc429a99e302c9",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ سجلات موثّقة للمكتبة.",
+   "english": "Verified library records have not yet been imported.",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "df819a42c11f94a0",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر عقدية موثّقة.",
+   "english": "Verified Aqeedah sources have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "979695dc25fc2893",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر فقهية موثّقة.",
+   "english": "Verified Fiqh sources have not yet been imported.",
+   "group": "FIQH",
+   "religious_term": true
+  },
+  {
+   "key": "f4aa781ef69d93c8",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر موثّقة للتاريخ.",
+   "english": "Verified history sources have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "671c28c46c1ce25b",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر موثّقة للحضارة.",
+   "english": "Verified civilization sources have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "2456617898b3c394",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر موثّقة للسيرة النبوية.",
+   "english": "Verified Seerah sources have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "89b883e0e4147fab",
+   "file": "lib/copy.ts",
+   "arabic": "لم تُستورد بعدُ مصادر موثّقة للمصطلحات.",
+   "english": "Verified terminology sources have not yet been imported.",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "4571e92e6fe5586d",
+   "file": "lib/copy.ts",
+   "arabic": "مجموعة بيانات مجتمعية",
+   "english": "Community dataset",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "18fdd93af8d1d4dc",
+   "file": "lib/copy.ts",
+   "arabic": "محل خلاف",
+   "english": "Disputed",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "32b6b59c7f351c35",
+   "file": "lib/copy.ts",
+   "arabic": "مستنتَج",
+   "english": "Inferred",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "4291907404a2a980",
+   "file": "lib/copy.ts",
+   "arabic": "مستورد (مخفي)",
+   "english": "Imported (hidden)",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  },
+  {
+   "key": "abbbeaf84a3ee181",
+   "file": "lib/copy.ts",
+   "arabic": "مصدر أصلي",
+   "english": "Primary source",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "30c7b74680790c1d",
+   "file": "lib/copy.ts",
+   "arabic": "مصدر ثانوي",
+   "english": "Secondary source",
+   "group": "SCHOLARSHIP",
+   "religious_term": false
+  },
+  {
+   "key": "f2a3a1427af53f53",
+   "file": "lib/copy.ts",
+   "arabic": "منشور مع بنود غير مستوفاة",
+   "english": "Published, gates open",
+   "group": "GENERAL_UI",
+   "religious_term": false
+  }
+ ]
+}

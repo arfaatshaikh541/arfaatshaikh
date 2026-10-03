@@ -227,6 +227,12 @@ class QuranRecitationEditionCreate(BaseModel):
     source_url: str | None = Field(default=None, pattern=r"^https://[^\s]+$", max_length=800)
     caching_allowed: bool = False
     offline_allowed: bool = False
+    recording_owner: str | None = Field(default=None, max_length=300)
+    territory: str | None = Field(default=None, max_length=200)
+    streaming_allowed: bool = False
+    download_allowed: bool = False
+    redistribution_allowed: bool = False
+    commercial_use_allowed: bool = False
 
 
 class QuranAyahAudioCreate(BaseModel):
@@ -250,6 +256,13 @@ class QuranRecitationView(BaseModel):
     source_url: str | None = None
     caching_allowed: bool = False
     offline_allowed: bool = False
+    recording_owner: str | None = None
+    territory: str | None = None
+    streaming_allowed: bool = False
+    download_allowed: bool = False
+    redistribution_allowed: bool = False
+    commercial_use_allowed: bool = False
+    delivery_class: str = "NOT_PLAYABLE"
     model_config = {"from_attributes": True}
 
 

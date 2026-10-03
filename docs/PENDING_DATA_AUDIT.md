@@ -1,6 +1,6 @@
 # Pending data audit
 
-Audit of every domain against the actual repository and database on **2026-10-01**, repeated at the start of the readiness pass. It does not trust the previous report: each claim below was checked.
+Audit of every domain against the actual repository and database on **2026-10-03**, repeated at the start of the readiness pass. It does not trust the previous report: each claim below was checked.
 
 Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md); sources and licences are in [`SOURCE_VERIFICATION.md`](SOURCE_VERIFICATION.md). No human scholarly or legal review has taken place for any domain.
 
@@ -33,7 +33,7 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 ### Qur'an
 
 - **DOMAIN**: Qur'an (`quran`, tier 1)
-- **STATUS**: READY (FULL coverage)
+- **STATUS**: RIGHTS_UNVERIFIED (FULL coverage)
 - **CURRENT_SCHEMA**: `quran_*` tables with source passages and checksums.
 - **IMPORTER**: scripts/import_quran_reader.py, import_tajweed.py, import_translations.py
 - **ADMIN_WORKFLOW**: Data & trust (readiness, importers, datasets, conflicts, provenance and history, publish/unpublish, rollback)
@@ -41,9 +41,9 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **CURRENT_DATA_COUNT**: 6236 ayahs (Arabic text) (6236 published, 0 hidden)
 - **CURRENT_SOURCE**: PyPI quran-text (quran.ws, KFGQPC text) 0.1.0; fawazahmed0/quran-api for the two translations; npm @quran.ws/tajwid-* 0.1.0 (0.1.0)
 - **LICENCE**: CC BY 4.0 (text, tajweed); public domain (Pickthall, d. 1936; Yusuf Ali 1934 edition, d. 1953)
-- **BLOCKER**: none
+- **BLOCKER**: Rights in the KFGQPC source text are not independently established: the package's CC BY 4.0 declaration is the packager's, the main text package has no recorded source URL, and no KFGQPC grant for the text file (as opposed to the typeface) was found. Written confirmation from KFGQPC, or re-obtaining and comparing the official package, would close this.; Public-domain status of the two translations is term-based reasoning, differs by country, and has had no legal review.
 - **CANDIDATES EXAMINED**: see the manifest entry
-- **NEXT_ACTION**: None.
+- **NEXT_ACTION**: Resolve the blockers above.
 
 ### Hadith
 
@@ -53,10 +53,10 @@ Statuses use the readiness vocabulary of [`DATA_READINESS.md`](DATA_READINESS.md
 - **IMPORTER**: scripts/import_hadith_reader.py
 - **ADMIN_WORKFLOW**: Data & trust (readiness, importers, datasets, conflicts, provenance and history, publish/unpublish, rollback)
 - **API**: `/knowledge/domains`, `/knowledge/records`, `/directory/*`, `/quran/*`, `/hadith/*`, `/tafsir/*`, `/search`, `/assistant/query`
-- **CURRENT_DATA_COUNT**: 15110 narrations (14778 published, 332 hidden)
+- **CURRENT_DATA_COUNT**: 15110 narrations (0 published, 15110 hidden)
 - **CURRENT_SOURCE**: PyPI sahih-al-bukhari 3.1.7, sahih-muslim 1.1.2; npm @kazishariar/nawawi-40-hadith-data 1.0.3 (3.1.7 / 1.1.2 / 1.0.3)
 - **LICENCE**: Packagers declare AGPL-3.0 (Bukhari, Muslim) and CC BY 4.0 (Nawawi); the classical Arabic works are public domain
-- **BLOCKER**: Owner must confirm the AGPL-3.0 position for redistributing the packaged Arabic text (does not affect the public-domain status of the original work).; Nawawi-40 upstream compilation is undocumented; 41 of 42 entries cross-checked verbatim against Bukhari/Muslim.; English translations: translator and publisher permission not documented.; Hisn al-Muslim and adhkar: upstream not documented.
+- **BLOCKER**: Arabic text of Bukhari, Muslim and Nawawi-40 is hidden (KEEP_HIDDEN, 2026-10-03): the packages declare AGPL-3.0 / CC BY 4.0 but name no edition, editor, publisher or upstream source, so rights in these digital editions are not established. The data is kept; nothing is deleted.; English translations: translator and publisher permission not documented (hidden).; Hisn al-Muslim and adhkar: upstream not documented (hidden).
 - **CANDIDATES EXAMINED**: see the manifest entry
 - **NEXT_ACTION**: Resolve the blockers above.
 

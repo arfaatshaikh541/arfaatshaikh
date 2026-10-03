@@ -1,0 +1,578 @@
+{
+ "version": 1,
+ "note": "Targets for scripts/probe_sources.py. A target is a place to look, not an approved source; the probe records reachability only.",
+ "targets": [
+  {
+   "source_id": "wikidata",
+   "domain": "scholar, library_work, history, civilization, organisation, mosque",
+   "urls": {
+    "main": "https://www.wikidata.org/wiki/Wikidata:Main_Page",
+    "licence": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+    "terms": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+    "data": "https://www.wikidata.org/wiki/Special:EntityData/Q9458.json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikidata-sparql",
+   "domain": "scholar, library_work, history, civilization, organisation, mosque",
+   "urls": {
+    "main": "https://query.wikidata.org/",
+    "licence": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+    "terms": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+    "data": "https://query.wikidata.org/sparql?format=json&query=ASK%7B%7D"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikidata-api",
+   "domain": "scholar",
+   "urls": {
+    "main": "https://www.wikidata.org/w/api.php",
+    "licence": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+    "data": "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q9458&props=labels&languages=en&format=json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "openstreetmap-overpass",
+   "domain": "mosque, organisation, charity, health, business",
+   "urls": {
+    "main": "https://overpass-api.de/",
+    "licence": "https://www.openstreetmap.org/copyright",
+    "terms": "https://wiki.openstreetmap.org/wiki/Overpass_API",
+    "data": "https://overpass-api.de/api/status"
+   },
+   "importer": "osm-overpass-mosques"
+  },
+  {
+   "source_id": "overpass-mirror-overpass.kumi.systems",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://overpass.kumi.systems/",
+    "data": "https://overpass.kumi.systems/api/status"
+   },
+   "importer": "osm-overpass-mosques"
+  },
+  {
+   "source_id": "overpass-mirror-lz4.overpass-api.de",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://lz4.overpass-api.de/",
+    "data": "https://lz4.overpass-api.de/api/status"
+   },
+   "importer": "osm-overpass-mosques"
+  },
+  {
+   "source_id": "overpass-mirror-overpass.private.coffee",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://overpass.private.coffee/",
+    "data": "https://overpass.private.coffee/api/status"
+   },
+   "importer": "osm-overpass-mosques"
+  },
+  {
+   "source_id": "openstreetmap-org",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://www.openstreetmap.org/",
+    "licence": "https://www.openstreetmap.org/copyright",
+    "terms": "https://wiki.osmfoundation.org/wiki/Terms_of_Use"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "openstreetmap-planet",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://planet.openstreetmap.org/",
+    "licence": "https://www.openstreetmap.org/copyright",
+    "data": "https://planet.openstreetmap.org/planet/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "geofabrik-extracts",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://download.geofabrik.de/",
+    "licence": "https://www.openstreetmap.org/copyright",
+    "data": "https://download.geofabrik.de/africa/algeria.html"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "nominatim",
+   "domain": "mosque",
+   "urls": {
+    "main": "https://nominatim.openstreetmap.org/",
+    "licence": "https://www.openstreetmap.org/copyright",
+    "terms": "https://operations.osmfoundation.org/policies/nominatim/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "open-library",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://openlibrary.org/",
+    "licence": "https://openlibrary.org/developers/licensing",
+    "terms": "https://openlibrary.org/developers/api",
+    "data": "https://openlibrary.org/search.json?q=al-ghazali&limit=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "open-library-dumps",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://openlibrary.org/developers/dumps",
+    "licence": "https://openlibrary.org/developers/licensing",
+    "data": "https://openlibrary.org/data/ol_dump_authors_latest.txt.gz"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "internet-archive",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://archive.org/",
+    "licence": "https://archive.org/about/terms.php",
+    "terms": "https://archive.org/about/terms.php",
+    "data": "https://archive.org/advancedsearch.php?q=subject%3Aislam+AND+mediatype%3Atexts&fl%5B%5D=identifier&fl%5B%5D=licenseurl&rows=1&output=json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "project-gutenberg",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://www.gutenberg.org/",
+    "licence": "https://www.gutenberg.org/policy/license.html",
+    "terms": "https://www.gutenberg.org/policy/permission.html"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "gutendex",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://gutendex.com/",
+    "licence": "https://www.gutenberg.org/policy/license.html",
+    "data": "https://gutendex.com/books/?search=quran"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "hathitrust",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://www.hathitrust.org/",
+    "licence": "https://www.hathitrust.org/terms-of-use",
+    "data": "https://catalog.hathitrust.org/api/volumes/brief/oclc/424023.json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikisource-ar",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://ar.wikisource.org/",
+    "licence": "https://ar.wikisource.org/wiki/ويكي_مصدر:حقوق_النشر",
+    "data": "https://ar.wikisource.org/w/api.php?action=query&meta=siteinfo&format=json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikimedia-dumps",
+   "domain": "history, scholar",
+   "urls": {
+    "main": "https://dumps.wikimedia.org/",
+    "licence": "https://dumps.wikimedia.org/legal.html",
+    "data": "https://dumps.wikimedia.org/wikidatawiki/entities/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikipedia-rest",
+   "domain": "history, civilization",
+   "urls": {
+    "main": "https://en.wikipedia.org/",
+    "licence": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+    "terms": "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+    "data": "https://en.wikipedia.org/api/rest_v1/page/summary/Ibn_Sina"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "wikimedia-commons",
+   "domain": "civilization",
+   "urls": {
+    "main": "https://commons.wikimedia.org/",
+    "licence": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+    "data": "https://commons.wikimedia.org/w/api.php?action=query&meta=siteinfo&format=json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "openiti-raw",
+   "domain": "library_work, scholar, history",
+   "urls": {
+    "main": "https://github.com/OpenITI/RELEASE",
+    "licence": "https://github.com/OpenITI/RELEASE",
+    "data": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "loc-gov",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://www.loc.gov/",
+    "licence": "https://www.loc.gov/legal/",
+    "data": "https://www.loc.gov/books/?q=ghazali&fo=json&c=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "europeana",
+   "domain": "library_work, civilization",
+   "urls": {
+    "main": "https://www.europeana.eu/",
+    "licence": "https://www.europeana.eu/en/rights"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "zenodo",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://zenodo.org/",
+    "licence": "https://about.zenodo.org/terms/",
+    "data": "https://zenodo.org/api/records?q=hadith&size=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "huggingface-datasets",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://huggingface.co/datasets",
+    "licence": "https://huggingface.co/terms-of-service",
+    "data": "https://huggingface.co/api/datasets?search=hadith&limit=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "github-api",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://github.com/",
+    "licence": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "data": "https://api.github.com/rate_limit"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "raw-githubusercontent",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://raw.githubusercontent.com/",
+    "licence": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "data": "https://raw.githubusercontent.com/OpenITI/RELEASE/master/README.md"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "pypi",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://pypi.org/",
+    "licence": "https://pypi.org/policy/terms-of-use/",
+    "data": "https://pypi.org/pypi/sahih-al-bukhari/json"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "npm-registry",
+   "domain": "all domains",
+   "urls": {
+    "main": "https://registry.npmjs.org/",
+    "licence": "https://docs.npmjs.com/policies/terms",
+    "data": "https://registry.npmjs.org/@quran.ws%2ftajwid-hafs"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "sunnah-com-api",
+   "domain": "hadith, hadith_grading",
+   "urls": {
+    "main": "https://sunnah.com/",
+    "licence": "https://sunnah.com/developers",
+    "terms": "https://sunnah.com/about"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "sunnah-com-api-host",
+   "domain": "hadith",
+   "urls": {
+    "main": "https://api.sunnah.com/",
+    "licence": "https://sunnah.com/developers",
+    "data": "https://api.sunnah.com/v1/collections"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "hadith-api-fawazahmed0",
+   "domain": "hadith, hadith_grading",
+   "urls": {
+    "main": "https://github.com/fawazahmed0/hadith-api",
+    "licence": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+    "data": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json"
+   },
+   "importer": "hadith-api-grades"
+  },
+  {
+   "source_id": "tanzil",
+   "domain": "quran",
+   "urls": {
+    "main": "https://tanzil.net/",
+    "licence": "https://tanzil.net/docs/Tanzil_Terms_of_Use"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "quranenc",
+   "domain": "quran, tafsir",
+   "urls": {
+    "main": "https://quranenc.com/",
+    "licence": "https://quranenc.com/en/home/api",
+    "data": "https://quranenc.com/api/v1/translations/list"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "quran-com-api",
+   "domain": "quran, recitation audio",
+   "urls": {
+    "main": "https://quran.com/",
+    "licence": "https://api-docs.quran.foundation/",
+    "data": "https://api.quran.com/api/v4/resources/recitations"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "alquran-cloud",
+   "domain": "quran, recitation audio",
+   "urls": {
+    "main": "https://alquran.cloud/",
+    "licence": "https://alquran.cloud/api",
+    "data": "https://api.alquran.cloud/v1/edition/format/audio"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "everyayah",
+   "domain": "recitation audio",
+   "urls": {
+    "main": "https://everyayah.com/",
+    "licence": "https://everyayah.com/data/",
+    "terms": "https://everyayah.com/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "mp3quran",
+   "domain": "recitation audio",
+   "urls": {
+    "main": "https://mp3quran.net/",
+    "licence": "https://mp3quran.net/api/v3",
+    "terms": "https://mp3quran.net/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "mp3quran-api",
+   "domain": "recitation audio",
+   "urls": {
+    "main": "https://mp3quran.net/api/v3/",
+    "licence": "https://mp3quran.net/api/v3",
+    "data": "https://mp3quran.net/api/v3/reciters?language=eng"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "islamic-network-cdn",
+   "domain": "recitation audio",
+   "urls": {
+    "main": "https://cdn.islamic.network/",
+    "licence": "https://alquran.cloud/api"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "archive-org-audio",
+   "domain": "recitation audio",
+   "urls": {
+    "main": "https://archive.org/details/audio",
+    "licence": "https://archive.org/about/terms.php"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "charity-commission-ew",
+   "domain": "charity, organisation",
+   "urls": {
+    "main": "https://register-of-charities.charitycommission.gov.uk/",
+    "licence": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "terms": "https://register-of-charities.charitycommission.gov.uk/terms-and-conditions",
+    "data": "https://register-of-charities.charitycommission.gov.uk/register/full-register-download"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "charity-commission-api",
+   "domain": "charity",
+   "urls": {
+    "main": "https://api.charitycommission.gov.uk/",
+    "licence": "https://api-portal.charitycommission.gov.uk/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "oscr-scotland",
+   "domain": "charity",
+   "urls": {
+    "main": "https://www.oscr.org.uk/",
+    "licence": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "data": "https://www.oscr.org.uk/about-charities/search-the-register/charity-register-download/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "acnc-australia",
+   "domain": "charity",
+   "urls": {
+    "main": "https://www.acnc.gov.au/",
+    "licence": "https://data.gov.au/data/dataset/acnc-register",
+    "data": "https://data.gov.au/data/api/3/action/package_show?id=b050b242-4487-4306-abf5-07ca073e5594"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "irs-exempt-orgs",
+   "domain": "charity",
+   "urls": {
+    "main": "https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads",
+    "licence": "https://www.irs.gov/privacy-disclosure/tax-code-regulations-and-official-guidance"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "data-gov-uk",
+   "domain": "charity, organisation",
+   "urls": {
+    "main": "https://www.data.gov.uk/",
+    "licence": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+    "data": "https://data.gov.uk/api/3/action/package_search?q=charity&rows=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "adzuna-api",
+   "domain": "job",
+   "urls": {
+    "main": "https://developer.adzuna.com/",
+    "licence": "https://developer.adzuna.com/overview",
+    "terms": "https://www.adzuna.com/terms"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "arbeitnow-api",
+   "domain": "job",
+   "urls": {
+    "main": "https://www.arbeitnow.com/",
+    "licence": "https://www.arbeitnow.com/blog/job-board-api",
+    "terms": "https://www.arbeitnow.com/terms-and-conditions",
+    "data": "https://www.arbeitnow.com/api/job-board-api"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "remotive-api",
+   "domain": "job",
+   "urls": {
+    "main": "https://remotive.com/api-documentation",
+    "licence": "https://remotive.com/api-documentation",
+    "data": "https://remotive.com/api/remote-jobs?limit=1"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "usajobs-api",
+   "domain": "job",
+   "urls": {
+    "main": "https://developer.usajobs.gov/",
+    "licence": "https://developer.usajobs.gov/general/terms-of-use"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "geonames",
+   "domain": "geography",
+   "urls": {
+    "main": "https://www.geonames.org/",
+    "licence": "https://creativecommons.org/licenses/by/4.0/",
+    "data": "https://download.geonames.org/export/dump/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "natural-earth",
+   "domain": "geography",
+   "urls": {
+    "main": "https://www.naturalearthdata.com/",
+    "licence": "https://www.naturalearthdata.com/about/terms-of-use/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "hijri-aladhan-api",
+   "domain": "events",
+   "urls": {
+    "main": "https://aladhan.com/",
+    "licence": "https://aladhan.com/terms-and-conditions",
+    "data": "https://api.aladhan.com/v1/gToH?date=01-10-2026"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "kiwix-library",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://library.kiwix.org/",
+    "licence": "https://wiki.kiwix.org/wiki/Content_in_all_languages"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "shamela-ws",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://shamela.ws/"
+   },
+   "importer": null
+  },
+  {
+   "source_id": "waqfeya",
+   "domain": "library_work",
+   "urls": {
+    "main": "https://waqfeya.net/"
+   },
+   "importer": null
+  }
+ ]
+}

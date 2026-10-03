@@ -163,3 +163,45 @@ async def search_evidence(db: "AsyncSession", corpora: Sequence[str], query: str
         )
         for chunk, doc, licence_name in rows
     ]
+
+
+async def edition_trust(db: "AsyncSession", edition_ids: Sequence[str]) -> dict[str, dict]:
+    """Record-level trust fields for cited source editions: only what is recorded, `None` where the record is silent.
+
+    rights_status says whether the recorded licence permits redistribution; it is not a legal opinion, and legal_review_status is
+    reported exactly as stored ("pending" until someone with standing records otherwise).
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.models.sources import Source, SourceAcquisition, SourceEdition, SourceLicence
+
+    from uuid import UUID
+
+    ids = []
+    for raw in dict.fromkeys(edition_ids):
+        try:
+            ids.append(UUID(str(raw)))
+        except ValueError:
+            continue  # not a stored edition id (a synthetic or foreign reference): no trust profile to attach
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(SourceEdition, Source, SourceLicence).join(Source, Source.id == SourceEdition.source_id)
+        .outerjoin(SourceLicence, SourceLicence.id == SourceEdition.licence_id).where(SourceEdition.id.in_(ids)))).all()
+    acquired = dict((await db.execute(
+        select(SourceAcquisition.edition_id, sa_func.max(SourceAcquisition.acquired_at)).where(SourceAcquisition.edition_id.in_(ids)).group_by(SourceAcquisition.edition_id))).all())
+    sources = dict((await db.execute(
+        select(SourceAcquisition.edition_id, SourceAcquisition.acquired_from).where(SourceAcquisition.edition_id.in_(ids)).order_by(SourceAcquisition.acquired_at))).all())
+    result: dict[str, dict] = {}
+    for edition, source, licence in rows:
+        origin = sources.get(edition.id)
+        result[str(edition.id)] = {
+            "source_title": source.canonical_title, "author": source.author_name or source.compiler_name, "edition": edition.edition_statement,
+            "publisher": edition.publisher, "translator": edition.translator_name, "year": edition.publication_year,
+            "source_url": origin if origin and origin.startswith(("http://", "https://")) else None, "acquired_from": origin,
+            "licence_name": licence.name if licence else None,
+            "rights_status": ("REDISTRIBUTION_ALLOWED_BY_RECORDED_LICENCE" if licence and licence.redistribution_allowed else "REDISTRIBUTION_NOT_ESTABLISHED"),
+            "legal_review_status": licence.legal_review_status if licence else "none",
+            "retrieved_at": acquired[edition.id].isoformat() if acquired.get(edition.id) else None,
+        }
+    return result

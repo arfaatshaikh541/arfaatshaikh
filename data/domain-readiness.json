@@ -1,6 +1,6 @@
 {
  "version": 1,
- "as_of": "2026-10-01",
+ "as_of": "2026-10-03",
  "statuses": [
   "EMPTY",
   "SOURCE_BLOCKED",
@@ -100,8 +100,11 @@
    "last_successful_retrieval": "2026-09-30",
    "validation_status": "VERIFIED",
    "publication_status": "published",
-   "blockers": [],
-   "notes": "Public-domain status of the two translations can differ by jurisdiction. Verified by scripts/validate_data.py (every ayah's text matches its recorded sha256; source edition approved and ready) and a live assistant query that cites Qur'an passages.",
+   "blockers": [
+    "Rights in the KFGQPC source text are not independently established: the package's CC BY 4.0 declaration is the packager's, the main text package has no recorded source URL, and no KFGQPC grant for the text file (as opposed to the typeface) was found. Written confirmation from KFGQPC, or re-obtaining and comparing the official package, would close this.",
+    "Public-domain status of the two translations is term-based reasoning, differs by country, and has had no legal review."
+   ],
+   "notes": "Public-domain status of the two translations can differ by jurisdiction. Verified by scripts/validate_data.py (every ayah's text matches its recorded sha256; source edition approved and ready) and a live assistant query that cites Qur'an passages. Downgraded from READY on 2026-10-03: the rights gate cannot be passed on the packager's declaration alone (see data/rights-ledger.json). The text stays published; every ayah is shown with its licence and source.",
    "candidates_examined": [],
    "datasets": [
     "quran-arabic-uthmani-hafs",
@@ -119,11 +122,11 @@
    "coverage": "FULL",
    "coverage_note": "482 further translations are imported but hidden (rights not cleared); recitation audio is a separate domain.",
    "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
-   "last_verified": "2026-10-01",
+   "last_verified": "2026-10-03",
    "domain": "quran",
    "label": "Qur'an",
    "tier": 1,
-   "status": "READY",
+   "status": "RIGHTS_UNVERIFIED",
    "scope": "Arabic text (Uthmani, Hafs 'an 'Asim), tajweed rules and spans, and two public-domain English translations (Pickthall 1930, Yusuf Ali 1934 edition).",
    "gates": {
     "real_source": {
@@ -135,8 +138,8 @@
      "evidence": "See evidence in docs/SOURCE_VERIFICATION.md and the manifest entry."
     },
     "rights_established": {
-     "passed": true,
-     "evidence": "CC BY 4.0 (attribution shown); translations public domain (jurisdiction caveat in notes)."
+     "passed": false,
+     "evidence": "Published on declared terms, not on established rights. The package declares CC BY 4.0, but its own data file says no source URL is recorded for the main text package and that it cannot be checked against KFGQPC; KFGQPC's licence in the bundled typeface is its own, not CC BY. See data/rights-ledger.json (quran-arabic-uthmani-hafs, PUBLISH_WITH_CAVEAT)."
     },
     "retrievable_or_present": {
      "passed": true,
@@ -196,13 +199,16 @@
     ],
     "unverified": [
      "Arabic wording against a printed mushaf by a person",
-     "Translation accuracy"
+     "Translation accuracy",
+     "Rights in the KFGQPC text file (packager declaration only)"
     ],
     "assumed": [
      "Public-domain status of the two translations in every jurisdiction",
      "Fidelity of the upstream text beyond sha256 consistency"
     ],
-    "blocked": []
+    "blocked": [
+     "Rights confirmation from KFGQPC (or comparison with the official package)"
+    ]
    }
   },
   {
@@ -221,12 +227,11 @@
    "validation_status": "NEEDS_REVIEW",
    "publication_status": "published",
    "blockers": [
-    "Owner must confirm the AGPL-3.0 position for redistributing the packaged Arabic text (does not affect the public-domain status of the original work).",
-    "Nawawi-40 upstream compilation is undocumented; 41 of 42 entries cross-checked verbatim against Bukhari/Muslim.",
-    "English translations: translator and publisher permission not documented.",
-    "Hisn al-Muslim and adhkar: upstream not documented."
+    "Arabic text of Bukhari, Muslim and Nawawi-40 is hidden (KEEP_HIDDEN, 2026-10-03): the packages declare AGPL-3.0 / CC BY 4.0 but name no edition, editor, publisher or upstream source, so rights in these digital editions are not established. The data is kept; nothing is deleted.",
+    "English translations: translator and publisher permission not documented (hidden).",
+    "Hisn al-Muslim and adhkar: upstream not documented (hidden)."
    ],
-   "notes": "Published on the basis of the declared open licences and public-domain originals; this is flagged for the owner, not settled.",
+   "notes": "Imported and hidden. Previously published on the packagers' declared licences; hidden on 2026-10-03 because the digital editions are undocumented (original works are old, but that does not establish rights in the edition). Restoring visibility needs evidence recorded in data/rights-ledger.json, then publication from Data & trust.",
    "candidates_examined": [],
    "datasets": [
     "hadith-bukhari-arabic",
@@ -239,15 +244,11 @@
     "devotional-adhkar-arabic",
     "devotional-adhkar-english"
    ],
-   "published_datasets": [
-    "hadith-bukhari-arabic",
-    "hadith-muslim-arabic",
-    "hadith-nawawi40-arabic"
-   ],
+   "published_datasets": [],
    "coverage": "PARTIAL",
    "coverage_note": "Only three collections are loaded. The four Sunan, Muwatta and Musnad Ahmad are not.",
    "verified_by": "Claude Code automated checks, 2026-10-01; no human scholarly or legal review",
-   "last_verified": "2026-10-01",
+   "last_verified": "2026-10-03",
    "domain": "hadith",
    "label": "Hadith",
    "tier": 1,
@@ -306,24 +307,25 @@
    "records": {
     "unit": "narrations",
     "total": 15110,
-    "published": 14778,
-    "hidden": 332,
+    "published": 0,
+    "hidden": 15110,
     "live_key": "hadith_narrations"
    },
    "verification_classes": {
     "verified": [
      "Bukhari and Muslim hadith 1 wording matches the expected text",
-     "Counts: 15,110 narrations, 14,778 published (database)",
-     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim"
+     "Counts: 15,110 narrations imported, 0 published (database)",
+     "Nawawi-40: 41 of 42 entries found verbatim in Bukhari/Muslim",
+     "Package metadata and READMEs re-read 2026-10-03: no upstream edition named (data/rights-ledger.json)"
     ],
     "imported": [
      "Bukhari 7,277",
      "Muslim 7,459",
      "Nawawi-40 42",
-     "Hisn al-Muslim and adhkar 332 (hidden)"
+     "Hisn al-Muslim and adhkar 332 (all hidden)"
     ],
     "unverified": [
-     "Redistribution rights of the packaged Arabic text (AGPL-3.0 declared)",
+     "Redistribution rights of the packaged Arabic text (AGPL-3.0 / CC BY 4.0 declared by packagers; digital edition unidentified)",
      "English translations' rights",
      "Nawawi-40 upstream"
     ],
@@ -332,7 +334,7 @@
      "Numbering and diacritics of the packaged editions"
     ],
     "blocked": [
-     "Rights decision by the owner"
+     "Identification of the digital edition and evidence of its terms"
     ]
    }
   },

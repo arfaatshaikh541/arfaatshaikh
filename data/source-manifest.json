@@ -109,8 +109,8 @@
    },
    "license": {
     "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
-    "status": "PD_WORK_OPEN_EDITION_DECLARED",
-    "notes": "Applying AGPL-3.0 to a text database is legally unsettled; confirm before launch if you redistribute the data itself."
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
    },
    "provenance": "Downloaded from PyPI with checksum verification.",
    "transformation": "Arabic matn and structure only; English layer is a separate dataset.",
@@ -119,12 +119,12 @@
    "date_acquired": "2026-09-30",
    "validation_status": "VERIFIED",
    "validation_notes": "Hadith 1 matches the expected wording; wheel sha256 matches PyPI.",
-   "publication_status": "published",
-   "readiness": "NEEDS_REVIEW",
-   "public": true,
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
    "import_method": "importer script",
    "last_checked": "2026-10-01",
-   "remaining_action": "Owner to confirm the AGPL-3.0 position for redistributing the Arabic text database (does not affect the original text being public domain).",
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust.",
    "targets": [
     {
      "kind": "hadith_collection",
@@ -146,8 +146,8 @@
    },
    "license": {
     "name": "Package declares AGPL-3.0; the original classical text is in the public domain",
-    "status": "PD_WORK_OPEN_EDITION_DECLARED",
-    "notes": "Applying AGPL-3.0 to a text database is legally unsettled; confirm before launch if you redistribute the data itself."
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
    },
    "provenance": "Downloaded from PyPI with checksum verification.",
    "transformation": "Arabic matn and structure only; English layer is a separate dataset.",
@@ -156,12 +156,12 @@
    "date_acquired": "2026-09-29",
    "validation_status": "VERIFIED",
    "validation_notes": "Hadith 1 matches the expected wording; wheel sha256 matches PyPI.",
-   "publication_status": "published",
-   "readiness": "NEEDS_REVIEW",
-   "public": true,
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
    "import_method": "importer script",
    "last_checked": "2026-10-01",
-   "remaining_action": "Owner to confirm the AGPL-3.0 position for redistributing the Arabic text database (does not affect the original text being public domain).",
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust.",
    "targets": [
     {
      "kind": "hadith_collection",
@@ -257,8 +257,8 @@
    },
    "license": {
     "name": "Package declares CC BY 4.0; upstream source not documented. Original text is public domain.",
-    "status": "PD_WORK_OPEN_EDITION_DECLARED",
-    "notes": "Wording was checked against the already-verified Bukhari/Muslim text."
+    "status": "PROVENANCE_UNCLEAR",
+    "notes": "Hidden 2026-10-03 (KEEP_HIDDEN). The package declares AGPL-3.0 but names no edition, editor, publisher or upstream source for the Arabic text, so rights in this digital edition are not established. The data is kept, not deleted. See data/rights-ledger.json."
    },
    "provenance": "npm registry download.",
    "transformation": "Restructured into collection/book/narration rows.",
@@ -267,12 +267,12 @@
    "date_acquired": "2026-09-30",
    "validation_status": "VERIFIED",
    "validation_notes": "Arabic cross-checked against Bukhari/Muslim: 41 of 42 entries found verbatim; the remainder are not marked as verified.",
-   "publication_status": "published",
-   "readiness": "NEEDS_REVIEW",
-   "public": true,
+   "publication_status": "staged",
+   "readiness": "PROVENANCE_UNCLEAR",
+   "public": false,
    "import_method": "importer script",
    "last_checked": "2026-10-01",
-   "remaining_action": "Confirm the upstream compilation's terms.",
+   "remaining_action": "Identify the digital edition the Arabic text was taken from and obtain evidence that its redistribution is permitted (or a written grant from its holder); then record it in data/rights-ledger.json and publish from Data & trust.",
    "targets": [
     {
      "kind": "hadith_collection",

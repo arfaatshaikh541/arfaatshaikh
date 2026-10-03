@@ -27,7 +27,12 @@ class RateLimiter:
             raise ApplicationError("rate_limit_exceeded", "Too many requests. Try again later.", 429)
 
     async def close(self) -> None:
-        await self.redis.aclose()
+        try:
+            await self.redis.aclose()
+        except RuntimeError:
+            # The connections belong to an event loop that has already ended (a second application start in one process, e.g. the test suite).
+            pass
+        self.redis = Redis.from_url(self.settings.redis_url, decode_responses=True)
 
 
 rate_limiter = RateLimiter()

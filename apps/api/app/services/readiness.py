@@ -40,9 +40,12 @@ def load_registry(path: Path | None = None) -> dict:
     return json.loads((path or registry_path()).read_text(encoding="utf-8"))
 
 
-def validate_registry(registry: dict, manifest: dict) -> list[str]:
+def validate_registry(registry: dict, manifest: dict, ledger: dict | None = None) -> list[str]:
     """Every way the declaration claims more than the manifest (or common sense) supports."""
-    problems: list[str] = []
+    from app.services.rights_ledger import decision_of, load_ledger, validate_ledger
+
+    ledger = ledger if ledger is not None else load_ledger()
+    problems: list[str] = [f"rights ledger: {p}" for p in validate_ledger(ledger, manifest)]
     by_id = {d["id"]: d for d in manifest["datasets"]}
     seen: set[str] = set()
     if tuple(registry.get("statuses", ())) != STATUSES:
@@ -98,6 +101,8 @@ def validate_registry(registry: dict, manifest: dict) -> list[str]:
             if d["coverage"] != "FULL":
                 problems.append(f"{where}: READY needs FULL coverage of its stated scope")
             for ds in d["published_datasets"]:
+                if decision_of(ledger, ds) != "PUBLISH":
+                    problems.append(f"{where}: READY but dataset {ds} has ledger decision {decision_of(ledger, ds)}, not PUBLISH (rights are not unconditionally established)")
                 entry = by_id[ds]
                 allowed, reasons = can_publish(license_status=entry["license"]["status"], validation_status=entry["validation_status"], rights_confirmation=entry.get("rights_confirmation"))
                 if not allowed or entry["license"]["status"] not in PUBLISHABLE_LICENCE_STATUSES:

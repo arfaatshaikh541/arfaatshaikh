@@ -143,3 +143,19 @@ async def domain_readiness(db: DbSession):
         _domains_cache["value"] = summarise(load_registry(), await live_state(db))
         _domains_cache["at"] = now
     return _domains_cache["value"]
+
+
+@router.get("/coverage")
+async def coverage_by_domain(db: DbSession):
+    """Per domain: GLOBAL (published non-geographic content), <COUNTRY>_ONLY, REGIONAL, HIDDEN_PENDING_RIGHTS or NO_VERIFIED_DATA, with the countries behind it."""
+    from sqlalchemy import func, select
+
+    from app.models.content_contract import DirectoryListing
+    from app.services.coverage import build_coverage
+    from app.services.directory import public_filter
+
+    domains = (await domain_readiness(db))["domains"]
+    rows = (await db.execute(
+        select(DirectoryListing.listing_type, DirectoryListing.country, func.count(), func.count(DirectoryListing.city), func.count(func.distinct(DirectoryListing.region)))
+        .where(public_filter(), DirectoryListing.country.is_not(None)).group_by(DirectoryListing.listing_type, DirectoryListing.country))).all()
+    return build_coverage(domains, [{"type": t, "country": c, "published": int(n), "city_known": int(ck), "regions": int(rg)} for t, c, n, ck, rg in rows])

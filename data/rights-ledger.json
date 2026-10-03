@@ -1,0 +1,363 @@
+{
+ "version": 1,
+ "as_of": "2026-10-03",
+ "decisions": {
+  "PUBLISH": "redistribution established by evidence on file",
+  "PUBLISH_WITH_CAVEAT": "shown, with the open questions stated; not enough for READY",
+  "KEEP_HIDDEN": "imported and kept, not shown, until the open questions are answered"
+ },
+ "companion_ledgers": [
+  "rights-ledger-tafsir.json",
+  "rights-ledger-hadith-gradings.json"
+ ],
+ "datasets": {
+  "hadith-bukhari-arabic": {
+   "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+   "digital_edition_rights": "UNDOCUMENTED: neither the package metadata nor its README names an edition, editor, publisher or upstream source",
+   "packager_rights": "AGPL-3.0 declared by the packager (muhammadsaadamin / SENODROOM)",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "Package metadata declares AGPL-3.0 and the README's acknowledgments say only 'Source - Sahih al-Bukhari' and 'Translations - By reputable Islamic scholars'.",
+     "url": "https://pypi.org/pypi/sahih-al-bukhari/3.1.7/json",
+     "retrieved": "2026-10-03",
+     "quote": "Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0)"
+    }
+   ],
+   "open_questions": [
+    "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+    "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?",
+    "What does the packager's CDN serve and from where was it taken?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-muslim-arabic": {
+   "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+   "digital_edition_rights": "UNDOCUMENTED: neither the package metadata nor its README names an edition, editor, publisher or upstream source",
+   "packager_rights": "AGPL-3.0 declared by the packager (muhammadsaadamin / SENODROOM)",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "Package metadata declares AGPL-3.0 and the README's acknowledgments say only 'Source - Sahih Muslim' and 'Translations - By reputable Islamic scholars'.",
+     "url": "https://pypi.org/pypi/sahih-muslim/1.1.2/json",
+     "retrieved": "2026-10-03",
+     "quote": "Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0)"
+    }
+   ],
+   "open_questions": [
+    "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+    "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?",
+    "What does the packager's CDN serve and from where was it taken?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-nawawi40-arabic": {
+   "original_work_public_domain": "YES_BY_AUTHOR_DEATH_DATE",
+   "digital_edition_rights": "UNDOCUMENTED: the package describes itself only as 'sanitized data'; its repository is a speed-reader application",
+   "packager_rights": "CC-BY-4.0 declared by an individual author (Shariar Kazi)",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "npm metadata declares CC-BY-4.0, names an individual author and the repository 'dua-speed-reader'; no README, edition or upstream source is published with the package.",
+     "url": "https://registry.npmjs.org/@kazishariar%2fnawawi-40-hadith-data/1.0.3",
+     "retrieved": "2026-10-03",
+     "quote": "Highest-calibre sanitized data for nawawi 40 hadith"
+    }
+   ],
+   "open_questions": [
+    "Which printed or digital edition of the Arabic text was used, who prepared it and under what terms?",
+    "Does the AGPL-3.0 declaration by the packager bind redistribution of the text here, and does the packager hold rights to grant it?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-bukhari-english": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "UNDOCUMENTED",
+   "packager_rights": "AGPL-3.0 declared by the packager",
+   "translation_rights": "NOT_ESTABLISHED: the database records a traditional attribution to a named translator; the package README says only 'By reputable Islamic scholars'",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The package names no translator or publisher for its English text.",
+     "url": "https://pypi.org/pypi/sahih-al-bukhari/3.1.7/json",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Which translation is this, who holds the rights and has the holder permitted redistribution?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-muslim-english": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "UNDOCUMENTED",
+   "packager_rights": "AGPL-3.0 declared by the packager",
+   "translation_rights": "NOT_ESTABLISHED: the database records a traditional attribution to a named translator; the package README says only 'By reputable Islamic scholars'",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The package names no translator or publisher for its English text.",
+     "url": "https://pypi.org/pypi/sahih-muslim/1.1.2/json",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Which translation is this, who holds the rights and has the holder permitted redistribution?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-nawawi40-english": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "UNDOCUMENTED",
+   "packager_rights": "CC-BY-4.0 declared by an individual author",
+   "translation_rights": "UNDOCUMENTED: translator not named",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The package names no translator.",
+     "url": "https://registry.npmjs.org/@kazishariar%2fnawawi-40-hadith-data/1.0.3",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Who translated this text and under what terms?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "quran-arabic-uthmani-hafs": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "PARTLY_DOCUMENTED: the package's own data file names KFGQPC (King Fahd Glorious Quran Printing Complex) as the publisher of the source files and records their SHA-256, but states that no source URL is recorded for the main text package and that it cannot be checked against the publisher. KFGQPC's own end-user licence, embedded in the bundled typeface, grants free use, copy and distribution of the typeface and retains KFGQPC's title.",
+   "packager_rights": "CC-BY-4.0 declared by quran-ws for its dataset",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "CAVEATED",
+   "decision": "PUBLISH_WITH_CAVEAT",
+   "evidence": [
+    {
+     "claim": "PyPI metadata and the bundled LICENSE file declare CC-BY-4.0.",
+     "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+     "retrieved": "2026-10-03",
+     "quote": "License: CC-BY-4.0"
+    },
+    {
+     "claim": "The dataset's provenance block says the main text package has no recorded source URL and cannot be checked against the publisher.",
+     "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+     "retrieved": "2026-10-03",
+     "quote": "No source URL is recorded for this package"
+    },
+    {
+     "claim": "The bundled KFGQPC typeface carries KFGQPC's own end-user licence (not CC BY): free use, copy and distribution, KFGQPC retains title and ownership. The application does not ship the typeface.",
+     "url": "https://pypi.org/pypi/quran-text/0.1.0/json",
+     "retrieved": "2026-10-03",
+     "quote": "KFGQPC retains full title and ownership of this Typeface both as artwork and font software"
+    }
+   ],
+   "open_questions": [
+    "Does KFGQPC permit redistribution of the text file itself (not only the typeface)? Written confirmation from KFGQPC would establish this.",
+    "Can the main text package be re-obtained from KFGQPC and compared byte for byte?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "quran-tajweed-quranws": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "Tajweed annotation layer produced by quran.ws from published rules (Quranpedia)",
+   "packager_rights": "CC-BY-4.0 declared on the npm packages",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "CAVEATED",
+   "decision": "PUBLISH_WITH_CAVEAT",
+   "evidence": [
+    {
+     "claim": "Package licence read at import; not re-read against an upstream grant in this pass.",
+     "url": "https://registry.npmjs.org/@quran.ws%2ftajwid-annotations",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Is the Quranpedia rule set itself openly licensed for reuse?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "quran-translation-pickthall": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "UNDOCUMENTED",
+   "packager_rights": "fawazahmed0/quran-api repository",
+   "translation_rights": "PUBLIC_DOMAIN_BY_TERM_REASONING: Marmaduke Pickthall, first published 1930; translator d. 1936. Terms differ by country and no legal review has taken place.",
+   "redistribution_allowed": "CAVEATED",
+   "decision": "PUBLISH_WITH_CAVEAT",
+   "evidence": [
+    {
+     "claim": "Edition identity and attribution come from the quran-api catalogue; the death date is the translator's, recorded in the manifest.",
+     "url": "https://github.com/fawazahmed0/quran-api",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Public-domain status depends on the country and edition (for example the 1934 edition's term in the United States). A lawyer should confirm for the countries served."
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "quran-translation-yusufali-1934": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "UNDOCUMENTED",
+   "packager_rights": "fawazahmed0/quran-api repository",
+   "translation_rights": "PUBLIC_DOMAIN_BY_TERM_REASONING: Abdullah Yusuf Ali, 1934 edition; translator d. 1953. Terms differ by country and no legal review has taken place.",
+   "redistribution_allowed": "CAVEATED",
+   "decision": "PUBLISH_WITH_CAVEAT",
+   "evidence": [
+    {
+     "claim": "Edition identity and attribution come from the quran-api catalogue; the death date is the translator's, recorded in the manifest.",
+     "url": "https://github.com/fawazahmed0/quran-api",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "Public-domain status depends on the country and edition (for example the 1934 edition's term in the United States). A lawyer should confirm for the countries served."
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "directory-mosques": {
+   "original_work_public_domain": "NOT_APPLICABLE",
+   "digital_edition_rights": "Compiled by @geoalgeria/mosquees from Wikidata (CC0) and OpenStreetMap (ODbL); records keep their source references",
+   "packager_rights": "MIT (package code); ODbL 1.0 and CC0 for the data as declared in the package's LICENSE and dataset-metadata.json",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "CAVEATED",
+   "decision": "PUBLISH_WITH_CAVEAT",
+   "evidence": [
+    {
+     "claim": "Package metadata and dataset-metadata.json state the data terms (read when imported, 2026-10-01).",
+     "url": "https://registry.npmjs.org/@geoalgeria%2fmosquees",
+     "retrieved": "2026-10-03"
+    }
+   ],
+   "open_questions": [
+    "ODbL share-alike: whether the platform's combined database triggers the share-alike obligation has not been decided.",
+    "The records are community data and are not individually verified."
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "tafsir-arabic-classical": {
+   "original_work_public_domain": "UNDOCUMENTED",
+   "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+   "packager_rights": "MIT covers the repository's software only",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+     "retrieved": "2026-10-03"
+    },
+    {
+     "claim": "The repository licence is the MIT licence for 'the Software'.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+     "retrieved": "2026-10-03",
+     "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+    }
+   ],
+   "open_questions": [
+    "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "tafsir-arabic-modern": {
+   "original_work_public_domain": "UNDOCUMENTED",
+   "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+   "packager_rights": "MIT covers the repository's software only",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+     "retrieved": "2026-10-03"
+    },
+    {
+     "claim": "The repository licence is the MIT licence for 'the Software'.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+     "retrieved": "2026-10-03",
+     "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+    }
+   ],
+   "open_questions": [
+    "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "tafsir-english": {
+   "original_work_public_domain": "UNDOCUMENTED",
+   "digital_edition_rights": "UNDOCUMENTED: see data/rights-ledger-tafsir.json (123 editions, none with a stated licence, publisher, editor, translator or year)",
+   "packager_rights": "MIT covers the repository's software only",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "The upstream catalogue lists author, name, language and source site per edition and nothing about rights.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/tafsir/editions.json",
+     "retrieved": "2026-10-03"
+    },
+    {
+     "claim": "The repository licence is the MIT licence for 'the Software'.",
+     "url": "https://raw.githubusercontent.com/spa5k/tafsir_api/main/LICENSE",
+     "retrieved": "2026-10-03",
+     "quote": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software"
+    }
+   ],
+   "open_questions": [
+    "Per edition: who is the publisher/editor/translator, and what terms does the original site (quran.com, qul.tarteel.ai, altafsir.com) grant?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  },
+  "hadith-grading": {
+   "original_work_public_domain": "NO_MODERN_GRADERS_WORK",
+   "digital_edition_rights": "See data/rights-ledger-hadith-gradings.json: each grade names a grader only; printed work, edition and page are not recorded",
+   "packager_rights": "Unlicense for the repository's own files",
+   "translation_rights": "NOT_APPLICABLE",
+   "redistribution_allowed": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN",
+   "evidence": [
+    {
+     "claim": "References.md says the grades were compiled from scans of printed editions on al-maktaba.org (and one archive.org item).",
+     "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/References.md",
+     "retrieved": "2026-10-03"
+    },
+    {
+     "claim": "The repository's licence is the Unlicense; it cannot grant rights in third parties' published gradings.",
+     "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+     "retrieved": "2026-10-03",
+     "quote": "This is free and unencumbered software released into the public domain."
+    }
+   ],
+   "open_questions": [
+    "Do the graders or their publishers permit redistribution of their gradings?",
+    "Which edition and page does each grade come from?"
+   ],
+   "determined_on": "2026-10-03",
+   "determined_by": "Claude Code automated reading of the cited sources; no human or legal review"
+  }
+ }
+}

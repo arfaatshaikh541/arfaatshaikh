@@ -1,0 +1,277 @@
+{
+ "version": 1,
+ "kind": "hadith_grader_sources",
+ "upstream": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/info.json",
+ "upstream_sha256": "cf1ced267ada8f606f95eb84e2b6ddfa87bfa2a6a9dd4cb2a5d9a8c1734f10fb",
+ "references": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/References.md",
+ "references_sha256": "00d51c7d58ec4d90106fc792ca0f1e400eaaad6a51527a4a69dd1d062a4f8283",
+ "repository_licence": {
+  "url": "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/LICENSE",
+  "sha256": "6b0382b16279f26ff69014300541967a356a666eb0b91b422f6862f6b7dad17e",
+  "text_first_line": "This is free and unencumbered software released into the public domain."
+ },
+ "finding": "Each grade names a grader but no printed work, edition or page. The upstream References.md says the grades come from scans of printed editions on al-maktaba.org (and one archive.org item); the repository's Unlicense covers its own files, not the graders' published gradings.",
+ "totals": {
+  "grades": 67716,
+  "graders": 9,
+  "rows": 16
+ },
+ "graders": [
+  {
+   "collection": "abudawud",
+   "grader": "Al-Albani",
+   "grades_recorded": 5252,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/1755",
+    "book_id": "1755",
+    "label": "abu dawed, albani"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "abudawud",
+   "grader": "Muhammad Muhyi Al-Din Abdul Hamid",
+   "grades_recorded": 5171,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/33759",
+    "book_id": "33759",
+    "label": "abu dawed, Muhammad Muhyi Al-Din Abdul Hamid"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "abudawud",
+   "grader": "Shuaib Al Arnaut",
+   "grades_recorded": 3171,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/32832",
+    "book_id": "32832",
+    "label": "abu dawed, arnaut"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "abudawud",
+   "grader": "Zubair Ali Zai",
+   "grades_recorded": 5224,
+   "printed_work_reference": null,
+   "work_reference_note": "No single reference line in the upstream References.md ties this grader to a work for this collection",
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "ibnmajah",
+   "grader": "Al-Albani",
+   "grades_recorded": 4308,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/810",
+    "book_id": "810",
+    "label": "Ibn majah ,albani"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "ibnmajah",
+   "grader": "Muhammad Fouad Abd al-Baqi",
+   "grades_recorded": 4314,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/1198",
+    "book_id": "1198",
+    "label": "Ibn majah, Muhammad Fouad Abd al-Baqi"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "ibnmajah",
+   "grader": "Shuaib Al Arnaut",
+   "grades_recorded": 3242,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/33036",
+    "book_id": "33036",
+    "label": "Ibn majah , Arnaut"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "ibnmajah",
+   "grader": "Zubair Ali Zai",
+   "grades_recorded": 4319,
+   "printed_work_reference": null,
+   "work_reference_note": "No single reference line in the upstream References.md ties this grader to a work for this collection",
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "malik",
+   "grader": "Salim al-Hilali",
+   "grades_recorded": 1858,
+   "printed_work_reference": {
+    "url": "https://archive.org/details/noor-book.com-3_20211020",
+    "book_id": null,
+    "label": "Malik, Salim Al Hilali"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "nasai",
+   "grader": "Abu Ghuddah",
+   "grades_recorded": 5692,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/33865",
+    "book_id": "33865",
+    "label": "nasai, abu Ghuddah"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "nasai",
+   "grader": "Al-Albani",
+   "grades_recorded": 5727,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/783",
+    "book_id": "783",
+    "label": "nasai , albani"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "nasai",
+   "grader": "Zubair Ali Zai",
+   "grades_recorded": 5626,
+   "printed_work_reference": null,
+   "work_reference_note": "No single reference line in the upstream References.md ties this grader to a work for this collection",
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "tirmidhi",
+   "grader": "Ahmad Muhammad Shakir",
+   "grades_recorded": 3729,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/33754",
+    "book_id": "33754",
+    "label": "Tirmidhi, Ahmed Muhammad Shakir"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "tirmidhi",
+   "grader": "Al-Albani",
+   "grades_recorded": 3794,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/782",
+    "book_id": "782",
+    "label": "Tirmidi, albani"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "tirmidhi",
+   "grader": "Bashar Awad Maarouf",
+   "grades_recorded": 2425,
+   "printed_work_reference": {
+    "url": "https://al-maktaba.org/book/33861",
+    "book_id": "33861",
+    "label": "Tirmidhi, Bashar Awad Maarouf"
+   },
+   "work_reference_note": null,
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  },
+  {
+   "collection": "tirmidhi",
+   "grader": "Zubair Ali Zai",
+   "grades_recorded": 3864,
+   "printed_work_reference": null,
+   "work_reference_note": "No single reference line in the upstream References.md ties this grader to a work for this collection",
+   "edition": "NOT_DOCUMENTED",
+   "page": "NOT_DOCUMENTED",
+   "licence": "NOT_DOCUMENTED",
+   "rights_evidence": "NOT_DOCUMENTED",
+   "grading_rights": "NOT_ESTABLISHED",
+   "decision": "KEEP_HIDDEN"
+  }
+ ]
+}

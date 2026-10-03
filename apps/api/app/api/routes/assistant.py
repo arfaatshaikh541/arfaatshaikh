@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.services.ai_provider import get_ai_provider
 from app.services.assistant_runs import persist_run, recent_runs
 from app.services.knowledge_retrieval import authority_summary, hits_view, search_knowledge
+from app.services.retrieval import edition_trust
 from app.services.rag import INSUFFICIENT, assess_confidence, build_sections, build_synthesis_prompt, detect_scholarly_views, rank_evidence, validate_synthesis
 from app.services.retrieval import EvidenceContract, search_evidence
 from app.services.assistant_safety import SAFETY_POLICY_VERSION, SafetyDecision, evaluate_safety
@@ -132,6 +133,12 @@ async def query(payload: AssistantQueryRequest, db: DbSession, user: Annotated[U
         run_id = None
     response = _with_pipeline(_assembled_response(result, safety, evidence), confidence, synthesis, detect_scholarly_views(ranked_for_view))
     response["sections"] = build_sections(ranked_for_view)
+    trust = await edition_trust(db, [item["source_edition_id"] for items in response["sections"].values() for item in items])
+    for items in response["sections"].values():
+        for item in items:
+            item["record_id"] = item["source_passage_id"]
+            item["trust"] = trust.get(item["source_edition_id"]) or {"source_title": None, "author": None, "edition": None, "publisher": None, "source_url": None,
+                                                                       "rights_status": "REDISTRIBUTION_NOT_ESTABLISHED", "retrieved_at": None}
     response["knowledge_sources"] = hits_view(await search_knowledge(db, payload.question))
     response["authority_summary"] = authority_summary(response["sections"], response["knowledge_sources"])
     response["answer_run_id"] = str(run_id) if run_id else None

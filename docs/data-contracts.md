@@ -40,7 +40,7 @@ uses the dataset licence vocabulary. `attributes` holds the type-specific struct
 |---|---|---|
 | `fiqh` | `madhhab`, `topic`, `question`, `ruling`; optional `evidence` `[{type, reference or text}]`, `reasoning` | needs `page` or `chapter`. One record per madhhab position: disagreement is kept as separate records, never merged |
 | `aqeedah` | `school`, `topic`, `statement`; optional `historical_context`, `evidence` | needs `page` or `chapter` |
-| `seerah` | `reliability`: `established`, `well_known_disputed` or `weak_reports` | the category is never inferred |
+| `seerah` | `reliability`: `established`, `well_known_disputed`, `weak_reports` or `unknown` (the source does not say) | the category is never inferred or defaulted upward |
 | `hadith_grading` | `collection`, `hadith_number`, `grades` `[{grader, grade, grading_source}]`; optional per entry: `grading_work`, `grading_edition`, `page_reference`, `source_reference_text`, `provenance`, `note`, `rights_status` (`unverified open permission_granted restricted`), `verification_status` (`unverified checked_against_source disputed`) | one entry per grader, grades copied verbatim, no grade is ever inferred; the same grader twice is rejected; fields the source does not state stay empty |
 | `terminology` | one of `definition`, `technical_meaning`, `linguistic_meaning` | |
 | `library_work` | `availability`: `metadata_only`, `external_link` (+ `external_url`) or `owner_file` | `owner_file` needs a licence status that permits redistribution; `isbn` is validated; no copyrighted file is ever stored |
